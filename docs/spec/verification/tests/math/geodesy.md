@@ -25,13 +25,15 @@ long-double normal/tangent geometry. Use NaN/signed-zero sentinels for preservat
 | TC-F-GEO-NED-TRANSPORT | Tangent-frame curvature and vector transport | F-GEO-NED, vector/covariance | Different origins at equal height; signed-permutation sample-to-origin basis, vector and correlated SPD covariance. | Nonzero Down despite equal ellipsoidal height; hand-calculated vector and covariance rotation, without position translation. | Native: [test_local_ned.cpp](../../../../../tests/math/test_local_ned.cpp) |
 | TC-F-GEO-NED-LIFECYCLE | Local origin lifecycle and value ownership | F-GEO-NED, frame state | Default use, invalid first origin, initialization, invalid replacements, successful replacement after copying. | Status precedence, preserved frame/output on rejection; owned copy retains original origin and basis. | Native: [test_local_ned.cpp](../../../../../tests/math/test_local_ned.cpp) |
 | TC-F-GEO-NED-FAILURE | Local transform invalid and overflowing inputs | F-GEO-NED, failure | NaN/±Inf in each axis; finite max-magnitude vectors overflowing forward/reverse rotation; aliased failure. | Correct input/result status, preserved outputs and inputs. | Native: [test_local_ned.cpp](../../../../../tests/math/test_local_ned.cpp) |
+| TC-F-GEO-NED-REBASE | Construct a change between NED frames | F-GEO-NED, two-frame transform | Orthogonal meridians, nontrivial, antimeridian and polar origins; inverse and three-frame compositions. | Hand-computed rotation/translation, direct ECEF transport, identity/inverse/composition; no origin mutation. | Native: [test_local_ned.cpp](../../../../../tests/math/test_local_ned.cpp) |
+| TC-F-GEO-NED-REBASE-FAILURE | Preserve transform on missing origins | F-GEO-NED, two-frame failure | Uninitialized source, destination and both; NaN/signed-zero output sentinel. | Domain error and both output fields preserved bitwise; frames remain unchanged. | Native: [test_local_ned.cpp](../../../../../tests/math/test_local_ned.cpp) |
 
 ## Source allocation
 
 | Source | API group → cases above |
 |---|---|
 | `geodesy/ecef.hpp` | Value type, scalar restriction, forward/inverse conversions → F-GEO-ECEF cases. |
-| `geodesy/local_ned.hpp` | Origin transaction, initialization query, cached basis, affine transforms/copy → F-GEO-NED cases and format rejection. |
+| `geodesy/local_ned.hpp` | Origin transaction, initialization query, cached basis, affine transforms/copy, two-frame construction → F-GEO-NED cases and format rejection. |
 | `tests/common/test_compile_contracts.py` | Public-header independence additionally checks geodesy has no core/runtime/platform dependency. |
 
 ## Oracle and remaining gaps
@@ -53,5 +55,6 @@ returns, including nonfinite results. Native tests do not inject such a failing
 math backend; local-position arithmetic overflow is exercised with the actual
 backend. Uniform floating-point/libm error bounds, machine-checked inverse
 convergence and target WCET/stack remain open. Runtime origin rebasing and
-PX4/replay adoption are outside this component suite. Passing rows do not approve
-the Draft contracts.
+PX4/replay adoption are outside this component suite. Two-frame construction has
+native coverage only; existing formal profiles do not cover its new source path.
+Passing rows do not approve the Draft contracts.

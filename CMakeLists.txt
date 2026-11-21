@@ -68,7 +68,7 @@ target_compile_definitions(
 
 add_library(formal_eskf_runtime INTERFACE)
 add_library(formal_eskf::runtime ALIAS formal_eskf_runtime)
-target_link_libraries(formal_eskf_runtime INTERFACE formal_eskf::core)
+target_link_libraries(formal_eskf_runtime INTERFACE formal_eskf::core formal_eskf::geodesy)
 
 option(FORMAL_ESKF_BUILD_EIGEN_BACKEND "Build the Eigen linear-algebra backend" ON)
 

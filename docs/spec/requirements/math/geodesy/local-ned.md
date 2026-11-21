@@ -77,6 +77,29 @@ Origin uncertainty, attitude transport, full ESKF covariance rebasing and
 position/velocity cross-covariance transport are caller/composition obligations,
 not established by a successful 3x3 basis conversion.
 
+### Change between two fixed NED frames
+
+Given initialized source and destination frames, `transform_to` shall construct
+one owned transform value, without changing either frame:
+
+~~~text
+A = C_destination transpose(C_source)
+t = C_destination (origin_source_e - origin_destination_e)
+p_destination = A p_source + t
+~~~
+
+The value contains a rotation and translation in metres; its default is the
+identity transform. Construction shall use the cached binary64 origins/bases.
+It shall support identical frames, copies, antimeridian crossings and the
+existing caller-selected polar longitude convention. It shall not rotate
+estimator state, transport P, refresh gravity or publish an active origin.
+
+If either frame is uninitialized, construction shall return `domain_error` and
+preserve both output fields. A nonfinite computed field shall return
+`non_finite_result` and likewise preserve the complete output. Frame identity,
+inverse and composition follow the affine equations, up to numerical error.
+Consumers converting the value to binary32 own the range/precision assessment.
+
 ### Frame state, failure and ownership
 
 - A default frame shall be uninitialized. `set_origin` shall validate and build
@@ -129,10 +152,12 @@ not established by a successful 3x3 basis conversion.
 
 The [implementation](../../../../../include/formal_eskf/geodesy/local_ned.hpp)
 and [native test design](../../../verification/tests/math/geodesy.md) are bound.
-The [formal profiles](../../../../guides/verification.md#geodesy) bind exact
+The [formal profiles](../../../../guides/verification.md#geodesy) bind existing exact
 identities and source equations, initialization, copying, statuses and alias
 preservation. Uniform numerical bounds and target qualification remain open;
-execution evidence is required for every registered profile.
+execution evidence is required for every registered profile. The new two-frame
+constructor has native tests; existing fixed-frame proofs do not establish its
+source behavior or runtime state/covariance rebasing.
 
 ## Open decisions
 

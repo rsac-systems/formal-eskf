@@ -7854,6 +7854,10 @@
           {
             "file": "include/formal_eskf/geodesy/local_ned.hpp",
             "symbol": "Status LocalNed<Linalg>::rotation_from_ecef("
+          },
+          {
+            "file": "include/formal_eskf/geodesy/local_ned.hpp",
+            "symbol": "Status LocalNed<Linalg>::transform_to("
           }
         ],
         "esbmc": [
@@ -7935,6 +7939,30 @@
           {
             "file": "examples/replay_kitti.py",
             "symbol": "def navigation_sample("
+          }
+        ],
+        "esbmc": []
+      }
+    },
+    {
+      "id": "R-ORIGIN-REBASE",
+      "title": "Cartesian INS state and covariance rebasing",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/runtime/origin-rebasing.md",
+            "symbol": "# R-ORIGIN-REBASE:"
+          }
+        ],
+        "lean": [],
+        "cpp": [
+          {
+            "file": "include/formal_eskf/runtime/origin_rebase.hpp",
+            "symbol": "rebase_origin("
+          },
+          {
+            "file": "include/formal_eskf/runtime/origin_rebase.hpp",
+            "symbol": "Status rebase_rotation("
           }
         ],
         "esbmc": []

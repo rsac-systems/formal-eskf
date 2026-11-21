@@ -59,6 +59,7 @@ mixed units in an anonymous vector.
 | `ecef_to_ned` | ECEF position and local frame | Position in the frame's fixed-origin NED coordinates. | F-GEO-NED |
 | `ned_to_ecef` | Fixed-origin NED position and local frame | ECEF position. | F-GEO-NED |
 | `rotation_from_ecef` | Local frame | Copy the cached 3x3 ECEF-to-NED rotation into caller-owned output. | F-GEO-NED |
+| `transform_to` | Source frame and destination frame | Construct an owned source-to-destination NED rotation/translation together; neither frame changes. | F-GEO-NED |
 
 Except for the boolean initialization query, each operation reports `Status`.
 The owning requirements define domains, failure precedence, preservation and
@@ -76,6 +77,12 @@ Each `LocalNed` owns its cached ECEF origin, rotation and initialized flag. No
 estimator state is borrowed or modified. The adapter owns the geographic origin's
 identity/lifetime and its relation to pending observations and published outputs.
 `set_origin` is an explicit local-frame operation, not an estimator reset API.
+`NedTransform` stores the two-frame rotation and translation; its default is the
+identity. Construction uses binary64 cached data. The value may be converted to
+a core scalar under the caller's range/precision contract. The portable
+[state/P rebase operation](../requirements/runtime/origin-rebasing.md) consumes
+it; active-origin publication, gravity refresh and owner histories remain caller
+responsibilities. This adds no dependency from geodesy to the ESKF or runtime.
 
 For a binary32 estimator, the adapter selects a binary64 geodesy backend, performs
 the origin subtraction in binary64, then checks the conversion to its estimator

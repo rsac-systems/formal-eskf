@@ -11,6 +11,13 @@
 namespace formal_eskf::geodesy
 {
 
+/** Old-to-new NED coordinates: p_new = rotation * p_old + translation (metres). */
+template <typename Linalg> struct NedTransform
+{
+    linalg::Matrix<Linalg, 3U, 3U> rotation = linalg::Matrix<Linalg, 3U, 3U>::identity();
+    linalg::Vector<Linalg, 3U> translation{};
+};
+
 /** F-GEO-NED: one owned fixed-origin frame. Changing it does not rebase an estimator. */
 template <typename Linalg> class LocalNed
 {
@@ -25,6 +32,8 @@ public:
     [[nodiscard]] Status ecef_to_ned(vector_type const & position_e, vector_type & position_n) const;
     [[nodiscard]] Status ned_to_ecef(vector_type const & position_n, vector_type & position_e) const;
     [[nodiscard]] Status rotation_from_ecef(matrix_type & C_ne) const;
+    /** Construct this-to-destination coordinates without modifying either frame; failure preserves output. */
+    [[nodiscard]] Status transform_to(LocalNed const & destination, NedTransform<Linalg> & output) const;
 
 private:
     vector_type m_origin_e{};
@@ -104,6 +113,24 @@ template <typename Linalg> Status LocalNed<Linalg>::rotation_from_ecef(matrix_ty
         return Status::domain_error;
     }
     C_ne = m_C_ne;
+    return Status::success;
+}
+
+template <typename Linalg>
+Status LocalNed<Linalg>::transform_to(LocalNed const & destination, NedTransform<Linalg> & output) const
+{
+    if (!m_initialized || !destination.m_initialized)
+    {
+        return Status::domain_error;
+    }
+    NedTransform<Linalg> candidate;
+    candidate.rotation = destination.m_C_ne * linalg::transpose(m_C_ne);
+    candidate.translation = destination.m_C_ne * (m_origin_e - destination.m_origin_e);
+    if (!linalg::all_finite(candidate.rotation) || !linalg::all_finite(candidate.translation))
+    {
+        return Status::non_finite_result;
+    }
+    output = candidate;
     return Status::success;
 }
 

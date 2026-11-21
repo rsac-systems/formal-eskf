@@ -147,6 +147,7 @@ remain empty: these two additional review units are proof gaps, not verified cla
 | `R-MEASUREMENT-FUSION` | [gated correction of one observation group](requirements/runtime/measurement-fusion.md) |
 | `R-RING-BUFFER` | [Fixed-capacity timestamped history](requirements/runtime/ring-buffer.md) |
 | `R-TILT-ALIGNMENT` | [Covariance-based tilt alignment latch](requirements/runtime/tilt-alignment.md) |
+| `R-ORIGIN-REBASE` | [Cartesian INS state and covariance rebasing](requirements/runtime/origin-rebasing.md) |
 
 ## Integration requirements
 

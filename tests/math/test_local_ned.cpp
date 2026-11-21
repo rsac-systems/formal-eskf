@@ -255,6 +255,76 @@ void failure(Context & test, std::string_view profile)
     test.expect(frame.ned_to_ecef(input, input) == Status::non_finite_result && same(input, before), profile,
                 "overflow preserves aliased input/output");
 }
+void frame_transform(Context & test, std::string_view profile)
+{
+    Frame source, destination;
+    test.expect(source.set_origin({0, 0, 0}) == Status::success &&
+                    destination.set_origin({0, 90, 0}) == Status::success,
+                profile, "orthogonal meridian origins");
+    geo::NedTransform<Backend> transform;
+    test.expect(source.transform_to(destination, transform) == Status::success &&
+                    same(transform.rotation, Matrix::from_row_major({1, 0, 0, 0, 0, 1, 0, -1, 0})) &&
+                    la::max_abs(transform.translation - Vector::from_row_major({0, -6378137, 6378137})) == 0.0,
+                profile, "hand-calculated source-to-destination rotation and translation");
+    struct OriginPair
+    {
+        geo::GeodeticPosition source;
+        geo::GeodeticPosition destination;
+    };
+    for (OriginPair const origins : {OriginPair{{25, 121, 100}, {-33, 151, 70}},
+                                     {{0, 179.999, 10}, {0, -179.999, 10}},
+                                     {{0, 0, 0}, {90, 80, 0}},
+                                     {{25, 121, 100}, {-90, -110, 0}}})
+    {
+        test.expect(source.set_origin(origins.source) == Status::success &&
+                        destination.set_origin(origins.destination) == Status::success &&
+                        source.transform_to(destination, transform) == Status::success,
+                    profile, "ordinary, antimeridian and polar transform construction");
+        Vector const p = Vector::from_row_major({12, -7, 3});
+        Vector ecef, direct;
+        test.expect(source.ned_to_ecef(p, ecef) == Status::success &&
+                        destination.ecef_to_ned(ecef, direct) == Status::success &&
+                        la::max_abs(transform.rotation * p + transform.translation - direct) <= 1e-8,
+                    profile, "composed transform agrees with direct ECEF transport");
+        geo::NedTransform<Backend> inverse, identity;
+        test.expect(destination.transform_to(source, inverse) == Status::success &&
+                        destination.transform_to(destination, identity) == Status::success &&
+                        la::max_abs(inverse.rotation * transform.rotation - Matrix::identity()) <= 1e-14 &&
+                        la::max_abs(inverse.rotation * transform.translation + inverse.translation) <= 1e-8 &&
+                        la::max_abs(identity.rotation - Matrix::identity()) <= 1e-14 &&
+                        la::max_abs(identity.translation) == 0.0,
+                    profile, "inverse and same-frame identities without mutating origins");
+        Frame third;
+        geo::NedTransform<Backend> second, composed;
+        test.expect(third.set_origin({-33, 151, 70}) == Status::success &&
+                        destination.transform_to(third, second) == Status::success &&
+                        source.transform_to(third, composed) == Status::success &&
+                        la::max_abs(second.rotation * transform.rotation - composed.rotation) <= 1e-14 &&
+                        la::max_abs(second.rotation * transform.translation + second.translation -
+                                    composed.translation) <= 1e-8,
+                    profile, "three-frame composition order");
+    }
+}
+
+void frame_transform_failure(Context & test, std::string_view profile)
+{
+    Frame empty, initialized;
+    test.expect(initialized.set_origin({25, 121, 100}) == Status::success, profile, "initialized origin");
+    geo::NedTransform<Backend> output;
+    output.rotation(0, 0) = std::numeric_limits<double>::quiet_NaN();
+    output.translation = Vector::from_row_major({-0.0, 7, 8});
+    auto const before = output;
+    test.expect(empty.transform_to(initialized, output) == Status::domain_error &&
+                    same(output.rotation, before.rotation) && same(output.translation, before.translation),
+                profile, "uninitialized source preserves both outputs");
+    test.expect(initialized.transform_to(empty, output) == Status::domain_error &&
+                    same(output.rotation, before.rotation) && same(output.translation, before.translation),
+                profile, "uninitialized destination preserves both outputs");
+    test.expect(empty.transform_to(empty, output) == Status::domain_error && same(output.rotation, before.rotation) &&
+                    same(output.translation, before.translation),
+                profile, "default-to-default is not a valid identity");
+    test.expect(initialized.initialized() && !empty.initialized(), profile, "construction does not change frames");
+}
 } // namespace
 
 int main(int argc, char ** argv)
@@ -267,6 +337,8 @@ int main(int argc, char ** argv)
         {"TC-F-GEO-NED-TRANSPORT", "binary64", curvature_and_transport},
         {"TC-F-GEO-NED-LIFECYCLE", "binary64", lifecycle},
         {"TC-F-GEO-NED-FAILURE", "binary64", failure},
+        {"TC-F-GEO-NED-REBASE", "binary64", frame_transform},
+        {"TC-F-GEO-NED-REBASE-FAILURE", "binary64", frame_transform_failure},
     };
     return formal_eskf::test::run_cases(cases, argc, argv);
 }
