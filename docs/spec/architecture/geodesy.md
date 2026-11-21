@@ -134,9 +134,13 @@ remain separate from target timing/stack qualification.
 
 The two requirement IDs provide the initial review units. Their acceptance
 sections separate exact geometry, checked source behavior and numerical error.
-Source bindings and the [native test suite](../verification/tests/math/geodesy.md)
-are registered. Both IDs are in the formal review map with empty Lean/ESBMC
-bindings; exact-model/source proofs and uniform numerical bounds remain gaps.
+The [formal review map](../../../formal/agent-review/traceability-map.json) binds
+both IDs to the exact-real model, production-source harnesses and source APIs;
+the [native suite](../verification/tests/math/geodesy.md) supplies sampled numerical
+comparisons. The [verification guide](../../guides/verification.md#geodesy)
+defines the formal profiles and exclusions. A registered binding is not a passing
+execution or requirement approval. Machine-checked inverse convergence, uniform
+floating-point/libm bounds and target qualification remain separate obligations.
 
 Independent-oracle and round-trip tests alone cannot establish a uniform error
 bound. Component acceptance also cannot discharge the module's

@@ -29,7 +29,7 @@ parse_arguments()
 {
     while (($#)); do
         case "$1" in
-            all|quaternion|rotation|prediction|prediction32|prediction64|noise|injection|jacobian|reset|reset-generated|pcov|pcov-generated|step|solve|correction|correction-generated|step-correction|step-generated|linalg|scalar|observations|innovation|bias|magnetic|fusion|imu-policies|vertical-health|imu-inhibition|imu-prediction|gnss-quality|gnss-lifecycle|navigation-reset|navigation-recovery|height|delayed-input|delayed-views|delayed-seed|delayed-storage|delayed-history|delayed-observations|delayed-output|module-flow|accelerometer|magnetic-runtime|ring-buffer|codegen) SUITE="$1" ;;
+            all|quaternion|rotation|prediction|prediction32|prediction64|noise|injection|jacobian|reset|reset-generated|pcov|pcov-generated|step|solve|correction|correction-generated|step-correction|step-generated|linalg|scalar|observations|innovation|bias|magnetic|fusion|imu-policies|vertical-health|imu-inhibition|imu-prediction|gnss-quality|gnss-lifecycle|navigation-reset|navigation-recovery|height|delayed-input|delayed-views|delayed-seed|delayed-storage|delayed-history|delayed-observations|delayed-output|module-flow|accelerometer|magnetic-runtime|ring-buffer|codegen|geodesy) SUITE="$1" ;;
             --list) LIST_ONLY=1 ;;
             --shard)
                 [[ "${2:-}" =~ ^([1-9][0-9]{0,2})/([1-9][0-9]{0,2})$ ]] || fail "--shard requires INDEX/COUNT, starting at 1"
@@ -39,7 +39,7 @@ parse_arguments()
                 shift
                 ;;
             --help|-h)
-                printf 'Usage: %s [all|quaternion|rotation|prediction|prediction32|prediction64|noise|injection|jacobian|reset|reset-generated|pcov|pcov-generated|step|solve|correction|correction-generated|step-correction|step-generated|linalg|scalar|observations|innovation|bias|magnetic|fusion|imu-policies|vertical-health|imu-inhibition|imu-prediction|gnss-quality|gnss-lifecycle|navigation-reset|navigation-recovery|height|delayed-input|delayed-views|delayed-seed|delayed-storage|delayed-history|delayed-observations|delayed-output|module-flow|accelerometer|magnetic-runtime|ring-buffer|codegen] [--list] [--shard INDEX/COUNT]\n' "${0##*/}"
+                printf 'Usage: %s [all|quaternion|rotation|prediction|prediction32|prediction64|noise|injection|jacobian|reset|reset-generated|pcov|pcov-generated|step|solve|correction|correction-generated|step-correction|step-generated|linalg|scalar|observations|innovation|bias|magnetic|fusion|imu-policies|vertical-health|imu-inhibition|imu-prediction|gnss-quality|gnss-lifecycle|navigation-reset|navigation-recovery|height|delayed-input|delayed-views|delayed-seed|delayed-storage|delayed-history|delayed-observations|delayed-output|module-flow|accelerometer|magnetic-runtime|ring-buffer|codegen|geodesy] [--list] [--shard INDEX/COUNT]\n' "${0##*/}"
                 printf 'Core producer/caller profiles select ESKF_CODEGEN=0 except the *-generated, delayed-views, delayed-seed, delayed-storage, delayed-history, delayed-observations and delayed-output suites (ESKF_CODEGEN=1); codegen checks emitted kernels directly.\n'
                 printf 'Defaults to all. --list prints the exact planned profile/entry-point inventory without running proofs.\n'
                 printf 'Shards are partial, disjoint inventories. Combine every shard before claiming full coverage.\n'
@@ -77,6 +77,7 @@ parse_arguments()
                 printf 'navigation-reset selects exact-type validation, symmetry-pair arithmetic and all four numerical reset callers with independent state/P aliases. Real PSD is proved separately in Lean; source permission and target backends remain separate.\n'
                 printf 'ring-buffer selects actual fixed-storage operations and inductive history invariants for capacities 1/3/8 and 32/64-bit word models. Caller admission, deployed sample types, other capacities and target timing remain separate.\n'
                 printf 'codegen selects memory/access safety of pinned INS prediction/reset/innovation/Joseph kernels with actual Matrix and fixed-array storage for binary32/64. No arithmetic accuracy or production integration is claimed.\n'
+                printf 'geodesy selects binary64 WGS84 conversion and fixed-origin NED source contracts with arbitrary libm returns; exact geometry is separate Lean evidence, not a uniform floating-point bound.\n'
                 printf 'gnss-lifecycle selects actual integer/Boolean lifecycle transitions and inductive permission/history safety. Estimator repair, external timestamps and actual caller scheduling remain separate.\n'
                 printf 'gnss-quality selects parameter/sample domains, actual motion filters, health timers and composed public-update invariants. Caller metadata, geographic projection and accurate libm remain separate.\n'
                 printf 'imu-prediction selects actual module clipping admission and noise-policy/prediction composition; E-STEP supplies the same-type terminal frame. Full module sequencing and target backend remain separate.\n'
@@ -166,6 +167,55 @@ check_solver_arguments()
     ((MULTI == 0 || INCREMENTAL == 0)) || fail 'ESBMC 8.4.0: do not combine --multi-property with incremental SMT'
 }
 
+check_property_summary()
+{
+    # ESBMC 8.4 can report SUCCESSFUL after a solver returns unknown in
+    # multi-property mode. Require every property to have a positive result.
+    awk '
+        { gsub(/\033\[[0-9;]*m/, "") }
+        /^VERIFICATION SUCCESSFUL$/ { SUCCESS++ }
+        /^Generated [0-9]+ VCC\(s\), [0-9]+ remaining after simplification/ {
+            GENERATIONS++
+            SIMPLIFIED=($4 == 0)
+        }
+        /^Properties: / {
+            SUMMARIES++
+            TOTAL=$2
+            PASSED=0
+            for (I=4; I<=NF; I++)
+                if ($I == "passed" || $I == "passed,") PASSED=$(I-1)
+            if ($0 !~ /^Properties: [0-9]+ verified ✓ [0-9]+ passed$/ || TOTAL <= 0 || PASSED != TOTAL) INCOMPLETE=1
+        }
+        END {
+            if (SUCCESS != 1) exit 1
+            if (SUMMARIES) exit (SUMMARIES != 1 || INCOMPLETE)
+            # Fully simplified runs return before the per-property solver.
+            exit (GENERATIONS != 1 || !SIMPLIFIED)
+        }
+    '
+}
+
+run_verifier()
+{
+    local ARGUMENT MULTI=0 RESULT=0 LOG
+    for ARGUMENT in "$@"; do
+        [[ "${ARGUMENT}" != --multi-property ]] || MULTI=1
+    done
+    if ((MULTI == 0)); then
+        "${ESBMC_COMMAND}" "$@"
+        return
+    fi
+    LOG="$(mktemp)"
+    "${ESBMC_COMMAND}" "$@" >"${LOG}" 2>&1 || RESULT=$?
+    cat "${LOG}"
+    if ((RESULT == 0)) && ! check_property_summary <"${LOG}"; then
+        printf 'error: incomplete multi-property results; the success banner is insufficient\n' >&2
+        RESULT=1
+    fi
+    rm -f -- "${LOG}"
+    return "${RESULT}"
+}
+
 verify()
 {
     local FUNCTION_NAME="$1"
@@ -195,7 +245,7 @@ verify()
 
     local RESULT=0
     printf '==> %s [%s]\n' "${FUNCTION_NAME}" "${PROFILE}"
-    "${ESBMC_COMMAND}" "${SOURCE_FILE}" "${ESBMC_ARGUMENTS[@]}" --unwind "${UNWIND_COUNT}" --timeout "${TIME_LIMIT}" --memlimit "${MEMORY_LIMIT}" \
+    run_verifier "${SOURCE_FILE}" "${ESBMC_ARGUMENTS[@]}" --unwind "${UNWIND_COUNT}" --timeout "${TIME_LIMIT}" --memlimit "${MEMORY_LIMIT}" \
         --function "${FUNCTION_NAME}" "$@" || RESULT=$?
     # Machine-readable execution evidence in the same log as the verifier.
     # A symbol in the traceability map is not evidence that it was executed.
@@ -2230,6 +2280,43 @@ run_scalar_suite()
     done
 }
 
+run_geodesy_suite()
+{
+    local FUNCTION_NAME ALIAS REVERSE REGION MEMORY_LIMIT
+    local -a REGIONS=(non-finite axis general)
+    local -a INVERSE_SOLVER
+    local -a ARGUMENTS=(--proof-unwind 14 --proof-timeout 300s --proof-memory 1500m
+        --64 -D FORMAL_ESKF_PROOF_BINARY64=1 --z3 --array-flattener --tuple-sym-flattener --multi-property)
+    SOURCE_FILE="${PROOF_DIR}/geodesy.cpp"
+    PROFILE=geodesy-binary64-all-ieee
+    for FUNCTION_NAME in verify_geodesy_math_model verify_geodetic_forward verify_ned_initialization \
+        verify_ned_copy verify_ned_rotation; do
+        verify "${FUNCTION_NAME}" "${ARGUMENTS[@]}"
+    done
+    PROFILE=geodesy-binary64-origin-caller
+    verify verify_ned_origin "${ARGUMENTS[@]}" -D FORMAL_ESKF_PROOF_ORIGIN_CONTRACT=1
+    for REGION in "${!REGIONS[@]}"; do
+        PROFILE="geodesy-binary64-inverse-${REGIONS[REGION]}"
+        MEMORY_LIMIT=1500m
+        if ((REGION <= 1)); then
+            INVERSE_SOLVER=(--tuple-node-flattener --smt-during-symex --smt-symex-guard)
+        else
+            MEMORY_LIMIT=4g
+            INVERSE_SOLVER=(--tuple-sym-flattener --multi-property)
+        fi
+        verify verify_geodetic_inverse --proof-unwind 14 --proof-timeout 300s --proof-memory "${MEMORY_LIMIT}" \
+            --64 -D FORMAL_ESKF_PROOF_BINARY64=1 -D "FORMAL_ESKF_PROOF_INVERSE_REGION=${REGION}" \
+            --z3 --array-flattener "${INVERSE_SOLVER[@]}"
+    done
+    for REVERSE in 0 1; do
+        for ALIAS in 0 1; do
+            PROFILE="geodesy-binary64-position-reverse${REVERSE}-alias${ALIAS}"
+            verify verify_ned_position "${ARGUMENTS[@]}" \
+                -D "FORMAL_ESKF_PROOF_REVERSE=${REVERSE}" -D "FORMAL_ESKF_PROOF_ALIAS=${ALIAS}"
+        done
+    done
+}
+
 main()
 {
     parse_arguments "$@"
@@ -2262,6 +2349,11 @@ main()
         fi
         if [[ "${SUITE}" == all || "${SUITE}" == height ]]; then
             python3 "${PROOF_DIR}/height_source.py" "${REPO_DIR}/output/esbmc/height"
+        fi
+        if [[ "${SUITE}" == geodesy ]]; then
+            check_reference_support
+            check_initialization_support
+            check_frame_support
         fi
         printf 'SELECTION\t%s\tshard %d/%d\n' "${SUITE}" "${SHARD_INDEX}" "${SHARD_COUNT}"
     fi
@@ -2400,6 +2492,9 @@ main()
     fi
     if [[ "${SUITE}" == all || "${SUITE}" == module-flow ]]; then
         run_module_flow_suite
+    fi
+    if [[ "${SUITE}" == all || "${SUITE}" == geodesy ]]; then
+        run_geodesy_suite
     fi
     if ((FAILED_CHECKS != 0)); then
         printf 'ESBMC: %d checks failed or did not complete\n' "${FAILED_CHECKS}" >&2

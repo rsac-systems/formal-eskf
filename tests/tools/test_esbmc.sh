@@ -14,11 +14,59 @@ check_count()
     [[ "${ACTUAL}" == "${EXPECTED}" ]] || fail "expected ${EXPECTED} profiles matching ${PATTERN}, got ${ACTUAL}"
 }
 
+check_property_results()
+{
+    local REPORT EXIT_CODE=0 ESBMC_COMMAND=property_probe
+    # Invoked through run_verifier, including the misleading zero-exit case.
+    # shellcheck disable=SC2317
+    property_probe()
+    {
+        printf '%b\n' "${REPORT}"
+        return "${EXIT_CODE}"
+    }
+    REPORT='Properties: 1470 verified ✓ 1470 passed\nVERIFICATION SUCCESSFUL'
+    run_verifier --multi-property >/dev/null
+    REPORT='Properties: 2 verified \e[32m✓ 2 passed\e[0m\nVERIFICATION SUCCESSFUL'
+    run_verifier --multi-property >/dev/null
+    REPORT='Generated 3 VCC(s), 0 remaining after simplification (0 assignments)\nVERIFICATION SUCCESSFUL'
+    run_verifier --multi-property >/dev/null
+    REPORT='Generated 0 VCC(s), 0 remaining after simplification (0 assignments)\nVERIFICATION SUCCESSFUL'
+    run_verifier --multi-property >/dev/null
+    for REPORT in \
+        'Properties: 1470 verified ✓ 1436 passed\nVERIFICATION SUCCESSFUL' \
+        'Properties: 2 verified ✓ 1 passed, ? 1 unknown\nVERIFICATION SUCCESSFUL' \
+        'Properties: 2 verified ✓ 1 passed, ✓ 1 skipped\nVERIFICATION SUCCESSFUL' \
+        'Properties: 2 verified ✓ 1 passed, ✗ 1 failed\nVERIFICATION SUCCESSFUL' \
+        'Properties: 2 verified ✓ 2 passed, ? 1 unknown\nVERIFICATION SUCCESSFUL' \
+        'Properties: 0 verified\nVERIFICATION SUCCESSFUL' \
+        'Properties: many verified ✓ many passed\nVERIFICATION SUCCESSFUL' \
+        'Generated 3 VCC(s), 1 remaining after simplification (4 assignments)\nVERIFICATION SUCCESSFUL' \
+        'Generated 3 VCC(s), 0 remaining after simplification (0 assignments)' \
+        'VERIFICATION SUCCESSFUL'; do
+        if run_verifier --multi-property >/dev/null 2>&1; then
+            fail 'incomplete multi-property report accepted'
+        fi
+    done
+    REPORT='Properties: 2 verified ✓ 2 passed\nVERIFICATION SUCCESSFUL'
+    EXIT_CODE=124
+    if run_verifier --multi-property >/dev/null 2>&1; then
+        fail 'failed verifier process accepted'
+    fi
+    EXIT_CODE=0
+    REPORT='VERIFICATION SUCCESSFUL'
+    run_verifier --z3 >/dev/null
+    unset -f property_probe
+}
+
 check_plan()
 {
-    local PLAN SHARD SHARDED='' BINARY64 APPROX COEFFICIENT ALIAS TAYLOR BASE_PROFILE CONFIGURATION SIZE COLUMNS COLUMN SHAPE
+    local PLAN SHARD SHARDED='' BINARY64 APPROX COEFFICIENT ALIAS TAYLOR BASE_PROFILE CONFIGURATION SIZE COLUMNS COLUMN SHAPE REGION
     PLAN="$("${RUNNER}" --list)"
-    check_count 6395 '^PLAN'
+    check_count 6408 '^PLAN'
+    check_count 13 'geodesy-binary64-'
+    for REGION in non-finite axis general; do
+        check_count 1 "geodesy-binary64-inverse-${REGION}[[:space:]]"
+    done
     check_count 14 'pcov-generated-binary(32|64)-'
     check_count 10 'reset-generated-binary(32|64)-'
     check_count 94 'correction-generated-binary(32|64)-'
@@ -259,8 +307,8 @@ check_plan()
             done
         done
     done
-    [[ "$(printf '%s\n' "${PLAN}" | cut -f 2,4 | sort -u | wc -l)" == 366 ]] || fail 'entry-point inventory changed'
-    [[ "$(printf '%s\n' "${PLAN}" | sort -u | wc -l)" == 6395 ]] || fail 'duplicate planned profile'
+    [[ "$(printf '%s\n' "${PLAN}" | cut -f 2,4 | sort -u | wc -l)" == 374 ]] || fail 'entry-point inventory changed'
+    [[ "$(printf '%s\n' "${PLAN}" | sort -u | wc -l)" == 6408 ]] || fail 'duplicate planned profile'
     for SHARD in 1 2 3 4; do
         SHARDED+="$("${RUNNER}" --list --shard "${SHARD}/4")"$'\n'
     done
@@ -296,6 +344,37 @@ check_plan()
     [[ -z "$(comm -23 <("${RUNNER}" scalar --list | sort) <(printf '%s\n' "${PLAN}" | sort))" ]] ||
         fail 'scalar dependency profile is not in the full inventory'
 }
+
+check_geodesy_arguments()
+(
+    local COUNT=0
+    local -A SEEN=()
+    verify()
+    {
+        local ENTRY="$1" OPTIONS=" $* "
+        [[ "${SOURCE_FILE}" == "${PROOF_DIR}/geodesy.cpp" ]] || fail 'wrong geodesy source'
+        [[ "${OPTIONS}" == *' -D FORMAL_ESKF_PROOF_BINARY64=1 '* ]] || fail 'geodesy must use binary64'
+        if [[ "${ENTRY}" == verify_geodetic_inverse ]]; then
+            [[ "${PROFILE}" == "geodesy-binary64-inverse-${REGIONS[REGION]}" ]] || fail 'wrong inverse region label'
+            [[ "${OPTIONS}" == *" -D FORMAL_ESKF_PROOF_INVERSE_REGION=${REGION} "* ]] || fail 'wrong inverse region definition'
+            SEEN["inverse:${REGION}"]=1
+        elif [[ "${ENTRY}" == verify_ned_origin ]]; then
+            [[ "${OPTIONS}" == *' -D FORMAL_ESKF_PROOF_ORIGIN_CONTRACT=1 '* ]] || fail 'origin caller lost its producer boundary'
+            SEEN["${ENTRY}"]=1
+        elif [[ "${ENTRY}" == verify_ned_position ]]; then
+            [[ "${OPTIONS}" == *" -D FORMAL_ESKF_PROOF_REVERSE=${REVERSE} "* &&
+               "${OPTIONS}" == *" -D FORMAL_ESKF_PROOF_ALIAS=${ALIAS} "* ]] || fail 'wrong NED direction/alias definition'
+            SEEN["position:${REVERSE}:${ALIAS}"]=1
+        else
+            SEEN["${ENTRY}"]=1
+        fi
+        shift
+        check_solver_arguments "$@"
+        COUNT=$((COUNT + 1))
+    }
+    run_geodesy_suite
+    [[ "${COUNT}" == 13 && "${#SEEN[@]}" == 13 ]] || fail 'missing or duplicated geodesy profiles'
+)
 
 check_codegen_arguments()
 (
@@ -3341,7 +3420,9 @@ case "${1:-}" in
     *) fail "unknown argument: $1" ;;
 esac
 (($# == 0)) || fail 'too many arguments'
+check_property_results
 check_plan
+check_geodesy_arguments
 check_codegen_arguments
 check_ring_buffer_arguments
 check_magnetic_runtime_arguments
@@ -3389,7 +3470,7 @@ check_solver_argument_guard
 check_reference_preflight
 check_frame_preflight
 check_initialization_preflight
-printf 'ESBMC inventory tests: pass (6395 profiles; 366 entry points; all shards)\n'
+printf 'ESBMC inventory tests: pass (6408 profiles; 374 entry points; all shards)\n'
 if ((RUN_SOLVER)); then
     check_runtime_input_regressions
     check_ring_buffer_regressions

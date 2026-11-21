@@ -47,9 +47,11 @@ other. The geometry test evaluates each affine direction against the represented
 input separately, so input conversion error is not hidden in a round trip.
 The requirement's boundary-admission caveat remains explicit.
 
-Exact-real identities, a uniform floating-point/libm error bound, source proofs
-and target WCET/stack remain open. Native tests do not inject a failing math
-backend into geodetic/origin construction; nonfinite-result branches there need
-separate source/seam evidence. Local-position arithmetic overflow is exercised
-with the actual backend. Runtime origin rebasing and PX4/replay adoption are
-outside this component suite. Passing rows do not approve the Draft contracts.
+The [formal profiles](../../../../guides/verification.md#geodesy) separately
+cover exact identities and production-source behavior with arbitrary scalar-math
+returns, including nonfinite results. Native tests do not inject such a failing
+math backend; local-position arithmetic overflow is exercised with the actual
+backend. Uniform floating-point/libm error bounds, machine-checked inverse
+convergence and target WCET/stack remain open. Runtime origin rebasing and
+PX4/replay adoption are outside this component suite. Passing rows do not approve
+the Draft contracts.

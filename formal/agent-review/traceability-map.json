@@ -7694,7 +7694,40 @@
             "symbol": "# F-GEO-ECEF:"
           }
         ],
-        "lean": [],
+        "lean": [
+          {
+            "file": "formal/lean/FormalESKF/Geodesy.lean",
+            "symbol": "def geodeticToEcef"
+          },
+          {
+            "file": "formal/lean/FormalESKF/Geodesy.lean",
+            "symbol": "theorem surface_ellipsoid"
+          },
+          {
+            "file": "formal/lean/FormalESKF/Geodesy.lean",
+            "symbol": "theorem equator"
+          },
+          {
+            "file": "formal/lean/FormalESKF/Geodesy.lean",
+            "symbol": "theorem north_pole"
+          },
+          {
+            "file": "formal/lean/FormalESKF/Geodesy.lean",
+            "symbol": "theorem south_pole"
+          },
+          {
+            "file": "formal/lean/FormalESKF/Geodesy.lean",
+            "symbol": "theorem height_displacement"
+          },
+          {
+            "file": "formal/lean/FormalESKF/Geodesy.lean",
+            "symbol": "theorem inverse_latitude_fixedPoint"
+          },
+          {
+            "file": "formal/lean/FormalESKF/Geodesy.lean",
+            "symbol": "theorem inverse_height_identity"
+          }
+        ],
         "cpp": [
           {
             "file": "include/formal_eskf/geodesy/ecef.hpp",
@@ -7709,7 +7742,32 @@
             "symbol": "Status ecef_to_geodetic("
           }
         ],
-        "esbmc": []
+        "esbmc": [
+          {
+            "file": "formal/cpp/esbmc/geodesy.cpp",
+            "symbol": "void verify_geodetic_forward("
+          },
+          {
+            "file": "formal/cpp/esbmc/geodesy.cpp",
+            "symbol": "void verify_geodetic_inverse("
+          },
+          {
+            "file": "formal/cpp/esbmc/geodesy_support.hpp",
+            "symbol": "struct Math :"
+          },
+          {
+            "file": "formal/cpp/esbmc/geodesy_support.hpp",
+            "symbol": "struct MathOracle"
+          },
+          {
+            "file": "formal/cpp/esbmc/geodesy.cpp",
+            "symbol": "void verify_geodesy_math_model("
+          },
+          {
+            "file": "formal/cpp/esbmc/geodesy_support.hpp",
+            "symbol": "struct InverseMath : Math"
+          }
+        ]
       }
     },
     {
@@ -7722,7 +7780,60 @@
             "symbol": "# F-GEO-NED:"
           }
         ],
-        "lean": [],
+        "lean": [
+          {
+            "file": "formal/lean/FormalESKF/Geodesy.lean",
+            "symbol": "def toNed"
+          },
+          {
+            "file": "formal/lean/FormalESKF/Geodesy.lean",
+            "symbol": "def fromNed"
+          },
+          {
+            "file": "formal/lean/FormalESKF/Geodesy.lean",
+            "symbol": "theorem origin_zero"
+          },
+          {
+            "file": "formal/lean/FormalESKF/Geodesy.lean",
+            "symbol": "theorem from_to_ned"
+          },
+          {
+            "file": "formal/lean/FormalESKF/Geodesy.lean",
+            "symbol": "theorem to_from_ned"
+          },
+          {
+            "file": "formal/lean/FormalESKF/Geodesy.lean",
+            "symbol": "theorem basis_normSquared"
+          },
+          {
+            "file": "formal/lean/FormalESKF/Geodesy.lean",
+            "symbol": "theorem normal_is_up"
+          },
+          {
+            "file": "formal/lean/FormalESKF/Geodesy.lean",
+            "symbol": "theorem covariance_psd"
+          },
+          {
+            "file": "formal/lean/FormalESKF/Geodesy.lean",
+            "symbol": "theorem frame_covariance_psd"
+          },
+          {
+            "file": "formal/lean/FormalESKF/MagneticFrame.lean",
+            "symbol": "theorem geographicNedBasis_mul_transpose"
+          },
+          {
+            "file": "formal/lean/FormalESKF/MagneticFrame.lean",
+            "symbol": "theorem geographicNedBasis_transpose_mul"
+          },
+          {
+            "file": "formal/lean/FormalESKF/MagneticFrame.lean",
+            "symbol": "theorem geographicNedBasis_det"
+          },
+          {
+            "file": "formal/lean/FormalESKF/MagneticFrame.lean",
+            "symbol": "theorem magneticFrameChange_compose"
+          }
+        ],
         "cpp": [
           {
             "file": "include/formal_eskf/geodesy/local_ned.hpp",
@@ -7745,7 +7856,48 @@
             "symbol": "Status LocalNed<Linalg>::rotation_from_ecef("
           }
         ],
-        "esbmc": []
+        "esbmc": [
+          {
+            "file": "formal/cpp/esbmc/geodesy.cpp",
+            "symbol": "void verify_ned_initialization("
+          },
+          {
+            "file": "formal/cpp/esbmc/geodesy.cpp",
+            "symbol": "void verify_ned_copy("
+          },
+          {
+            "file": "formal/cpp/esbmc/geodesy.cpp",
+            "symbol": "void verify_ned_origin("
+          },
+          {
+            "file": "formal/cpp/esbmc/geodesy.cpp",
+            "symbol": "void verify_ned_rotation("
+          },
+          {
+            "file": "formal/cpp/esbmc/geodesy.cpp",
+            "symbol": "void verify_ned_position("
+          },
+          {
+            "file": "formal/cpp/esbmc/geodesy_support.hpp",
+            "symbol": "struct Math :"
+          },
+          {
+            "file": "formal/cpp/esbmc/geodesy_support.hpp",
+            "symbol": "struct MathOracle"
+          },
+          {
+            "file": "formal/cpp/esbmc/geodesy.cpp",
+            "symbol": "void verify_geodesy_math_model("
+          },
+          {
+            "file": "formal/cpp/esbmc/geodesy.cpp",
+            "symbol": "void verify_geodetic_forward("
+          },
+          {
+            "file": "formal/cpp/esbmc/geodesy_support.hpp",
+            "symbol": "struct ForwardContract"
+          }
+        ]
       }
     },
     {

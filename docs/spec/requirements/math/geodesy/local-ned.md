@@ -129,7 +129,10 @@ not established by a successful 3x3 basis conversion.
 
 The [implementation](../../../../../include/formal_eskf/geodesy/local_ned.hpp)
 and [native test design](../../../verification/tests/math/geodesy.md) are bound.
-Exact identities and source/numerical proofs remain open.
+The [formal profiles](../../../../guides/verification.md#geodesy) bind exact
+identities and source equations, initialization, copying, statuses and alias
+preservation. Uniform numerical bounds and target qualification remain open;
+execution evidence is required for every registered profile.
 
 ## Open decisions
 

@@ -39,6 +39,64 @@ fixtures alone do not cover it. Existing ESBMC core producer/caller profiles are
 explicitly dense (`ESKF_CODEGEN=0`) except the explicit generated suites below.
 Run native suites in both modes.
 
+### Geodesy
+
+`./scripts/verify_esbmc.sh geodesy` selects the binary64 WGS84 and fixed-origin
+NED profiles for F-GEO-ECEF and F-GEO-NED. Use the qualified reference-address,
+IEEE-frame and aggregate-initialization tool build described below; the runner
+checks those prerequisites before these profiles. Keep execution results and
+source/tool identities with the retained evidence, not in this guide.
+
+[Geodesy.lean](../../formal/lean/FormalESKF/Geodesy.lean) defines exact-real WGS84
+geometry in radians: the ellipsoid surface, normal-height displacement, equator
+and poles, the inverse latitude's fixed point and its height projection. It
+reuses the geographic NED basis from `MagneticFrame.lean` for orthogonality,
+determinant +1, inverse affine maps, axis orientation, vector length and covariance
+PSD preservation. A latitude fixed-point identity does not prove convergence of
+eight iterations or a floating-point error bound.
+
+The [C++ harness](../../formal/cpp/esbmc/geodesy.cpp) executes the production
+headers with the actual fixed-array arithmetic/storage and StandardMath finite
+classifier. Origin construction composes the separately checked forward producer:
+its caller profile forwards the complete input, consumes an arbitrary status and
+finite successful position, then checks basis construction and atomic publication.
+The forward producer profile, with that substitution disabled, is mandatory.
+Each root, sine, cosine or atan2 call may return any IEEE value, independently,
+including NaN and infinity. The oracle checks every request
+argument, call count, ordered coefficient equation, status and published or
+preserved field. Constants are pinned independently of the equation oracle.
+NED profiles include both directions and both legal input/output alias cases,
+constructor initialization, copying, origin replacement and cached-basis access.
+Collectively, they do not assume valid inputs, initialized frames, finite old
+outputs or success. All inverse profiles are required: non-finite coordinates,
+finite coordinates on the ECEF z axis (including the center and both poles),
+and finite coordinates off that axis. These regions are disjoint and exhaustive;
+none assumes successful admission or finite libm returns.
+An independent model profile checks that recorded math returns remain unrestricted
+and correspond to the requested arguments. The inverse observer checks requests
+at their call sites, before later iterations merge control-flow paths.
+The inverse profiles assert the eight-step source protocol; its mathematical
+convergence, principal-angle guarantees and deployed libm accuracy are not
+supplied by arbitrary-return models.
+
+Do not name proof helpers after math-library intrinsics such as `finite` or
+`sqrt`: ESBMC can substitute them without executing their C++ bodies. The geodesy
+helpers avoid that collision, and callable math observers expose the intended
+opaque boundary. Retain mutation controls that fail the intended semantic
+assertions; parse errors, timeouts and tool crashes are not negative-control
+successes.
+
+The runner rejects incomplete multi-property summaries even if ESBMC prints
+`VERIFICATION SUCCESSFUL`: every reported property must pass. Solver unknown,
+skipped or missing properties remain gaps.
+
+Preservation covers values, signed zeros and NaN classification, not NaN payloads
+or object padding. These results do not establish a Lean-to-C++ refinement,
+uniform micrometre accuracy, target backend/compiler/ABI behavior, WCET/stack,
+replay datum correctness or coordinated estimator origin rebasing. Native
+reference comparisons and the separate caller requirements retain their own
+acceptance scopes. The requirement status remains Draft.
+
 ### Generated covariance prediction
 
 `./scripts/verify_esbmc.sh pcov-generated` selects `ESKF_CODEGEN=1`. Its INS

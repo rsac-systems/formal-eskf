@@ -113,7 +113,10 @@ and establish its numerical adequacy over this domain before acceptance.
 - Separate exact-model properties, source/status/atomicity checks and numerical
   comparison evidence. The [implementation](../../../../../include/formal_eskf/geodesy/ecef.hpp) and
   [native test design](../../../verification/tests/math/geodesy.md) are bound;
-  exact/source proofs and uniform floating-point bounds remain open.
+  [formal profiles](../../../../guides/verification.md#geodesy) separately cover
+  exact forward geometry, inverse fixed-point/height identities and C++ equations,
+  statuses and preservation. Inverse convergence and uniform floating-point/libm
+  bounds remain open; the fixed-point theorem alone does not establish convergence.
 
 ## Open decisions
 
