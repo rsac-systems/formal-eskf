@@ -15,7 +15,7 @@ the [specification index](spec/README.md) locates canonical requirement definiti
 | Subject | Entry |
 |---|---|
 | Requirements | [Capability hierarchy and canonical layer index](spec/README.md) |
-| Architecture | [Software boundaries](spec/architecture/overview.md), [numerical abstraction](spec/architecture/numerics.md), [PX4 module](spec/architecture/px4-module.md) |
+| Architecture | [Software boundaries](spec/architecture/overview.md), [numerical abstraction](spec/architecture/numerics.md), [portable navigation runtime](spec/architecture/navigation-runtime.md), [PX4 module](spec/architecture/px4-module.md) |
 | Deployment profile | [PX4 SIH 250 Hz](spec/profiles/px4-sih-250hz.md) |
 | Verification policy | [Claims and traceability](spec/verification/assurance.md), [test standard and template](spec/verification/testing.md), [source inventory](spec/verification/source-inventory.md), [static analysis](spec/verification/static-analysis.md) |
 | Test design | [Core and portable runtime](spec/verification/tests/README.md): requirement-led cases, independent oracles, profiles and explicit acceptance gaps. |
@@ -26,6 +26,7 @@ experiment does not silently override them.
 ## Guides
 
 - [Coding style](guides/coding-style.md): naming, readability and organization; language permissions remain in the C++ subset.
+- [Portable INS runtime](guides/navigation-runtime.md): explicit settings, bounded session phases, standalone example and adapter responsibilities.
 - [Configuration](guides/configuration.md): core/runtime options, menu ownership and packaged PX4 settings.
 - [PX4 operation](../integrations/px4/README.md): installation, module tests and SITL commands.
 - [Verification and evidence](guides/verification.md): tool responsibilities, remaining proof boundaries and evidence retention.

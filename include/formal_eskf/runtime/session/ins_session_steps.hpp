@@ -118,7 +118,8 @@ bool InsSession<Linalg, Layout>::reset_output(quaternion_type const & delta_q, v
     {
         m_resets.record_attitude(m_time_us, attitude);
     }
-    m_resets.odometry_count += std::max<unsigned>(1, request.height_count + request.vertical_velocity);
+    auto const count = std::max<unsigned>(1, request.height_count + request.vertical_velocity);
+    m_resets.odometry_count = static_cast<std::uint8_t>(m_resets.odometry_count + count);
     return true;
 }
 

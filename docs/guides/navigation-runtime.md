@@ -1,0 +1,94 @@
+# Using the Portable INS Runtime
+
+Use [InsSession](../../include/formal_eskf/runtime/session/ins_session.hpp) when an
+application needs the existing complete geographic INS pipeline. Standalone
+ESKF, AHRS and individual runtime components remain available. This session is
+binary64; it does not infer a complete binary32 geographic deployment from the
+core's scalar support.
+
+The [architecture](../spec/architecture/navigation-runtime.md) and
+[R-INS-SESSION](../spec/requirements/runtime/ins-session.md) own the boundaries.
+The [PX4 adapter](../../integrations/px4/module/FormalEskf.cpp) uses the same owner.
+Legacy log replay retains its separate scheduling; it has not been migrated.
+
+## Build and run the host example
+
+From the repository root, with Eigen installed:
+
+```bash
+cmake -S . -B build/runtime -DBUILD_TESTING=ON -DFORMAL_ESKF_BUILD_EXAMPLES=ON
+cmake --build build/runtime --target ins_runtime test_ins_session --parallel 2
+./build/runtime/ins_runtime
+ctest --test-dir build/runtime -R formal_eskf.ins_session --output-on-failure
+```
+
+[ins_runtime.cpp](../../examples/ins_runtime.cpp) supplies synthetic stationary
+IMU/GNSS/magnetic/barometer data and a known magnetic reference, using explicit
+timestamps without a wall clock or PX4/ROS dependency. It prints local NED/MSL
+output. It is an API example, not a dataset accuracy benchmark. The separate
+[example profile](../../examples/ins_runtime_profile.hpp) contains uncalibrated
+settings; copying them does not qualify a real sensor or vehicle.
+
+## Application responsibilities
+
+Construct one persistent session using a linalg backend, fixed storage/feature
+layout and copied component settings. Bind dimensions at compile time; there is
+no runtime backend or sensor registry. The session is a header-only runtime owner;
+link the existing `formal_eskf::runtime` and selected linalg CMake targets. There
+is no standalone installed CMake package/discovery interface at present. The PX4
+exporter copies the complete public-header tree into its relocatable package.
+
+The application validates the complete profile before processing inputs. Component
+validity checks have their own scope: `initialization_valid()` validates bootstrap
+settings only. Configure timing, optional gravity, magnetic reference preferences
+and fixed body sensor positions before the first admitted estimator epoch. Keep
+these settings frozen thereafter. Layout controls backing capacities, gravity
+sampling interval and compiled gravity/ground-effect/model paths; it does not
+supply numerical defaults or change the core state formulation.
+
+Supply calibrated body-FRD samples, geographic GNSS values with declared altitude
+datums, source/calibration identity and explicit sample/arrival times in one
+monotonic domain. Startup magnetic accumulation uses gauss; normal magnetic input
+uses microtesla. The adapter owns receiver-format startup speed metrics, unit/time
+conversion, driver acquisition and independently known land/vehicle context.
+No runtime owner reads a clock, device, filesystem or platform parameter.
+
+## Bounded call sequence
+
+| Boundary | Application action |
+|---|---|
+| Startup/current IMU | Supply IMU, arrival time, context and current startup observations. Complete any pending phase before another IMU. |
+| Startup model request | Acquire an optional external magnetic result from the exposed query. Complete initialization; after success obtain the seed arrival time and seed histories. |
+| Current output | After an already initialized IMU update, a fresh current nominal attitude may be published before delayed fusion. |
+| Observation admission | Admit newly arrived GNSS, magnetic and barometric records in that order. Preserve their actual source/sample/arrival identity. |
+| Delayed update | If fusion is ready, begin it; answer an optional magnetic model request and complete it. Completion includes output feedback, history completion and origin handling. |
+| Navigation/reporting | Publish from coherent read-only views after completion. Drain raw innovation events after each startup/current or fusion phase, applying clear, measurement and reset effects in order. |
+
+A missing model result uses the configured fallback. Do not replace it with an
+invented field. No IMU means no propagation or horizon advance; freshness queries
+may expire validity as wall time advances. Delayed state/P and current nominal
+output have distinct epochs. There is no current-time covariance, and ordinary
+feedback/reset does not promise strictly continuous odometry.
+
+One caller writes the session. Read-only views borrow live storage; copy a bounded
+snapshot under application-owned synchronization for concurrent readers. A callback
+is not a transaction: earlier successful phases/publications survive later
+failure. Numerical/history faults latch until session replacement. Observation
+rejection alone does not require restart. The core's individual atomic operations
+and coordinated origin transaction keep their existing boundaries.
+
+## Resource and evidence boundary
+
+Storage capacities and per-phase work are fixed by the selected layout/profile.
+Keep the session persistent rather than placing a full owner on each callback's
+stack. No dynamic allocation or OS synchronization is added to the portable owner;
+backend/libm and adapter dependencies still need target review. The existing PX4
+module keeps its 64 KiB object-size check and 60 KiB reserved work-queue stack.
+A compiler's largest single-function stack record is not a full call-chain bound.
+
+Use the [registered session cases](../spec/verification/tests/runtime/ins-session.md)
+and existing component/module tests. Same-backend correspondence, independent
+fixture checks, sanitizers and static analysis establish different properties.
+[Open verification boundaries](verification.md#open-boundaries) retain stale caller
+pins, incomplete solver profiles, numerical budgets and target qualification;
+extracting a session does not close those obligations.

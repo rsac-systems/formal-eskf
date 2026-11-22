@@ -69,11 +69,12 @@ that reporting storage, not estimator state or source history.
 The fixed consumer XY projection shall remain separate from the moving WGS84
 working frame. Use the configured positive sphere radius and azimuthal-equidistant
 formula, evaluating in binary64 and rounding north/east to binary32 metres.
-Callers shall establish finite valid geographic coordinates and exclude antipodal
-queries; initialization, source qualification and frame admission supply these
-premises on session paths. Projection does not validate arbitrary geographic
-inputs. Output height uses the existing MSL datum; working coordinates remain
-Cartesian NED with their existing rebasing contract.
+Callers shall establish finite valid geographic coordinates. Session paths check
+geographic validity; the application's consumer-map operating domain shall also
+exclude antipodal queries. Moving the working origin alone does not establish
+that premise. Projection does not validate arbitrary geographic inputs. Output
+height uses the existing MSL datum; working coordinates remain Cartesian NED with
+their existing rebasing contract.
 
 ## Acceptance and verification
 

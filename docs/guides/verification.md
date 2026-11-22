@@ -17,9 +17,10 @@ it is neither a proof nor a mandatory review of every function.
 
 - PX4/replay caller evidence remains tied to its checked source revision. The
   module/replay extractor currently rejects stale source pins; the portable-runtime
-  extraction is not covered by those historical results. Caller reconciliation
-  remains part of A-01.12. Opaque callee contracts, source-fragment frames and
-  platform bindings remain reviewed boundaries, not a complete deployed-module proof.
+  extraction is not covered by those historical results. A-01.12 retains these
+  entries as historical/unreconciled; updated portable-session caller proofs remain
+  V-01 work. Opaque callee contracts, source-fragment frames and platform bindings
+  remain reviewed boundaries, not a complete deployed-module proof.
 - Deployed matrix/libm accuracy, numerical error budgets and repeated-step
   invariants are not implied by finite outputs or exact-real theorems.
 - Work-queue/consumer behavior, dependency allocation/locking, forced shutdown,
@@ -628,10 +629,15 @@ whole-callback atomicity or target timing follows from these queue properties.
 
 ### PX4 and replay temporal callers
 
-`./scripts/verify_esbmc.sh module-flow` checks the pinned default PX4 binary64
-profile and the separate host replay timeline. It uses the qualified reference,
-IEEE-frame and initialization frontend above. Successful component proofs alone
-do not establish these caller properties; all selected profiles, source bindings,
+`./scripts/verify_esbmc.sh module-flow` is the historical caller suite for the
+pinned default PX4 binary64 profile and the separate host replay timeline. It uses
+the qualified reference, IEEE-frame and initialization frontend above. Its current source guard rejects
+the extracted session because the old method/source pins no longer match. The
+positive source-extraction fixture in `tests/tools/test_esbmc.sh` also cannot pass
+until that binding is reconciled; its failure must not be suppressed or counted
+as a solver result. The following table describes retained proof obligations,
+not current passing evidence. Successful component proofs alone do not establish
+these caller properties; all selected profiles, source bindings,
 producer dependencies and native checks are required.
 
 | Caller boundary | Property checked |

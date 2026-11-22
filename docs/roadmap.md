@@ -69,7 +69,7 @@ Dynamic-pressure compensation remains D-03.
 | Task | Status | Scope and completion boundary |
 |---|---|---|
 | F-04.1 — Timing design | Completed | Initial [250 Hz SIH profile](spec/profiles/px4-sih-250hz.md): epochs, delays, capacities, horizon, ordering/overflow and reset behavior. Target resource and accuracy acceptance remain F-07. |
-| F-04.2 — Delayed fusion and output prediction | Partial | IMU, observation/context and output owners are connected to live delayed prediction/fusion and current-time publication, with source-composed caller checks and native scenarios. Full deployed refinement remains outside V-01's scoped claim; landing, accuracy and target resource acceptance remain F-07. |
+| F-04.2 — Delayed fusion and output prediction | Partial | IMU, observation/context and output owners are connected to live delayed prediction/fusion and current-time publication, with native scenarios and historical source-composed caller checks. Rebinding caller evidence after extraction remains V-01; landing, accuracy and target resource acceptance remain F-07. |
 
 Contracts: [delayed fusion](spec/requirements/integration/px4/delayed-fusion.md),
 [output tracking](spec/requirements/integration/px4/output-predictor.md).
@@ -147,6 +147,9 @@ requirement-to-source-to-evidence chain.
 
 ### A-01 — Portable navigation runtime
 
+The portable extraction extends the earlier completed A-01 PX4 refactor through
+A-01.1–A-01.12; it does not reopen or broaden that historical completion claim.
+
 Extract the existing INS session under
 [SW-NAV](spec/requirements/software/navigation-runtime.md) and the
 [runtime architecture](spec/architecture/navigation-runtime.md). Preserve the
@@ -168,7 +171,7 @@ continuous-odometry feature is part of this extraction.
 | A-01.9 — INS initialization | Completed | Portable bounded bootstrap preserving current strict startup and seeding. |
 | A-01.10 — Session and PX4 delegation | Completed | One concrete owner; remove duplicate module ownership and preserve execution phases. |
 | A-01.11 — Standalone acceptance | Completed | Host example and canonical-input comparisons without platform dependencies. |
-| A-01.12 — Integration closure | Planned | Public usage, installed headers, dependency/resource review and current source/evidence bindings. |
+| A-01.12 — Integration closure | Completed | Usage, exported-header consumer, dependency/resource review and current source mappings. Historical caller evidence remains explicitly stale under V-01. |
 
 Preserve existing functional/proof scope and IDs during extraction. Retained local
 before/after traces support the refactor but do not establish physical accuracy,
@@ -182,9 +185,10 @@ numerical and composition gaps listed in the
 [open verification boundaries](guides/verification.md#open-boundaries).
 IMU, observation/context, output-predictor and
 `HeightAiding` owners have scoped contracts and inductive evidence within their
-documented producer and source-adapter boundaries. Owner/caller coverage also
-includes source-composed PX4/replay temporal checks; its
-[reviewed frames and platform assumptions](guides/verification.md#px4-and-replay-temporal-callers)
+documented producer and source-adapter boundaries. Historical owner/caller evidence
+also includes source-composed PX4/replay temporal checks. Their source pins do not
+cover the portable session extraction; reconcile callers and rerun before
+claiming current composition proof. The [reviewed frames and platform assumptions](guides/verification.md#px4-and-replay-temporal-callers)
 do not establish full deployed-module refinement or numerical tracking bounds.
 Keep producer/caller dependencies and history/feedback transactions explicit;
 the entire callback is not assumed atomic. Record accepted profiles and remaining

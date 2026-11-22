@@ -5,6 +5,7 @@
 #include <lib/geo/geo.h>
 #include <formal_eskf/linalg/backend/px4_matrix.hpp>
 #include <formal_eskf/runtime/frames/navigation_frame.hpp>
+#include <formal_eskf/runtime/frames/spherical_projection.hpp>
 
 int main(int argc, char ** argv)
 {
@@ -56,7 +57,18 @@ int main(int argc, char ** argv)
         MapProjection projection(lat0, lon0);
         float north{}, east{};
         double back_lat{}, back_lon{};
-        projection.project(lat, lon, north, east);
+        using Math = formal_eskf::scalar::StandardMath<double>;
+        formal_eskf::runtime::SphericalProjection<Math> portable{6371000.};
+        portable.set_origin(lat0, lon0, 1);
+        portable.project(lat, lon, north, east);
+        float reference_north{}, reference_east{};
+        projection.project(lat, lon, reference_north, reference_east);
+        if (north != reference_north || east != reference_east)
+        {
+            std::cerr << "Portable consumer projection differs from pinned PX4 projection\n";
+            return 1;
+        }
+        // PX4's inverse is a separate reference, not a portable inverse implementation.
         projection.reproject(north, east, back_lat, back_lon);
         std::cout << north << ' ' << east << ' ' << back_lat << ' ' << back_lon << '\n';
     }

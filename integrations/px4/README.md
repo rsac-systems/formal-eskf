@@ -2,6 +2,11 @@
 
 This directory owns the PX4 wrapper, board configuration, installation tools and flight tests. The numerical core remains in `include/formal_eskf/`. Installing copies both the wrapper and core headers into PX4; the PX4 build does not reference the original formal-eskf checkout.
 
+The [portable INS session](../../docs/guides/navigation-runtime.md) owns estimator
+state, histories, fusion ordering and frames. The wrapper supplies PX4 settings,
+decoded inputs, external magnetic lookup results and publication; it does not
+maintain a second estimator or history.
+
 Unless stated otherwise, behavior below describes the default profile.
 
 The supported target is **PX4 v1.16.2**, commit `54f0455ffcd755534539a7cf33a09a20bf71d29d`, on Linux with GCC 11 or newer and C++20. The dedicated `px4_sitl_formal_eskf` board replaces EKF2 with a single-instance formal-eskf INS using the PX4 matrix backend and double precision.
@@ -124,10 +129,9 @@ The destination requires the pinned PX4 checkout and its build dependencies. It 
 
 ## Production module tests
 
-The native `test_px4_*.cpp` component tests in `tests/` are built by the repository's
-root CMake/CTest configuration. They exercise module helpers with the selected
-linalg backend without starting PX4. They are separate from the uORB fixture
-below and are not installed into the PX4 package.
+Native component/session tests in `tests/runtime/` are built by the repository's
+root CMake/CTest configuration without starting PX4. They are separate from the
+uORB fixture below and are not installed into the PX4 package.
 
 After installing the package, enable the host fixture on the pinned SITL target:
 
@@ -182,7 +186,7 @@ Settings are validated together and require restart. See the
 [timing profile](../../docs/spec/profiles/px4-sih-250hz.md) for rate, capacity, offset,
 freshness, gap and fault rules. Storage does not resize during operation.
 
-The live module owns separate working and fixed publication frames. GNSS
+The live module's session owns separate working and fixed publication frames. GNSS
 position/velocity are fused in receiver geographic axes; height uses the held
 ellipsoid/MSL datum. Publication keeps the fixed PX4 map/MSL reference and reports
 velocity/attitude in geographic NED at the current body point. Internal frame
