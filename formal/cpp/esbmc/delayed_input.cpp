@@ -1,21 +1,18 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "contracts.hpp"
-#include "delayed_library.hpp"
 #include <formal_eskf/runtime/sensors/imu/imu.hpp>
 #include "../../../integrations/px4/module/DeploymentProfile.hpp"
 // Expose the production input predicate only; no owner/buffer body is replaced.
 #define private public
-#define max formal_eskf_proof_max
-#include "../../../integrations/px4/module/ImuHistory.hpp"
-#undef max
+#include <formal_eskf/runtime/history/imu_history.hpp>
 #undef private
 
 using contract_proof::Scalar;
-using Imu = formal_eskf::px4::ImuHistory<contract_proof::Linalg>;
+using Imu = formal_eskf::runtime::ImuHistory<contract_proof::Linalg, 64>;
 using Input = Imu::input_type;
-using TimingParameters = formal_eskf::px4::TimingParameters;
-using TimingConfiguration = formal_eskf::px4::TimingConfiguration;
+using TimingParameters = formal_eskf::runtime::TimingParameters;
+using TimingConfiguration = formal_eskf::runtime::TimingConfiguration;
 namespace profile = formal_eskf::px4::profile;
 static_assert(profile::history::filter_interval_us == 4000 && profile::history::minimum_period_us == 3800U &&
                   profile::history::maximum_period_us == 4200U && profile::history::maximum_lag_us == 300000U &&
@@ -25,14 +22,14 @@ static_assert(profile::history::filter_interval_us == 4000 && profile::history::
                   profile::history::imu_capacity == 64U,
               "Input/timing oracle pins the implemented 250 Hz deployment profile");
 
-inline bool same_configuration(formal_eskf::px4::TimingConfiguration const & a,
-                               formal_eskf::px4::TimingConfiguration const & b)
+inline bool same_configuration(formal_eskf::runtime::TimingConfiguration const & a,
+                               formal_eskf::runtime::TimingConfiguration const & b)
 {
     return a.minimum_lag_us == b.minimum_lag_us && a.gnss_delay_us == b.gnss_delay_us &&
            a.magnetic_delay_us == b.magnetic_delay_us && a.barometer_delay_us == b.barometer_delay_us &&
            a.imu_length == b.imu_length;
 }
-inline bool same_source(formal_eskf::px4::ImuSource const & a, formal_eskf::px4::ImuSource const & b)
+inline bool same_source(formal_eskf::runtime::ImuSource const & a, formal_eskf::runtime::ImuSource const & b)
 {
     return a.accelerometer_id == b.accelerometer_id && a.gyroscope_id == b.gyroscope_id &&
            a.accelerometer_calibration == b.accelerometer_calibration &&
@@ -65,7 +62,8 @@ void verify_timing_configuration(TimingParameters parameters, TimingConfiguratio
         eligible = lag >= 150000U + gnss + 2100U && lag >= 100000U + magnetic + 2100U &&
                    lag >= 100000U + barometer + 2100U && lag <= 300000U && intervals < 64U;
     }
-    bool const accepted = formal_eskf::px4::configure_timing(parameters, output);
+    bool const accepted =
+        formal_eskf::runtime::configure_timing(parameters, formal_eskf::px4::profile::history::timing, 64, output);
     __ESBMC_assert(accepted == eligible,
                    "Delayed timing: exact signed-domain, arrival budget, lag and capacity admission");
     if (accepted)
@@ -103,7 +101,8 @@ bool admitted_input(Input const & sample, std::uint64_t now)
 void verify_imu_input(Input sample, std::uint64_t now)
 {
     auto const before = sample;
-    __ESBMC_assert(Imu::valid_input(sample, now) == admitted_input(sample, now) && same_input(sample, before),
+    __ESBMC_assert(Imu::valid_input(sample, now, profile::history::timing) == admitted_input(sample, now) &&
+                       same_input(sample, before),
                    "IMU history: exact timestamp, period, clipping and finite-rate admission without input mutation");
 }
 

@@ -57,6 +57,12 @@ model lookup shall supply explicit data; the runtime shall not acquire platform
 services through generic callbacks. Numerical backend/configuration binding shall
 remain at the declared C++ boundaries.
 
+## Decomposition
+
+| Child | Allocated obligation |
+|---|---|
+| [R-IMU-HISTORY](../runtime/history/imu-history.md) | Retained IMU intervals, configured timing, source admission and completion cursor. |
+
 ## Acceptance and verification
 
 Build and exercise the session without platform headers/libraries. Trace the same

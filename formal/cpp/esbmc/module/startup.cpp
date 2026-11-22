@@ -7,7 +7,6 @@
 #include <cstring>
 #include "../contracts.hpp"
 #include "../../../../integrations/px4/module/DeploymentProfile.hpp"
-#include "module_timing_type.inc"
 
 extern bool nondet_bool();
 extern std::int32_t nondet_parameter();
@@ -17,7 +16,7 @@ extern std::uint64_t nondet_time();
 namespace
 {
 namespace profile = formal_eskf::px4::profile;
-using Timing = formal_eskf::px4::TimingParameters;
+using Timing = formal_eskf::runtime::TimingParameters;
 struct Services
 {
     bool parameter_ok[6]{};
@@ -56,6 +55,12 @@ struct Owner
 {
     unsigned identity{};
     bool configured{};
+    bool configure(Timing const & timing, formal_eskf::runtime::ImuTiming const & limits)
+    {
+        __ESBMC_assert(identity == 0 && &limits == &profile::history::timing,
+                       "IMU startup receives the deployment timing bounds");
+        return configure(timing);
+    }
     bool configure(Timing const & timing)
     {
         __ESBMC_assert(services.parameter_reads == 5 && services.configuration_calls == identity,

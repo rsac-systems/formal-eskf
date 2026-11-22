@@ -8,19 +8,24 @@ using imu_proof::same_configuration;
 using imu_proof::same_input;
 namespace
 {
+formal_eskf::runtime::ImuTiming expected_timing;
 Input const * expected_input;
 std::uint64_t expected_now;
 bool admission_result;
 unsigned admission_calls;
 } // namespace
-template <> bool formal_eskf::px4::ImuHistory<Backend>::valid_input(input_type const & sample, std::uint64_t now)
+template <>
+bool formal_eskf::runtime::ImuHistory<Backend, 64>::valid_input(input_type const & sample, std::uint64_t now,
+                                                                formal_eskf::runtime::ImuTiming const & timing)
 {
+    __ESBMC_assert(imu_proof::same_timing(timing, expected_timing),
+                   "IMU admission receives the owned timing profile unchanged");
     __ESBMC_assert(&sample == expected_input && now == expected_now && admission_calls == 0,
                    "IMU view-alias admission forwards the borrowed object and clock");
     ++admission_calls;
     return admission_result;
 }
-template <> formal_eskf::ImuSample<Backend> formal_eskf::px4::ImuInput<Backend>::mean_rates() const
+template <> formal_eskf::ImuSample<Backend> formal_eskf::runtime::ImuInput<Backend>::mean_rates() const
 {
     __ESBMC_assert(false, "IMU old view must be rejected before rate evaluation");
     return {};
@@ -31,6 +36,7 @@ template <> void formal_eskf::runtime::RingBuffer<Interval, 64>::push(Interval c
 }
 void verify_imu_borrowed_input(Imu owner, std::uint64_t now, bool admitted)
 {
+    expected_timing = owner.m_timing;
     imu_proof::metadata(owner.m_samples);
     std::uint64_t integers[imu_proof::capacity][12];
     imu_proof::Scalar values[imu_proof::capacity][12];
@@ -63,6 +69,7 @@ void verify_imu_borrowed_input(Imu owner, std::uint64_t now, bool admitted)
     }
     auto const previous = owner.m_previous;
     auto const config = owner.m_configuration;
+    auto const timing = owner.m_timing;
     auto const fusion = owner.m_fusion_time_us;
     auto const fault = owner.m_fault;
     auto const length = owner.m_samples.m_length;
@@ -86,9 +93,9 @@ void verify_imu_borrowed_input(Imu owner, std::uint64_t now, bool admitted)
                        owner.m_fault == (calls_admission ? Imu::Fault::invalid_sample : fault),
                    "IMU old view follows admission and first-fault precedence");
     __ESBMC_assert(same_input(owner.m_previous, previous) && same_configuration(owner.m_configuration, config) &&
-                       owner.m_fusion_time_us == fusion && owner.m_samples.m_length == length &&
-                       owner.m_samples.m_count == count && owner.m_samples.m_oldest == oldest &&
-                       owner.m_samples.m_write == write,
+                       imu_proof::same_timing(owner.m_timing, timing) && owner.m_fusion_time_us == fusion &&
+                       owner.m_samples.m_length == length && owner.m_samples.m_count == count &&
+                       owner.m_samples.m_oldest == oldest && owner.m_samples.m_write == write,
                    "IMU view-alias rejection preserves the complete owner frame");
 
     for (std::size_t i = 0; i < imu_proof::capacity; ++i)

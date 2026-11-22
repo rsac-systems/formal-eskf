@@ -28,7 +28,7 @@ enum class FrameAction
 };
 void verify_observation_storage_frame(Observations owner, Stamp stamp, std::uint64_t now, Limits limits,
                                       std::uint64_t effective, unsigned char action, imu_proof::Interval interval,
-                                      formal_eskf::px4::TimingParameters parameters)
+                                      formal_eskf::runtime::TimingParameters parameters)
 {
     __ESBMC_assume(owner.m_average_period_us >= 3800. && owner.m_average_period_us <= 4200.);
 #if FORMAL_ESKF_PROOF_FRAME == 0

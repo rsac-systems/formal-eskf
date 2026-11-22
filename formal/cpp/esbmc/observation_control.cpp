@@ -298,7 +298,7 @@ void verify_observation_selection(Observations owner)
                    "Selection preserves all configuration and clock fields");
 }
 
-void verify_observation_configuration(Observations owner, formal_eskf::px4::TimingParameters parameters)
+void verify_observation_configuration(Observations owner, formal_eskf::runtime::TimingParameters parameters)
 {
     auto const old_gnss = owner.m_gnss_time;
     auto const old_magnetic = owner.m_magnetic_time;
@@ -311,10 +311,11 @@ void verify_observation_configuration(Observations owner, formal_eskf::px4::Timi
     auto const advanced = owner.m_advanced_at_us;
     auto const average = owner.m_average_period_us;
     auto const input = parameters;
-    formal_eskf::px4::TimingConfiguration candidate;
+    formal_eskf::runtime::TimingConfiguration candidate;
     // Actual shared timing producer: accepted independently in delayed-input
     // and delayed-history. The owner must publish it only before seeding.
-    bool const eligible = seed == 0 && formal_eskf::px4::configure_timing(parameters, candidate);
+    bool const eligible = seed == 0 && formal_eskf::runtime::configure_timing(
+                                           parameters, formal_eskf::px4::profile::history::timing, 64, candidate);
     bool const result = owner.configure(parameters);
     __ESBMC_assert(result == eligible, "Configuration exact pre-seed timing admission");
     if (result)

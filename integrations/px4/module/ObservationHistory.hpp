@@ -4,7 +4,8 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "ImuHistory.hpp"
+#include <formal_eskf/runtime/history/imu_history.hpp>
+#include "DeploymentProfile.hpp"
 
 namespace formal_eskf::px4
 {
@@ -34,7 +35,7 @@ template <typename Linalg> class ObservationHistory
 public:
     using value_type = typename Linalg::value_type;
     using vector3_type = linalg::Vector<Linalg, 3>;
-    using interval_type = typename ImuHistory<Linalg>::Interval;
+    using interval_type = runtime::ImuInterval<Linalg>;
 
     struct Source
     {
@@ -160,7 +161,7 @@ public:
         std::size_t retired{};
     };
 
-    [[nodiscard]] bool configure(TimingParameters const & parameters);
+    [[nodiscard]] bool configure(runtime::TimingParameters const & parameters);
     [[nodiscard]] bool seed(Seed const & initial);
     /** Exactly once per newly admitted real IMU interval; no synthetic context samples. */
     [[nodiscard]] bool record_imu(interval_type const & interval, LandState const & land, VehicleState const & vehicle);
@@ -216,16 +217,17 @@ private:
         profile::history::barometer_capacity};
     runtime::RingBuffer<Context, profile::history::context_capacity> m_context{profile::history::context_capacity};
     Timeline m_gnss_time{}, m_magnetic_time{}, m_barometer_time{};
-    TimingConfiguration m_configuration{};
+    runtime::TimingConfiguration m_configuration{};
     std::uint64_t m_seed_time_us{}, m_latest_time_us{}, m_fusion_time_us{}, m_advanced_at_us{};
     double m_average_period_us = profile::history::filter_interval_us;
     bool m_configured{};
 }; /* end class ObservationHistory */
 
-template <typename Linalg> bool ObservationHistory<Linalg>::configure(TimingParameters const & parameters)
+template <typename Linalg> bool ObservationHistory<Linalg>::configure(runtime::TimingParameters const & parameters)
 {
-    TimingConfiguration candidate;
-    if (m_seed_time_us != 0 || !configure_timing(parameters, candidate))
+    runtime::TimingConfiguration candidate;
+    if (m_seed_time_us != 0 ||
+        !runtime::configure_timing(parameters, profile::history::timing, profile::history::imu_capacity, candidate))
     {
         return false;
     }

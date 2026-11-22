@@ -59,13 +59,14 @@ FormalEskf::~FormalEskf()
 
 bool FormalEskf::load_timing_parameters()
 {
-    formal_eskf::px4::TimingParameters timing;
+    formal_eskf::runtime::TimingParameters timing;
     if (param_get(param_find("FESKF_DT_US"), &timing.filter_interval_us) != 0 ||
         param_get(param_find("FESKF_DELAY_MS"), &timing.fusion_delay_ms) != 0 ||
         param_get(param_find("FESKF_GPS_DLY"), &timing.gnss_delay_ms) != 0 ||
         param_get(param_find("FESKF_MAG_DLY"), &timing.magnetic_delay_ms) != 0 ||
-        param_get(param_find("FESKF_BARO_DLY"), &timing.barometer_delay_ms) != 0 || !m_imu_history.configure(timing) ||
-        !m_observations.configure(timing) || !m_output.configure(timing))
+        param_get(param_find("FESKF_BARO_DLY"), &timing.barometer_delay_ms) != 0 ||
+        !m_imu_history.configure(timing, profile::history::timing) || !m_observations.configure(timing) ||
+        !m_output.configure(timing))
     {
         PX4_ERR("unsupported delayed-fusion timing settings");
         return false;
@@ -478,7 +479,7 @@ bool FormalEskf::accept_imu(ImuInput const & sample)
         sample.angular_period_us > profile::history::maximum_period_us ||
         sample.acceleration_period_us < profile::history::minimum_period_us ||
         sample.acceleration_period_us > profile::history::maximum_period_us ||
-        !formal_eskf::px4::imu_clipping_acceptable(sample.accelerometer_clipping, sample.gyroscope_clipping, false))
+        !formal_eskf::runtime::imu_clipping_acceptable(sample.accelerometer_clipping, sample.gyroscope_clipping, false))
     {
         ++m_rejections;
         // Revoke permissions and partial observations without consuming the horizon.
@@ -575,7 +576,7 @@ void FormalEskf::select_observations()
     update_gps_quality();
 }
 
-void FormalEskf::predict_and_fuse(imu_history_type::Interval const & interval)
+void FormalEskf::predict_and_fuse(imu_history_type::interval_type const & interval)
 {
     auto const & sample = interval.sample;
     auto const imu = sample.mean_rates();

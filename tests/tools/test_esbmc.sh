@@ -62,7 +62,7 @@ check_plan()
 {
     local PLAN SHARD SHARDED='' BINARY64 APPROX COEFFICIENT ALIAS TAYLOR BASE_PROFILE CONFIGURATION SIZE COLUMNS COLUMN SHAPE REGION
     PLAN="$("${RUNNER}" --list)"
-    check_count 6408 '^PLAN'
+    check_count 6407 '^PLAN'
     check_count 13 'geodesy-binary64-'
     for REGION in non-finite axis general; do
         check_count 1 "geodesy-binary64-inverse-${REGION}[[:space:]]"
@@ -76,7 +76,7 @@ check_plan()
     check_count 160 'magnetic-runtime-'
     check_count 49 'height-'
     check_count 22 'module-flow-binary64-'
-    check_count 4 'delayed-input-'
+    check_count 3 'delayed-input-'
     check_count 4 'delayed-views-'
     check_count 4 'delayed-seed-'
     check_count 130 'delayed-storage-'
@@ -307,8 +307,8 @@ check_plan()
             done
         done
     done
-    [[ "$(printf '%s\n' "${PLAN}" | cut -f 2,4 | sort -u | wc -l)" == 374 ]] || fail 'entry-point inventory changed'
-    [[ "$(printf '%s\n' "${PLAN}" | sort -u | wc -l)" == 6408 ]] || fail 'duplicate planned profile'
+    [[ "$(printf '%s\n' "${PLAN}" | cut -f 2,4 | sort -u | wc -l)" == 373 ]] || fail 'entry-point inventory changed'
+    [[ "$(printf '%s\n' "${PLAN}" | sort -u | wc -l)" == 6407 ]] || fail 'duplicate planned profile'
     for SHARD in 1 2 3 4; do
         SHARDED+="$("${RUNNER}" --list --shard "${SHARD}/4")"$'\n'
     done
@@ -596,8 +596,6 @@ check_delayed_input_arguments()
         local ENTRY="$1"
         shift
         case "${PROFILE}" in
-            delayed-input-library-max)
-                [[ "${SOURCE_FILE}" == "${PROOF_DIR}/delayed_library.cpp" && "${ENTRY}" == verify_delayed_max && "$*" == '--proof-unwind 16 --cvc5' ]] || fail 'wrong delayed maximum producer' ;;
             delayed-input-timing)
                 [[ "${SOURCE_FILE}" == "${PROOF_DIR}/delayed_input.cpp" && "${ENTRY}" == verify_timing_configuration && "$*" == '--proof-unwind 16 --cvc5' ]] || fail 'wrong timing producer' ;;
             delayed-input-binary*-admission)
@@ -607,7 +605,7 @@ check_delayed_input_arguments()
         COUNT=$((COUNT + 1))
     }
     run_delayed_input_suite
-    [[ "${COUNT}" == 4 ]] || fail 'delayed input matrix incomplete'
+    [[ "${COUNT}" == 3 ]] || fail 'delayed input matrix incomplete'
 )
 
 check_delayed_views_arguments()
@@ -2460,19 +2458,22 @@ import shutil
 import sys
 ROOT, OUTPUT = map(pathlib.Path, sys.argv[1:])
 CASES = {
-    'timing': ('ImuHistory.hpp', 'static_cast<std::size_t>(intervals) + 1', 'static_cast<std::size_t>(intervals) + 2'),
-    'period': ('ImuHistory.hpp', 'sample.angular_period_us < profile::history::minimum_period_us',
-               'sample.angular_period_us <= profile::history::minimum_period_us'),
-    'reporting': ('InnovationRatio.hpp', 'innovation > 0. ? ratio', 'innovation > 0. ? -ratio'),
+    'timing': ('include/formal_eskf/runtime/history/timing.hpp', 'static_cast<std::size_t>(intervals) + 1', 'static_cast<std::size_t>(intervals) + 2'),
+    'period': ('include/formal_eskf/runtime/history/imu_history.hpp', 'sample.angular_period_us < timing.minimum_period_us',
+               'sample.angular_period_us <= timing.minimum_period_us'),
+    'reporting': ('integrations/px4/module/InnovationRatio.hpp', 'innovation > 0. ? ratio', 'innovation > 0. ? -ratio'),
 }
 for CASE, (HEADER, OLD, NEW) in CASES.items():
     DEST = OUTPUT / CASE
-    for NAME in ('ImuHistory.hpp', 'DeploymentProfile.hpp', 'InnovationRatio.hpp'):
-        RELATIVE = pathlib.Path('integrations/px4/module', NAME)
+    for NAME in ('include/formal_eskf/runtime/history/imu_history.hpp',
+                 'include/formal_eskf/runtime/history/timing.hpp',
+                 'integrations/px4/module/DeploymentProfile.hpp',
+                 'integrations/px4/module/InnovationRatio.hpp'):
+        RELATIVE = pathlib.Path(NAME)
         TARGET = DEST / RELATIVE
         TARGET.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / RELATIVE, TARGET)
-    TARGET = DEST / 'integrations/px4/module' / HEADER
+    TARGET = DEST / HEADER
     TEXT = TARGET.read_text()
     assert TEXT.count(OLD) == 1
     TARGET.write_text(TEXT.replace(OLD, NEW, 1))
@@ -3470,7 +3471,7 @@ check_solver_argument_guard
 check_reference_preflight
 check_frame_preflight
 check_initialization_preflight
-printf 'ESBMC inventory tests: pass (6408 profiles; 374 entry points; all shards)\n'
+printf 'ESBMC inventory tests: pass (6407 profiles; 373 entry points; all shards)\n'
 if ((RUN_SOLVER)); then
     check_runtime_input_regressions
     check_ring_buffer_regressions

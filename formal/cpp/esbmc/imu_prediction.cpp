@@ -7,11 +7,8 @@
  */
 #include "covariance_oracle.hpp"
 #include <formal_eskf/eskf/eskf.hpp>
-#include "delayed_library.hpp"
 #include "../../../integrations/px4/module/DeploymentProfile.hpp"
-#define max formal_eskf_proof_max
-#include "../../../integrations/px4/module/ImuHistory.hpp"
-#undef max
+#include <formal_eskf/runtime/history/imu_history.hpp>
 #include <formal_eskf/runtime/sensors/imu/imu.hpp>
 
 using contract_proof::Linalg;
@@ -198,7 +195,7 @@ inline Status predict<Linalg>(State const & state, Matrix const & covariance, Im
 void verify_imu_admission(std::uint8_t accel, std::uint8_t gyro, bool initialized)
 {
     bool const expected = (accel & 0xf8U) == 0U && gyro == 0U && (initialized || accel == 0U);
-    __ESBMC_assert(formal_eskf::px4::imu_clipping_acceptable(accel, gyro, initialized) == expected,
+    __ESBMC_assert(formal_eskf::runtime::imu_clipping_acceptable(accel, gyro, initialized) == expected,
                    "IMU admission: gyro/unknown clipping always refused; accel clipping only after initialization");
 }
 #if FORMAL_ESKF_PROOF_IMU_PREDICTION_CALLER

@@ -111,7 +111,7 @@ not assertions of EKF2 equivalence. Clipping flags do not reconstruct lost motio
 
 ## Verification boundary
 
-The `imu-prediction` suite verifies clipping admission in `ImuHistory.hpp` and the portable
+The `imu-prediction` suite verifies clipping admission in `history/imu_history.hpp` and the portable
 [prediction composition](../../runtime/imu/prediction.md): a fresh parameter copy, exact bit decoding/supplied fault variance, selection
 before bias inhibition using prior P, one in-place prediction and first-error
 rollback. Same-type actual selector producers and E-STEP supply its explicit

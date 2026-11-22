@@ -5,24 +5,21 @@
 #include <formal_eskf/linalg/matrix.hpp>
 #undef private
 #include "contracts.hpp"
-#include "delayed_library.hpp"
 #include <formal_eskf/runtime/sensors/imu/imu.hpp>
 #include "../../../integrations/px4/module/DeploymentProfile.hpp"
 #define private public
-#define max formal_eskf_proof_max
-#include "../../../integrations/px4/module/ImuHistory.hpp"
-#undef max
+#include <formal_eskf/runtime/history/imu_history.hpp>
 #undef private
 
 namespace imu_proof
 {
 using Backend = contract_proof::Linalg;
 using Scalar = contract_proof::Scalar;
-using Imu = formal_eskf::px4::ImuHistory<Backend>;
+using Imu = formal_eskf::runtime::ImuHistory<Backend, 64>;
 using Input = Imu::input_type;
-using Interval = Imu::Interval;
+using Interval = Imu::interval_type;
 using Ring = formal_eskf::runtime::RingBuffer<Interval, 64>;
-using Configuration = formal_eskf::px4::TimingConfiguration;
+using Configuration = formal_eskf::runtime::TimingConfiguration;
 constexpr std::size_t capacity = 64;
 static_assert(formal_eskf::px4::profile::history::imu_capacity == capacity);
 extern unsigned char nondet_index();
@@ -48,7 +45,7 @@ inline bool same(Scalar a, Scalar b)
 #endif
     return (__builtin_bit_cast(Bits, a) == __builtin_bit_cast(Bits, b)) | (std::isnan(a) & std::isnan(b));
 }
-inline bool same_source(formal_eskf::px4::ImuSource const & a, formal_eskf::px4::ImuSource const & b)
+inline bool same_source(formal_eskf::runtime::ImuSource const & a, formal_eskf::runtime::ImuSource const & b)
 {
     return a.accelerometer_id == b.accelerometer_id && a.gyroscope_id == b.gyroscope_id &&
            a.accelerometer_calibration == b.accelerometer_calibration &&
@@ -67,6 +64,16 @@ inline bool same_input(Input const & a, Input const & b)
     }
     return result;
 }
+inline bool same_timing(formal_eskf::runtime::ImuTiming const & a, formal_eskf::runtime::ImuTiming const & b)
+{
+    return a.filter_interval_us == b.filter_interval_us && a.minimum_period_us == b.minimum_period_us &&
+           a.maximum_period_us == b.maximum_period_us && a.maximum_interval_us == b.maximum_interval_us &&
+           a.gap_tolerance_us == b.gap_tolerance_us && a.maximum_age_us == b.maximum_age_us &&
+           a.maximum_lag_us == b.maximum_lag_us && a.gnss_arrival_age_us == b.gnss_arrival_age_us &&
+           a.magnetic_arrival_age_us == b.magnetic_arrival_age_us &&
+           a.barometer_arrival_age_us == b.barometer_arrival_age_us;
+}
+
 inline bool same_configuration(Configuration const & a, Configuration const & b)
 {
     return a.minimum_lag_us == b.minimum_lag_us && a.gnss_delay_us == b.gnss_delay_us &&

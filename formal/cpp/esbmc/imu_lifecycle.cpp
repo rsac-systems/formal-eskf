@@ -42,6 +42,7 @@ void verify_imu_completion(Imu owner, std::uint64_t time)
     }
     auto const previous = owner.m_previous;
     auto const config = owner.m_configuration;
+    auto const timing = owner.m_timing;
     auto const fusion = owner.m_fusion_time_us;
     auto const fault = owner.m_fault;
     auto const length = owner.m_samples.m_length;
@@ -58,8 +59,9 @@ void verify_imu_completion(Imu owner, std::uint64_t time)
                            (fault != Imu::Fault::none || eligible ? fault : Imu::Fault::invalid_completion),
                    "IMU completion exact contiguous oldest acknowledgment and fault precedence");
     __ESBMC_assert(same_input(owner.m_previous, previous) && same_configuration(owner.m_configuration, config) &&
-                       owner.m_samples.m_length == length && owner.m_samples.m_count == count &&
-                       owner.m_samples.m_oldest == oldest && owner.m_samples.m_write == write,
+                       imu_proof::same_timing(owner.m_timing, timing) && owner.m_samples.m_length == length &&
+                       owner.m_samples.m_count == count && owner.m_samples.m_oldest == oldest &&
+                       owner.m_samples.m_write == write,
                    "IMU completion preserves previous input, configuration and ring indices");
 
     for (std::size_t i = 0; i < imu_proof::capacity; ++i)
@@ -135,9 +137,11 @@ void verify_imu_reset(Imu owner)
 {
     imu_proof::metadata(owner.m_samples);
     auto const config = owner.m_configuration;
+    auto const timing = owner.m_timing;
     auto const length = owner.m_samples.m_length;
     owner.reset();
-    __ESBMC_assert(same_configuration(owner.m_configuration, config) && owner.m_samples.m_length == length &&
+    __ESBMC_assert(same_configuration(owner.m_configuration, config) &&
+                       imu_proof::same_timing(owner.m_timing, timing) && owner.m_samples.m_length == length &&
                        owner.m_samples.m_count == 0 && owner.m_samples.m_oldest == 0 && owner.m_samples.m_write == 0 &&
                        owner.m_fusion_time_us == 0 && owner.m_fault == Imu::Fault::none,
                    "IMU reset preserves configuration and clears temporal state");

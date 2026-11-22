@@ -7,6 +7,7 @@
 #include <numbers>
 
 #include <formal_eskf/runtime/sensors/imu/imu.hpp>
+#include <formal_eskf/runtime/history/timing.hpp>
 #include <formal_eskf/runtime/sensors/gnss/gnss_lifecycle.hpp>
 #include <formal_eskf/runtime/sensors/gnss/gnss_quality.hpp>
 
@@ -68,29 +69,6 @@ inline constexpr double bias_learning_decay_s = ESKF_CFG_BIAS_DECAY_S;
 inline constexpr bool accelerometer_bias_learning = ESKF_CFG_ACCEL_BIAS_LEARNING;
 inline constexpr bool gyroscope_bias_learning = ESKF_CFG_GYRO_BIAS_LEARNING;
 } // namespace imu
-
-// First delayed-fusion profile: one real SIH IMU interval per main-filter step.
-namespace history
-{
-inline constexpr std::int32_t filter_interval_us = 4000;
-inline constexpr std::int32_t fusion_delay_ms = 200;
-inline constexpr std::uint32_t minimum_period_us = 3800;
-inline constexpr std::uint32_t maximum_period_us = 4200;
-inline constexpr std::uint64_t maximum_lag_us = 300000;
-inline constexpr std::uint64_t gnss_arrival_age_us = 150000;
-inline constexpr std::uint64_t magnetic_arrival_age_us = 100000;
-inline constexpr std::uint64_t barometer_arrival_age_us = 100000;
-inline constexpr std::size_t imu_capacity = 64;
-inline constexpr std::size_t context_capacity = 128;
-inline constexpr std::size_t gnss_capacity = 16;
-inline constexpr std::size_t magnetic_capacity = 64;
-inline constexpr std::size_t barometer_capacity = 128;
-inline constexpr std::uint64_t observation_maximum_age_us = 100000;
-inline constexpr std::uint64_t gnss_spacing_us = 50000;
-inline constexpr std::uint64_t magnetic_spacing_us = 10000;
-inline constexpr std::uint64_t barometer_spacing_us = 5000;
-inline constexpr std::size_t storage_budget_bytes = 64 * 1024;
-} // namespace history
 
 // Project-specific Cartesian profile; PX4 has no equivalent rebase thresholds.
 namespace origin
@@ -230,6 +208,34 @@ inline constexpr std::uint64_t navigation_interval_us = 10000U;
 inline constexpr std::uint64_t maximum_age_us = 100000U;
 inline constexpr std::uint64_t dead_reckoning_age_us = 1000000U;
 } // namespace output
+
+// First delayed-fusion profile: one real SIH IMU interval per main-filter step.
+namespace history
+{
+inline constexpr std::int32_t filter_interval_us = 4000;
+inline constexpr std::int32_t fusion_delay_ms = 200;
+inline constexpr std::uint32_t minimum_period_us = 3800;
+inline constexpr std::uint32_t maximum_period_us = 4200;
+inline constexpr std::uint64_t maximum_lag_us = 300000;
+inline constexpr std::uint64_t gnss_arrival_age_us = 150000;
+inline constexpr std::uint64_t magnetic_arrival_age_us = 100000;
+inline constexpr std::uint64_t barometer_arrival_age_us = 100000;
+inline constexpr std::size_t imu_capacity = 64;
+inline constexpr std::size_t context_capacity = 128;
+inline constexpr std::size_t gnss_capacity = 16;
+inline constexpr std::size_t magnetic_capacity = 64;
+inline constexpr std::size_t barometer_capacity = 128;
+inline constexpr std::uint64_t observation_maximum_age_us = 100000;
+inline constexpr std::uint64_t gnss_spacing_us = 50000;
+inline constexpr std::uint64_t magnetic_spacing_us = 10000;
+inline constexpr std::uint64_t barometer_spacing_us = 5000;
+inline constexpr std::size_t storage_budget_bytes = 64 * 1024;
+
+inline constexpr runtime::TimingParameters parameters{filter_interval_us, fusion_delay_ms, 0, 0, 0};
+inline constexpr runtime::ImuTiming timing{
+    filter_interval_us,     minimum_period_us, maximum_period_us,   imu::maximum_interval_us, imu::gap_tolerance_us,
+    output::maximum_age_us, maximum_lag_us,    gnss_arrival_age_us, magnetic_arrival_age_us,  barometer_arrival_age_us};
+} // namespace history
 
 // SITL scheduling profile; target resource acceptance is separate.
 inline constexpr std::uint16_t work_queue_stack_bytes = 60U * 1024U;

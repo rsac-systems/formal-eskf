@@ -22,7 +22,7 @@ PINS = {
     "integrations/px4/module/DeploymentProfile.hpp": "d665bc65cf9c6e8f2c3d1af0642ef8852e5e0d39455b047ef4b2e2165c030664",
     "integrations/px4/module/FormalEskfNavigation.cpp": "3c7479b6cf3f026a71f98eff34730278c8b61f097947f803428e83d69c27ba32",
     "integrations/px4/module/FormalEskfAttitude.cpp": "f3df7057b135a74fe3a045577e35fb0faaf80453ca724989b0d5c032a315bba9",
-    "integrations/px4/module/ImuHistory.hpp": "6b536215c201555809c0c7023e9d54e3e7cb7453d43a2fa0ff62ad0ddf4b07f1",
+    "include/formal_eskf/runtime/history/imu_history.hpp": "4516f6d8d890625acbcdb58ed493b8c4064286212d0159d12b84241412c7bd93",
     "integrations/px4/module/DeploymentConfig.hpp": "015b515863ec85cbc1ebd4994ea6c2b6a1a8191fea825a63f48fc7a72935a8dd",
     "examples/replay_ins.cpp": "52c8c3cfdaf2398729e150f68823ddd50358479382fed984d4b38823f0cbdd43",
 }
@@ -149,12 +149,9 @@ def generate(OUTPUT_DIR):
             TEXT += MATCHES[0] + "\n"
         TEXT += "}\n"
     OUTPUTS["module_constants.inc"] = TEXT
-    TEXT = "namespace formal_eskf::px4\n{\n" + method(
-        SOURCES["ImuHistory.hpp"], "inline bool imu_clipping_acceptable(") + "\n}\n"
+    TEXT = "namespace formal_eskf::runtime\n{\n" + method(
+        SOURCES["imu_history.hpp"], "inline bool imu_clipping_acceptable(") + "\n}\n"
     OUTPUTS["module_clipping.inc"] = TEXT
-    TEXT = "namespace formal_eskf::px4\n{\n" + method(
-        SOURCES["ImuHistory.hpp"], "struct TimingParameters\n{") + ";\n}\n"
-    OUTPUTS["module_timing_type.inc"] = TEXT
     for GROUP, (FILE, SIGNATURES) in GROUPS.items():
         METHODS = [method(SOURCES[FILE], SIGNATURE) for SIGNATURE in SIGNATURES]
         for SIGNATURE, TEXT in zip(SIGNATURES, METHODS):

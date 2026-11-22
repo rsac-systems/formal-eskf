@@ -8,7 +8,7 @@ using imu_proof::Interval;
 using imu_proof::same;
 using imu_proof::same_configuration;
 using imu_proof::same_input;
-using TimingParameters = formal_eskf::px4::TimingParameters;
+using TimingParameters = formal_eskf::runtime::TimingParameters;
 
 namespace
 {
@@ -52,12 +52,14 @@ template <> void formal_eskf::runtime::RingBuffer<Interval, 64>::reset()
     ++reset_calls;
     auto const previous = expected_owner->m_previous;
     auto const configuration = expected_owner->m_configuration;
+    auto const timing = expected_owner->m_timing;
     auto const fusion = expected_owner->m_fusion_time_us;
     auto const fault = expected_owner->m_fault;
     auto const length = m_length;
     __ESBMC_init_object(expected_owner);
     expected_owner->m_previous = previous;
     expected_owner->m_configuration = configuration;
+    expected_owner->m_timing = timing;
     expected_owner->m_fusion_time_us = fusion;
     expected_owner->m_fault = fault;
     m_length = length;
@@ -83,32 +85,38 @@ void verify_imu_configuration_contract(Imu owner, TimingParameters parameters)
     reset_calls = 0;
 #if FORMAL_ESKF_PROOF_FRAME
     expected_slot = owner.m_samples.m_samples[observed_slot];
-    (void)owner.configure(parameters);
+    (void)owner.configure(parameters, formal_eskf::px4::profile::history::timing);
     __ESBMC_assert(same_interval(owner.m_samples.m_samples[observed_slot], expected_slot),
                    "IMU configuration preserves the reset producer poststate");
 #else
     auto const previous = owner.m_previous;
     auto const config = owner.m_configuration;
+    auto const timing = owner.m_timing;
     auto const fusion = owner.m_fusion_time_us;
     auto const fault = owner.m_fault;
     auto const length = owner.m_samples.m_length;
     auto const before = parameters;
     imu_proof::Configuration candidate;
     bool const eligible =
-        previous.time_us == 0 && fault == Imu::Fault::none && formal_eskf::px4::configure_timing(parameters, candidate);
+        previous.time_us == 0 && fault == Imu::Fault::none &&
+        formal_eskf::runtime::configure_timing(parameters, formal_eskf::px4::profile::history::timing, 64, candidate);
     bool const changed = eligible && candidate.imu_length != length;
-    bool const result = owner.configure(parameters);
+    bool const result = owner.configure(parameters, formal_eskf::px4::profile::history::timing);
     __ESBMC_assert(result == eligible && reset_calls == (changed ? 1U : 0U),
                    "IMU configuration exact eligibility and reset call count");
     __ESBMC_assert(same_input(owner.m_previous, previous) && owner.m_fusion_time_us == fusion && owner.m_fault == fault,
                    "IMU configuration preserves previous input, cursor and fault");
     if (result)
     {
-        __ESBMC_assert(same_configuration(owner.m_configuration, candidate), "IMU configuration complete publication");
+        __ESBMC_assert(same_configuration(owner.m_configuration, candidate) &&
+                           imu_proof::same_timing(owner.m_timing, formal_eskf::px4::profile::history::timing),
+                       "IMU configuration complete publication");
     }
     else
     {
-        __ESBMC_assert(same_configuration(owner.m_configuration, config), "IMU configuration failure frame");
+        __ESBMC_assert(same_configuration(owner.m_configuration, config) &&
+                           imu_proof::same_timing(owner.m_timing, timing),
+                       "IMU configuration failure frame");
     }
     __ESBMC_assert(owner.m_samples.m_length == (changed ? candidate.imu_length : length) &&
                        owner.m_samples.m_count == (changed ? 0 : original_count) &&

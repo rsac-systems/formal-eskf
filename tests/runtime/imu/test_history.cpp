@@ -5,20 +5,24 @@
 #include <limits>
 #include <vector>
 
-#include "../module/ImuHistory.hpp"
+#include <formal_eskf/runtime/history/imu_history.hpp>
 #include "test_backend.hpp"
 #include "test_support.hpp"
+#include "test_cases.hpp"
 
 namespace
 {
 using formal_eskf::test::Context;
 using Backend = formal_eskf::test::Backend<double>;
-using History = formal_eskf::px4::ImuHistory<Backend>;
+using History = formal_eskf::runtime::ImuHistory<Backend, 64>;
 using Input = History::input_type;
 using Fault = History::Fault;
-using Parameters = formal_eskf::px4::TimingParameters;
-using Configuration = formal_eskf::px4::TimingConfiguration;
-using formal_eskf::px4::configure_timing;
+using Parameters = formal_eskf::runtime::TimingParameters;
+using Configuration = formal_eskf::runtime::TimingConfiguration;
+using formal_eskf::runtime::configure_timing;
+constexpr Parameters parameters_250hz{4000, 200, 0, 0, 0};
+constexpr formal_eskf::runtime::ImuTiming timing_250hz{4000,   3800,   4200,   50000,  200,
+                                                       100000, 300000, 150000, 100000, 100000};
 
 Input sample(std::uint64_t time_us, double rate = 1.)
 {
@@ -56,7 +60,8 @@ bool equal(Input const & a, Input const & b)
 void configuration(Context & test)
 {
     Configuration output;
-    test.expect(configure_timing({}, output) && output.imu_length == 54 && output.minimum_lag_us == 200000,
+    test.expect(configure_timing(parameters_250hz, timing_250hz, 64, output) && output.imu_length == 54 &&
+                    output.minimum_lag_us == 200000,
                 "configuration", "default 250 Hz mode derives 54 slots");
     struct Case
     {
@@ -83,7 +88,7 @@ void configuration(Context & test)
     for (auto const & entry : cases)
     {
         auto const before = output;
-        bool const accepted = configure_timing(entry.parameters, output);
+        bool const accepted = configure_timing(entry.parameters, timing_250hz, 64, output);
         test.expect(accepted == (entry.length != 0), "configuration", "validate mode, capacity and arrival coverage");
         test.expect(accepted ? output.imu_length == entry.length : equal(output, before), "configuration",
                     "derive requested length or preserve previous configuration");
@@ -98,13 +103,84 @@ void configuration(Context & test)
         for (auto const & parameters : invalid)
         {
             auto const before = output;
-            test.expect(!configure_timing(parameters, output) && equal(output, before), "configuration",
+            test.expect(!configure_timing(parameters, timing_250hz, 64, output) && equal(output, before),
+                        "configuration",
                         "signed boundaries and large millisecond conversion fail without output writes");
         }
     }
-    test.expect(configure_timing({4000, 200, 12, 23, 34}, output) && output.gnss_delay_us == 12000 &&
+    test.expect(configure_timing({4000, 200, 12, 23, 34}, timing_250hz, 64, output) && output.gnss_delay_us == 12000 &&
                     output.magnetic_delay_us == 23000 && output.barometer_delay_us == 34000,
                 "configuration", "convert each source delay to microseconds exactly once");
+}
+
+void explicit_profile(Context & test)
+{
+    Configuration output;
+    test.expect(!configure_timing({}, timing_250hz, 64, output), "profile", "no implicit deployment defaults");
+    test.expect(configure_timing(parameters_250hz, timing_250hz, 54, output) && output.imu_length == 54, "profile",
+                "active history exactly fits the supplied backing capacity");
+    auto const before = output;
+    for (std::size_t capacity : {0U, 1U, 53U})
+    {
+        test.expect(!configure_timing(parameters_250hz, timing_250hz, capacity, output) && equal(output, before),
+                    "profile", "insufficient fixed capacity preserves configuration");
+    }
+    auto invalid = timing_250hz;
+    invalid.minimum_period_us = 0;
+    test.expect(!configure_timing(parameters_250hz, invalid, 64, output) && equal(output, before), "profile",
+                "zero divisor rejected before deriving capacity");
+    invalid = timing_250hz;
+    invalid.minimum_period_us = invalid.filter_interval_us + 1;
+    test.expect(!configure_timing(parameters_250hz, invalid, 64, output) && equal(output, before), "profile",
+                "nominal interval cannot be shorter than the admitted minimum");
+    invalid = timing_250hz;
+    invalid.maximum_period_us = invalid.filter_interval_us - 1;
+    test.expect(!configure_timing(parameters_250hz, invalid, 64, output) && equal(output, before), "profile",
+                "nominal interval cannot exceed the admitted maximum");
+    invalid = timing_250hz;
+    invalid.filter_interval_us = std::numeric_limits<std::uint32_t>::max();
+    invalid.maximum_period_us = invalid.filter_interval_us;
+    invalid.maximum_interval_us = invalid.filter_interval_us;
+    test.expect(!formal_eskf::runtime::valid_imu_timing(invalid), "profile",
+                "unsigned period must fit the signed request type");
+    test.expect(!configure_timing(parameters_250hz, invalid, 64, output) && equal(output, before), "profile",
+                "unsupported signed request domain is rejected");
+    invalid = timing_250hz;
+    invalid.maximum_interval_us = invalid.maximum_period_us - 1;
+    test.expect(!configure_timing(parameters_250hz, invalid, 64, output) && equal(output, before), "profile",
+                "maximum spacing must contain the admitted period");
+    invalid = timing_250hz;
+    invalid.gap_tolerance_us = invalid.maximum_interval_us + 1;
+    test.expect(!configure_timing(parameters_250hz, invalid, 64, output) && equal(output, before), "profile",
+                "overlap tolerance must fit the spacing domain");
+    invalid = timing_250hz;
+    invalid.maximum_lag_us = 0;
+    test.expect(!configure_timing(parameters_250hz, invalid, 64, output) && equal(output, before), "profile",
+                "zero retention limit rejected");
+    for (auto age : {0U, 1000U})
+    {
+        History history;
+        auto timing = timing_250hz;
+        timing.maximum_age_us = age;
+        auto input = sample(1000000);
+        test.expect(history.configure(parameters_250hz, timing) && !history.seed(input, input.time_us + age + 1) &&
+                        history.seed(input, input.time_us + age),
+                    "profile", "seed uses the supplied age limit inclusively");
+        // Configure copies settings; modifying the caller's record cannot change admission.
+        timing.maximum_age_us = 100000;
+        history.reset();
+        test.expect(!history.seed(input, input.time_us + age + 1) && history.seed(input, input.time_us), "profile",
+                    "reset preserves the owned timing profile");
+        input.time_us += 4000;
+        test.expect(!history.push(input, input.time_us + age + 1) && history.entries() == 0 &&
+                        history.fault() == Fault::invalid_sample,
+                    "profile", "push uses the same supplied age limit without partial storage");
+    }
+    formal_eskf::runtime::ImuHistory<Backend, 54> exact;
+    formal_eskf::runtime::ImuHistory<Backend, 53> short_history;
+    test.expect(exact.configure(parameters_250hz, timing_250hz) &&
+                    !short_history.configure(parameters_250hz, timing_250hz),
+                "profile", "concrete owners validate their actual compile-time capacities");
 }
 
 void startup(Context & test)
@@ -114,9 +190,10 @@ void startup(Context & test)
     test.expect(!history.seed(initial, initial.time_us) && !history.push(initial, initial.time_us) &&
                     history.delayed() == nullptr && history.latest() == nullptr && history.entries() == 0,
                 "startup", "unconfigured history cannot accept a seed or sample");
-    test.expect(history.configure({}), "startup", "configure storage without a seed");
+    test.expect(history.configure(parameters_250hz, timing_250hz), "startup", "configure storage without a seed");
     auto const configuration_before = history.configuration();
-    test.expect(!history.configure({10000, 200, 0, 0, 0}) && equal(history.configuration(), configuration_before),
+    test.expect(!history.configure({10000, 200, 0, 0, 0}, timing_250hz) &&
+                    equal(history.configuration(), configuration_before),
                 "startup", "bad replacement retains configured length");
     test.expect(!history.seed(sample(0), initial.time_us) && !history.seed(initial, initial.time_us - 1) &&
                     !history.seed(initial, initial.time_us + 100001) && history.latest_time_us() == 0,
@@ -125,14 +202,14 @@ void startup(Context & test)
                     history.fusion_time_us() == initial.time_us && history.delayed() == nullptr &&
                     history.latest() == nullptr,
                 "startup", "seed is an epoch and preceding rate, not fabricated retained IMU");
-    test.expect(!history.seed(initial, initial.time_us) && !history.configure({4000, 230, 0, 0, 0}) &&
+    test.expect(!history.seed(initial, initial.time_us) && !history.configure({4000, 230, 0, 0, 0}, timing_250hz) &&
                     history.fault() == Fault::none && equal(history.configuration(), configuration_before),
                 "startup", "live reconfiguration and reseeding are rejected without disturbing the session");
     history.reset();
     test.expect(history.entries() == 0 && history.latest_time_us() == 0 && history.fusion_time_us() == 0 &&
                     history.fault() == Fault::none && equal(history.configuration(), configuration_before),
                 "restart", "clear temporal state and preserve configuration");
-    test.expect(history.configure({4000, 239, 0, 0, 0}) && history.configuration().imu_length == 64 &&
+    test.expect(history.configure({4000, 239, 0, 0, 0}, timing_250hz) && history.configuration().imu_length == 64 &&
                     history.seed(initial, initial.time_us),
                 "restart", "select full backing capacity only before a new seed");
 }
@@ -140,7 +217,8 @@ void startup(Context & test)
 void ordered_prediction(Context & test, Parameters const & parameters, std::uint64_t epoch)
 {
     History history;
-    test.expect(history.configure(parameters) && history.seed(sample(epoch), epoch), "ordered", "configure and seed");
+    test.expect(history.configure(parameters, timing_250hz) && history.seed(sample(epoch), epoch), "ordered",
+                "configure and seed");
     std::vector<Input> pending; // Independent host reference; no container enters production history.
     std::uint64_t predicted_time = epoch;
     std::size_t predictions = 0;
@@ -202,7 +280,8 @@ void gap_segments(Context & test)
     {
         History history;
         auto const seed = sample(1000000, 9.);
-        test.expect(history.configure({}) && history.seed(seed, seed.time_us), "gap", "setup");
+        test.expect(history.configure(parameters_250hz, timing_250hz) && history.seed(seed, seed.time_us), "gap",
+                    "setup");
         auto input = sample(seed.time_us + elapsed, 2.);
         test.expect(history.push(input, input.time_us), "gap", "accept tolerance endpoints and permitted gaps");
         for (std::size_t i = 1; i < history.configuration().imu_length; ++i)
@@ -277,7 +356,7 @@ void admission_failures(Context & test)
         invalid.delta_velocity_b(2) = value;
         add(invalid, Fault::invalid_sample);
     }
-    std::array<formal_eskf::px4::ImuSource, 4> const changed_sources{
+    std::array<formal_eskf::runtime::ImuSource, 4> const changed_sources{
         {{18, 29, 2, 3}, {17, 30, 2, 3}, {17, 29, 3, 3}, {17, 29, 2, 4}}};
     for (auto const & source : changed_sources)
     {
@@ -288,13 +367,14 @@ void admission_failures(Context & test)
     for (auto const & entry : cases)
     {
         History history;
-        test.expect(history.configure({}) && history.seed(seed, seed.time_us), "admission", "setup");
+        test.expect(history.configure(parameters_250hz, timing_250hz) && history.seed(seed, seed.time_us), "admission",
+                    "setup");
         test.expect(!history.push(entry.input, entry.now_us) && history.fault() == entry.fault &&
                         history.latest_time_us() == seed.time_us && history.fusion_time_us() == seed.time_us &&
                         history.entries() == 0 && history.delayed() == nullptr,
                     "admission", "invalid arrival latches its cause without committing payload or epochs");
-        test.expect(!history.push(good, good.time_us) && !history.complete(seed.time_us) && !history.configure({}) &&
-                        history.fault() == entry.fault,
+        test.expect(!history.push(good, good.time_us) && !history.complete(seed.time_us) &&
+                        !history.configure(parameters_250hz, timing_250hz) && history.fault() == entry.fault,
                     "admission", "fault cannot clear through a later good sample, completion or configuration");
         history.reset();
         test.expect(history.seed(seed, seed.time_us) && history.push(good, good.time_us), "admission",
@@ -308,7 +388,8 @@ void lost_history_and_completion(Context & test)
     {
         History history;
         auto input = sample(1000000);
-        test.expect(history.configure({}) && history.seed(input, input.time_us), "loss", "setup");
+        test.expect(history.configure(parameters_250hz, timing_250hz) && history.seed(input, input.time_us), "loss",
+                    "setup");
         for (std::size_t i = 0; i < history.configuration().imu_length; ++i)
         {
             input = sample(input.time_us + 4000);
@@ -338,7 +419,8 @@ void lost_history_and_completion(Context & test)
         }
     }
     History history;
-    test.expect(history.configure({}) && history.seed(sample(1000000), 1000000), "completion", "setup");
+    test.expect(history.configure(parameters_250hz, timing_250hz) && history.seed(sample(1000000), 1000000),
+                "completion", "setup");
     test.expect(!history.complete(1004000) && history.fault() == Fault::invalid_completion &&
                     history.fusion_time_us() == 1000000 && history.latest() == nullptr,
                 "completion", "future completion during warmup cannot move the filter cursor");
@@ -350,7 +432,8 @@ void lag_bounds(Context & test)
     {
         History history;
         auto input = sample(1000000);
-        test.expect(history.configure({}) && history.seed(input, input.time_us), "lag", "setup");
+        test.expect(history.configure(parameters_250hz, timing_250hz) && history.seed(input, input.time_us), "lag",
+                    "setup");
         for (std::size_t tick = 0; tick < 54; ++tick)
         {
             // After the first record, two gaps enlarge the retained span to exactly 300 ms or 300 ms + 1 us.
@@ -379,7 +462,8 @@ void rollover_lag(Context & test)
 {
     History history;
     auto input = sample(1000000);
-    test.expect(history.configure({}) && history.seed(input, input.time_us), "rollover", "setup");
+    test.expect(history.configure(parameters_250hz, timing_250hz) && history.seed(input, input.time_us), "rollover",
+                "setup");
     for (std::size_t tick = 0; tick < 3 * 54; ++tick)
     {
         input = sample(input.time_us + 4000);
@@ -421,12 +505,8 @@ void rollover_lag(Context & test)
                     "completion", "ready history cannot acknowledge a different endpoint");
     }
 }
-} // namespace
-
-int main()
+void history_scenarios(Context & test, std::string_view)
 {
-    formal_eskf::test::configure_backend_test();
-    Context test;
     struct ClippingCase
     {
         std::uint8_t accel, gyro;
@@ -439,19 +519,29 @@ int main()
                            ClippingCase{0, 1, true, false},  ClippingCase{7, 4, true, false}};
     for (auto const & item : cases)
     {
-        test.expect(formal_eskf::px4::imu_clipping_acceptable(item.accel, item.gyro, item.initialized) == item.accepted,
+        test.expect(formal_eskf::runtime::imu_clipping_acceptable(item.accel, item.gyro, item.initialized) ==
+                        item.accepted,
                     "acceptance", "startup, valid accel bits, unknown bits and gyro clipping");
     }
     configuration(test);
+    explicit_profile(test);
     startup(test);
-    ordered_prediction(test, {}, 1000000);
+    ordered_prediction(test, parameters_250hz, 1000000);
     ordered_prediction(test, {4000, 239, 0, 0, 0}, 1000000);
-    ordered_prediction(test, {}, std::numeric_limits<std::uint64_t>::max() - 3 * 54 * 4000);
+    ordered_prediction(test, parameters_250hz, std::numeric_limits<std::uint64_t>::max() - 3 * 54 * 4000);
     gap_segments(test);
     admission_failures(test);
     lost_history_and_completion(test);
     lag_bounds(test);
     rollover_lag(test);
-    std::cout << "IMU history bytes: " << sizeof(History) << '\n';
-    return test.failures() == 0 ? 0 : 1;
+}
+} // namespace
+
+int main(int argc, char ** argv)
+{
+    formal_eskf::test::configure_backend_test();
+    formal_eskf::test::Case const cases[] = {
+        {"TC-R-IMU-HISTORY-01", "double", history_scenarios},
+    };
+    return formal_eskf::test::run_cases(cases, argc, argv);
 }

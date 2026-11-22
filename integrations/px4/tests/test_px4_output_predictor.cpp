@@ -12,11 +12,12 @@
 
 namespace
 {
+namespace profile = formal_eskf::px4::profile;
 using formal_eskf::test::Context;
 using formal_eskf::test::near;
 using Backend = formal_eskf::test::Backend<double>;
 using Predictor = formal_eskf::px4::OutputPredictor<Backend>;
-using History = formal_eskf::px4::ImuHistory<Backend>;
+using History = formal_eskf::runtime::ImuHistory<Backend, 64>;
 using Vector = Predictor::vector3_type;
 using Quaternion = Predictor::quaternion_type;
 using State = Predictor::state_type;
@@ -85,10 +86,11 @@ struct Session
     Predictor output;
     std::uint64_t time = 1000000;
 
-    void seed(Context & test, State const & state = {}, formal_eskf::px4::TimingParameters const & parameters = {})
+    void seed(Context & test, State const & state = {},
+              formal_eskf::runtime::TimingParameters const & parameters = profile::history::parameters)
     {
-        test.expect(imu.configure(parameters) && output.configure(parameters) && imu.seed(sample(time), time) &&
-                        output.seed(state, time),
+        test.expect(imu.configure(parameters, profile::history::timing) && output.configure(parameters) &&
+                        imu.seed(sample(time), time) && output.seed(state, time),
                     "setup", "matched configuration and seed");
     }
 
@@ -116,11 +118,12 @@ void startup_and_configuration(Context & test)
                 "startup", "no use before configuration and seed");
     test.expect(!output.configure({10000, 200, 0, 0, 0}) && !output.configure({4000, 240, 0, 0, 0}), "startup",
                 "reject unsupported interval and excessive length");
-    test.expect(output.configure({}) && !output.seed({}, 0), "startup", "zero seed rejected");
+    test.expect(output.configure(profile::history::parameters) && !output.seed({}, 0), "startup", "zero seed rejected");
     State bad;
     bad.b_a(1) = std::numeric_limits<double>::quiet_NaN();
     test.expect(!output.seed(bad, 1000000) && output.seed({}, 1000000), "startup", "bad seed preserves empty state");
-    test.expect(!output.seed({}, 1000000) && !output.configure({}) && output.entries() == 0 && !output.ready(),
+    test.expect(!output.seed({}, 1000000) && !output.configure(profile::history::parameters) && output.entries() == 0 &&
+                    !output.ready(),
                 "startup", "seed does not fabricate history or permit live reconfiguration");
     auto const before = output.current();
     test.expect(!output.correct(1004000, {}) && output.fault() == Fault::epoch_mismatch &&
@@ -132,7 +135,8 @@ void startup_and_configuration(Context & test)
                 "restart", "reset retains configuration and clears all temporal state");
 }
 
-void analytic_translation(Context & test, formal_eskf::px4::TimingParameters const & parameters, std::uint64_t epoch)
+void analytic_translation(Context & test, formal_eskf::runtime::TimingParameters const & parameters,
+                          std::uint64_t epoch)
 {
     Session session;
     session.time = epoch;
@@ -210,7 +214,8 @@ void rotating_force(Context & test)
 void gap_and_periods(Context & test)
 {
     Session session;
-    test.expect(session.imu.configure({}) && session.output.configure({}) &&
+    test.expect(session.imu.configure(profile::history::parameters, profile::history::timing) &&
+                    session.output.configure(profile::history::parameters) &&
                     session.imu.seed(sample(session.time, vector(2, 0, -profile::gravity_m_s2)), session.time) &&
                     session.output.seed({}, session.time),
                 "gap", "seed held rate");
@@ -539,7 +544,7 @@ void failures(Context & test)
                         same_sample(before, session.output.current()) && session.output.fusion_time_us() == fusion &&
                         session.output.entries() == count && session.output.delayed() == nullptr,
                     "failure", "fault preserves output, retained count and cursor");
-        test.expect(!session.output.correct(time, {}) && !session.output.configure({}) &&
+        test.expect(!session.output.correct(time, {}) && !session.output.configure(profile::history::parameters) &&
                         !session.output.apply_reset({}, {}, {}) && session.output.fault() == expected,
                     "failure", "later calls cannot clear the first fault");
         session.output.reset();
@@ -570,8 +575,7 @@ void frame_rebasing(Context & test)
                near_vector(expected.v_n, after.v_n) &&
                formal_eskf::so3::same_rotation(expected.q_nb, after.q_nb, 1e-12);
     };
-    for (auto const timing :
-         {formal_eskf::px4::TimingParameters{}, formal_eskf::px4::TimingParameters{4000, 239, 0, 0, 0}})
+    for (auto const timing : {profile::history::parameters, formal_eskf::runtime::TimingParameters{4000, 239, 0, 0, 0}})
     {
         Session session, control;
         State initial;
@@ -716,10 +720,10 @@ int main()
     frame_feedback(test);
     frame_rollback(test);
     startup_and_configuration(test);
-    analytic_translation(test, {}, 1000000);
+    analytic_translation(test, profile::history::parameters, 1000000);
     analytic_translation(test, {4000, 153, 0, 0, 0}, 1000000);
     analytic_translation(test, {4000, 239, 0, 0, 0}, 1000000);
-    analytic_translation(test, {}, std::numeric_limits<std::uint64_t>::max() - 4 * 54 * 4000);
+    analytic_translation(test, profile::history::parameters, std::numeric_limits<std::uint64_t>::max() - 4 * 54 * 4000);
     rotating_force(test);
     gap_and_periods(test);
     variable_periods(test);

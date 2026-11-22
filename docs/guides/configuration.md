@@ -184,7 +184,7 @@ subscription exists. Metadata bounds are not a substitute for startup checks.
 
 Timing formulas and supported envelope are owned by the
 [timing profile](../spec/profiles/px4-sih-250hz.md#startup-parameters-and-fixed-storage)
-and [configure_timing](../../integrations/px4/module/ImuHistory.hpp). Requested lag,
+and [configure_timing](../../include/formal_eskf/runtime/history/timing.hpp). Requested lag,
 active length, reserved capacity and actual measured interval are different
 quantities. Active length is derived, not another independent parameter.
 

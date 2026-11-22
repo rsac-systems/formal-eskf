@@ -14,6 +14,7 @@ using imu_proof::Scalar;
 
 namespace
 {
+formal_eskf::runtime::ImuTiming expected_timing;
 Imu * expected_owner;
 Input const * expected_input;
 std::uint64_t expected_now;
@@ -53,8 +54,12 @@ bool same_interval(Interval const & a, Interval const & b)
 
 // These are caller contracts, not substitute producer proofs. Acceptance requires
 // matching delayed-input, mean-rate and every delayed-storage producer profile.
-template <> bool formal_eskf::px4::ImuHistory<Backend>::valid_input(input_type const & sample, std::uint64_t now)
+template <>
+bool formal_eskf::runtime::ImuHistory<Backend, 64>::valid_input(input_type const & sample, std::uint64_t now,
+                                                                formal_eskf::runtime::ImuTiming const & timing)
 {
+    __ESBMC_assert(imu_proof::same_timing(timing, expected_timing),
+                   "IMU admission receives the owned timing profile unchanged");
     __ESBMC_assert(&sample == expected_input && same_input(sample, original_input) && now == expected_now &&
                        admission_calls == 0 && rate_calls == 0 && storage_calls == 0,
                    "IMU push admission receives the actual input and clock before any mutation producer");
@@ -62,7 +67,7 @@ template <> bool formal_eskf::px4::ImuHistory<Backend>::valid_input(input_type c
     return admission_result;
 }
 
-template <> formal_eskf::ImuSample<Backend> formal_eskf::px4::ImuInput<Backend>::mean_rates() const
+template <> formal_eskf::ImuSample<Backend> formal_eskf::runtime::ImuInput<Backend>::mean_rates() const
 {
     __ESBMC_assert(this == &expected_owner->m_previous && same_input(*this, original_previous) &&
                        angular_period_us >= 3800 && angular_period_us <= 4200 && acceleration_period_us >= 3800 &&
@@ -97,6 +102,7 @@ template <> void formal_eskf::runtime::RingBuffer<Interval, 64>::push(Interval c
     // it; leaving the ring unchanged would not establish that frame.
     auto const previous = expected_owner->m_previous;
     auto const configuration = expected_owner->m_configuration;
+    auto const timing = expected_owner->m_timing;
     auto const fusion = expected_owner->m_fusion_time_us;
     auto const fault = expected_owner->m_fault;
     // The intrinsic requires a complete variable. Restore every non-buffer
@@ -104,6 +110,7 @@ template <> void formal_eskf::runtime::RingBuffer<Interval, 64>::push(Interval c
     __ESBMC_init_object(expected_owner);
     expected_owner->m_previous = previous;
     expected_owner->m_configuration = configuration;
+    expected_owner->m_timing = timing;
     expected_owner->m_fusion_time_us = fusion;
     expected_owner->m_fault = fault;
     m_length = original_length;
@@ -129,6 +136,10 @@ template <> void formal_eskf::runtime::RingBuffer<Interval, 64>::push(Interval c
 void verify_imu_push_frame(Imu owner, Input input, std::uint64_t now, bool admitted, Imu::imu_type rates)
 {
     imu_proof::metadata(owner.m_samples);
+    // This proof profile binds the deployment's timing; configure publishes it.
+    __ESBMC_assume(owner.m_previous.time_us == 0 || owner.m_fault != Imu::Fault::none ||
+                   imu_proof::same_timing(owner.m_timing, formal_eskf::px4::profile::history::timing));
+    expected_timing = owner.m_timing;
     // Reachable active owners are configured and retain an admitted previous input.
     // Constructor/configure/seed/reset and the timeline induction discharge this domain.
     __ESBMC_assume(owner.m_previous.time_us == 0 ||
@@ -163,6 +174,10 @@ void verify_imu_push_frame(Imu owner, Input input, std::uint64_t now, bool admit
 void verify_imu_push_contract(Imu owner, Input input, std::uint64_t now, bool admitted, Imu::imu_type rates)
 {
     imu_proof::metadata(owner.m_samples);
+    // This proof profile binds the deployment's timing; configure publishes it.
+    __ESBMC_assume(owner.m_previous.time_us == 0 || owner.m_fault != Imu::Fault::none ||
+                   imu_proof::same_timing(owner.m_timing, formal_eskf::px4::profile::history::timing));
+    expected_timing = owner.m_timing;
     // Reachable active owners are configured and retain an admitted previous input.
     // Constructor/configure/seed/reset and the timeline induction discharge this domain.
     __ESBMC_assume(owner.m_previous.time_us == 0 ||
@@ -173,6 +188,7 @@ void verify_imu_push_contract(Imu owner, Input input, std::uint64_t now, bool ad
     auto const previous = owner.m_previous;
     auto const before_input = input;
     auto const config = owner.m_configuration;
+    auto const timing = owner.m_timing;
     auto const fusion = owner.m_fusion_time_us;
     auto const fault = owner.m_fault;
     auto const count = owner.m_samples.m_count;
@@ -239,7 +255,7 @@ void verify_imu_push_contract(Imu owner, Input input, std::uint64_t now, bool ad
                        storage_calls == (result ? 1U : 0U),
                    "IMU push exact admission and storage call counts");
     __ESBMC_assert(same_input(input, before_input) && same_configuration(owner.m_configuration, config) &&
-                       owner.m_fusion_time_us == fusion,
+                       imu_proof::same_timing(owner.m_timing, timing) && owner.m_fusion_time_us == fusion,
                    "IMU push caller input, configuration and cursor frame");
     if (result)
     {

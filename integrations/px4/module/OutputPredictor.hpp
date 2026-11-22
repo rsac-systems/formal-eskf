@@ -7,7 +7,8 @@
 
 #include <formal_eskf/eskf/prediction.hpp>
 
-#include "ImuHistory.hpp"
+#include <formal_eskf/runtime/history/imu_history.hpp>
+#include "DeploymentProfile.hpp"
 
 namespace formal_eskf::px4
 {
@@ -26,7 +27,7 @@ public:
     using vector3_type = linalg::Vector<Linalg, 3>;
     using quaternion_type = so3::UnitQuaternion<Linalg>;
     using state_type = configuration::Ins::NominalState<Linalg>;
-    using interval_type = typename ImuHistory<Linalg>::Interval;
+    using interval_type = runtime::ImuInterval<Linalg>;
 
     struct Sample
     {
@@ -55,7 +56,7 @@ public:
         numerical_failure
     };
 
-    [[nodiscard]] bool configure(TimingParameters const & parameters);
+    [[nodiscard]] bool configure(runtime::TimingParameters const & parameters);
     [[nodiscard]] bool seed(state_type const & state, std::uint64_t time_us);
     /** Requires an admitted real interval from ImuHistory::latest(), exactly once. */
     [[nodiscard]] bool predict(interval_type const & interval);
@@ -108,7 +109,7 @@ private:
     // Persistent workspace keeps failure-atomic history updates off the callback stack.
     std::array<Sample, profile::history::imu_capacity> m_staged{};
     RebaseCandidate m_rebase{};
-    TimingConfiguration m_configuration{};
+    runtime::TimingConfiguration m_configuration{};
     Sample m_current{};
     vector3_type m_accel_bias{};
     vector3_type m_gyro_bias{};
@@ -123,11 +124,12 @@ private:
     Fault m_fault = Fault::none;
 }; /* end class OutputPredictor */
 
-template <typename Linalg> bool OutputPredictor<Linalg>::configure(TimingParameters const & parameters)
+template <typename Linalg> bool OutputPredictor<Linalg>::configure(runtime::TimingParameters const & parameters)
 {
     m_rebase.prepared = false;
-    TimingConfiguration candidate;
-    if (m_current.time_us != 0 || m_fault != Fault::none || !configure_timing(parameters, candidate) ||
+    runtime::TimingConfiguration candidate;
+    if (m_current.time_us != 0 || m_fault != Fault::none ||
+        !runtime::configure_timing(parameters, profile::history::timing, profile::history::imu_capacity, candidate) ||
         !m_history.allocate(candidate.imu_length))
     {
         return false;

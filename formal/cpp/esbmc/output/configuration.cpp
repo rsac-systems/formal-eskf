@@ -8,9 +8,9 @@
 #define configure_timing output_verified_timing
 #include "../imu_owner_support.hpp"
 #undef configure_timing
-namespace formal_eskf::px4
+namespace formal_eskf::runtime
 {
-bool configure_timing(TimingParameters const &, TimingConfiguration &);
+bool configure_timing(TimingParameters const &, ImuTiming const &, std::size_t, TimingConfiguration &);
 }
 #include "boundary.hpp"
 namespace
@@ -18,15 +18,18 @@ namespace
 using namespace output_boundary;
 unsigned resets, timing_calls;
 std::size_t requested_length;
-formal_eskf::px4::TimingParameters expected_parameters;
-formal_eskf::px4::TimingConfiguration timing_result;
+formal_eskf::runtime::TimingParameters expected_parameters;
+formal_eskf::runtime::TimingConfiguration timing_result;
 bool timing_success;
 } // namespace
-namespace formal_eskf::px4
+namespace formal_eskf::runtime
 {
-bool configure_timing(TimingParameters const & parameters, TimingConfiguration & result)
+bool configure_timing(TimingParameters const & parameters, ImuTiming const & timing, std::size_t capacity,
+                      TimingConfiguration & result)
 {
     check();
+    __ESBMC_assert(capacity == 64 && imu_proof::same_timing(timing, px4::profile::history::timing),
+                   "Output forwards the configured timing bounds and matching capacity");
     __ESBMC_assert(timing_calls == 0 && resets == 0,
                    "Output configuration checks timing before allocation exactly once");
     __ESBMC_assert(parameters.filter_interval_us == expected_parameters.filter_interval_us &&
@@ -42,7 +45,7 @@ bool configure_timing(TimingParameters const & parameters, TimingConfiguration &
     }
     return timing_success;
 }
-} // namespace formal_eskf::px4
+} // namespace formal_eskf::runtime
 template <> void formal_eskf::runtime::RingBuffer<output_proof::Sample, 64>::reset()
 {
     using namespace output_boundary;
@@ -59,8 +62,8 @@ template <> void formal_eskf::runtime::RingBuffer<output_proof::Sample, 64>::res
     capture_storage();
     ++resets;
 }
-void verify_output_configuration(Output input_owner, formal_eskf::px4::TimingParameters parameters,
-                                 formal_eskf::px4::TimingConfiguration output, bool success)
+void verify_output_configuration(Output input_owner, formal_eskf::runtime::TimingParameters parameters,
+                                 formal_eskf::runtime::TimingConfiguration output, bool success)
 {
     owner = &input_owner;
     __ESBMC_assume(!success || (output.imu_length >= 2 && output.imu_length <= 64));

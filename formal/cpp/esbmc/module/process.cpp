@@ -83,7 +83,7 @@ struct Observations
 {
     History * history{};
     bool recorded{}, success{};
-    bool record_imu(History::Interval const & interval, unsigned land, unsigned vehicle)
+    bool record_imu(History::interval_type const & interval, unsigned land, unsigned vehicle)
     {
         __ESBMC_assert(history->success && &interval == &history->newest && land == 1 && vehicle == 2,
                        "Current context attaches to the just-admitted interval");
@@ -95,7 +95,7 @@ struct Output
 {
     Observations * observations{};
     bool predicted{}, success{};
-    bool predict(History::Interval const & interval)
+    bool predict(History::interval_type const & interval)
     {
         __ESBMC_assert(observations->recorded && observations->success && &interval == &observations->history->newest,
                        "Current output propagation follows successful history/context admission");

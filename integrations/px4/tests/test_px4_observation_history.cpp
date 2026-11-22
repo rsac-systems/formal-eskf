@@ -11,10 +11,11 @@
 
 namespace
 {
+namespace profile = formal_eskf::px4::profile;
 using formal_eskf::test::Context;
 using Backend = formal_eskf::test::Backend<double>;
 using History = formal_eskf::px4::ObservationHistory<Backend>;
-using Imu = formal_eskf::px4::ImuHistory<Backend>;
+using Imu = formal_eskf::runtime::ImuHistory<Backend, 64>;
 using Admission = History::Admission;
 using Selection = History::Selection;
 namespace profile = formal_eskf::px4::profile;
@@ -76,12 +77,13 @@ struct Session
     History::LandState land{epoch, true, true, true};
     History::VehicleState vehicle{epoch, true, false};
 
-    void seed(formal_eskf::px4::TimingParameters const & parameters = {})
+    void seed(formal_eskf::runtime::TimingParameters const & parameters = profile::history::parameters)
     {
         time = epoch;
         land = {epoch, true, true, true};
         vehicle = {epoch, true, false};
-        require(imu.configure(parameters) && history.configure(parameters) && imu.seed(imu_input(time), time));
+        require(imu.configure(parameters, profile::history::timing) && history.configure(parameters) &&
+                imu.seed(imu_input(time), time));
         require(history.seed({{epoch, land, vehicle}, {epoch, {17, 0}}, {epoch, {29, 3}}, {epoch, {31, 4}}}));
     }
 
@@ -127,7 +129,7 @@ void configuration_and_seed(Context & test)
     bad.gnss = {1000001, {17, 0}};
     test.expect(!history.seed(bad) && history.fusion_time_us() == 0, "seed",
                 "future source watermark rejected atomically");
-    test.expect(history.seed(seed) && !history.seed(seed) && !history.configure({}), "seed",
+    test.expect(history.seed(seed) && !history.seed(seed) && !history.configure(profile::history::parameters), "seed",
                 "no reseed or live reconfiguration");
     auto const context = history.context(1000000, 3000000);
     test.expect(context.land.known && context.land.at_rest && context.vehicle.known && !context.vehicle.armed, "seed",
@@ -142,7 +144,7 @@ void configuration_and_seed(Context & test)
 }
 
 void selection_and_payload(Context & test, std::uint64_t epoch,
-                           formal_eskf::px4::TimingParameters const & parameters = {})
+                           formal_eskf::runtime::TimingParameters const & parameters = profile::history::parameters)
 {
     Session session;
     session.epoch = epoch;

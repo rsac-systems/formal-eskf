@@ -5,19 +5,16 @@
 #include <formal_eskf/linalg/matrix.hpp>
 #undef private
 #include "contracts.hpp"
-#include "delayed_library.hpp"
 #include <formal_eskf/runtime/sensors/imu/imu.hpp>
 #include "../../../integrations/px4/module/DeploymentProfile.hpp"
 
 #define private public
-#define max formal_eskf_proof_max
-#include "../../../integrations/px4/module/ImuHistory.hpp"
-#undef max
+#include <formal_eskf/runtime/history/imu_history.hpp>
 #undef private
 
 using Backend = contract_proof::Linalg;
 using Scalar = contract_proof::Scalar;
-using Imu = formal_eskf::px4::ImuHistory<Backend>;
+using Imu = formal_eskf::runtime::ImuHistory<Backend, 64>;
 constexpr std::size_t capacity = formal_eskf::px4::profile::history::imu_capacity;
 static_assert(capacity == 64);
 static_assert(FORMAL_ESKF_PROOF_WRITE < capacity);
@@ -74,7 +71,7 @@ bool same_stored_scalar(Scalar a, Scalar b)
     // Pure predicates: eager Boolean operators avoid path merges in the oracle.
     return (__builtin_bit_cast(Bits, a) == __builtin_bit_cast(Bits, b)) | (std::isnan(a) & std::isnan(b));
 }
-using TypedRing = formal_eskf::runtime::RingBuffer<Imu::Interval, capacity>;
+using TypedRing = formal_eskf::runtime::RingBuffer<Imu::interval_type, capacity>;
 
 // The actual ring and sample type are retained. Arbitrary payloads include all
 // inactive slots and IEEE values; no chronological or finite-value premise is
@@ -83,7 +80,7 @@ using TypedRing = formal_eskf::runtime::RingBuffer<Imu::Interval, capacity>;
 // ESBMC. Their exhaustive union covers all valid writes, without reducing storage.
 // Homogeneous snapshots avoid copying nested aggregate arrays in the oracle.
 
-void verify_imu_storage(TypedRing ring, Imu::Interval sample)
+void verify_imu_storage(TypedRing ring, Imu::interval_type sample)
 {
     metadata(ring);
     auto const expected_write = ring.m_write;

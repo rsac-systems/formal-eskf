@@ -239,8 +239,8 @@ and reporting. Deployed numerical accuracy and target timing remain separate.
 
 `delayed-input` checks the implemented 250 Hz signed timing configuration,
 capacity/arrival budget, unchanged output on rejection, and binary32/binary64
-input admission using the actual mean-rate and clipping operations. Its scoped
-three-value unsigned maximum model has a separate relational check. It does not
+input admission using the actual mean-rate and clipping operations. Timing uses
+the actual unsigned maximum expression; no initializer-list library model is needed. It does not
 prove the history's seed/push/completion or retained payloads. INS in-place nominal
 failure frames are checked in `step`; the matching quaternion producer chain is
 still required before using that contract in an output-owner proof.
@@ -251,8 +251,7 @@ the fixed-array proof backend, binary32/binary64 and the 64-bit word model.
 Every valid ring-metadata tuple is
 admitted; payloads and timestamps remain arbitrary. This establishes the view
 contract under that premise, not that every history mutation preserves it.
-No producer body is summarized by these checks; the startup maximum model is
-not executed. Full payload mutation frames, history induction, numerical output
+No producer body is summarized by these checks. Full payload mutation frames, history induction, numerical output
 tracking and module sequencing remain separate obligations.
 
 `delayed-seed` checks actual IMU construction and seed in binary32/binary64 with
@@ -269,7 +268,7 @@ Push, completion, reset and history induction require the `delayed-history`
 contracts below; live caller sequencing remains separate. Flat homogeneous snapshots avoid the verifier's conditional-reference
 and nested array/tuple encoding limitations without narrowing the checked domain.
 
-`delayed-storage` checks the actual `RingBuffer<ImuHistory::Interval, 64>::push`
+`delayed-storage` checks the actual `RingBuffer<ImuInterval<Linalg>, 64>::push`
 on the same proof backend and word model. It checks every field of the inserted
 interval, unchanged external input, exact index/count updates and preservation
 of every other backing slot, including inactive storage. Valid allocated ring
@@ -288,6 +287,10 @@ construction, chronological induction, completion and reset require the
 chronological induction separately. It requires the same qualified tool,
 64-slot payload, 64-bit word model and both scalar formats for source contracts.
 The actual mean-rate producer covers every coefficient and the full input frame.
+The portable history accepts an explicit timing profile; these source/induction
+profiles bind the existing PX4 250 Hz settings and 64-slot capacity. Configuration
+checks publication of those settings, and other operations preserve them. New
+settings/capacities require their own evidence rather than inheriting this claim.
 Typed reset checks all storage values and enclosing-owner frames as separate
 obligations over the same unrestricted metadata domain: allocation changes length
 before reset, so old indices need not fit the new length.

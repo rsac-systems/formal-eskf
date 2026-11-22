@@ -86,8 +86,9 @@ struct History
         Rates held_rate{true};
         std::uint32_t hold_period_us{};
     };
+    using interval_type = Interval;
 };
-History::Interval const * borrowed;
+History::interval_type const * borrowed;
 std::uint64_t * main_epoch;
 State * main_state;
 unsigned * covariance;
@@ -101,14 +102,14 @@ status_type result(Event event)
 }
 struct Observations
 {
-    unsigned prediction_context(History::Interval const & interval, std::uint64_t maximum_age)
+    unsigned prediction_context(History::interval_type const & interval, std::uint64_t maximum_age)
     {
         trace.record(context);
         __ESBMC_assert(&interval == borrowed && maximum_age == profile::imu::rest_maximum_age_us,
                        "Prediction context belongs to the borrowed delayed interval");
         return 1;
     }
-    bool begin_fusion(History::Interval const & interval)
+    bool begin_fusion(History::interval_type const & interval)
     {
         trace.record(begin);
         __ESBMC_assert(&interval == borrowed && *main_epoch == interval.sample.time_us && trace.has(real_prediction),
@@ -184,7 +185,7 @@ struct Flow
 
     bool check(status_type status);
     bool check_timing(bool succeeded);
-    void predict_and_fuse(imu_history_type::Interval const & interval);
+    void predict_and_fuse(imu_history_type::interval_type const & interval);
     void reset_imu_observations()
     {
         trace.record(clear_imu);
@@ -235,7 +236,7 @@ extern "C" void verify_module_prediction()
     flow.m_errors = nondet_value();
     auto const predictions = flow.m_predictions;
     auto const gaps = flow.m_gaps;
-    History::Interval interval;
+    History::interval_type interval;
     interval.sample.time_us = nondet_time();
     interval.sample.angular_period_us = nondet_period();
     interval.sample.acceleration_period_us = nondet_period();

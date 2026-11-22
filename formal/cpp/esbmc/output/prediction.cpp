@@ -13,7 +13,7 @@ bool held_ok, real_ok;
 unsigned advances, means, stores;
 bool holding;
 } // namespace
-namespace formal_eskf::px4
+namespace formal_eskf::runtime
 {
 template <> ImuSample<output_proof::Backend> ImuInput<output_proof::Backend>::mean_rates() const
 {
@@ -25,6 +25,9 @@ template <> ImuSample<output_proof::Backend> ImuInput<output_proof::Backend>::me
     ++means;
     return mean;
 }
+} // namespace formal_eskf::runtime
+namespace formal_eskf::px4
+{
 template <>
 bool OutputPredictor<output_proof::Backend>::advance(Sample & candidate, ImuSample<output_proof::Backend> imu,
                                                      value_type dt) const

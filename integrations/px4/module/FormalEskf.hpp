@@ -44,7 +44,7 @@
 #include "DeploymentProfile.hpp"
 #include "HeightAiding.hpp"
 #include "InnovationRatio.hpp"
-#include "ImuHistory.hpp"
+#include <formal_eskf/runtime/history/imu_history.hpp>
 #include "ObservationHistory.hpp"
 #include "OutputPredictor.hpp"
 #include "MagneticModel.hpp"
@@ -101,10 +101,11 @@ private:
         void reset_samples();
     };
 
-    using ImuSource = formal_eskf::px4::ImuSource;
-    using ImuInput = formal_eskf::px4::ImuInput<backend_type>;
+    using ImuSource = formal_eskf::runtime::ImuSource;
+    using ImuInput = formal_eskf::runtime::ImuInput<backend_type>;
 
-    using imu_history_type = formal_eskf::px4::ImuHistory<backend_type>;
+    using imu_history_type =
+        formal_eskf::runtime::ImuHistory<backend_type, formal_eskf::px4::profile::history::imu_capacity>;
     using observation_history_type = formal_eskf::px4::ObservationHistory<backend_type>;
     using output_predictor_type = formal_eskf::px4::OutputPredictor<backend_type>;
     static_assert(sizeof(imu_history_type) + sizeof(observation_history_type) + sizeof(output_predictor_type) <=
@@ -326,7 +327,7 @@ private:
     void Run() override;
     static ImuInput decode_imu(vehicle_imu_s const & sample);
     void process_imu(ImuInput const & sample);
-    void predict_and_fuse(imu_history_type::Interval const & interval);
+    void predict_and_fuse(imu_history_type::interval_type const & interval);
     void advance_fusion();
     void select_observations();
     void record_admission(observation_history_type::PushResult const & result);

@@ -8,39 +8,38 @@
 
 **Parent:** [SW-PX4](../../software/px4-estimation.md).
 
+**Uses:** [R-IMU-HISTORY](../../runtime/history/imu-history.md).
+
 ## Required behavior
 
-`px4::ImuHistory` owns the retained intervals and the completed prediction cursor
-under [the deployment profile](../../../profiles/px4-sih-250hz.md).
-It does not own the numerical state, output predictor, observations or a clock.
+The module shall bind portable IMU history to the
+[250 Hz deployment profile](../../../profiles/px4-sih-250hz.md), including
+64-slot backing capacity, admissible periods, age/spacing/overlap limits, source
+arrival bounds and maximum lag. Startup parameter loading supplies signed timing
+requests; history validation shall finish before callbacks start. Observation and
+output histories shall use the same request and profile-derived length.
 
-- Validate signed startup settings before conversion. Accept only the implemented
-  250 Hz mode and a lag covering source arrival/delay bounds within the fixed
-  capacity. Derive the active length; invalid configuration preserves the old
-  configuration. Reconfiguration after seeding or fault requires explicit reset.
-- Seed from one validated input endpoint and its preceding measured rate; seed
-  history remains empty. Reject invalid/repeated seeds without changing state.
-- Admit ordered nonzero endpoints, separate valid integration periods, finite
-  mean rates and permitted clipping. Check arrival age, source/calibration,
-  interval spacing and overlap tolerance before writing history.
-- Store the complete real input and a separate preceding-rate hold when the
-  permitted gap exceeds tolerance. Preserve the measured periods; a synthetic
-  hold is not new sensor evidence. Record the previous endpoint as interval start.
-- Wait for the configured number of real intervals and valid actual lag. Never
-  overwrite an unprocessed interval or skip it to repair excessive lag. Check
-  the prospective retained span before mutation; an admission fault preserves
-  history and cursors, latches its cause and blocks further use until reset.
-- Selection is non-consuming. Advance the fusion cursor only on completion of
-  the oldest eligible interval whose start equals the previous cursor. Wrong,
-  premature or repeated completion faults without advancing. Numerical success
-  is a caller premise; the timestamp acknowledgment cannot prove it occurred.
-- Expose the latest admitted real interval without consuming it, including
-  during warmup; return no interval before admission or after a latched fault.
-- Reset clears stored inputs, cursors and fault, retaining configuration. All
-  storage/work is bounded, with no dynamic allocation or platform effects.
+Decode each integrated body-FRD input with separate angular/acceleration periods,
+source and calibration identities and its original sample endpoint. Supply the
+callback's monotonic arrival time. Preserve the startup gyro/accelerometer
+clipping rules and the initialized-only use of accelerometer-clipped samples.
 
-Evidence scope and producer dependencies are recorded in the
+The module shall seed all owners at the same initial epoch, use latest admitted
+intervals for current output, and acknowledge each delayed interval only after
+successful numerical prediction/fusion and output feedback. Warmup and faults
+shall retain the existing output/diagnostic behavior. Fault recovery requires
+explicit restart; neither late arrivals nor missing records authorize skipping
+unprocessed history. Reusable storage/admission transactions are owned by
+R-IMU-HISTORY rather than repeated here.
+
+## Acceptance and verification
+
+Compare the module's input, state/P, decisions and publication epochs under the
+existing profile. Exercise startup, warmup, gaps, clipping, source changes,
+history loss, invalid completion and restart. Native component tests cover
+portable history; module scenarios establish this caller binding.
+
+Evidence scope and producer dependencies remain in the
 [verification guide](../../../../guides/verification.md#runtime-producer-boundaries).
-Using `R-RING-BUFFER` evidence requires matching this owner's actual payload and
-capacity; it does not by itself establish the owner's admission, acknowledgment
-protocol, adapter sequencing or WCET.
+Acceptance requires the actual configured payload/capacity and matching producers;
+no target WCET or full-module refinement claim follows from component evidence.

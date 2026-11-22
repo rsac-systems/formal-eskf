@@ -1,19 +1,10 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
-#include "contracts.hpp"
-#include "delayed_library.hpp"
-#include <formal_eskf/runtime/sensors/imu/imu.hpp>
-#include "../../../integrations/px4/module/DeploymentProfile.hpp"
-
-#define private public
-#define max formal_eskf_proof_max
-#include "../../../integrations/px4/module/ImuHistory.hpp"
-#undef max
-#undef private
+#include "imu_owner_support.hpp"
 
 using Backend = contract_proof::Linalg;
 using Scalar = contract_proof::Scalar;
-using Imu = formal_eskf::px4::ImuHistory<Backend>;
+using Imu = formal_eskf::runtime::ImuHistory<Backend, 64>;
 constexpr std::size_t capacity = formal_eskf::px4::profile::history::imu_capacity;
 static_assert(capacity == 64);
 extern unsigned char nondet_index();
@@ -66,6 +57,7 @@ bool same_input(Imu::input_type const & a, Imu::input_type const & b);
 
 namespace
 {
+formal_eskf::runtime::ImuTiming expected_timing;
 bool admission_result;
 unsigned admission_calls;
 Imu::input_type const * expected_input;
@@ -75,8 +67,12 @@ std::uint64_t expected_now;
 
 // Admission may succeed or fail. Its actual coefficient/status/input-frame
 // contract is separately checked by delayed-input for the same scalar format.
-template <> bool formal_eskf::px4::ImuHistory<Backend>::valid_input(input_type const & sample, std::uint64_t now)
+template <>
+bool formal_eskf::runtime::ImuHistory<Backend, 64>::valid_input(input_type const & sample, std::uint64_t now,
+                                                                formal_eskf::runtime::ImuTiming const & timing)
 {
+    __ESBMC_assert(imu_proof::same_timing(timing, expected_timing),
+                   "IMU admission receives the owned timing profile unchanged");
     __ESBMC_assert(&sample == expected_input && same_input(sample, *original_input) && now == expected_now,
                    "seed forwards complete input and time to admission producer");
     ++admission_calls;
@@ -97,6 +93,7 @@ bool same_input(Imu::input_type const & a, Imu::input_type const & b)
 
 void verify_imu_seed(Imu owner, Imu::input_type sample, std::uint64_t now, bool admitted)
 {
+    expected_timing = owner.m_timing;
     metadata(owner);
     std::uint64_t integers[capacity][integer_fields];
     Scalar values[capacity][coefficients];
@@ -229,7 +226,8 @@ void verify_imu_seed(Imu owner, Imu::input_type sample, std::uint64_t now, bool 
                        owner.m_configuration.gnss_delay_us == config.gnss_delay_us &&
                        owner.m_configuration.magnetic_delay_us == config.magnetic_delay_us &&
                        owner.m_configuration.barometer_delay_us == config.barometer_delay_us &&
-                       owner.m_configuration.imu_length == config.imu_length,
+                       owner.m_configuration.imu_length == config.imu_length &&
+                       imu_proof::same_timing(owner.m_timing, expected_timing),
                    "seed configuration frame");
     __ESBMC_assert(owner.m_samples.m_length == length && owner.m_samples.m_count == count &&
                        owner.m_samples.m_oldest == oldest && owner.m_samples.m_write == write &&
@@ -266,7 +264,8 @@ void verify_imu_initialization()
                    "IMU construction establishes the unconfigured empty session");
     __ESBMC_assert(owner.m_configuration.minimum_lag_us == 0 && owner.m_configuration.gnss_delay_us == 0 &&
                        owner.m_configuration.magnetic_delay_us == 0 && owner.m_configuration.barometer_delay_us == 0 &&
-                       owner.m_configuration.imu_length == 0,
+                       owner.m_configuration.imu_length == 0 &&
+                       imu_proof::same_timing(owner.m_timing, formal_eskf::runtime::ImuTiming{}),
                    "IMU construction initializes every configuration field");
     for (std::size_t index = 0; index < capacity; ++index)
     {

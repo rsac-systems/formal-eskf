@@ -146,8 +146,8 @@ void verify_observation_constructor()
     __ESBMC_assert(owner.m_gnss.m_length == 16 && owner.m_magnetic.m_length == 64 &&
                        owner.m_barometer.m_length == 128 && owner.m_context.m_length == 128,
                    "Constructor allocates exact profile capacities");
-    __ESBMC_assert(!owner.m_configured &&
-                       imu_proof::same_configuration(owner.m_configuration, formal_eskf::px4::TimingConfiguration{}),
+    __ESBMC_assert(!owner.m_configured && imu_proof::same_configuration(owner.m_configuration,
+                                                                        formal_eskf::runtime::TimingConfiguration{}),
                    "Constructor has default configuration awaiting validation");
 }
 

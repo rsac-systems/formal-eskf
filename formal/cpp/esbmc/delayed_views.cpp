@@ -1,19 +1,16 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "contracts.hpp"
-#include "delayed_library.hpp"
 #include <formal_eskf/runtime/sensors/imu/imu.hpp>
 #include "../../../integrations/px4/module/DeploymentProfile.hpp"
 // Expose metadata to state the view precondition; retain every production body.
 #define private public
-#define max formal_eskf_proof_max
-#include "../../../integrations/px4/module/ImuHistory.hpp"
-#undef max
+#include <formal_eskf/runtime/history/imu_history.hpp>
 #include "../../../integrations/px4/module/OutputPredictor.hpp"
 #undef private
 
 using Backend = contract_proof::Linalg;
-using Imu = formal_eskf::px4::ImuHistory<Backend>;
+using Imu = formal_eskf::runtime::ImuHistory<Backend, 64>;
 using Output = formal_eskf::px4::OutputPredictor<Backend>;
 namespace profile = formal_eskf::px4::profile;
 static_assert(profile::history::imu_capacity == 64);

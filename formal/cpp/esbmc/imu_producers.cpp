@@ -43,10 +43,10 @@ void verify_imu_owner_equality(Scalar a, Scalar b)
                    "IMU owner frame equality retains values, signed zero and NaN classification");
 }
 
-void verify_imu_timing_input_frame(formal_eskf::px4::TimingParameters parameters, imu_proof::Configuration output)
+void verify_imu_timing_input_frame(formal_eskf::runtime::TimingParameters parameters, imu_proof::Configuration output)
 {
     auto const before = parameters;
-    (void)formal_eskf::px4::configure_timing(parameters, output);
+    (void)formal_eskf::runtime::configure_timing(parameters, formal_eskf::px4::profile::history::timing, 64, output);
     __ESBMC_assert(parameters.filter_interval_us == before.filter_interval_us &&
                        parameters.fusion_delay_ms == before.fusion_delay_ms &&
                        parameters.gnss_delay_ms == before.gnss_delay_ms &&

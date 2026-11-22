@@ -4938,7 +4938,7 @@
             "symbol": "bool FormalEskf::accept_imu("
           },
           {
-            "file": "integrations/px4/module/ImuHistory.hpp",
+            "file": "include/formal_eskf/runtime/history/imu_history.hpp",
             "symbol": "ImuInput<Linalg>::mean_rates()"
           },
           {
@@ -4986,8 +4986,8 @@
             "symbol": "bool FormalEskf::fuse_gps_position("
           },
           {
-            "file": "integrations/px4/module/ImuHistory.hpp",
-            "symbol": "ImuHistory<Linalg>::push("
+            "file": "include/formal_eskf/runtime/history/imu_history.hpp",
+            "symbol": "ImuHistory<Linalg, Capacity>::push("
           }
         ],
         "esbmc": [
@@ -5064,7 +5064,7 @@
             "symbol": "select_imu_process_noise(configuration::Ins::ProcessNoise"
           },
           {
-            "file": "integrations/px4/module/ImuHistory.hpp",
+            "file": "include/formal_eskf/runtime/history/imu_history.hpp",
             "symbol": "bool imu_clipping_acceptable("
           },
           {
@@ -6120,56 +6120,56 @@
           {
             "file": "docs/spec/requirements/integration/px4/imu-history.md",
             "symbol": "# R-PX4-IMU-HISTORY: delayed IMU timeline"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/history/imu-history.md",
+            "symbol": "# R-IMU-HISTORY: retained IMU timeline"
           }
         ],
         "lean": [],
         "cpp": [
           {
-            "file": "integrations/px4/module/ImuHistory.hpp",
+            "file": "include/formal_eskf/runtime/history/timing.hpp",
             "symbol": "bool configure_timing("
           },
           {
-            "file": "integrations/px4/module/ImuHistory.hpp",
+            "file": "include/formal_eskf/runtime/history/imu_history.hpp",
             "symbol": "class ImuHistory"
           },
           {
-            "file": "integrations/px4/module/ImuHistory.hpp",
-            "symbol": "ImuHistory<Linalg>::configure("
+            "file": "include/formal_eskf/runtime/history/imu_history.hpp",
+            "symbol": "ImuHistory<Linalg, Capacity>::configure("
           },
           {
-            "file": "integrations/px4/module/ImuHistory.hpp",
-            "symbol": "ImuHistory<Linalg>::seed("
+            "file": "include/formal_eskf/runtime/history/imu_history.hpp",
+            "symbol": "ImuHistory<Linalg, Capacity>::seed("
           },
           {
-            "file": "integrations/px4/module/ImuHistory.hpp",
-            "symbol": "ImuHistory<Linalg>::push("
+            "file": "include/formal_eskf/runtime/history/imu_history.hpp",
+            "symbol": "ImuHistory<Linalg, Capacity>::push("
           },
           {
-            "file": "integrations/px4/module/ImuHistory.hpp",
-            "symbol": "ImuHistory<Linalg>::delayed()"
+            "file": "include/formal_eskf/runtime/history/imu_history.hpp",
+            "symbol": "ImuHistory<Linalg, Capacity>::delayed()"
           },
           {
-            "file": "integrations/px4/module/ImuHistory.hpp",
-            "symbol": "ImuHistory<Linalg>::complete("
+            "file": "include/formal_eskf/runtime/history/imu_history.hpp",
+            "symbol": "ImuHistory<Linalg, Capacity>::complete("
           },
           {
-            "file": "integrations/px4/module/ImuHistory.hpp",
-            "symbol": "ImuHistory<Linalg>::reset()"
+            "file": "include/formal_eskf/runtime/history/imu_history.hpp",
+            "symbol": "ImuHistory<Linalg, Capacity>::reset()"
           },
           {
-            "file": "integrations/px4/module/ImuHistory.hpp",
-            "symbol": "ImuHistory<Linalg>::latest()"
+            "file": "include/formal_eskf/runtime/history/imu_history.hpp",
+            "symbol": "ImuHistory<Linalg, Capacity>::latest()"
           },
           {
-            "file": "integrations/px4/module/ImuHistory.hpp",
-            "symbol": "ImuHistory<Linalg>::valid_input("
+            "file": "include/formal_eskf/runtime/history/imu_history.hpp",
+            "symbol": "ImuHistory<Linalg, Capacity>::valid_input("
           }
         ],
         "esbmc": [
-          {
-            "file": "formal/cpp/esbmc/delayed_library.cpp",
-            "symbol": "void verify_delayed_max("
-          },
           {
             "file": "formal/cpp/esbmc/delayed_input.cpp",
             "symbol": "void verify_timing_configuration("
@@ -6651,10 +6651,6 @@
           {
             "file": "formal/cpp/esbmc/output/translation.cpp",
             "symbol": "void verify_output_commit_finish("
-          },
-          {
-            "file": "formal/cpp/esbmc/delayed_library.cpp",
-            "symbol": "void verify_delayed_max("
           },
           {
             "file": "formal/cpp/esbmc/delayed_input.cpp",

@@ -2,8 +2,8 @@
 
 **Status:** Draft
 
-**Scope:** Portable fixed-capacity `RingBuffer` and the exposed `TiltAlignment`
-operation. IMU-history owners, delayed observation/context queues, output
+**Scope:** Portable fixed-capacity `RingBuffer`, retained IMU history and the
+exposed `TiltAlignment` operation. Delayed observation/context queues, output
 predictors, height owners and module/replay wiring are outside this design.
 
 **Level and purpose:** Storage/alignment unit and sequence tests, compile-time API
@@ -15,6 +15,8 @@ active lengths 1, less than capacity and capacity where distinct. Samples contai
 nonzero uint64 timestamps, distinct payloads and an allocation-free bounded
 copy-counting type where useful. Alignment uses binary32/binary64 and supported
 backends with caller-established unit q and symmetric PSD attitude covariance.
+IMU history currently binds binary64, 64 slots and the 250 Hz timing profile,
+with 53/54-slot capacity boundaries; this does not qualify other rate profiles.
 
 **Setup and oracle:** A host list model stores ordered timestamp/payload pairs,
 trims the oldest on full push, and selects the newest eligible timestamp at pop.
@@ -33,11 +35,18 @@ the case tables identify executable bindings and remaining acceptance gaps.
 
 | Production header / public group | Cases / disposition |
 |---|---|
+| `history/imu_history.hpp`: configure, seed, push, views, complete, reset | `TC-R-IMU-HISTORY-01` |
 | `ring_buffer.hpp`: explicit construction, deleted default/copy/move operations, allocate/valid | `TC-R-RING-BUFFER-01`, `02` |
 | `ring_buffer.hpp`: push, pop_first_older_than | `TC-R-RING-BUFFER-03` through `07`, `10` |
 | `ring_buffer.hpp`: get_oldest/get_newest, const/mutable operator[], get_oldest_index, entries/get_length, used/total byte queries | `TC-R-RING-BUFFER-08`, `09` |
 | `ring_buffer.hpp`: reset; bounded storage/work contract | `TC-R-RING-BUFFER-02`, `10`, `11` |
 | `tilt_alignment.hpp`: construction, update, aligned/variance and public tilt_limit | `TC-R-ACCELEROMETER-CONDITIONS-03` through `05`, blocked for requirement approval as described below |
+
+## Retained IMU history
+
+| Case ID | Name | Requirement / clause | Conditions, inputs and action | Expected result and independent oracle | Executable test |
+|---|---|---|---|---|---|
+| TC-R-IMU-HISTORY-01 | IMU history: timing, storage and completion | [R-IMU-HISTORY](../../../requirements/runtime/history/imu-history.md) | Explicit/invalid profiles, capacity/age/period/lag boundaries, unequal periods, clipping/source changes, multiple wraps, gaps, loss, completion and restart. | Independent chronological queue, exact retained coefficients and watermarks, failure frames and inclusive/exclusive bounds; detects hidden defaults, skipped intervals and stale configuration. | Native: [test_history.cpp](../../../../../tests/runtime/imu/test_history.cpp) |
 
 ## Fixed-capacity ring buffer
 

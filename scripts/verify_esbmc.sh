@@ -1368,9 +1368,6 @@ run_accelerometer_suite()
 run_delayed_input_suite()
 {
     local BINARY64
-    SOURCE_FILE="${PROOF_DIR}/delayed_library.cpp"
-    PROFILE=delayed-input-library-max
-    verify verify_delayed_max --proof-unwind 16 --cvc5
     SOURCE_FILE="${PROOF_DIR}/delayed_input.cpp"
     PROFILE=delayed-input-timing
     verify verify_timing_configuration --proof-unwind 16 --cvc5

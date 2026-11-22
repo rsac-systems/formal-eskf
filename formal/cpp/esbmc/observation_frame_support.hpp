@@ -20,7 +20,7 @@ static_assert(FORMAL_ESKF_PROOF_FRAME == 4 ? FORMAL_ESKF_PROOF_CHUNK == 0
                                            : FORMAL_ESKF_PROOF_CHUNK < frame_capacity / 16);
 static_assert(FORMAL_ESKF_PROOF_FRAME == 4 || frame_end <= frame_capacity);
 Observations::Timeline expected_gnss_time, expected_magnetic_time, expected_barometer_time;
-formal_eskf::px4::TimingConfiguration expected_configuration;
+formal_eskf::runtime::TimingConfiguration expected_configuration;
 std::uint64_t expected_seed, expected_latest, expected_fusion, expected_advanced;
 double expected_average;
 bool expected_configured;
