@@ -20,7 +20,7 @@ MODULE_FILES = (
     "CMakeLists.txt", "FormalEskf.cpp", "FormalEskf.hpp", "FormalEskfNavigation.cpp", "FormalEskfFrames.cpp",
     "FormalEskfAttitude.cpp", "FormalEskfOutput.cpp", "DeploymentProfile.hpp",
     "DeploymentConfig.hpp",
-    "MagneticModel.hpp", "InnovationRatio.hpp",
+    "InnovationRatio.hpp",
     "Kconfig", "formal_eskf_params.c",
 )
 HEADER_SUFFIXES = (".h", ".hpp", ".hxx", ".inl", ".tpp")

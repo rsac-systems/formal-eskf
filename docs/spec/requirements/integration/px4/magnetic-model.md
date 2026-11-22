@@ -8,31 +8,30 @@
 
 **Parent:** [SW-PX4](../../software/px4-estimation.md).
 
-**Uses:** [R-MAGNETIC-REFERENCE](../../runtime/magnetic/reference.md).
+**Uses:** [R-MAGNETIC-MODEL](../../runtime/magnetic/model.md),
+[R-MAGNETIC-FIELD](../../runtime/magnetic/field.md).
 
 ## Required behavior
 
-The configured host-lookup interval and the portable reference check cadence are
-separate. `R-MAGNETIC-REFERENCE` retains its strictly-greater-than-10-second
-periodic check unless an origin event requests an immediate check. A shorter host
-lookup interval does not force adoption: consume the returned `checked`/`changed`
-result, not lookup success alone.
-
-`MagneticModel` connects `R-MAGNETIC-REFERENCE` to the module without owning
-lookup I/O, estimator state/P or magnetic bias states. The host's WMM table and
-epoch remain external dependencies. No table is copied into formal-eskf.
+The adapter shall bind the portable coordinator's attempt interval and heading
+settings at startup. The coordinator owns reference adoption and fallback;
+PX4 owns lookup I/O, parameter decoding and message conversion. The external WMM
+table and epoch remain deployment dependencies; no table is copied into this library.
+The configured attempt interval and the reference policy's fixed 10 s adoption
+clock remain separate. A successful lookup alone does not imply adoption.
 
 - Query the host at the qualified GNSS origin during stationary startup. Later,
   on fresh usable magnetic samples, query strictly more than the configured lookup interval (default 10 s) after
   the last attempt while the module's own horizontal position is valid. Reproject the
   **estimated position**, not an unchecked incoming GNSS fix. An origin change
-  requests an immediate lookup, using the origin if position is invalid. This
-  does not add an origin-rebasing API or change the estimator's coordinates.
+  requests an immediate lookup, using the origin if position is invalid. The
+  lookup does not itself rebase the estimator.
 - Host D/I are degrees and strength is gauss. Convert to radians/microtesla,
-  rotate local geographic NED through ECEF into the fixed origin NED, then feed
+  rotate local geographic NED through ECEF into the fixed reference NED, then feed
   D/I/B to the existing adoption policy. The >1 degree / >1 microtesla thresholds
   apply in this common frame. This frame handling differs from directly using
-  local geographic NED; it is required by our fixed-frame estimator convention.
+  local geographic NED; the session subsequently maps that reference into its
+  current working NED through the existing frame owner.
 - A missing/invalid lookup cannot replace either reference or authorize a reset.
   Retain an already accepted model and record the unavailable attempt. Attempts,
   including failures, are spaced by the same configured interval rule. Without any accepted
@@ -57,20 +56,11 @@ epoch remain external dependencies. No table is copied into formal-eskf.
   adoption follows the same real lifecycle/reset permission rules, not an implicit
   quaternion assignment. Reference changes retain the measurement LPF history.
 
-ESBMC checks the actual `MagneticModel` construction, initialization, lookup
-admission, update and public reference views with the fixed-array proof backend
-in both scalar formats. The independently checked `MagneticReference` transition
-closes its state contract. Initialization is atomic, including seeds borrowing
-the receiver's prior observation/health fields; successful commit consumes the
-old seed before changing that owned field. Update attempts advance the
-lookup clock even on absent/failed models, while health and observation revisions
-remain distinct. Construction and both mutators establish/preserve bounded lookup
-counts, clock order and source/declination domains. Raw seed hypot/sin/cos returns
-remain arbitrary pure platform boundaries: no finite-observation or libm accuracy
-claim follows from this control proof. C++ origin-frame conversion and host lookup
-I/O/sequencing remain separate.
+## Acceptance and verification
 
-Native tests exercise source selection, timing, frame conversion, invalid/missing
-model retention and real correction/reset integration. SITL checks the selected
-source and advancing periodic lookup count. They complement the scoped proofs;
-none establishes calibration, model-epoch accuracy or long-distance flight qualification.
+Check the 0..3 parameter-mask mapping to the two portable heading choices and
+reject invalid external values before constructing startup settings. Preserve
+units, lookup/adoption epochs, unavailable counters and real lifecycle/reset
+permissions in the PX4 fixture. Component proofs and native frame scenarios are
+allocated by R-MAGNETIC-MODEL; they do not prove provider I/O, WMM epoch accuracy,
+calibration, full-session sequencing or flight qualification.

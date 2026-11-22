@@ -15,9 +15,11 @@ it is neither a proof nor a mandatory review of every function.
 
 ## Open boundaries
 
-- PX4/replay temporal callers have the scoped source-composition evidence below.
-  Opaque callee contracts, source-fragment frames and platform/native bindings
-  remain reviewed boundaries; this is not a proof of the complete deployed module.
+- PX4/replay caller evidence remains tied to its checked source revision. The
+  module/replay extractor currently rejects stale source pins; the portable-runtime
+  extraction is not covered by those historical results. Caller reconciliation
+  remains part of A-01.12. Opaque callee contracts, source-fragment frames and
+  platform bindings remain reviewed boundaries, not a complete deployed-module proof.
 - Deployed matrix/libm accuracy, numerical error budgets and repeated-step
   invariants are not implied by finite outputs or exact-real theorems.
 - Work-queue/consumer behavior, dependency allocation/locking, forced shutdown,
@@ -38,6 +40,16 @@ memory-safety checks. Production selection is tested by CTest; differential
 fixtures alone do not cover it. Existing ESBMC core producer/caller profiles are
 explicitly dense (`ESKF_CODEGEN=0`) except the explicit generated suites below.
 Run native suites in both modes.
+
+### Raw scalar library boundaries
+
+The standard backend's runtime `hypot` primitive preserves libm behavior.
+Native fixtures cover finite axes, a large diagonal and exceptional values;
+the scalar backend source profile checks operand/result forwarding only.
+ESBMC 8.4 omits the standard overload declarations, so the proof include overlay
+supplies declarations without a numerical body. Calling harnesses must bind an
+explicit scalar summary. Neither that overlay nor an arbitrary-return proof
+establishes libm accuracy, its resource bound or finite-result guarantees.
 
 ### Geodesy
 

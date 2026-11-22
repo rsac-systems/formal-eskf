@@ -186,7 +186,7 @@ formal_eskf_add_backend_test(test_imu_bias_inhibition runtime/imu/test_bias_inhi
 formal_eskf_add_backend_test(test_replay_gnss replay/test_replay_gnss formal_eskf.replay_gnss.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_accelerometer_sample runtime/gravity/test_sampling formal_eskf.accelerometer_sample.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_measurement_fusion runtime/test_measurement_fusion formal_eskf.measurement_fusion.eigen formal_eskf::runtime)
-formal_eskf_add_backend_test(test_px4_magnetic_model ../integrations/px4/tests/test_px4_magnetic_model formal_eskf.px4_magnetic_model.eigen formal_eskf::runtime)
+formal_eskf_add_backend_test(test_magnetic_model runtime/magnetic/test_model formal_eskf.magnetic_model.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_height_aiding runtime/height/test_height_aiding formal_eskf.height_aiding.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_imu_prediction runtime/imu/test_prediction formal_eskf.imu_prediction.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_imu_history runtime/imu/test_history formal_eskf.imu_history.eigen formal_eskf::runtime)

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
-#include "../module/MagneticModel.hpp"
+#include <formal_eskf/runtime/sensors/magnetic/magnetic_model.hpp>
 #include "test_backend.hpp"
 #include "test_support.hpp"
+#include "test_cases.hpp"
 
 #include <limits>
 
@@ -12,7 +13,7 @@ using formal_eskf::test::Context;
 
 template <typename Linalg> void run(Context & test)
 {
-    using Model = formal_eskf::px4::MagneticModel<Linalg>;
+    using Model = formal_eskf::runtime::MagneticModel<Linalg>;
     using Scalar = typename Model::value_type;
     using Vector = typename Model::vector_type;
     auto const pi = formal_eskf::scalar::pi<typename Linalg::scalar_math_type>();
@@ -25,7 +26,7 @@ template <typename Linalg> void run(Context & test)
     {
         for (bool available : {false, true})
         {
-            Model model;
+            Model model{10000000};
             auto candidate = initial;
             candidate.declination = static_cast<Scalar>(0.3);
             std::optional<typename Model::sample_type> geographic;
@@ -33,7 +34,8 @@ template <typename Linalg> void run(Context & test)
             {
                 geographic = candidate;
             }
-            test.expect(model.initialize(1, {mask, static_cast<Scalar>(-0.2)}, seed, geographic) == Status::success,
+            test.expect(model.initialize(1, {(mask & 1U) != 0, (mask & 2U) != 0, static_cast<Scalar>(-0.2)}, seed,
+                                         geographic) == Status::success,
                         "selection", "each source-mask/model-availability combination initializes");
             bool const use_geo = available && (mask == 1 || mask == 3);
             bool const use_saved = !use_geo && (mask == 2 || mask == 3);
@@ -63,8 +65,9 @@ template <typename Linalg> void run(Context & test)
         }
     }
     {
-        Model model;
-        test.expect(model.initialize(10, {}, seed, initial) == Status::success, "schedule", "initial model adoption");
+        Model model{10000000};
+        test.expect(model.initialize(10, {true, true, 0}, seed, initial) == Status::success, "schedule",
+                    "initial model adoption");
         test.expect(!model.lookup_due(10000010, true) && model.lookup_due(10000011, true) &&
                         !model.lookup_due(10000011, false) && model.lookup_due(11, false, true),
                     "schedule", "strict 10 s, valid-position and origin-trigger boundaries");
@@ -91,8 +94,30 @@ template <typename Linalg> void run(Context & test)
         test.expect(model.update(30000014, candidate, true).status == Status::out_of_range &&
                         model.lookup_count() == checks,
                     "time", "duplicate calls cannot change metadata");
-        test.expect(model.initialize(20, {4, 0}, seed, initial) == Status::domain_error && model.reference_id() == 2,
-                    "settings", "invalid source settings preserve an existing model");
+        test.expect(model.initialize(20, {true, true, std::numeric_limits<Scalar>::infinity()}, seed, initial) ==
+                            Status::domain_error &&
+                        model.reference_id() == 2,
+                    "settings", "invalid saved declination preserves an existing model");
+    }
+    {
+        Model invalid{0};
+        test.expect(invalid.initialize(1, {true, true, 0}, seed, initial) == Status::domain_error &&
+                        invalid.reference_id() == 0 && invalid.lookup_count() == 0,
+                    "settings", "zero external lookup interval cannot initialize a live model");
+        std::uint64_t interval = 1000000;
+        Model model{interval};
+        interval = 0;
+        test.expect(model.initialize(1, {true, true, 0}, seed, initial) == Status::success &&
+                        !model.lookup_due(1000001, true) && model.lookup_due(1000002, true),
+                    "schedule", "copied attempt interval is independent of the caller variable");
+        auto changed = initial;
+        changed.strength += 2;
+        auto result = model.update(1000002, changed, true);
+        test.expect(!result.checked && !result.changed && model.lookup_count() == 2 && model.model_revision() == 1,
+                    "schedule", "a due host attempt does not bypass the inner 10 s adoption policy");
+        result = model.update(10000002, changed, true);
+        test.expect(result.checked && result.changed && model.reference_id() == 2, "schedule",
+                    "both clocks permit a later geographic adoption");
     }
     {
         typename Model::sample_type converted{}, round_trip{};
@@ -113,20 +138,34 @@ template <typename Linalg> void run(Context & test)
                     "frame", "invalid geographic coordinates preserve output");
     }
     {
-        Model model;
-        test.expect(model.initialize(1, {}, seed, std::nullopt) == Status::success && !model.available(), "fallback",
-                    "missing WMM permits seed initialization without inventing a health reference");
-        test.expect(model.initialize(1, {}, Vector::from_row_major({0, 0, 50}), initial) == Status::domain_error,
+        Model model{10000000};
+        test.expect(model.initialize(1, {true, true, 0}, seed, std::nullopt) == Status::success && !model.available(),
+                    "fallback", "missing WMM permits seed initialization without inventing a health reference");
+        test.expect(model.initialize(1, {true, true, 0}, Vector::from_row_major({0, 0, 50}), initial) ==
+                        Status::domain_error,
                     "seed", "WMM cannot make a vertical-only seed heading observable");
+    }
+}
+
+void model_case(Context & test, std::string_view profile)
+{
+    if (profile == "binary32")
+    {
+        run<formal_eskf::test::Backend<float>>(test);
+    }
+    else
+    {
+        run<formal_eskf::test::Backend<double>>(test);
     }
 }
 } /* end namespace */
 
-int main()
+int main(int argc, char ** argv)
 {
     formal_eskf::test::configure_backend_test();
-    Context test;
-    run<formal_eskf::test::Backend<float>>(test);
-    run<formal_eskf::test::Backend<double>>(test);
-    return test.failures() == 0 ? 0 : 1;
+    formal_eskf::test::Case const cases[]{
+        {"TC-R-MAGNETIC-MODEL-01", "binary32", model_case},
+        {"TC-R-MAGNETIC-MODEL-01", "binary64", model_case},
+    };
+    return formal_eskf::test::run_cases(cases, argc, argv);
 }

@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: BSD-3-Clause
+#pragma once
+
+#include_next <cmath>
+
+// ESBMC 8.4's C++ library omits these standard declarations. No implementation
+// or accuracy model is supplied here. Harnesses that call hypot must provide an
+// explicit scalar boundary; numerical conformance remains a native obligation.
+namespace std
+{
+float hypot(float, float);
+double hypot(double, double);
+long double hypot(long double, long double);
+}

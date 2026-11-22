@@ -147,6 +147,7 @@ remain empty: these two additional review units are proof gaps, not verified cla
 | `R-MAGNETOMETER-RESET` | [fixed-field heading and covariance reset](requirements/runtime/magnetic/heading-reset.md) |
 | `R-MAGNETIC-HEADING` | [aided heading consistency](requirements/runtime/magnetic/heading.md) |
 | `R-MAGNETOMETER-LIFECYCLE` | [magnetic health and fusion lifecycle](requirements/runtime/magnetic/lifecycle.md) |
+| `R-MAGNETIC-MODEL` | [magnetic health and heading coordination](requirements/runtime/magnetic/model.md) |
 | `R-MAGNETIC-REFERENCE` | [geographic magnetic reference adoption](requirements/runtime/magnetic/reference.md) |
 | `R-MAGNETOMETER-FILTER` | [magnetic data for heading reset](requirements/runtime/magnetic/reset-filter.md) |
 | `R-MEASUREMENT-FUSION` | [gated correction of one observation group](requirements/runtime/measurement-fusion.md) |

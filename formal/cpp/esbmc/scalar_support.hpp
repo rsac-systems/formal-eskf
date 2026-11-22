@@ -27,7 +27,7 @@
 extern void __ESBMC_assert(bool, char const *);
 
 // ESBMC recognizes even a user-defined member named sqrt as an intrinsic and
-// skips its body. Alpha-rename these four tokens in the TWO production headers
+// skips its body. Alpha-rename these five tokens in the TWO production headers
 // and harness calls only; their bodies, predicates and types are unchanged.
 // The std endpoints below are explicit libm summaries, not reimplemented math.
 // Include standard headers first so their contents are not macro-rewritten.
@@ -42,11 +42,14 @@ float formal_eskf_proof_cos(float);
 double formal_eskf_proof_cos(double);
 float formal_eskf_proof_atan2(float, float);
 double formal_eskf_proof_atan2(double, double);
+float formal_eskf_proof_hypot(float, float);
+double formal_eskf_proof_hypot(double, double);
 } // namespace std
 #define sqrt formal_eskf_proof_sqrt
 #define sin formal_eskf_proof_sin
 #define cos formal_eskf_proof_cos
 #define atan2 formal_eskf_proof_atan2
+#define hypot formal_eskf_proof_hypot
 #endif
 
 #include <formal_eskf/scalar/backend/standard.hpp>
@@ -178,6 +181,15 @@ inline scalar_proof::Scalar formal_eskf_proof_cos(scalar_proof::Scalar x)
 inline scalar_proof::Scalar formal_eskf_proof_atan2(scalar_proof::Scalar y, scalar_proof::Scalar x)
 {
     return scalar_proof::Libm::angle.record(y, x);
+}
+inline scalar_proof::Scalar formal_eskf_proof_hypot(scalar_proof::Scalar x, scalar_proof::Scalar y)
+{
+    return scalar_proof::Libm::angle.record(x, y);
+}
+inline OtherScalar formal_eskf_proof_hypot(OtherScalar, OtherScalar)
+{
+    __ESBMC_assert(false, "F-SCALAR: wrong hypot scalar overload");
+    return OtherScalar{0};
 }
 inline OtherScalar formal_eskf_proof_sqrt(OtherScalar)
 {

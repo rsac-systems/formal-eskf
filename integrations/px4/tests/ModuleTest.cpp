@@ -1137,7 +1137,7 @@ public:
         filter.m_mag.magnetometer_ga[2] = 0.4f;
         auto const field = FormalEskf::vector3(100. * double(filter.m_mag.magnetometer_ga[0]), 0.,
                                                100. * double(filter.m_mag.magnetometer_ga[2]));
-        expect(formal_eskf::succeeded(filter.m_magnetic_model.initialize(clock_us, {0U, 0.}, field, {})),
+        expect(formal_eskf::succeeded(filter.m_magnetic_model.initialize(clock_us, {false, false, 0.}, field, {})),
                "seed magnetic north without an independent health model");
         filter.m_magnetic.sample_time_us = clock_us;
         filter.initialize_magnetic_aiding({301U, 0U, 1U}, clock_us);
@@ -1501,7 +1501,7 @@ public:
         FormalEskf::magnetic_model_type::sample_type model{0., std::atan2(field(2U), field(0U)),
                                                            formal_eskf::linalg::norm(field)};
         expect(formal_eskf::succeeded(
-                   filter.m_magnetic_model.initialize(clock_us, {geographic ? 3U : 2U, 0.}, field, model)),
+                   filter.m_magnetic_model.initialize(clock_us, {geographic, true, 0.}, field, model)),
                "seed independent geographic reference");
         test.start_magnetic();
         model.declination = 0.05;

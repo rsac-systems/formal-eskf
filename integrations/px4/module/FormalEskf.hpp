@@ -47,7 +47,7 @@
 #include <formal_eskf/runtime/history/imu_history.hpp>
 #include <formal_eskf/runtime/history/observation_history.hpp>
 #include <formal_eskf/runtime/session/output_predictor.hpp>
-#include "MagneticModel.hpp"
+#include <formal_eskf/runtime/sensors/magnetic/magnetic_model.hpp>
 
 // Single writer: all filter state is owned by this work item. The core has no
 // PX4 dependencies except its explicitly selected matrix backend.
@@ -85,7 +85,7 @@ private:
                                                   formal_eskf::px4::profile::gravity::observation_interval_us>;
     using quaternion_type = formal_eskf::so3::UnitQuaternion<backend_type>;
     using magnetic_lifecycle_type = formal_eskf::runtime::MagnetometerFusion;
-    using magnetic_model_type = formal_eskf::px4::MagneticModel<backend_type>;
+    using magnetic_model_type = formal_eskf::runtime::MagneticModel<backend_type>;
 
     struct Initialization
     {
@@ -484,7 +484,7 @@ private:
     double m_average_imu_interval = formal_eskf::px4::profile::imu::nominal_interval_s;
     Magnetic m_magnetic{};
     bool m_heading_aligned{};
-    magnetic_model_type m_magnetic_model{};
+    magnetic_model_type m_magnetic_model{formal_eskf::px4::profile::magnetic::model_interval_us};
     magnetic_model_type::Settings m_magnetic_settings{};
     uint64_t m_mag_model_origin_time{};
     uint32_t m_mag_model_unavailable{};

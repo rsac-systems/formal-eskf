@@ -36,6 +36,7 @@ shall not silently authorize fusion or manufacture successful progress.
 
 | Child requirement | Allocated obligation |
 |---|---|
+| [R-MAGNETIC-MODEL](../runtime/magnetic/model.md) | Coordinate independent health/heading references, copied settings and external lookup attempts. |
 | [R-MAGNETIC-REFERENCE](../runtime/magnetic/reference.md) | Validate and adopt an externally supplied geographic reference when available. |
 | [R-MAGNETIC-FIELD](../runtime/magnetic/field.md) | Check field geometry and selected plausibility conditions. |
 | [R-MAGNETIC-HEADING](../runtime/magnetic/heading.md) | Evaluate aided heading consistency under its observability conditions. |

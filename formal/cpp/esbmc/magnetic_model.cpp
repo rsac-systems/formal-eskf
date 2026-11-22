@@ -17,12 +17,33 @@
 namespace model_proof
 {
 using contract_proof::finite_vector;
-using contract_proof::Linalg;
-using contract_proof::Quaternion;
 using contract_proof::same;
 using contract_proof::same_vector;
 using contract_proof::Scalar;
 using formal_eskf::Status;
+// The selected scalar boundary keeps all raw returns arbitrary. The independently
+// checked reference wrapper uses the same inherited checked-math contract.
+struct ModelMath : contract_proof::Linalg::scalar_math_type
+{
+    // Callable members prevent frontend intrinsic substitution by function name.
+    struct Hypot
+    {
+        Scalar operator()(Scalar x, Scalar y) const;
+    };
+    struct Cosine
+    {
+        Scalar operator()(Scalar value) const;
+    };
+    struct Sine
+    {
+        Scalar operator()(Scalar value) const;
+    };
+    inline static Hypot hypot{};
+    inline static Cosine cos{};
+    inline static Sine sin{};
+};
+using Linalg =
+    formal_eskf::verification::FixedArrayLinalg<Scalar, formal_eskf::verification::NoNormObserver<Scalar>, ModelMath>;
 using Reference = formal_eskf::runtime::MagneticReference<Linalg>;
 using Sample = Reference::Sample;
 using Vector = Reference::vector_type;
@@ -82,7 +103,8 @@ inline Reference updated(Reference const & before, std::uint64_t now, Sample con
 }
 inline void constrain_result(Reference const & before, Sample const & sample, Result result, Vector const & field)
 {
-    // Actual same-type update establishes these facts (magnetic_reference.cpp).
+    // The reference producer establishes these facts for arbitrary scalar returns
+    // (magnetic_reference.cpp); this binding changes only scalar instrumentation.
     // All failure statuses and unchanged/unchecked results remain admitted.
     __ESBMC_assume(!result.changed ||
                    (result.status == Status::success && result.checked && valid_sample(sample) &&
@@ -100,62 +122,57 @@ inline model_proof::Result MagneticReference<model_proof::Linalg>::update(std::u
     __ESBMC_assert(Calls::references++ == 0U && same_reference(*this, Calls::before) &&
                        same_sample(sample, Calls::sample) && now == Calls::now && position == Calls::position &&
                        origin == Calls::origin && valid_reference(*this) && now > m_update_time_us,
-                   "PX4 magnetic model: original model request and valid increasing producer history");
+                   "Magnetic model: original model request and valid increasing producer history");
     *this = updated(*this, now, sample, Calls::result, Calls::field);
     return Calls::result;
 }
 } // namespace formal_eskf::runtime
-// Pure arbitrary platform-libm returns. No accuracy/range assumptions. The
-// token aliases apply only to the actual module header below, not core math.
-namespace std
+// Arbitrary pure scalar returns; no numerical accuracy assumptions.
+namespace model_proof
 {
-inline model_proof::Scalar formal_eskf_model_hypot(model_proof::Scalar x, model_proof::Scalar y)
+inline Scalar ModelMath::Hypot::operator()(Scalar x, Scalar y) const
 {
     using namespace model_proof;
     __ESBMC_assert(Calls::roots++ == 0U && Calls::references == 0U && same(x, Calls::level(0U)) &&
                        same(y, Calls::level(1U)),
-                   "PX4 magnetic model: seed horizontal norm receives original North/East before model lookup");
+                   "Magnetic model: seed horizontal norm receives original North/East before model lookup");
     return Calls::horizontal;
 }
-inline model_proof::Scalar formal_eskf_model_cos(model_proof::Scalar value)
+inline Scalar ModelMath::Cosine::operator()(Scalar value) const
 {
     using namespace model_proof;
     __ESBMC_assert(Calls::cosines++ == 0U && Calls::roots == 1U && same(value, Calls::declination),
-                   "PX4 magnetic model: selected declination reaches cosine");
+                   "Magnetic model: selected declination reaches cosine");
     return Calls::cosine;
 }
-inline model_proof::Scalar formal_eskf_model_sin(model_proof::Scalar value)
+inline Scalar ModelMath::Sine::operator()(Scalar value) const
 {
     using namespace model_proof;
     __ESBMC_assert(Calls::sines++ == 0U && Calls::roots == 1U && same(value, Calls::declination),
-                   "PX4 magnetic model: selected declination reaches sine");
+                   "Magnetic model: selected declination reaches sine");
     return Calls::sine;
 }
-} // namespace std
-#define hypot formal_eskf_model_hypot
-#define cos formal_eskf_model_cos
-#define sin formal_eskf_model_sin
+} // namespace model_proof
 #define private public
-#include "../../../integrations/px4/module/MagneticModel.hpp"
+#include <formal_eskf/runtime/sensors/magnetic/magnetic_model.hpp>
 #undef private
-#undef sin
-#undef cos
-#undef hypot
 namespace model_proof
 {
-using Model = formal_eskf::px4::MagneticModel<Linalg>;
+using Model = formal_eskf::runtime::MagneticModel<Linalg>;
 using Settings = Model::Settings;
 using Heading = Model::HeadingSource;
 inline bool same_settings(Settings const & a, Settings const & b)
 {
-    return a.declination_source == b.declination_source && same(a.saved_declination, b.saved_declination);
+    return a.geographic_heading == b.geographic_heading && a.saved_heading == b.saved_heading &&
+           same(a.saved_declination, b.saved_declination);
 }
 inline bool same_model(Model const & a, Model const & b)
 {
-    return same_reference(a.m_model, b.m_model) && same_settings(a.m_settings, b.m_settings) &&
-           same_vector(a.m_observation, b.m_observation) && same(a.m_declination, b.m_declination) &&
-           a.m_heading_source == b.m_heading_source && a.m_reference_id == b.m_reference_id &&
-           a.m_last_lookup_time == b.m_last_lookup_time && a.m_lookup_count == b.m_lookup_count;
+    return a.m_lookup_interval_us == b.m_lookup_interval_us && same_reference(a.m_model, b.m_model) &&
+           same_settings(a.m_settings, b.m_settings) && same_vector(a.m_observation, b.m_observation) &&
+           same(a.m_declination, b.m_declination) && a.m_heading_source == b.m_heading_source &&
+           a.m_reference_id == b.m_reference_id && a.m_last_lookup_time == b.m_last_lookup_time &&
+           a.m_lookup_count == b.m_lookup_count;
 }
 inline bool public_view(Model const & m)
 {
@@ -169,13 +186,13 @@ inline bool valid_model(Model const & m)
 {
     constexpr Scalar pi = std::numbers::pi_v<Scalar>;
     bool const initialized = m.m_reference_id != 0U;
-    return valid_reference(m.m_model) && m.m_model.m_update_time_us <= m.m_last_lookup_time &&
-           m.m_lookup_count <= m.m_last_lookup_time && initialized == (m.m_lookup_count != 0U) &&
-           initialized == (m.m_last_lookup_time != 0U) && m.m_settings.declination_source <= 3U &&
+    return (!initialized || m.m_lookup_interval_us != 0U) && valid_reference(m.m_model) &&
+           m.m_model.m_update_time_us <= m.m_last_lookup_time && m.m_lookup_count <= m.m_last_lookup_time &&
+           initialized == (m.m_lookup_count != 0U) && initialized == (m.m_last_lookup_time != 0U) &&
            std::isfinite(m.m_settings.saved_declination) && std::fabs(m.m_settings.saved_declination) <= pi &&
            std::isfinite(m.m_declination) && std::fabs(m.m_declination) <= pi &&
            (m.m_heading_source == Heading::magnetic_north || m.m_heading_source == Heading::saved ||
-            (m.m_heading_source == Heading::geographic && (m.m_settings.declination_source & 1U) && m.available()));
+            (m.m_heading_source == Heading::geographic && m.m_settings.geographic_heading && m.available()));
 }
 inline void prepare(Reference const & before, Sample sample, Result result, Vector field, std::uint64_t now,
                     bool position, bool origin)
@@ -195,17 +212,17 @@ inline bool same_result(Result a, Result b)
     return a.status == b.status && a.checked == b.checked && a.changed == b.changed;
 }
 } // namespace model_proof
-void verify_model_initialization()
+void verify_model_initialization(std::uint64_t interval)
 {
     using namespace model_proof;
-    Model m;
-    __ESBMC_assert(valid_model(m) && public_view(m) && !m.available() && m.reference_id() == 0U &&
-                       m.lookup_count() == 0U && m.last_lookup_time() == 0U &&
+    Model m{interval};
+    __ESBMC_assert(valid_model(m) && m.m_lookup_interval_us == interval && public_view(m) && !m.available() &&
+                       m.reference_id() == 0U && m.lookup_count() == 0U && m.last_lookup_time() == 0U &&
                        m.heading_source() == Heading::magnetic_north && same(m.declination(), Scalar{0}),
-                   "PX4 magnetic model: construction establishes uninitialized clocks, model and heading");
+                   "Magnetic model: construction establishes uninitialized clocks, model and heading");
     Vector zero;
     __ESBMC_assert(same_vector(m.observation_n(), zero) && same_vector(m.health_n(), zero),
-                   "PX4 magnetic model: no fabricated field at construction");
+                   "Magnetic model: no fabricated field at construction");
 }
 void verify_model_initialize(model_proof::Model model, std::uint64_t now, model_proof::Settings settings,
                              model_proof::Vector independent_level, bool has_model, model_proof::Sample sample,
@@ -235,7 +252,7 @@ void verify_model_initialize(model_proof::Model model, std::uint64_t now, model_
     Calls::cosine = cosine;
     auto expected = before;
     constexpr Scalar pi = std::numbers::pi_v<Scalar>;
-    bool const valid = now != 0U && settings.declination_source <= 3U && std::isfinite(settings.saved_declination) &&
+    bool const valid = now != 0U && model.m_lookup_interval_us != 0U && std::isfinite(settings.saved_declination) &&
                        std::fabs(settings.saved_declination) <= pi && finite_vector(level);
     bool const norm_ok = horizontal > Scalar{0} && std::isfinite(horizontal);
     Status wanted = !valid || !norm_ok ? Status::domain_error : has_model ? reply.status : Status::success;
@@ -243,13 +260,13 @@ void verify_model_initialize(model_proof::Model model, std::uint64_t now, model_
     bool geographic = false;
     if (wanted == Status::success)
     {
-        expected = Model{};
+        expected = Model{before.m_lookup_interval_us};
         expected.m_settings = settings;
         if (has_model)
         {
             expected.m_model = updated(empty, now, sample, reply, field);
         }
-        geographic = (settings.declination_source & 1U) && expected.available();
+        geographic = settings.geographic_heading && expected.available();
         if (geographic)
         {
             expected.m_declination = expected.m_model.state().model.declination;
@@ -258,7 +275,7 @@ void verify_model_initialize(model_proof::Model model, std::uint64_t now, model_
         }
         else
         {
-            if ((settings.declination_source & 2U) && settings.saved_declination != Scalar{0})
+            if (settings.saved_heading && settings.saved_declination != Scalar{0})
             {
                 expected.m_declination = settings.saved_declination;
                 expected.m_heading_source = Heading::saved;
@@ -279,18 +296,18 @@ void verify_model_initialize(model_proof::Model model, std::uint64_t now, model_
     }
     auto const status = model.initialize(now, settings, level, supplied);
     __ESBMC_assert(supplied.has_value() == has_model && (!has_model || same_sample(*supplied, old_sample)),
-                   "PX4 magnetic model: borrowed optional presence and sample remain unchanged");
+                   "Magnetic model: borrowed optional presence and sample remain unchanged");
     __ESBMC_assert(status == wanted && same_model(model, expected) && Calls::roots == (valid ? 1U : 0U) &&
                        Calls::references == (called ? 1U : 0U) &&
                        Calls::sines == (wanted == Status::success && !geographic ? 1U : 0U) &&
                        Calls::cosines == Calls::sines,
-                   "PX4 magnetic model: validation, source priority, fallback coefficients and complete initialization "
+                   "Magnetic model: validation, source priority, fallback coefficients and complete initialization "
                    "transaction");
     __ESBMC_assert(valid_model(model) && public_view(model) &&
                        ((FORMAL_ESKF_PROOF_MODEL_LEVEL_ALIAS != 0 && status == Status::success) ||
                         same_vector(level, old_level)) &&
                        same_settings(settings, old_settings) && same_sample(sample, old_sample),
-                   "PX4 magnetic model: initialization preserves inputs and establishes clock/source invariants");
+                   "Magnetic model: initialization preserves inputs and establishes clock/source invariants");
 }
 void verify_model_update(model_proof::Model model, std::uint64_t now, bool has_model, model_proof::Sample sample,
                          bool position, bool origin, model_proof::Result reply, model_proof::Vector field)
@@ -303,9 +320,10 @@ void verify_model_update(model_proof::Model model, std::uint64_t now, bool has_m
     auto expected = before;
     Result wanted;
     bool const increasing = now > before.m_last_lookup_time;
-    bool const due = increasing && (origin || (position && now - before.m_last_lookup_time > 10000000U));
+    bool const due =
+        increasing && (origin || (position && now - before.m_last_lookup_time > before.m_lookup_interval_us));
     __ESBMC_assert(model.lookup_due(now, position, origin) == due,
-                   "PX4 magnetic model: strict lookup threshold, origin trigger and increasing timestamp");
+                   "Magnetic model: strict lookup threshold, origin trigger and increasing timestamp");
     bool const called = before.m_reference_id != 0U && due && has_model;
     if (!before.m_reference_id || !increasing)
     {
@@ -322,7 +340,7 @@ void verify_model_update(model_proof::Model model, std::uint64_t now, bool has_m
             if (reply.status == Status::success)
             {
                 auto const candidate = updated(before.m_model, now, sample, reply, field);
-                if (reply.changed && (before.m_settings.declination_source & 1U))
+                if (reply.changed && before.m_settings.geographic_heading)
                 {
                     if (before.m_reference_id == std::numeric_limits<std::uint32_t>::max())
                     {
@@ -351,15 +369,15 @@ void verify_model_update(model_proof::Model model, std::uint64_t now, bool has_m
     }
     auto const actual = model.update(now, supplied, position, origin);
     __ESBMC_assert(supplied.has_value() == has_model && (!has_model || same_sample(*supplied, old_sample)),
-                   "PX4 magnetic model: borrowed optional presence and sample remain unchanged");
+                   "Magnetic model: borrowed optional presence and sample remain unchanged");
     __ESBMC_assert(same_result(actual, wanted) && same_model(model, expected) &&
                        Calls::references == (called ? 1U : 0U) && Calls::roots == 0U && Calls::sines == 0U &&
                        Calls::cosines == 0U,
-                   "PX4 magnetic model: attempts advance scheduling; only successful authorized changes replace "
+                   "Magnetic model: attempts advance scheduling; only successful authorized changes replace "
                    "observation/reference");
     __ESBMC_assert(valid_model(model) && public_view(model) && model.lookup_count() >= before.lookup_count() &&
                        model.reference_id() >= before.reference_id() && same_sample(sample, old_sample),
-                   "PX4 magnetic model: initialized clocks/source domains are inductive; counters never wrap or "
+                   "Magnetic model: initialized clocks/source domains are inductive; counters never wrap or "
                    "fabricate a model");
 }
 int main() { return 0; }

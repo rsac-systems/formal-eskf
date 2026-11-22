@@ -57,6 +57,9 @@ public:
         return std::numeric_limits<value_type>::quiet_NaN();
     }
 
+    /** Robust two-axis norm; raw libm classification is retained. */
+    static value_type hypot(value_type x, value_type y) { return std::hypot(x, y); }
+
     static value_type sin(value_type value) { return std::sin(value); }
 
     static value_type cos(value_type value) { return std::cos(value); }

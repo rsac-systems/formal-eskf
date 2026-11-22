@@ -50,7 +50,7 @@ void verify_scalar_primitives(Scalar value, Scalar other)
     }
 }
 
-void verify_scalar_backend(Scalar x, Scalar y, Scalar root, Scalar sine, Scalar cosine, Scalar angle)
+void verify_scalar_backend(Scalar x, Scalar y, Scalar root, Scalar sine, Scalar cosine, Scalar angle, Scalar hypotenuse)
 {
     __ESBMC_assert(modeled_libm, "Runner error: scalar backend requires the observed library boundary");
     if constexpr (!modeled_libm)
@@ -70,6 +70,13 @@ void verify_scalar_backend(Scalar x, Scalar y, Scalar root, Scalar sine, Scalar 
                        same(Libm::cosine.argument, x) && Libm::angle.calls == 1U && same(Libm::angle.y, y) &&
                        same(Libm::angle.x, x) && Libm::count == (calls_root ? 4U : 3U),
                    "F-SCALAR: StandardMath calls the matching unary and y,x library interfaces");
+    // A separate raw binary call uses a fresh boundary record, including every
+    // exceptional result; no relationship to mathematical hypot is assumed.
+    Libm::prepare(Scalar{0}, Scalar{0}, Scalar{0}, hypotenuse);
+    auto const actual_hypot = Math::hypot(x, y);
+    __ESBMC_assert(same(actual_hypot, hypotenuse) && Libm::angle.calls == 1U && same(Libm::angle.y, x) &&
+                       same(Libm::angle.x, y) && Libm::count == 1U,
+                   "F-SCALAR: StandardMath hypot forwards original operands and arbitrary libm result");
 }
 
 void verify_scalar_sqrt(Scalar input, Scalar output, Scalar root)

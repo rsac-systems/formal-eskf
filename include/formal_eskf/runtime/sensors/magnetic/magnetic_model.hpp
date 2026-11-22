@@ -6,9 +6,7 @@
 
 #include <formal_eskf/runtime/sensors/magnetic/magnetic_reference.hpp>
 
-#include "DeploymentProfile.hpp"
-
-namespace formal_eskf::px4
+namespace formal_eskf::runtime
 {
 
 /** Geographic health reference and independently selected observation reference. */
@@ -16,6 +14,7 @@ template <typename Linalg> class MagneticModel
 {
 public:
     using value_type = typename Linalg::value_type;
+    using math_type = typename Linalg::scalar_math_type;
     using vector_type = linalg::Matrix<Linalg, 3U, 1U>;
     using model_type = runtime::MagneticReference<Linalg>;
     using sample_type = typename model_type::Sample;
@@ -30,20 +29,25 @@ public:
 
     struct Settings
     {
-        std::uint32_t declination_source = 3U; // Bit 0: geographic; bit 1: saved fallback.
-        value_type saved_declination{};        // East-positive radians, [-pi, pi].
+        bool geographic_heading = false;
+        bool saved_heading = false;
+        value_type saved_declination{}; // East-positive radians, [-pi, pi].
     };
+
+    explicit MagneticModel(std::uint64_t lookup_interval_us) : m_lookup_interval_us(lookup_interval_us) {}
 
     /** Seed after tilt alignment, before yaw alignment; level_field is in microtesla. */
     [[nodiscard]] Status initialize(std::uint64_t now_us, Settings const & settings, vector_type const & level_field,
                                     std::optional<sample_type> const & model);
 
-    /** The adapter calls the host lookup only when this predicate is true. */
+    /** Rate-limit external attempts independently of MagneticReference adoption.
+     * The copied interval must be nonzero. The inner periodic check retains its
+     * fixed 10 s bound; an origin event bypasses both periodic waits.
+     */
     bool lookup_due(std::uint64_t now_us, bool position_valid, bool origin_updated = false) const
     {
         return now_us > m_last_lookup_time &&
-               (origin_updated ||
-                (position_valid && now_us - m_last_lookup_time > profile::magnetic::model_interval_us));
+               (origin_updated || (position_valid && now_us - m_last_lookup_time > m_lookup_interval_us));
     }
 
     /** Missing/invalid candidates retain the adopted model; attempts are rate-limited too. */
@@ -60,12 +64,13 @@ public:
     HeadingSource heading_source() const { return m_heading_source; }
     value_type declination() const { return m_declination; }
 
-    /** Express a local geographic NED model in the module's fixed origin NED. */
+    /** Express a local geographic NED model in a caller-specified reference NED. */
     [[nodiscard]] static Status to_origin_frame(sample_type const & local, double latitude_deg, double longitude_deg,
                                                 double origin_latitude_deg, double origin_longitude_deg,
                                                 sample_type & output);
 
 private:
+    std::uint64_t m_lookup_interval_us{};
     model_type m_model{};
     Settings m_settings{};
     vector_type m_observation{};
@@ -79,19 +84,18 @@ template <typename Linalg>
 Status MagneticModel<Linalg>::initialize(std::uint64_t now_us, Settings const & settings,
                                          vector_type const & level_field, std::optional<sample_type> const & model)
 {
-    using math_type = typename Linalg::scalar_math_type;
     auto const pi = scalar::pi<math_type>();
-    if (now_us == 0U || settings.declination_source > 3U || !std::isfinite(settings.saved_declination) ||
+    if (now_us == 0U || m_lookup_interval_us == 0U || !std::isfinite(settings.saved_declination) ||
         std::abs(settings.saved_declination) > pi || !linalg::all_finite(level_field))
     {
         return Status::domain_error;
     }
-    auto const horizontal = std::hypot(level_field(0U), level_field(1U));
+    auto const horizontal = math_type::hypot(level_field(0U), level_field(1U));
     if (!(horizontal > value_type{0}) || !std::isfinite(horizontal))
     {
         return Status::domain_error;
     }
-    MagneticModel candidate;
+    MagneticModel candidate{m_lookup_interval_us};
     candidate.m_settings = settings;
     if (model)
     {
@@ -101,7 +105,7 @@ Status MagneticModel<Linalg>::initialize(std::uint64_t now_us, Settings const & 
             return result.status;
         }
     }
-    if ((settings.declination_source & 1U) != 0U && candidate.available())
+    if (settings.geographic_heading && candidate.available())
     {
         candidate.m_declination = candidate.m_model.state().model.declination;
         candidate.m_heading_source = HeadingSource::geographic;
@@ -109,7 +113,7 @@ Status MagneticModel<Linalg>::initialize(std::uint64_t now_us, Settings const & 
     }
     else
     {
-        if ((settings.declination_source & 2U) != 0U && settings.saved_declination != value_type{0})
+        if (settings.saved_heading && settings.saved_declination != value_type{0})
         {
             candidate.m_declination = settings.saved_declination;
             candidate.m_heading_source = HeadingSource::saved;
@@ -117,8 +121,8 @@ Status MagneticModel<Linalg>::initialize(std::uint64_t now_us, Settings const & 
         // Equivalent to rotating the seed by its selected yaw, without making
         // its measured strength/inclination an independent health reference.
         candidate.m_observation =
-            vector_type::from_row_major({horizontal * std::cos(candidate.m_declination),
-                                         horizontal * std::sin(candidate.m_declination), level_field(2U)});
+            vector_type::from_row_major({horizontal * math_type::cos(candidate.m_declination),
+                                         horizontal * math_type::sin(candidate.m_declination), level_field(2U)});
     }
     candidate.m_reference_id = 1U;
     candidate.m_last_lookup_time = now_us;
@@ -155,7 +159,7 @@ typename MagneticModel<Linalg>::result_type MagneticModel<Linalg>::update(std::u
     {
         return result;
     }
-    if (result.changed && (m_settings.declination_source & 1U) != 0U)
+    if (result.changed && m_settings.geographic_heading)
     {
         if (m_reference_id == std::numeric_limits<std::uint32_t>::max())
         {
@@ -197,15 +201,16 @@ Status MagneticModel<Linalg>::to_origin_frame(sample_type const & local, double 
         auto const radians = scalar::pi<typename Linalg::scalar_math_type>() / value_type{180};
         auto const lat = static_cast<value_type>(latitude) * radians;
         auto const lon = static_cast<value_type>(longitude) * radians;
-        auto const slat = std::sin(lat), clat = std::cos(lat), slon = std::sin(lon), clon = std::cos(lon);
+        auto const slat = math_type::sin(lat), clat = math_type::cos(lat), slon = math_type::sin(lon),
+                   clon = math_type::cos(lon);
         return linalg::Matrix<Linalg, 3U, 3U>::from_row_major(
             {-slat * clon, -slat * slon, clat, -slon, clon, value_type{0}, -clat * clon, -clat * slon, -slat});
     };
     auto const field = basis(origin_latitude_deg, origin_longitude_deg) *
                        linalg::transpose(basis(latitude_deg, longitude_deg)) * candidate.state().field_n;
-    auto const horizontal = std::hypot(field(0U), field(1U));
-    sample_type const converted{std::atan2(field(1U), field(0U)), std::atan2(field(2U), horizontal),
-                                std::hypot(horizontal, field(2U))};
+    auto const horizontal = math_type::hypot(field(0U), field(1U));
+    sample_type const converted{math_type::atan2(field(1U), field(0U)), math_type::atan2(field(2U), horizontal),
+                                math_type::hypot(horizontal, field(2U))};
     if (!linalg::all_finite(field) || !std::isfinite(converted.strength))
     {
         return Status::non_finite_result;
@@ -214,4 +219,4 @@ Status MagneticModel<Linalg>::to_origin_frame(sample_type const & local, double 
     return Status::success;
 }
 
-} /* end namespace formal_eskf::px4 */
+} /* end namespace formal_eskf::runtime */

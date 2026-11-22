@@ -203,7 +203,7 @@ def write_manifest(PX4, OUT, RESULT):
     SOURCES += sorted((REPO / "include/formal_eskf").rglob("*.hpp"))
     SOURCES += sorted((REPO / "integrations/px4/module").glob("FormalEskf*.cpp"))
     SOURCES += [REPO / "integrations/px4/module" / NAME for NAME in
-                ("FormalEskf.hpp", "MagneticModel.hpp", "DeploymentProfile.hpp")]
+                ("FormalEskf.hpp", "DeploymentProfile.hpp")]
     SOURCES += [REPO / "integrations/px4/tests/ModuleTest.cpp"]
     SOURCES += [REPO / "docs/spec/requirements" / NAME for NAME in
                 ("core/state.md", "integration/px4/output-frames.md",

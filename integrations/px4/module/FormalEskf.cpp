@@ -85,7 +85,7 @@ bool FormalEskf::load_magnetic_parameters()
         PX4_ERR("invalid magnetic declination settings");
         return false;
     }
-    m_magnetic_settings = {static_cast<std::uint32_t>(declination_source),
+    m_magnetic_settings = {(declination_source & 1) != 0, (declination_source & 2) != 0,
                            math::radians(static_cast<double>(saved_declination))};
     return true;
 }

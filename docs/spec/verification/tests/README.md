@@ -78,7 +78,7 @@ test, and this manual allocation is not an AST function-by-function coverage cla
 
 Excluded: platform message conversion, uORB, actual flight scheduling, legacy
 replay orchestration, tool runners and the generator pipeline. Extracted portable
-IMU/observation histories, output prediction and height aiding are in scope under their runtime
+IMU/observation histories, output prediction, height aiding and magnetic-model coordination are in scope under their runtime
 contracts, with their component tests moved alongside them. Remaining private
 PX4 owners retain adapter coverage until their portable contracts are allocated.
 External linalg internals and deployment qualification have separate boundaries.
@@ -109,6 +109,7 @@ the canonical equations.
 | [Height datum](runtime/height-datum.md) | R-HEIGHT-DATUM. |
 | [Frame observations](runtime/frame-observations.md) | R-FRAME-OBSERVATIONS. |
 | [Gravity and IMU](runtime/gravity-imu.md) | R-ACCELEROMETER-MAGNITUDE, R-ACCELEROMETER-SAMPLING, R-ACCELEROMETER-CONDITIONS, R-ACCELEROMETER-FUSION, R-IMU-BIAS-INHIBITION, R-IMU-PROCESS-NOISE, R-BIAS-PROCESS-NOISE, R-BIAS-LIMITS, R-VERTICAL-ACCELERATION, R-IMU-PREDICTION; SW-GRAVITY, SW-IMU. |
+| [Magnetic model coordination](runtime/magnetic-model.md) | R-MAGNETIC-MODEL; SW-MAGNETIC. |
 | [Magnetic aiding](runtime/magnetic.md) | R-MAGNETIC-REFERENCE, R-MAGNETIC-FIELD, R-MAGNETIC-HEADING, R-MAGNETOMETER-FILTER, R-MAGNETOMETER-FUSION, R-MAGNETOMETER-RESET, R-MAGNETOMETER-LIFECYCLE; SW-MAGNETIC. |
 | [Storage and alignment](runtime/storage-alignment.md) | R-RING-BUFFER, R-TILT-ALIGNMENT, R-IMU-HISTORY, R-OBSERVATION-HISTORY, R-OUTPUT-PREDICTOR; existing alignment test IDs retain their R-ACCELEROMETER-CONDITIONS prefix. |
 

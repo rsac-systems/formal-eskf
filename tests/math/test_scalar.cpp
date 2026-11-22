@@ -112,6 +112,35 @@ template <typename Scalar> void basic(Context & test, std::string_view profile)
                 profile, "pi agrees with independent enclosing decimal constant");
 }
 
+template <typename Scalar> void hypotenuse(Context & test, std::string_view profile)
+{
+    using Math = formal_eskf::scalar::StandardMath<Scalar>;
+    using limits = std::numeric_limits<Scalar>;
+    for (Scalar sign : {Scalar{-1}, Scalar{1}})
+    {
+        test.expect(Math::hypot(sign * Scalar{3}, Scalar{4}) == Scalar{5} &&
+                        Math::hypot(Scalar{4}, sign * Scalar{3}) == Scalar{5},
+                    profile, "independent 3-4-5 norm and operand/sign symmetry");
+    }
+    for (Scalar x : {Scalar{0}, limits::denorm_min(), limits::min(), limits::max()})
+    {
+        test.expect(same(Math::hypot(-x, Scalar{0}), x), profile,
+                    "axis magnitude preserves subnormals and maximum finite input without squaring overflow");
+    }
+    auto const half_max = limits::max() / Scalar{2};
+    auto const result = Math::hypot(half_max, half_max);
+    // Independently enclosed sqrt(2), rather than another libm norm call.
+    constexpr long double root_two = 1.414213562373095048801688724209698079L;
+    auto const reference = multiply({static_cast<long double>(half_max), static_cast<long double>(half_max)},
+                                    {down(root_two), up(root_two)});
+    test.expect(contains_fixture_result(result, reference), profile,
+                "large finite diagonal avoids intermediate squaring overflow");
+    auto const inf = limits::infinity(), nan = limits::quiet_NaN();
+    test.expect(Math::hypot(inf, nan) == inf && Math::hypot(nan, -inf) == inf &&
+                    std::isnan(Math::hypot(nan, Scalar{1})) && Math::hypot(limits::max(), limits::max()) == inf,
+                profile, "raw standard backend retains infinity/NaN and final-overflow classification");
+}
+
 template <typename Scalar> void root(Context & test, std::string_view profile)
 {
     using Math = formal_eskf::scalar::StandardMath<Scalar>;
@@ -353,6 +382,8 @@ int main(int argc, char ** argv)
     Case const cases[]{
         {"TC-F-SCALAR-BASIC", "binary32", basic<float>},
         {"TC-F-SCALAR-BASIC", "binary64", basic<double>},
+        {"TC-F-SCALAR-HYPOT", "binary32", hypotenuse<float>},
+        {"TC-F-SCALAR-HYPOT", "binary64", hypotenuse<double>},
         {"TC-F-SCALAR-SQRT", "binary32", root<float>},
         {"TC-F-SCALAR-SQRT", "binary64", root<double>},
         {"TC-F-SCALAR-SINCOS", "binary32", sin_cos<float>},

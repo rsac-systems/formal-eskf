@@ -3704,6 +3704,10 @@
           {
             "file": "docs/spec/requirements/integration/px4/magnetic-model.md",
             "symbol": "# R-PX4-MAGNETIC-MODEL: PX4 module geographic magnetic reference"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/magnetic/model.md",
+            "symbol": "# R-MAGNETIC-MODEL:"
           }
         ],
         "lean": [
@@ -3782,7 +3786,7 @@
             "symbol": "int main()"
           },
           {
-            "file": "integrations/px4/module/MagneticModel.hpp",
+            "file": "include/formal_eskf/runtime/sensors/magnetic/magnetic_model.hpp",
             "symbol": "class MagneticModel"
           },
           {
@@ -3794,7 +3798,7 @@
             "symbol": "void FormalEskf::update_magnetic_model()"
           },
           {
-            "file": "integrations/px4/module/MagneticModel.hpp",
+            "file": "include/formal_eskf/runtime/sensors/magnetic/magnetic_model.hpp",
             "symbol": "MagneticModel<Linalg>::to_origin_frame("
           }
         ],

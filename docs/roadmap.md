@@ -164,7 +164,7 @@ continuous-odometry feature is part of this extraction.
 | A-01.5 — Observation history | Completed | Portable delayed source/context admission, selection and generation handling. |
 | A-01.6 — Output prediction | Completed | Portable current-state/history feedback, reset and rebase transactions. |
 | A-01.7 — Height aiding | Completed | Portable source arbitration/recovery, with platform diagnostics outside the owner; remaining proof boundaries stay in V-01. |
-| A-01.8 — Magnetic reference | Planned | Portable adoption/coordination; external model lookup stays in the adapter. |
+| A-01.8 — Magnetic reference | Completed | Portable adoption/coordination; external model lookup stays in the adapter. |
 | A-01.9 — INS initialization | Planned | Portable bounded bootstrap preserving current strict startup and seeding. |
 | A-01.10 — Session and PX4 delegation | Planned | One concrete owner; remove duplicate module ownership and preserve execution phases. |
 | A-01.11 — Standalone acceptance | Planned | Host example and canonical-input comparisons without platform dependencies. |
