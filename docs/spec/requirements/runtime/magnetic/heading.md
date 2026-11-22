@@ -45,7 +45,8 @@ and caller-established heading alignment/horizontal aiding.
   unavailable and seed the next scalar heading filter from the first actual valid
   error in the new frame. Preserve the preceding consistency latch until normal
   update evidence changes it; migration is not a successful heading reset.
-  Invalid transformation shall preserve all history. A migration shall not
+  The supplied frame quaternion shall satisfy the checked unit-producer premise.
+  Nonfinite coefficients or unrepresentable transport shall preserve all history. A migration shall not
   simulate an IMU gap or consume a magnetic sample.
 - Inputs/parameters must be finite; `dt` and minimum horizontal field are positive
   normal values, `0 < heading_noise <= pi`, acceleration limit is nonnegative.
@@ -70,6 +71,7 @@ The IEEE proof uses a conservative 2*pi filter bound, not a deployment threshold
 or rounding-error claim. Lean proves convex acceleration weight, exact-real
 filter bounds and latch rejection/hold/acquisition. External reset eligibility,
 caller horizon/aiding truth, adapter integration and deployment tuning remain
-separate. Full-vector history transport and post-migration scalar seeding require
-new native evidence and a later formal evidence update; the preceding proof
+separate. Full-vector history transport and post-migration scalar seeding have
+[native cases](../../../verification/tests/runtime/magnetic.md) and require a
+later formal evidence update; the preceding proof
 description does not establish those new transitions.

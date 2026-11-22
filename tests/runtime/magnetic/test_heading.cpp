@@ -419,6 +419,60 @@ template <typename Backend> void ownership(Context & test, std::string_view prof
                 profile,
                 "caller source/frame reset creates a fresh session without inventing successful heading alignment");
 }
+template <typename Backend> void frame_migration(Context & test, std::string_view profile)
+{
+    using Scalar = typename Backend::value_type;
+    using Q = Quaternion<Backend>;
+    Scalar const tolerance = Scalar{128} * std::numeric_limits<Scalar>::epsilon();
+    Q tilt;
+    test.expect(Q::from_coefficients(Scalar{1}, Scalar{0}, Scalar{1}, Scalar{0}, static_cast<Scalar>(0.1), tilt) ==
+                    Status::success,
+                profile, "ninety-degree frame tilt");
+    for (bool const consistent : {false, true})
+    {
+        Heading<Backend> monitor;
+        if (consistent)
+        {
+            monitor.reset_heading();
+        }
+        auto const force = Vector<Backend>::from_row_major({Scalar{2}, Scalar{4}, Scalar{6}});
+        test.expect(monitor.update_acceleration(force, Scalar{1}) == Status::success &&
+                        monitor.rebase(tilt) == Status::success && monitor.state().consistent == consistent &&
+                        !monitor.state().innovation_valid && !monitor.state().observable &&
+                        std::abs(monitor.state().horizontal_acceleration - std::sqrt(Scalar{13})) < tolerance,
+                    profile, "full filtered Down rotates into horizontal; no recovery or consumed sample");
+        auto const field = Vector<Backend>::from_row_major({Scalar{20}, Scalar{10}, Scalar{40}});
+        auto params = parameters<Backend>();
+        // Weak field cannot consume the pending scalar seed.
+        test.expect(monitor.update(Q{}, Vector<Backend>{}, north<Backend>(), params, true, true) == Status::success &&
+                        !monitor.state().innovation_valid && !monitor.state().consistent,
+                    profile, "weak field does not fabricate a post-frame heading");
+        test.expect(monitor.update(Q{}, field, north<Backend>(), params, true, true) == Status::success &&
+                        monitor.state().filtered_innovation == monitor.state().innovation &&
+                        !monitor.state().consistent,
+                    profile, "first valid new-frame innovation seeds immediately and rejects large error");
+        auto const first = monitor.state().innovation;
+        test.expect(monitor.update(Q{}, north<Backend>(), north<Backend>(), params, true, false) == Status::success &&
+                        std::abs(monitor.state().filtered_innovation - first * static_cast<Scalar>(0.9)) < tolerance,
+                    profile, "later samples resume the ordinary recurrence without reacquiring consistency");
+    }
+    Heading<Backend> overflow;
+    auto const large_down =
+        Vector<Backend>::from_row_major({Scalar{0}, Scalar{0}, std::numeric_limits<Scalar>::max() / Scalar{4}});
+    test.expect(overflow.update_acceleration(large_down, Scalar{1}) == Status::success, profile,
+                "finite retained vertical force");
+    auto control = overflow;
+    auto const before = overflow.state();
+    auto const continuation = Vector<Backend>::from_row_major({Scalar{20}, Scalar{2}, Scalar{40}});
+    test.expect(overflow.rebase(tilt) == Status::non_finite_result && same(overflow.state(), before), profile,
+                "horizontal norm overflow preserves public state");
+    test.expect(overflow.update_acceleration(Vector<Backend>{}, Scalar{1}) ==
+                        control.update_acceleration(Vector<Backend>{}, Scalar{1}) &&
+                    overflow.update(Q{}, continuation, north<Backend>(), parameters<Backend>(), true, false) ==
+                        control.update(Q{}, continuation, north<Backend>(), parameters<Backend>(), true, false) &&
+                    same(overflow.state(), control.state()),
+                profile, "failed migration preserves private filter and pending seed");
+}
 } /* end namespace */
 int main(int argc, char ** argv)
 {
@@ -427,6 +481,8 @@ int main(int argc, char ** argv)
     using Float = formal_eskf::test::Backend<float>;
     using Double = formal_eskf::test::Backend<double>;
     Case const cases[] = {
+        {"TC-R-MAGNETIC-HEADING-REBASE", "float", frame_migration<Float>},
+        {"TC-R-MAGNETIC-HEADING-REBASE", "double", frame_migration<Double>},
         {"TC-R-MAGNETIC-HEADING-01", "float", acceleration<Float>},
         {"TC-R-MAGNETIC-HEADING-01", "double", acceleration<Double>},
         {"TC-R-MAGNETIC-HEADING-02", "float", innovation<Float>},

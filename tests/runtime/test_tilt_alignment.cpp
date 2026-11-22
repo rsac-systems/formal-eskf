@@ -211,12 +211,47 @@ template <typename Scalar> void failures(Context & test, std::string_view profil
                     profile, "valid continuation remains usable after failures");
     }
 }
+template <typename Scalar> void frame_migration(Context & test, std::string_view profile)
+{
+    using Backend = formal_eskf::test::Backend<Scalar>;
+    using Alignment = formal_eskf::runtime::TiltAlignment<Backend>;
+    using Matrix = formal_eskf::linalg::Matrix<Backend, 3, 3>;
+    using Q = formal_eskf::so3::UnitQuaternion<Backend>;
+    for (bool const aligned : {false, true})
+    {
+        Alignment monitor;
+        if (aligned)
+        {
+            test.expect(monitor.update(Q{}, Matrix{}) == Status::success, profile, "real update acquires alignment");
+        }
+        test.expect(monitor.rebase(Q{}, Matrix{}) == Status::success && monitor.variance() == Scalar{0} &&
+                        monitor.aligned() == aligned,
+                    profile, "small rebased variance does not acquire alignment");
+        auto P = Matrix::identity();
+        P(2, 2) = Scalar{4};
+        Q tilt;
+        test.expect(Q::from_coefficients(Scalar{1}, Scalar{0}, Scalar{1}, Scalar{0}, static_cast<Scalar>(0.1), tilt) ==
+                            Status::success &&
+                        monitor.rebase(tilt, P) == Status::success && monitor.aligned() == aligned &&
+                        std::abs(monitor.variance() - Scalar{5}) < Scalar{128} * std::numeric_limits<Scalar>::epsilon(),
+                    profile, "full rotated variance refresh retains both possible latch values");
+        auto const before = monitor.variance();
+        P(0, 0) = std::numeric_limits<Scalar>::quiet_NaN();
+        test.expect(monitor.rebase(tilt, P) == Status::non_finite_input && monitor.aligned() == aligned &&
+                        monitor.variance() == before,
+                    profile, "failure preserves diagnostic and latch");
+        test.expect(monitor.update(Q{}, Matrix{}) == Status::success && monitor.aligned(), profile,
+                    "only a later actual update may establish alignment");
+    }
+}
 } // namespace
 
 int main(int argc, char ** argv)
 {
     formal_eskf::test::configure_backend_test();
     constexpr std::array cases{
+        Case{"TC-R-TILT-ALIGNMENT-REBASE", "candidate-float", frame_migration<float>},
+        Case{"TC-R-TILT-ALIGNMENT-REBASE", "candidate-double", frame_migration<double>},
         Case{"TC-R-ACCELEROMETER-CONDITIONS-03", "candidate-float", geometry<float>},
         Case{"TC-R-ACCELEROMETER-CONDITIONS-03", "candidate-double", geometry<double>},
         Case{"TC-R-ACCELEROMETER-CONDITIONS-04", "candidate-float", threshold<float>},

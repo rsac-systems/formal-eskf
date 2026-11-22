@@ -27,10 +27,16 @@ public:
     [[nodiscard]] Status update(so3::UnitQuaternion<Linalg> const & q_nb,
                                 linalg::Matrix<Linalg, 3U, 3U> const & P_theta_b);
 
+    /** Coordinate-only event: refresh variance but neither acquire nor clear alignment. */
+    [[nodiscard]] Status rebase(so3::UnitQuaternion<Linalg> const & q_nb,
+                                linalg::Matrix<Linalg, 3U, 3U> const & P_theta_b);
+
     bool aligned() const { return m_aligned; }
     value_type variance() const { return m_variance; }
 
 private:
+    [[nodiscard]] Status update_variance(so3::UnitQuaternion<Linalg> const & q_nb,
+                                         linalg::Matrix<Linalg, 3U, 3U> const & P_theta_b);
     value_type m_variance{};
     bool m_aligned = false;
 }; /* end class TiltAlignment */
@@ -38,6 +44,25 @@ private:
 template <typename Linalg>
 Status TiltAlignment<Linalg>::update(so3::UnitQuaternion<Linalg> const & q_nb,
                                      linalg::Matrix<Linalg, 3U, 3U> const & P_theta_b)
+{
+    Status const status = update_variance(q_nb, P_theta_b);
+    if (succeeded(status))
+    {
+        m_aligned = m_aligned || m_variance < tilt_limit * tilt_limit;
+    }
+    return status;
+}
+
+template <typename Linalg>
+Status TiltAlignment<Linalg>::rebase(so3::UnitQuaternion<Linalg> const & q_nb,
+                                     linalg::Matrix<Linalg, 3U, 3U> const & P_theta_b)
+{
+    return update_variance(q_nb, P_theta_b);
+}
+
+template <typename Linalg>
+Status TiltAlignment<Linalg>::update_variance(so3::UnitQuaternion<Linalg> const & q_nb,
+                                              linalg::Matrix<Linalg, 3U, 3U> const & P_theta_b)
 {
     if (!linalg::all_finite(q_nb.coefficients()) || !linalg::all_finite(P_theta_b))
     {
@@ -55,7 +80,6 @@ Status TiltAlignment<Linalg>::update(so3::UnitQuaternion<Linalg> const & q_nb,
         return Status::domain_error;
     }
     m_variance = tilt_variance;
-    m_aligned = m_aligned || tilt_variance < tilt_limit * tilt_limit;
     return Status::success;
 }
 

@@ -53,7 +53,7 @@ public:
     /** Missing IMU intervals provide no maneuver evidence. Preserve the heading latch. */
     void reset_acceleration()
     {
-        m_acceleration = horizontal_type{};
+        m_acceleration = vector_type{};
         m_state.horizontal_acceleration = value_type{0};
         m_state.observable = false;
     }
@@ -64,9 +64,13 @@ public:
         m_state.filtered_innovation = value_type{0};
         m_state.innovation_valid = false;
         m_state.consistent = true;
+        m_heading_seed_pending = false;
     }
 
-    /** Bias-corrected specific force rotated into NED at prediction; only N/E are filtered. */
+    /** Reexpress retained force; invalidate scalar heading history without declaring recovery. */
+    [[nodiscard]] Status rebase(so3::UnitQuaternion<Linalg> const & q_new_old);
+
+    /** Filter the full bias-corrected specific force in NED; only N/E enter the decision. */
     [[nodiscard]] Status update_acceleration(vector_type const & acceleration_n, value_type dt);
 
     /**
@@ -84,9 +88,40 @@ private:
     [[nodiscard]] static Status validate_inputs(so3::UnitQuaternion<Linalg> const & q_nb, vector_type const & m_b,
                                                 vector_type const & m_n, Parameters const & parameters);
 
-    horizontal_type m_acceleration{};
+    vector_type m_acceleration{};
     State m_state{};
+    bool m_heading_seed_pending = false;
 }; /* end class MagneticHeading */
+
+template <typename Linalg> Status MagneticHeading<Linalg>::rebase(so3::UnitQuaternion<Linalg> const & q_new_old)
+{
+    if (!linalg::all_finite(q_new_old.coefficients()))
+    {
+        return Status::non_finite_input;
+    }
+    // Unit quaternion is a checked-producer premise, as in update().
+    auto const candidate = so3::rotate(q_new_old, m_acceleration);
+    auto const horizontal = candidate.template segment<0U, 2U>();
+    auto const squared_norm = linalg::dot(horizontal, horizontal);
+    if (!linalg::all_finite(candidate) || !scalar::is_finite<typename Linalg::scalar_math_type>(squared_norm))
+    {
+        return Status::non_finite_result;
+    }
+    value_type magnitude{};
+    Status const status = scalar::sqrt<typename Linalg::scalar_math_type>(squared_norm, magnitude);
+    if (!succeeded(status))
+    {
+        return status;
+    }
+    m_acceleration = candidate;
+    m_state.horizontal_acceleration = magnitude;
+    m_state.observable = false;
+    m_state.innovation_valid = false;
+    m_state.innovation = value_type{0};
+    m_state.filtered_innovation = value_type{0};
+    m_heading_seed_pending = true;
+    return Status::success;
+}
 
 template <typename Linalg>
 Status MagneticHeading<Linalg>::update_acceleration(vector_type const & acceleration_n, value_type dt)
@@ -102,8 +137,9 @@ Status MagneticHeading<Linalg>::update_acceleration(vector_type const & accelera
     }
     // A one-second vector LPF: opposing accelerations cancel before taking the norm.
     auto const alpha = dt / (value_type{1} + dt);
-    auto const candidate = m_acceleration + (acceleration_n.template segment<0U, 2U>() - m_acceleration) * alpha;
-    auto const squared_norm = linalg::dot(candidate, candidate);
+    auto const candidate = m_acceleration + (acceleration_n - m_acceleration) * alpha;
+    auto const horizontal = candidate.template segment<0U, 2U>();
+    auto const squared_norm = linalg::dot(horizontal, horizontal);
     if (!linalg::all_finite(candidate) || !scalar::is_finite<math_type>(squared_norm))
     {
         return Status::non_finite_result;
@@ -167,8 +203,10 @@ Status MagneticHeading<Linalg>::update(so3::UnitQuaternion<Linalg> const & q_nb,
     constexpr auto time_constant = static_cast<value_type>(0.09);
     candidate.innovation = innovation;
     candidate.innovation_valid = true;
-    candidate.filtered_innovation +=
-        (innovation - candidate.filtered_innovation) * (interval / (time_constant + interval));
+    candidate.filtered_innovation = m_heading_seed_pending
+                                        ? innovation
+                                        : candidate.filtered_innovation + (innovation - candidate.filtered_innovation) *
+                                                                              (interval / (time_constant + interval));
     if (scalar::absolute<math_type>(candidate.filtered_innovation) >= parameters.heading_noise)
     {
         candidate.consistent = false;
@@ -178,6 +216,7 @@ Status MagneticHeading<Linalg>::update(so3::UnitQuaternion<Linalg> const & q_nb,
         candidate.consistent = true;
     }
     m_state = candidate;
+    m_heading_seed_pending = false;
     return Status::success;
 }
 

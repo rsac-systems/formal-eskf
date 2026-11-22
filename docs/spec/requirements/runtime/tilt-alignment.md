@@ -83,6 +83,16 @@ the estimator state/covariance, perform a correction, infer rest/horizontal
 aiding, or own a timer. There is no additional clamping or repair of negative
 computed variances.
 
+### Coordinate-only refresh
+
+`rebase(q_nb, P_theta_b)` uses the same producer, validation order and failure
+preservation as `update`, but refreshes only the diagnostic. It shall preserve
+both possible latch values even if the new variance crosses the threshold.
+A representation change is not new alignment evidence. A later ordinary update
+retains its existing acquisition behavior. Existing formal update evidence does
+not establish this new entry point or its changed shared producer; native tests
+are available and formal evidence refresh remains pending.
+
 ## Acceptance and verification
 
 - Check fresh construction, pure accessors, identity and tilted covariance

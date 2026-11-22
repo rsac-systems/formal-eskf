@@ -3552,7 +3552,7 @@
     },
     {
       "id": "R-MAGNETIC-HEADING",
-      "title": "Portable magnetic heading frames, filters and conditional inductive history verified; physical observability, math accuracy and adapter wiring remain separate",
+      "title": "Aided heading consistency; migration/native coverage added, stateful formal evidence refresh pending",
       "references": {
         "spec": [
           {
@@ -3642,6 +3642,10 @@
           {
             "file": "integrations/px4/module/FormalEskfAttitude.cpp",
             "symbol": "void FormalEskf::fuse_mag()"
+          },
+          {
+            "file": "include/formal_eskf/runtime/magnetometer.hpp",
+            "symbol": "Status MagneticHeading<Linalg>::rebase("
           }
         ],
         "esbmc": [
@@ -4672,6 +4676,10 @@
           {
             "file": "integrations/px4/module/FormalEskfAttitude.cpp",
             "symbol": "void FormalEskf::fuse_gravity("
+          },
+          {
+            "file": "include/formal_eskf/runtime/tilt_alignment.hpp",
+            "symbol": "Status TiltAlignment<Linalg>::rebase("
           }
         ],
         "esbmc": [
