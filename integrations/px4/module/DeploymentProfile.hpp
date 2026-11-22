@@ -271,6 +271,34 @@ template <typename Scalar> constexpr runtime::BiasLimits<Scalar> bias_limits()
             static_cast<Scalar>(ESKF_CFG_GYRO_BIAS_LIMIT)}; // m/s^2, rad/s.
 }
 
+template <typename Initialization> typename Initialization::Parameters initialization_parameters()
+{
+    typename Initialization::Parameters result;
+    using value_type = typename Initialization::value_type;
+    result.gravity = static_cast<value_type>(gravity_m_s2);
+    result.gravity_tolerance = static_cast<value_type>(startup::gravity_tolerance_m_s2);
+    result.maximum_angular_rate = static_cast<value_type>(startup::maximum_angular_rate_rad_s);
+    result.minimum_magnetic_field_gauss = static_cast<value_type>(startup::minimum_magnetic_field_gauss);
+    result.minimum_horizontal_field = static_cast<value_type>(magnetic::field.minimum_horizontal_field);
+    result.minimum_imu_samples = startup::minimum_imu_samples;
+    result.maximum_imu_samples = startup::maximum_imu_samples;
+    result.minimum_magnetic_samples = startup::minimum_magnetic_samples;
+    result.maximum_sample_age_us = startup::maximum_sample_age_us;
+    result.maximum_horizontal_speed = startup::maximum_horizontal_speed_m_s;
+    result.maximum_vertical_speed = startup::maximum_vertical_speed_m_s;
+    result.minimum_quaternion_norm = static_cast<value_type>(minimum_quaternion_norm);
+    result.bias_limits = bias_limits<value_type>();
+    for (std::size_t axis = 0; axis < 3; ++axis)
+    {
+        result.position_variance[axis] = static_cast<value_type>(startup::position_variance[axis]);
+        result.velocity_variance[axis] = static_cast<value_type>(startup::velocity_variance[axis]);
+        result.attitude_variance[axis] = static_cast<value_type>(startup::attitude_variance[axis]);
+    }
+    result.accelerometer_bias_variance = static_cast<value_type>(startup::accelerometer_bias_variance);
+    result.gyroscope_bias_variance = static_cast<value_type>(startup::gyroscope_bias_variance);
+    return result;
+}
+
 template <typename Height> typename Height::Parameters height_parameters()
 {
     using Scalar = typename Height::value_type;

@@ -47,6 +47,7 @@
 #include <formal_eskf/runtime/history/imu_history.hpp>
 #include <formal_eskf/runtime/history/observation_history.hpp>
 #include <formal_eskf/runtime/session/output_predictor.hpp>
+#include <formal_eskf/runtime/session/ins_initialization.hpp>
 #include <formal_eskf/runtime/sensors/magnetic/magnetic_model.hpp>
 
 // Single writer: all filter state is owned by this work item. The core has no
@@ -87,19 +88,7 @@ private:
     using magnetic_lifecycle_type = formal_eskf::runtime::MagnetometerFusion;
     using magnetic_model_type = formal_eskf::runtime::MagneticModel<backend_type>;
 
-    struct Initialization
-    {
-        vector3_type accelerometer_sum{};
-        vector3_type gyroscope_sum{};
-        vector3_type magnetic_sum_gauss{};
-        std::uint32_t imu_samples{};
-        std::uint32_t magnetic_samples{};
-        std::uint64_t magnetic_time_us{};
-        magnetic_lifecycle_type::Source magnetic_source{};
-
-        // Motion resets accumulated observations, not sensor identity/watermarks.
-        void reset_samples();
-    };
+    using initialization_type = formal_eskf::runtime::InsInitialization<backend_type>;
 
     using ImuSource = formal_eskf::runtime::ImuSource;
     using ImuInput = formal_eskf::runtime::ImuInput<backend_type>;
@@ -453,7 +442,7 @@ private:
     state_type m_state{};
     covariance_type m_covariance{};
     types_type::parameter_type m_parameters = estimator_parameters();
-    Initialization m_initialization{};
+    initialization_type m_initialization{formal_eskf::px4::profile::initialization_parameters<initialization_type>()};
     imu_history_type m_imu_history{};
     observation_history_type m_observations{formal_eskf::px4::profile::history::observation_timing};
     output_predictor_type m_output{formal_eskf::px4::profile::output_parameters};

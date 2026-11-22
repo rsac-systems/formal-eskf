@@ -8,6 +8,8 @@
 
 **Parent:** [SW-PX4](../../software/px4-estimation.md).
 
+**Uses:** [R-INS-INITIALIZATION](../../runtime/ins-initialization.md).
+
 ## Basis
 
 [PX4 module architecture](../../../architecture/px4-module.md) identifies the pinned reference, project adaptations and scope.
@@ -17,6 +19,10 @@
 Startup validates the complete configuration and prepares storage, subscriptions
 and publications. Alignment qualifies the required sensors, initializes the
 filter and synchronizes the output predictor/history before valid output begins.
+The portable bootstrap owns stationary accumulation and initial numerical values;
+the adapter supplies qualified receiver/context data, external magnetic lookup,
+frame/datum setup and publication timing. Preserve receiver-format startup speed
+metrics and gauss-valued magnetic accumulation.
 No diagnostic or controller may observe a partially initialized estimate.
 Changing numerical, timing, capacity or source-selection configuration requires
 stop/restart in this baseline; sensor metadata changes follow their source

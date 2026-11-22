@@ -283,7 +283,7 @@ public:
         }
         expect(m_filter.m_initialized && !m_filter.m_fault,
                "stationary real sensor sequence initializes the estimator");
-        expect(m_filter.m_initialization.imu_samples == 1000U,
+        expect(m_filter.m_initialization.history().imu_samples == 1000U,
                "startup caps IMU accumulation without fabricating new samples");
         expect(m_filter.m_predictions > 0U, "post-startup ticks run prediction");
         expect(m_filter.m_gnss.corrections > 0U, "post-startup ticks run GNSS correction");
@@ -298,9 +298,10 @@ public:
         }
         std::fprintf(trace_file, "%s %llu %u %u %u %u %u %u %u %u %u %u\n", label,
                      static_cast<unsigned long long>(m_filter.m_time_us), m_filter.m_initialized, m_filter.m_fault,
-                     m_filter.m_initialization.imu_samples, m_filter.m_initialization.magnetic_samples,
-                     m_filter.m_predictions, m_filter.m_rejections, m_filter.m_errors, m_filter.m_gaps,
-                     m_filter.m_resets.position_count, m_filter.m_resets.velocity_count);
+                     m_filter.m_initialization.history().imu_samples,
+                     m_filter.m_initialization.history().magnetic_samples, m_filter.m_predictions,
+                     m_filter.m_rejections, m_filter.m_errors, m_filter.m_gaps, m_filter.m_resets.position_count,
+                     m_filter.m_resets.velocity_count);
         std::array<double, 16U + 225U> values{};
         auto const & state = m_filter.m_state;
         for (std::size_t i = 0; i < 3U; ++i)
@@ -1500,9 +1501,9 @@ public:
         auto const field = filter.m_magnetic_model.observation_n();
         FormalEskf::magnetic_model_type::sample_type model{0., std::atan2(field(2U), field(0U)),
                                                            formal_eskf::linalg::norm(field)};
-        expect(formal_eskf::succeeded(
-                   filter.m_magnetic_model.initialize(clock_us, {geographic, true, 0.}, field, model)),
-               "seed independent geographic reference");
+        expect(
+            formal_eskf::succeeded(filter.m_magnetic_model.initialize(clock_us, {geographic, true, 0.}, field, model)),
+            "seed independent geographic reference");
         test.start_magnetic();
         model.declination = 0.05;
         expect(filter.m_magnetic_model.update(clock_us + 10000U, model, true, true).changed,
@@ -1992,18 +1993,18 @@ public:
         FormalEskfModuleTest test;
         test.m_sample.timestamp_sample += 4000U;
         test.tick();
-        expect(!test.m_filter.m_initialized && test.m_filter.m_initialization.imu_samples == 1U,
+        expect(!test.m_filter.m_initialized && test.m_filter.m_initialization.history().imu_samples == 1U,
                "startup collects, does not initialize early");
-        auto const mag_time = test.m_filter.m_initialization.magnetic_time_us;
-        auto const source = test.m_filter.m_initialization.magnetic_source;
+        auto const mag_time = test.m_filter.m_initialization.history().magnetic_time_us;
+        auto const source = test.m_filter.m_initialization.history().magnetic_source;
         test.m_armed = true;
         test.m_sample.timestamp_sample += 4000U;
         test.tick();
-        expect(test.m_filter.m_initialization.imu_samples == 0U &&
-                   test.m_filter.m_initialization.magnetic_samples == 0U,
+        expect(test.m_filter.m_initialization.history().imu_samples == 0U &&
+                   test.m_filter.m_initialization.history().magnetic_samples == 0U,
                "armed startup clears both accumulated sample sets");
-        expect(test.m_filter.m_initialization.magnetic_time_us == mag_time &&
-                   test.m_filter.m_initialization.magnetic_source.device_id == source.device_id,
+        expect(test.m_filter.m_initialization.history().magnetic_time_us == mag_time &&
+                   test.m_filter.m_initialization.history().magnetic_source.device_id == source.device_id,
                "startup motion reset preserves magnetic watermark and source identity");
         test.m_armed = false;
         test.m_sample.timestamp_sample += 4000U;
@@ -2011,8 +2012,8 @@ public:
         test.m_mag_device = 302U;
         test.m_sample.timestamp_sample += 4000U;
         test.tick();
-        expect(test.m_filter.m_initialization.imu_samples == 2U &&
-                   test.m_filter.m_initialization.magnetic_samples == 1U,
+        expect(test.m_filter.m_initialization.history().imu_samples == 2U &&
+                   test.m_filter.m_initialization.history().magnetic_samples == 1U,
                "magnetometer source change resets only the magnetic accumulation");
         test.m_sample.timestamp_sample += 4000U;
         test.m_sample.delta_velocity[0] = std::numeric_limits<float>::quiet_NaN();
@@ -3286,13 +3287,13 @@ public:
             test.m_sample.delta_angle_dt = period;
             test.tick();
             expect(!test.m_filter.m_initialized && !test.m_filter.m_fault && test.m_filter.m_time_us == 0 &&
-                       test.m_filter.m_initialization.imu_samples == 0,
+                       test.m_filter.m_initialization.history().imu_samples == 0,
                    "alignment rejects unsupported IMU periods before accumulation or seeding");
         }
         test.m_sample.delta_angle_dt = 4000;
         test.m_sample.timestamp_sample += 4000;
         test.tick();
-        expect(test.m_filter.m_initialization.imu_samples == 1 && !test.m_filter.m_fault,
+        expect(test.m_filter.m_initialization.history().imu_samples == 1 && !test.m_filter.m_fault,
                "valid profile input can begin alignment after rejected pre-start samples");
     }
 

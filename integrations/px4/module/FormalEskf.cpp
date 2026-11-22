@@ -125,7 +125,7 @@ bool FormalEskf::load_startup_parameters()
         return false;
     }
     m_gravity_enabled = profile::gravity::enabled && gravity_enabled != 0;
-    return load_magnetic_parameters() && load_sensor_positions();
+    return m_initialization.valid() && load_magnetic_parameters() && load_sensor_positions();
 }
 
 bool FormalEskf::init()
@@ -166,103 +166,40 @@ bool FormalEskf::check(status_type status)
     return false;
 }
 
-void FormalEskf::Initialization::reset_samples()
-{
-    imu_samples = 0U;
-    accelerometer_sum = {};
-    gyroscope_sum = {};
-    magnetic_sum_gauss = {};
-    magnetic_samples = 0U;
-}
-
 bool FormalEskf::collect_initialization_samples(imu_type const & imu)
 {
-    double const accel_norm = formal_eskf::linalg::norm(imu.specific_force_b);
-    if (m_vehicle_status.arming_state == vehicle_status_s::ARMING_STATE_ARMED ||
-        std::abs(accel_norm - profile::gravity_m_s2) > profile::startup::gravity_tolerance_m_s2 ||
-        formal_eskf::linalg::norm(imu.angular_rate_b) > profile::startup::maximum_angular_rate_rad_s)
-    {
-        m_initialization.reset_samples();
-        return false;
-    }
-    if (m_initialization.imu_samples < profile::startup::maximum_imu_samples)
-    {
-        m_initialization.accelerometer_sum = m_initialization.accelerometer_sum + imu.specific_force_b;
-        m_initialization.gyroscope_sum = m_initialization.gyroscope_sum + imu.angular_rate_b;
-        ++m_initialization.imu_samples;
-    }
-    if (m_mag.timestamp_sample > m_initialization.magnetic_time_us &&
-        recent(m_mag.timestamp_sample, profile::startup::maximum_sample_age_us))
-    {
-        if (m_mag.device_id != m_initialization.magnetic_source.device_id ||
-            m_mag.calibration_count != m_initialization.magnetic_source.calibration_count)
-        {
-            m_initialization.magnetic_sum_gauss = {};
-            m_initialization.magnetic_samples = 0;
-        }
-        m_initialization.magnetic_source = {m_mag.device_id, m_mag.calibration_count, 1U};
-        auto const m = vector3(m_mag.magnetometer_ga[0], m_mag.magnetometer_ga[1], m_mag.magnetometer_ga[2]);
-        if (m_mag.device_id != 0 && formal_eskf::linalg::all_finite(m) &&
-            formal_eskf::linalg::norm(m) > profile::startup::minimum_magnetic_field_gauss)
-        {
-            m_initialization.magnetic_sum_gauss = m_initialization.magnetic_sum_gauss + m;
-            ++m_initialization.magnetic_samples;
-        }
-        m_initialization.magnetic_time_us = m_mag.timestamp_sample;
-    }
-    return true;
+    initialization_type::MagneticSample magnetic{
+        m_mag.timestamp_sample, m_mag.device_id, m_mag.calibration_count,
+        vector3(m_mag.magnetometer_ga[0], m_mag.magnetometer_ga[1], m_mag.magnetometer_ga[2])};
+    return m_initialization.collect(m_time_us, m_vehicle_status.arming_state == vehicle_status_s::ARMING_STATE_ARMED,
+                                    imu, magnetic);
 }
 
 bool FormalEskf::initialization_ready() const
 {
-    if (m_initialization.imu_samples < profile::startup::minimum_imu_samples ||
-        m_initialization.magnetic_samples < profile::startup::minimum_magnetic_samples || !gps_good() ||
-        !recent(m_baro.timestamp_sample, profile::startup::maximum_sample_age_us) ||
-        !std::isfinite(m_baro.baro_alt_meter) ||
-        std::hypot(m_gps.vel_n_m_s, m_gps.vel_e_m_s) > profile::startup::maximum_horizontal_speed_m_s ||
-        std::abs(m_gps.vel_d_m_s) > profile::startup::maximum_vertical_speed_m_s)
-    {
-        return false;
-    }
-    return true;
+    return m_initialization.ready(m_time_us, {gps_good(), m_baro.timestamp_sample, m_baro.baro_alt_meter,
+                                              std::hypot(m_gps.vel_n_m_s, m_gps.vel_e_m_s), std::abs(m_gps.vel_d_m_s)});
 }
 
 bool FormalEskf::initialize_attitude(double & yaw)
 {
-    auto const accel = m_initialization.accelerometer_sum / static_cast<double>(m_initialization.imu_samples);
-    auto const mag = m_initialization.magnetic_sum_gauss / static_cast<double>(m_initialization.magnetic_samples);
-    double const roll = std::atan2(-accel(1), -accel(2));
-    double const pitch = std::atan2(accel(0), std::hypot(accel(1), accel(2)));
-    const matrix::Dcm<double> tilt{matrix::Euler<double>(roll, pitch, 0.)};
-    const matrix::Vector3<double> level_mag = tilt * matrix::Vector3<double>(mag(0), mag(1), mag(2));
-    if (profile::microtesla_per_gauss * std::hypot(level_mag(0), level_mag(1)) <
-        profile::magnetic::field.minimum_horizontal_field)
+    initialization_type::Tilt tilt;
+    if (!m_initialization.tilt(tilt))
     {
         return false;
     }
     auto const model = lookup_magnetic_model(m_gps.latitude_deg, m_gps.longitude_deg);
     m_mag_model_unavailable += !model.has_value();
+    auto const & field = tilt.level_field_gauss;
     if (!check(m_magnetic_model.initialize(m_time_us, m_magnetic_settings,
-                                           vector3(profile::microtesla_per_gauss * level_mag(0),
-                                                   profile::microtesla_per_gauss * level_mag(1),
-                                                   profile::microtesla_per_gauss * level_mag(2)),
+                                           vector3(profile::microtesla_per_gauss * field(0),
+                                                   profile::microtesla_per_gauss * field(1),
+                                                   profile::microtesla_per_gauss * field(2)),
                                            model)))
     {
         return false;
     }
-    yaw = m_magnetic_model.declination() - std::atan2(level_mag(1), level_mag(0));
-    const matrix::Quaternion<double> q{matrix::Euler<double>(roll, pitch, yaw)};
-    if (!check(state_type::quaternion_type::from_coefficients(q(0), q(1), q(2), q(3), profile::minimum_quaternion_norm,
-                                                              m_state.q_nb)))
-    {
-        return false;
-    }
-    m_state.b_g = m_initialization.gyroscope_sum / static_cast<double>(m_initialization.imu_samples);
-    if (!check(formal_eskf::runtime::limit_bias(m_state, profile::bias_limits<double>())))
-    {
-        return false;
-    }
-    return true;
+    return check(m_initialization.align(tilt, m_magnetic_model.declination(), m_state, yaw));
 }
 
 bool FormalEskf::initialize_navigation(imu_type const & imu)
@@ -275,16 +212,8 @@ bool FormalEskf::initialize_navigation(imu_type const & imu)
         return false;
     }
     // The geographic reference remains the first antenna fix; the state is at the IMU.
-    m_state.p_n = -gnss_position_offset();
-    m_state.v_n = vector3(m_gps.vel_n_m_s, m_gps.vel_e_m_s, m_gps.vel_d_m_s) - gnss_velocity_offset(imu);
-    for (std::size_t axis = 0U; axis < 3U; ++axis)
-    {
-        m_covariance(axis, axis) = profile::startup::position_variance[axis];
-        m_covariance(3U + axis, 3U + axis) = profile::startup::velocity_variance[axis];
-        m_covariance(6U + axis, 6U + axis) = profile::startup::attitude_variance[axis];
-        m_covariance(9U + axis, 9U + axis) = profile::startup::accelerometer_bias_variance;
-        m_covariance(12U + axis, 12U + axis) = profile::startup::gyroscope_bias_variance;
-    }
+    m_initialization.seed_navigation(vector3(m_gps.vel_n_m_s, m_gps.vel_e_m_s, m_gps.vel_d_m_s), gnss_position_offset(),
+                                     gnss_velocity_offset(imu), m_state, m_covariance);
     m_origin.time_us = m_time_us;
     m_origin.projection.initReference(m_gps.latitude_deg, m_gps.longitude_deg, m_origin.time_us);
     m_mag_model_origin_time = m_origin.time_us;
@@ -315,8 +244,8 @@ void FormalEskf::initialize(ImuInput const & sample, imu_type const & imu)
     {
         return;
     }
-    m_initialization.magnetic_source.reference_id = m_magnetic_model.reference_id();
-    initialize_magnetic_aiding(m_initialization.magnetic_source, m_mag.timestamp_sample);
+    m_initialization.magnetic_reference(m_magnetic_model.reference_id());
+    initialize_magnetic_aiding(m_initialization.history().magnetic_source, m_mag.timestamp_sample);
     m_initialized = true;
     if (!update_imu_bias(sample, imu))
     {

@@ -7373,6 +7373,10 @@
           {
             "file": "docs/guides/verification.md",
             "symbol": "### PX4 and replay temporal callers"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/ins-initialization.md",
+            "symbol": "# R-INS-INITIALIZATION:"
           }
         ],
         "lean": [],
@@ -7448,6 +7452,10 @@
           {
             "file": "integrations/px4/module/DeploymentProfile.hpp",
             "symbol": "inline constexpr runtime::GnssQualityParameters<double> quality"
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_initialization.hpp",
+            "symbol": "template <typename Linalg> class InsInitialization"
           }
         ],
         "esbmc": [
