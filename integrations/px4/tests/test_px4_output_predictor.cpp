@@ -549,6 +549,162 @@ void failures(Context & test)
                     "failure", "explicit restart clears feedback and starts new warmup");
     }
 }
+void frame_rebasing(Context & test)
+{
+    auto const q = rotation(vector(0.2, -0.3, 0.4));
+    auto const A = formal_eskf::so3::to_rotation_matrix(q);
+    auto const translation = vector(-100, 30, 5);
+    auto mapped = [&](Predictor::Sample const & sample)
+    {
+        State state;
+        state.p_n = A * sample.p_n + translation;
+        state.v_n = A * sample.v_n;
+        state.q_nb = q * sample.q_nb;
+        return state;
+    };
+    auto matches = [&](Predictor::Sample const & before, Predictor::Sample const & after)
+    {
+        auto const expected = mapped(before);
+        return before.time_us == after.time_us && before.start_time_us == after.start_time_us &&
+               before.angular_period_us == after.angular_period_us && near_vector(expected.p_n, after.p_n) &&
+               near_vector(expected.v_n, after.v_n) &&
+               formal_eskf::so3::same_rotation(expected.q_nb, after.q_nb, 1e-12);
+    };
+    for (auto const timing :
+         {formal_eskf::px4::TimingParameters{}, formal_eskf::px4::TimingParameters{4000, 239, 0, 0, 0}})
+    {
+        Session session, control;
+        State initial;
+        initial.p_n = vector(5, -8, 2);
+        initial.v_n = vector(3, 2, -1);
+        session.seed(test, initial, timing);
+        auto const seed = session.output.current();
+        test.expect(session.output.prepare_rebase(q, translation) && same_sample(seed, session.output.current()),
+                    "rebase", "seed preparation is not publication");
+        session.output.commit_rebase();
+        test.expect(matches(seed, session.output.current()) && session.output.entries() == 0 && !session.output.ready(),
+                    "rebase", "seed-only transform preserves temporal readiness");
+        control.seed(test, initial, timing);
+        test.expect(control.output.prepare_rebase(q, translation), "rebase", "matching control seed");
+        control.output.commit_rebase();
+        session.fill(test);
+        control.fill(test);
+        // Wrap the actual ring before comparing every retained record.
+        auto const count = session.imu.configuration().imu_length;
+        for (std::size_t i = 0; i < count + 3; ++i)
+        {
+            auto const oldest = *session.output.delayed();
+            State main{oldest.p_n, oldest.v_n, oldest.q_nb, {}, {}};
+            test.expect(session.output.correct(oldest.time_us, main) && session.imu.complete(oldest.time_us) &&
+                            control.output.correct(oldest.time_us, main) && control.imu.complete(oldest.time_us),
+                        "rebase", "complete real delayed epoch before wrapping");
+            session.push(test);
+            control.push(test);
+        }
+        auto const prior = session.output.current();
+        auto const fusion_time = session.output.fusion_time_us();
+        auto const body_rate = session.output.angular_rate_b();
+        test.expect(session.output.prepare_rebase(q, translation) && same_sample(prior, session.output.current()),
+                    "rebase", "full history remains visible until commit");
+        session.output.commit_rebase();
+        auto const committed = session.output.current();
+        session.output.commit_rebase();
+        test.expect(matches(prior, committed) && same_sample(committed, session.output.current()) &&
+                        session.output.fusion_time_us() == fusion_time && session.output.entries() == count &&
+                        near_vector(body_rate, session.output.angular_rate_b()) && session.output.ready(),
+                    "rebase", "single commit preserves epochs, occupancy, body feedback and readiness");
+        for (std::size_t i = 0; i < count; ++i)
+        {
+            auto const before = *control.output.delayed();
+            auto const after = *session.output.delayed();
+            test.expect(matches(before, after), "rebase",
+                        "every wrapped retained sample uses the same rigid transform");
+            State old_main{before.p_n, before.v_n, before.q_nb, {}, {}};
+            State new_main{after.p_n, after.v_n, after.q_nb, {}, {}};
+            test.expect(control.output.correct(before.time_us, old_main) && control.imu.complete(before.time_us) &&
+                            session.output.correct(after.time_us, new_main) && session.imu.complete(after.time_us),
+                        "rebase", "time ordering remains consumable without duplication");
+            control.push(test);
+            session.push(test);
+        }
+        auto const before_failure = session.output.current();
+        test.expect(!session.output.prepare_rebase(q, vector(std::numeric_limits<double>::infinity(), 0, 0)) &&
+                        session.output.fault() == Fault::none,
+                    "rebase", "optional event failure does not latch a flight fault");
+        session.output.commit_rebase();
+        test.expect(same_sample(before_failure, session.output.current()), "rebase",
+                    "failed preparation cannot commit stale scratch");
+        test.expect(session.output.prepare_rebase(q, translation), "rebase", "new valid staging");
+        test.expect(session.output.apply_reset(Quaternion{}, {}, {}), "rebase", "intervening owner operation");
+        auto const after_reset = session.output.current();
+        session.output.commit_rebase();
+        test.expect(same_sample(after_reset, session.output.current()), "rebase",
+                    "other owner operations cancel staging");
+    }
+}
+
+void frame_rollback(Context & test)
+{
+    Session session;
+    State state;
+    state.v_n(0) = 1e307;
+    session.seed(test, state);
+    session.fill(test);
+    auto const first = *session.output.delayed();
+    auto const last = session.output.current();
+    double const translation = std::numeric_limits<double>::max() - (first.p_n(0) + last.p_n(0)) / 2;
+    test.expect(std::isfinite(first.p_n(0) + translation) && !std::isfinite(last.p_n(0) + translation),
+                "rebase failure", "overflow occurs only after earlier history candidates succeed");
+    test.expect(!session.output.prepare_rebase(Quaternion{}, vector(translation, 0, 0)) &&
+                    session.output.fault() == Fault::none && same_sample(first, *session.output.delayed()) &&
+                    same_sample(last, session.output.current()),
+                "rebase failure", "late preparation failure preserves visible history and fault");
+    session.output.commit_rebase();
+    test.expect(same_sample(first, *session.output.delayed()) && same_sample(last, session.output.current()),
+                "rebase failure", "partial candidates cannot be published");
+    test.expect(session.output.prepare_rebase(Quaternion{}, vector(1, 2, 3)), "rebase failure",
+                "valid retry overwrites all scratch");
+    session.output.commit_rebase();
+    test.expect(near_vector(session.output.current().p_n, last.p_n + vector(1, 2, 3)), "rebase failure",
+                "retry commits coherent history");
+}
+
+void frame_feedback(Context & test)
+{
+    Session session, control;
+    session.seed(test);
+    session.fill(test);
+    control.seed(test);
+    control.fill(test);
+    State main;
+    main.v_n = vector(1, 2, -1);
+    main.p_n = vector(4, -3, 1);
+    auto time = session.output.delayed()->time_us;
+    test.expect(session.output.correct(time, main) && session.imu.complete(time) &&
+                    control.output.correct(time, main) && control.imu.complete(time),
+                "rebase feedback", "nonzero tracking integrals");
+    auto const q = rotation(vector(0, 0, 0.7)); // Down is unchanged: subsequent predictions are also comparable.
+    auto const A = formal_eskf::so3::to_rotation_matrix(q);
+    auto const t = vector(7, -8, 4);
+    auto const error = session.output.tracking_error();
+    test.expect(session.output.prepare_rebase(q, t), "rebase feedback", "stage feedback transport");
+    session.output.commit_rebase();
+    test.expect(near_vector(session.output.tracking_error().velocity_n, A * error.velocity_n) &&
+                    near_vector(session.output.tracking_error().position_n, A * error.position_n) &&
+                    near_vector(session.output.tracking_error().attitude_b, error.attitude_b),
+                "rebase feedback", "rotate navigation errors, preserve body attitude error");
+    control.push(test);
+    session.push(test);
+    time = control.output.delayed()->time_us;
+    State changed = main;
+    changed.p_n = A * main.p_n + t;
+    changed.v_n = A * main.v_n;
+    changed.q_nb = q * main.q_nb;
+    test.expect(control.output.correct(time, main) && session.output.correct(time, changed) &&
+                    near_vector(session.output.current().p_n, A * control.output.current().p_n + t) &&
+                    near_vector(session.output.current().v_n, A * control.output.current().v_n),
+                "rebase feedback", "next feedback uses rotated private integral sums");
+}
 } // namespace
 
 int main()
@@ -556,6 +712,9 @@ int main()
     formal_eskf::test::configure_backend_test();
     static_assert(sizeof(History) + sizeof(Predictor) <= profile::history::storage_budget_bytes);
     Context test;
+    frame_rebasing(test);
+    frame_feedback(test);
+    frame_rollback(test);
     startup_and_configuration(test);
     analytic_translation(test, {}, 1000000);
     analytic_translation(test, {4000, 153, 0, 0, 0}, 1000000);

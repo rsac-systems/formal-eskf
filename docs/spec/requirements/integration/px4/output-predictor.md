@@ -84,6 +84,31 @@ and their sums unchanged; preserve them. The caller owns reset counters and must
 stop on failure. This operation is not a coordinate-frame rotation of NED vectors.
 `reset()` instead clears all temporal/tracking state and fault for a new session.
 
+### Internal coordinate event
+
+`prepare_rebase` stages a common left quaternion rotation and affine position
+translation for the current sample and every occupied history record. Rotate
+velocity, position/velocity tracking errors and their integral sums; preserve
+body attitude error, body rates/bias feedback, epochs, ring indices/occupancy,
+readiness and fault. The caller supplies a valid unit frame quaternion. The
+persistent candidate ring is reused; no history-sized callback stack copy or
+allocation is permitted.
+
+Preparation must leave visible state unchanged. Invalid inputs or any candidate
+overflow return failure without latching an operational fault. `commit_rebase`
+performs bounded assignments only, once after all estimator owners have prepared;
+without successful preparation it is a no-op. Any other mutating owner operation
+cancels preparation to prevent publication of stale scratch. IMU and observation
+histories remain in their body/raw measurement bases and are not consumed by this
+event. Subsequent prediction uses the selected new Down-aligned gravity.
+
+Native checks in [the output predictor test](../../../../../integrations/px4/tests/test_px4_output_predictor.cpp)
+cover seed-only state, default/maximum timing configurations, every occupied slot
+after wrap, distinct delayed/current epochs, tracking-integral continuation,
+late candidate overflow, retry and canceled staging. They extend the prior native
+scope; existing formal evidence does not establish these new methods or modified
+owner state. A later formal evidence refresh remains required.
+
 The intended differences from PX4 are explicit:
 
 - Reuse this project's prior-attitude, constant-acceleration prediction; PX4's

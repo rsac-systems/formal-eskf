@@ -6275,7 +6275,7 @@
     },
     {
       "id": "R-PX4-OUTPUT-PREDICTOR",
-      "title": "Output predictor source transactions, complete storage frames and temporal induction; live binding and target numerical bounds remain separate",
+      "title": "Current-time output tracking and coordinate transport; new owner transitions need formal evidence refresh",
       "references": {
         "spec": [
           {
@@ -6541,6 +6541,14 @@
           {
             "file": "integrations/px4/module/OutputPredictor.hpp",
             "symbol": "OutputPredictor<Linalg>::fail("
+          },
+          {
+            "file": "integrations/px4/module/OutputPredictor.hpp",
+            "symbol": "::prepare_rebase("
+          },
+          {
+            "file": "integrations/px4/module/OutputPredictor.hpp",
+            "symbol": "::commit_rebase("
           }
         ],
         "esbmc": [

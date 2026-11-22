@@ -64,6 +64,13 @@ public:
     /** q_new = q_delta * q_old; additive NED deltas. Caller owns reset counters. */
     [[nodiscard]] bool apply_reset(quaternion_type const & q_delta, vector3_type const & velocity_delta_n,
                                    vector3_type const & position_delta_n);
+    /**
+     * Prepare a coordinate-only rotation/translation without changing visible state or faults.
+     * Commit only after every estimator owner has prepared successfully. Any other
+     * mutating operation cancels this staging; failed/repeated commit is a no-op.
+     */
+    [[nodiscard]] bool prepare_rebase(quaternion_type const & q_new_old, vector3_type const & translation);
+    void commit_rebase();
     /** Session restart clears history, feedback and fault, retaining configuration. */
     void reset();
 
@@ -86,10 +93,21 @@ private:
     bool stage_translation(vector3_type const & velocity_delta, vector3_type const & position_delta);
     void commit_history();
     bool fail(Fault reason);
+    static bool rebase_sample(Sample & sample, quaternion_type const & q_new_old,
+                              linalg::Matrix<Linalg, 3, 3> const & rotation, vector3_type const & translation);
+
+    struct RebaseCandidate
+    {
+        Sample current{};
+        TrackingError error{};
+        vector3_type velocity_sum{}, position_sum{};
+        bool prepared = false;
+    };
 
     runtime::RingBuffer<Sample, profile::history::imu_capacity> m_history{0};
     // Persistent workspace keeps failure-atomic history updates off the callback stack.
     std::array<Sample, profile::history::imu_capacity> m_staged{};
+    RebaseCandidate m_rebase{};
     TimingConfiguration m_configuration{};
     Sample m_current{};
     vector3_type m_accel_bias{};
@@ -107,6 +125,7 @@ private:
 
 template <typename Linalg> bool OutputPredictor<Linalg>::configure(TimingParameters const & parameters)
 {
+    m_rebase.prepared = false;
     TimingConfiguration candidate;
     if (m_current.time_us != 0 || m_fault != Fault::none || !configure_timing(parameters, candidate) ||
         !m_history.allocate(candidate.imu_length))
@@ -132,6 +151,7 @@ template <typename Linalg> bool OutputPredictor<Linalg>::valid_state(state_type 
 
 template <typename Linalg> bool OutputPredictor<Linalg>::seed(state_type const & state, std::uint64_t time_us)
 {
+    m_rebase.prepared = false;
     if (!m_history.valid() || m_current.time_us != 0 || m_fault != Fault::none || time_us == 0 || !valid_state(state))
     {
         return false;
@@ -172,6 +192,7 @@ bool OutputPredictor<Linalg>::advance(Sample & output, ImuSample<Linalg> imu, va
 
 template <typename Linalg> bool OutputPredictor<Linalg>::predict(interval_type const & interval)
 {
+    m_rebase.prepared = false;
     if (m_current.time_us == 0 || m_fault != Fault::none)
     {
         return false;
@@ -263,6 +284,7 @@ template <typename Linalg> void OutputPredictor<Linalg>::commit_history()
 
 template <typename Linalg> bool OutputPredictor<Linalg>::correct(std::uint64_t time_us, state_type const & state)
 {
+    m_rebase.prepared = false;
     if (m_current.time_us == 0 || m_fault != Fault::none)
     {
         return false;
@@ -328,6 +350,7 @@ template <typename Linalg>
 bool OutputPredictor<Linalg>::apply_reset(quaternion_type const & q_delta, vector3_type const & velocity_delta_n,
                                           vector3_type const & position_delta_n)
 {
+    m_rebase.prepared = false;
     if (m_current.time_us == 0 || m_fault != Fault::none)
     {
         return false;
@@ -368,8 +391,83 @@ bool OutputPredictor<Linalg>::apply_reset(quaternion_type const & q_delta, vecto
     return true;
 }
 
+template <typename Linalg>
+bool OutputPredictor<Linalg>::rebase_sample(Sample & sample, quaternion_type const & q_new_old,
+                                            linalg::Matrix<Linalg, 3, 3> const & rotation,
+                                            vector3_type const & translation)
+{
+    sample.p_n = rotation * sample.p_n + translation;
+    sample.v_n = rotation * sample.v_n;
+    return linalg::all_finite(sample.p_n) && linalg::all_finite(sample.v_n) &&
+           succeeded(so3::compose_normalized(q_new_old, sample.q_nb,
+                                             static_cast<value_type>(profile::minimum_quaternion_norm), sample.q_nb));
+}
+
+template <typename Linalg>
+bool OutputPredictor<Linalg>::prepare_rebase(quaternion_type const & q_new_old, vector3_type const & translation)
+{
+    m_rebase.prepared = false;
+    if (m_current.time_us == 0 || m_fault != Fault::none || !valid_quaternion(q_new_old) ||
+        !linalg::all_finite(translation))
+    {
+        return false;
+    }
+    auto const A = so3::to_rotation_matrix(q_new_old);
+    m_rebase.error = m_error;
+    m_rebase.error.velocity_n = A * m_error.velocity_n;
+    m_rebase.error.position_n = A * m_error.position_n;
+    m_rebase.velocity_sum = A * m_velocity_error_sum;
+    m_rebase.position_sum = A * m_position_error_sum;
+    if (!linalg::all_finite(m_rebase.error.velocity_n) || !linalg::all_finite(m_rebase.error.position_n) ||
+        !linalg::all_finite(m_rebase.velocity_sum) || !linalg::all_finite(m_rebase.position_sum))
+    {
+        return false;
+    }
+    auto index = m_history.get_oldest_index();
+    for (std::size_t count = 0; count < m_history.entries(); ++count)
+    {
+        m_staged[index] = m_history[index];
+        if (!rebase_sample(m_staged[index], q_new_old, A, translation))
+        {
+            return false;
+        }
+        index = (index + 1) % m_history.get_length();
+    }
+    if (m_history.entries() == 0)
+    {
+        m_rebase.current = m_current;
+        if (!rebase_sample(m_rebase.current, q_new_old, A, translation))
+        {
+            return false;
+        }
+    }
+    m_rebase.prepared = true;
+    return true;
+}
+
+template <typename Linalg> void OutputPredictor<Linalg>::commit_rebase()
+{
+    if (!m_rebase.prepared)
+    {
+        return;
+    }
+    if (m_history.entries() == 0)
+    {
+        m_current = m_rebase.current;
+    }
+    else
+    {
+        commit_history();
+    }
+    m_error = m_rebase.error;
+    m_velocity_error_sum = m_rebase.velocity_sum;
+    m_position_error_sum = m_rebase.position_sum;
+    m_rebase.prepared = false;
+}
+
 template <typename Linalg> void OutputPredictor<Linalg>::reset()
 {
+    m_rebase.prepared = false;
     m_history.reset();
     m_staged.fill(Sample{});
     m_current = {};
