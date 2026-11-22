@@ -44,6 +44,27 @@ Python shall not maintain a second implementation of the ellipsoid/basis maps.
   Record the coordinate-conversion implementation in source metadata. A batch
   subprocess is host preparation, not an embedded API or a real-time execution claim.
 
+## Explicit origin-event input
+
+Preparation writes `origin.csv` with one row under
+`latitude_deg,longitude_deg,height_ellipsoid_m`. Existing fixtures without it
+remain fixed-frame inputs; do not invent geographic coordinates for them.
+For an explicit event run, add `origin_requests.csv` to the prepared input
+directory with header `timestamp_us` and strictly increasing absolute replay
+epochs after the seed. Invoke the existing `replay_ins INPUT_DIR NEW_OUTPUT_DIR`.
+Each request executes at the first completed fusion tick at or after its epoch.
+Requests require the geographic origin; empty, nonincreasing or unconsumed
+requests are errors. No event is implied merely by providing an origin.
+
+Prepare the new geographic frame/state/P and direction-history candidates before
+committing any owner. On a preparation failure the replay stops with the preceding
+bundle intact; this host failure policy is distinct from a live optional-event
+retry. Position, velocity, attitude and covariance in `state.csv` remain in the
+fixed input frame. Magnetic references retain their source identity and basis;
+transform them only at consumption. GNSS corrections and recovery resets act in
+the declared input axes. Gravity remains `[0,0,+g]` in the working frame, so later
+dynamics need not equal a run permanently tied to the old gravity direction.
+
 ## Acceptance and verification
 
 Explicit working-frame events shall use the state/P transaction, consistent

@@ -70,3 +70,10 @@ Rows of the rotation/translation are explicit inputs for linear models; rigid
 basis, sensor-point and epoch compatibility remain caller premises. Live
 observation admission, recovery resets and publication binding remain in the
 PX4 integration work.
+
+Frame-aware velocity/height gates retain the existing vertical-acceleration
+exception and barometric deadzone in the observation axes. Recovery resets
+transport the complete state/P to that basis, apply the existing named reset
+and transport back atomically. Reset variances, floors and cross-covariance
+clearing remain those of R-GNSS-RESET; a frame event alone performs no reset.
+Implementation: [frame navigation](../../../../include/formal_eskf/runtime/frame_navigation.hpp).

@@ -36,6 +36,13 @@ public:
         return m_tilt.update(q_nb, P_theta_b);
     }
 
+    /** Coordinate-only event preserves the alignment latch and aiding times. */
+    [[nodiscard]] Status rebase_tilt(so3::UnitQuaternion<Linalg> const & q_nb,
+                                     linalg::Matrix<Linalg, 3U, 3U> const & P_theta_b)
+    {
+        return m_tilt.rebase(q_nb, P_theta_b);
+    }
+
     /** Call only after actual horizontal position/velocity correction succeeds. */
     void record_horizontal_fusion(std::uint64_t time_us) { m_last_horizontal_fusion_us = time_us; }
 

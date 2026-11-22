@@ -31,6 +31,8 @@
 #include <formal_eskf/runtime/accelerometer.hpp>
 #include <formal_eskf/runtime/imu.hpp>
 #include <formal_eskf/runtime/navigation.hpp>
+#include <formal_eskf/runtime/frame_navigation.hpp>
+#include <formal_eskf/runtime/navigation_frame.hpp>
 #include <formal_eskf/runtime/magnetometer.hpp>
 #include <formal_eskf/runtime/magnetometer_lifecycle.hpp>
 #include <formal_eskf/runtime/magnetic_reference.hpp>
@@ -119,6 +121,8 @@ using MagneticLifecycle = formal_eskf::runtime::MagnetometerFusion;
 using GnssQuality = formal_eskf::example::ReplayGnssQuality<Linalg>;
 using GnssLifecycle = formal_eskf::runtime::GnssFusion;
 using VerticalHealth = formal_eskf::runtime::VerticalAccelerationHealth<Linalg>;
+using NavigationFrame = formal_eskf::runtime::NavigationFrame<Linalg>;
+using NavigationReset = formal_eskf::runtime::NavigationReset;
 
 struct ImuFlags
 {
@@ -924,7 +928,43 @@ Covariance initial_covariance(NavigationVariances const & noise)
     return result;
 }
 
-void correct_navigation(State & state, Covariance & covariance, std::array<double, 10U> const & row, std::uint64_t time,
+formal_eskf::runtime::FrameObservation<Linalg, 2>
+horizontal_observation(NavigationFrame const & frame, State const & state,
+                       formal_eskf::linalg::Vector<Linalg, 2> const & measurement)
+{
+    formal_eskf::runtime::FrameObservation<Linalg, 2> result;
+    auto const & transform = frame.to_reference();
+    check_status(formal_eskf::runtime::position_observation(state.p_n, measurement,
+                                                            transform.rotation.block<0, 0, 2, 3>(),
+                                                            transform.translation.segment<0, 2>(), result),
+                 "horizontal frame observation", 0);
+    return result;
+}
+
+formal_eskf::runtime::FrameObservation<Linalg, 1> height_observation(NavigationFrame const & frame, State const & state,
+                                                                     double measurement)
+{
+    formal_eskf::runtime::FrameObservation<Linalg, 1> result;
+    auto const & transform = frame.to_reference();
+    check_status(formal_eskf::runtime::position_observation(
+                     state.p_n, formal_eskf::linalg::Vector<Linalg, 1>::from_row_major({measurement}),
+                     transform.rotation.block<2, 0, 1, 3>(), transform.translation.segment<2, 1>(), result),
+                 "height frame observation", 0);
+    return result;
+}
+
+formal_eskf::runtime::FrameObservation<Linalg, 3> velocity_observation(NavigationFrame const & frame,
+                                                                       State const & state, Vector3 const & measurement)
+{
+    formal_eskf::runtime::FrameObservation<Linalg, 3> result;
+    check_status(
+        formal_eskf::runtime::velocity_observation(state.v_n, measurement, frame.to_reference().rotation, result),
+        "velocity frame observation", 0);
+    return result;
+}
+
+void correct_navigation(NavigationFrame const & frame, State & state, Covariance & covariance,
+                        std::array<double, 10U> const & row, std::uint64_t time,
                         formal_eskf::configuration::Ins::BiasUpdate const & bias_update, BiasLimits const & limits,
                         std::array<std::size_t, 6U> & limit_counts)
 {
@@ -933,18 +973,22 @@ void correct_navigation(State & state, Covariance & covariance, std::array<doubl
     auto const position = formal_eskf::linalg::Vector<Linalg, 2U>::from_row_major({row[1U], row[2U]});
     double const horizontal_variance = variance(row[7U], POS_XY_STD_MIN);
     auto const position_noise = formal_eskf::linalg::Matrix<Linalg, 2U, 2U>::identity() * horizontal_variance;
-    check_status(formal_eskf::correct_horizontal_position(state, covariance, position, position_noise, QUAT_MIN_NORM,
-                                                          state, covariance, bias_update),
+    auto observation_xy = horizontal_observation(frame, state, position);
+    check_status(formal_eskf::correct(state, covariance, observation_xy.innovation, observation_xy.H, position_noise,
+                                      QUAT_MIN_NORM, state, covariance, bias_update),
                  "horizontal position", time);
     limit_bias(state, limits, limit_counts, time);
-    check_status(formal_eskf::correct_vertical_position(state, covariance, row[3U], variance(row[8U], POS_Z_STD_MIN),
-                                                        QUAT_MIN_NORM, state, covariance, bias_update),
+    auto observation_z = height_observation(frame, state, row[3U]);
+    auto const V_z = formal_eskf::linalg::Matrix<Linalg, 1, 1>::from_row_major({variance(row[8U], POS_Z_STD_MIN)});
+    check_status(formal_eskf::correct(state, covariance, observation_z.innovation, observation_z.H, V_z, QUAT_MIN_NORM,
+                                      state, covariance, bias_update),
                  "vertical position", time);
     limit_bias(state, limits, limit_counts, time);
     auto const velocity_noise =
         formal_eskf::linalg::Matrix<Linalg, 3U, 3U>::identity() * variance(row[9U], VEL_STD_MIN);
-    check_status(formal_eskf::correct_velocity(state, covariance, vector3(row[4U], row[5U], row[6U]), velocity_noise,
-                                               QUAT_MIN_NORM, state, covariance, bias_update),
+    auto observation_v = velocity_observation(frame, state, vector3(row[4U], row[5U], row[6U]));
+    check_status(formal_eskf::correct(state, covariance, observation_v.innovation, observation_v.H, velocity_noise,
+                                      QUAT_MIN_NORM, state, covariance, bias_update),
                  "velocity", time);
     limit_bias(state, limits, limit_counts, time);
 }
@@ -968,8 +1012,18 @@ void check_state(State const & state, Covariance const & covariance)
     // Finite entries and nonnegative diagonals are NOT a complete PSD proof.
 }
 
-void write_state(std::ostream & stream, std::uint64_t time, State const & state, Covariance const & covariance)
+void write_state(std::ostream & stream, std::uint64_t time, State const & input_state,
+                 Covariance const & input_covariance, NavigationFrame const & frame)
 {
+    State state = input_state;
+    Covariance covariance = input_covariance;
+    if (frame.generation() != 0)
+    {
+        check_status(formal_eskf::runtime::rebase_origin(input_state, input_covariance, frame.to_reference(),
+                                                         QUAT_MIN_NORM, state, covariance),
+                     "fixed-frame output", time);
+    }
+
     stream << time;
     for (auto const & vector : {state.p_n, state.v_n})
     {
@@ -1128,6 +1182,37 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                  "initial attitude", time);
     auto covariance =
         initial_covariance(navigation_variances(horizontal_accuracy, vertical_accuracy, speed_accuracy, gnss));
+    NavigationFrame frame;
+    if (std::filesystem::exists(input / "origin.csv"))
+    {
+        auto origin = open_csv(input / "origin.csv", "latitude_deg,longitude_deg,height_ellipsoid_m");
+        std::array<double, 3> row{};
+        if (!read_row(origin, row))
+        {
+            throw std::runtime_error("empty origin.csv");
+        }
+        check_status(frame.initialize({row[0], row[1], row[2]}), "geographic origin", time);
+        if (read_row(origin, row))
+        {
+            throw std::runtime_error("origin.csv must contain exactly one reference");
+        }
+    }
+    std::ifstream origin_requests;
+    std::array<double, 1> origin_request{};
+    bool origin_pending = false;
+    if (std::filesystem::exists(input / "origin_requests.csv"))
+    {
+        if (!frame.initialized())
+        {
+            throw std::runtime_error("origin requests require origin.csv");
+        }
+        origin_requests = open_csv(input / "origin_requests.csv", "timestamp_us");
+        origin_pending = read_row(origin_requests, origin_request);
+        if (!origin_pending || timestamp(origin_request[0]) <= time)
+        {
+            throw std::runtime_error("origin requests must start after the seed epoch");
+        }
+    }
     auto const settings = parameters();
     FusionConditions fusion_conditions;
     auto const bias_parameters = read_bias_parameters(input);
@@ -1298,7 +1383,7 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
     states << '\n';
     updates << "source_timestamp_us,fusion_timestamp_us\n";
     check_state(state, covariance);
-    write_state(states, time, state, covariance);
+    write_state(states, time, state, covariance, frame);
     std::size_t predictions = 0U, navigation_events = 0U, gaps = 0U;
     std::size_t position_xy_fused = 0U, position_z_fused = 0U, velocity_fused = 0U;
     std::size_t position_xy_resets = 0U, position_z_resets = 0U, velocity_resets = 0U;
@@ -1506,9 +1591,11 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                         navigation_variances(navigation_row[7U], navigation_row[8U], navigation_row[9U], gnss);
                     auto V = formal_eskf::linalg::Matrix<Linalg, 3U, 3U>::identity() * noise.velocity_xy;
                     V(2U, 2U) = noise.velocity_z;
-                    auto const evidence = formal_eskf::runtime::check_gnss_velocity(
-                        state, covariance, vector3(navigation_row[4U], navigation_row[5U], navigation_row[6U]), V,
-                        QUAT_MIN_NORM, gnss->velocity_gate,
+                    auto const evidence = formal_eskf::runtime::check_frame_velocity(
+                        state, covariance,
+                        velocity_observation(frame, state,
+                                             vector3(navigation_row[4U], navigation_row[5U], navigation_row[6U])),
+                        V, QUAT_MIN_NORM, gnss->velocity_gate,
                         {bias_conditions.bad_vertical_acceleration, navigation_row[9U],
                          quality_parameters->maximum_speed_accuracy});
                     check_status(evidence.gate.status, "GNSS velocity diagnostics", time);
@@ -1604,9 +1691,9 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                 {
                     Vector3 delta;
                     auto const reason = gnss_lifecycle.state().velocity.stop_reason;
-                    auto const status = formal_eskf::runtime::reset_velocity(
-                        state, covariance, velocity, vector3(noise.velocity_xy, noise.velocity_xy, noise.velocity_z),
-                        state, covariance, delta);
+                    auto const status = formal_eskf::runtime::reset_navigation_in_frame(
+                        state, covariance, frame.to_reference(), NavigationReset::velocity, velocity,
+                        vector3(noise.velocity_xy, noise.velocity_xy, noise.velocity_z), QUAT_MIN_NORM, delta);
                     record_reset(GnssLifecycle::Group::velocity, "velocity", reason, status, delta);
                     ++velocity_resets;
                     vertical_cache.observations.gnss_velocity_down = {true, 0.0, noise.velocity_z};
@@ -1618,8 +1705,9 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                     formal_eskf::runtime::NavigationFusionResult<Linalg, 3U> measurement;
                     if (quality_parameters)
                     {
-                        measurement = formal_eskf::runtime::fuse_gnss_velocity(
-                            state, covariance, velocity, velocity_V, QUAT_MIN_NORM, gnss->velocity_gate,
+                        measurement = formal_eskf::runtime::fuse_frame_velocity(
+                            state, covariance, velocity_observation(frame, state, velocity), velocity_V, QUAT_MIN_NORM,
+                            gnss->velocity_gate,
                             {bias_conditions.bad_vertical_acceleration, navigation_row[9U],
                              quality_parameters->maximum_speed_accuracy},
                             state, covariance, bias_update);
@@ -1627,8 +1715,10 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                     else
                     {
                         measurement.fusion =
-                            formal_eskf::runtime::fuse_velocity(state, covariance, velocity, velocity_V, QUAT_MIN_NORM,
-                                                                gnss->velocity_gate, state, covariance, bias_update);
+                            formal_eskf::runtime::fuse_frame_velocity(
+                                state, covariance, velocity_observation(frame, state, velocity), velocity_V,
+                                QUAT_MIN_NORM, gnss->velocity_gate, {false, 0.0, 1.0}, state, covariance, bias_update)
+                                .fusion;
                         measurement.fusion_innovation = measurement.fusion.innovation;
                     }
                     auto const & result = measurement.fusion;
@@ -1661,13 +1751,14 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                     (gnss_lifecycle.state().vertical_velocity_reset_reason != GnssLifecycle::StopReason::none))
                 {
                     auto const reason = gnss_lifecycle.state().vertical_velocity_reset_reason;
-                    double delta{};
-                    auto const status = formal_eskf::runtime::reset_vertical_velocity(
-                        state, covariance, velocity(2U), noise.velocity_z, state, covariance, delta);
+                    Vector3 delta;
+                    auto const status = formal_eskf::runtime::reset_navigation_in_frame(
+                        state, covariance, frame.to_reference(), NavigationReset::vertical_velocity, velocity,
+                        vector3(0, 0, noise.velocity_z), QUAT_MIN_NORM, delta);
                     check_status(gnss_lifecycle.record_vertical_velocity_reset(source_time, status == Status::success),
                                  "GNSS vertical velocity reset feedback", time);
                     write_gnss_reset(gnss_resets, "vertical_velocity", reason, status,
-                                     formal_eskf::linalg::Vector<Linalg, 1U>::from_row_major({delta}), source_time,
+                                     formal_eskf::linalg::Vector<Linalg, 1U>::from_row_major({delta(2)}), source_time,
                                      time);
                     if (status != Status::success)
                     {
@@ -1686,14 +1777,14 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                 if (quality_parameters &&
                     (gnss_lifecycle.state().horizontal_position.action == GnssLifecycle::Action::reset))
                 {
-                    formal_eskf::linalg::Vector<Linalg, 2U> delta;
+                    Vector3 delta;
                     auto const reason = gnss_lifecycle.state().horizontal_position.stop_reason;
-                    auto const variances =
-                        formal_eskf::linalg::Vector<Linalg, 2U>::from_row_major({noise.position_xy, noise.position_xy});
-                    auto const status = formal_eskf::runtime::reset_gnss_horizontal_position(
-                        state, covariance, position, variances, state, covariance, delta);
+                    auto const status = formal_eskf::runtime::reset_navigation_in_frame(
+                        state, covariance, frame.to_reference(), NavigationReset::horizontal_position,
+                        vector3(position(0), position(1), 0), vector3(noise.position_xy, noise.position_xy, 0),
+                        QUAT_MIN_NORM, delta);
                     record_reset(GnssLifecycle::Group::horizontal_position, "horizontal_position", reason, status,
-                                 delta);
+                                 delta.segment<0, 2>());
                     ++position_xy_resets;
                     position_accepted = true;
                 }
@@ -1701,9 +1792,10 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                          (gnss_lifecycle.state().horizontal_position.action == GnssLifecycle::Action::fuse))
                 {
                     ++position_xy_attempts;
-                    auto const result = formal_eskf::runtime::fuse_horizontal_position(
-                        state, covariance, position, position_V, QUAT_MIN_NORM, gnss->position_gate, state, covariance,
-                        bias_update);
+                    auto const observation = horizontal_observation(frame, state, position);
+                    auto const result = formal_eskf::runtime::fuse_measurement(
+                        state, covariance, observation.innovation, observation.H, position_V, QUAT_MIN_NORM,
+                        gnss->position_gate, state, covariance, bias_update);
                     if (quality_parameters)
                     {
                         check_status(gnss_lifecycle.record_fusion(GnssLifecycle::Group::horizontal_position,
@@ -1731,8 +1823,9 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                     (gnss_lifecycle.state().vertical_position.action == GnssLifecycle::Action::fuse))
                 {
                     ++position_z_attempts;
-                    auto const measurement = formal_eskf::runtime::fuse_height(
-                        state, covariance, navigation_row[3U], noise.position_z, QUAT_MIN_NORM, gnss->position_gate,
+                    auto const measurement = formal_eskf::runtime::fuse_frame_height(
+                        state, covariance, height_observation(frame, state, navigation_row[3U]), noise.position_z,
+                        QUAT_MIN_NORM, gnss->position_gate,
                         vertical_available && vertical_health.state().bad_vertical_acceleration, state, covariance,
                         bias_update);
                     auto const & result = measurement.fusion;
@@ -1769,12 +1862,13 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                 if (quality_parameters &&
                     (gnss_lifecycle.state().vertical_position.action == GnssLifecycle::Action::reset))
                 {
-                    double delta{};
+                    Vector3 delta;
                     auto const reason = gnss_lifecycle.state().vertical_position.stop_reason;
-                    auto const status = formal_eskf::runtime::reset_vertical_position(
-                        state, covariance, navigation_row[3U], noise.position_z, state, covariance, delta);
+                    auto const status = formal_eskf::runtime::reset_navigation_in_frame(
+                        state, covariance, frame.to_reference(), NavigationReset::vertical_position,
+                        vector3(0, 0, navigation_row[3U]), vector3(0, 0, noise.position_z), QUAT_MIN_NORM, delta);
                     record_reset(GnssLifecycle::Group::vertical_position, "vertical_position", reason, status,
-                                 formal_eskf::linalg::Vector<Linalg, 1U>::from_row_major({delta}));
+                                 formal_eskf::linalg::Vector<Linalg, 1U>::from_row_major({delta(2)}));
                     ++position_z_resets;
                     acceleration_height_resets +=
                         reason == GnssLifecycle::StopReason::bad_vertical_acceleration ? 1U : 0U;
@@ -1784,7 +1878,7 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
             }
             else
             {
-                correct_navigation(state, covariance, navigation_row, time, bias_update, bias_limits,
+                correct_navigation(frame, state, covariance, navigation_row, time, bias_update, bias_limits,
                                    bias_limit_counts);
                 ++position_xy_fused;
                 position_accepted = true;
@@ -1938,8 +2032,11 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                     magnetic_source.reference_id = reference_model.state().reference_id;
                 }
             }
-            auto const & health_field =
-                has_magnetic_model && !model_heading ? reference_model.state().field_n : magnetic.m_n;
+            auto const reference_rotation = formal_eskf::linalg::transpose(frame.to_reference().rotation);
+            auto const working_field = reference_rotation * magnetic.m_n;
+            auto const health_field =
+                reference_rotation *
+                (has_magnetic_model && !model_heading ? reference_model.state().field_n : magnetic.m_n);
             auto const * field_reference_n = field_reference_available ? &health_field : nullptr;
             bool const source_changed =
                 previous_magnetic_source.device_id != magnetic_context.source.device_id ||
@@ -1955,11 +2052,11 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
             {
                 // Filtered heading consistency is distinct from the optional
                 // instantaneous heading check; do not stack both policies.
-                check_status(magnetic_heading.update(state.q_nb, magnetic_sample, magnetic.m_n, heading_parameters,
+                check_status(magnetic_heading.update(state.q_nb, magnetic_sample, working_field, heading_parameters,
                                                      magnetic_heading_aligned, horizontal_aiding),
                              "magnetic heading consistency", time);
                 // Same prior for field qualification and, if authorized, fusion.
-                result.field = formal_eskf::runtime::check_magnetic_field(state.q_nb, magnetic_sample, magnetic.m_n,
+                result.field = formal_eskf::runtime::check_magnetic_field(state.q_nb, magnetic_sample, working_field,
                                                                           field_reference_n, field_parameters, false,
                                                                           field_checks);
             }
@@ -1990,7 +2087,7 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
             else if (magnetic_lifecycle.state().action == formal_eskf::runtime::MagnetometerFusion::Action::fuse)
             {
                 result = formal_eskf::runtime::fuse_magnetometer(
-                    state, covariance, magnetic_sample, magnetic.m_n, field_reference_n, magnetic.V, field_parameters,
+                    state, covariance, magnetic_sample, working_field, field_reference_n, magnetic.V, field_parameters,
                     false, QUAT_MIN_NORM, magnetic.gate_sigma, state, covariance, bias_update, field_checks);
                 if (result.fusion.decision == formal_eskf::runtime::FusionDecision::fused)
                 {
@@ -2012,7 +2109,7 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                 auto const reason = magnetic_lifecycle.state().recovery_reason;
                 formal_eskf::so3::UnitQuaternion<Linalg> delta;
                 reset_status = formal_eskf::runtime::reset_magnetic_heading(
-                    state, covariance, magnetic_filter.field_b(), magnetic.m_n,
+                    state, covariance, magnetic_filter.field_b(), working_field,
                     heading_parameters.heading_noise * heading_parameters.heading_noise, MAG_MIN_HORIZONTAL,
                     QUAT_MIN_NORM, state, covariance, delta);
                 bool const reset_succeeded = formal_eskf::succeeded(reset_status);
@@ -2069,9 +2166,35 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                 check_state(state, covariance);
             }
         }
-        write_state(states, time, state, covariance);
+        if (origin_pending && timestamp(origin_request[0]) <= time)
+        {
+            auto status = frame.prepare(state, covariance, QUAT_MIN_NORM);
+            auto heading_candidate = magnetic_heading;
+            auto conditions_candidate = fusion_conditions;
+            if (formal_eskf::succeeded(status))
+            {
+                status = heading_candidate.rebase(frame.candidate().rotation);
+            }
+            if (formal_eskf::succeeded(status))
+            {
+                status = conditions_candidate.rebase_tilt(frame.candidate().state.q_nb,
+                                                          frame.candidate().covariance.block<6, 6, 3, 3>());
+            }
+            check_status(status, "origin event preparation (old state preserved)", time);
+            frame.commit(state, covariance);
+            magnetic_heading = heading_candidate;
+            fusion_conditions = conditions_candidate;
+            std::cout << "Origin migration: " << time << " us; generation " << frame.generation() << '\n';
+            auto const previous_request = timestamp(origin_request[0]);
+            origin_pending = read_row(origin_requests, origin_request);
+            if (origin_pending && timestamp(origin_request[0]) <= previous_request)
+            {
+                throw std::runtime_error("origin requests must be strictly increasing");
+            }
+        }
+        write_state(states, time, state, covariance, frame);
     }
-    if (has_navigation || has_magnetometer || predictions == 0U || navigation_events == 0U)
+    if (origin_pending || has_navigation || has_magnetometer || predictions == 0U || navigation_events == 0U)
     {
         throw std::runtime_error("replay incomplete: unconsumed sensor data or no prediction/navigation events");
     }

@@ -466,6 +466,8 @@ def prepare(ULOG, OUTPUT, BINARY, MAGNETIC_MODEL=None):
         raise ValueError("no IMU/GNSS replay interval after initialization")
     OUTPUT.mkdir(parents=True, exist_ok=False)
     write_csv(OUTPUT / "initial.csv", INITIAL_HEADER, [[START, *Q, *V0, *ACCURACY0]])
+    write_csv(OUTPUT / "origin.csv", "latitude_deg,longitude_deg,height_ellipsoid_m",
+              [[math.degrees(LAT0), math.degrees(LON0), ALT0]])
     write_csv(OUTPUT / "imu.csv", IMU_HEADER, IMU_ROWS)
     FLAGS = imu_flags(ULOG, IMU, SEED[-1])
     write_csv(OUTPUT / "imu_flags.csv", "timestamp_us,at_rest,accelerometer_clipping", FLAGS)

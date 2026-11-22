@@ -24,6 +24,11 @@ generic estimator framework or new platform dependency enters the numerical core
 | PX4 module/helpers | Working frame, fixed publication reference, admitted sensor provenance, delayed/current histories and transaction/publication ordering. | Bind reusable operations to real epochs, capacities, deployment settings and PX4 outputs. |
 | Replay | Stable dataset basis, explicit/automatic event driving and comparison output. | Reuse geometry/runtime operations; no second Python implementation of frame mathematics. |
 
+[NavigationFrame](../../../include/formal_eskf/runtime/navigation_frame.hpp) owns
+the working/fixed geometric frames, cached transform and persistent state/P
+candidate. It does not own sensor history, datum, scheduling or publication;
+the adapter coordinates those owners before committing.
+
 The working frame and the fixed input/publication references are different owned
 values. An origin-generation counter, if needed for diagnostics, shall not be
 used as a sensor/calibration generation. Templates remain numeric/backend/capacity

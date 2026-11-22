@@ -238,6 +238,8 @@ def run_replay(DRIVE, BINARY, NAVIGATION_HZ):
         INPUT = OUTPUT / "input"
         INPUT.mkdir(parents=True, exist_ok=False)
         write_csv(INPUT / "initial.csv", INITIAL_HEADER, [INITIAL])
+        write_csv(INPUT / "origin.csv", "latitude_deg,longitude_deg,height_ellipsoid_m",
+                  [[META["origin_lat_deg"], META["origin_lon_deg"], META["origin_alt_m"]]])
         write_csv(INPUT / "imu.csv", IMU_HEADER, IMU_ROWS)
         write_csv(INPUT / "navigation.csv", NAVIGATION_HEADER, NAVIGATION_ROWS)
         META.update(source=str(DRIVE), oxts_sha256=HASH, **TIMING)

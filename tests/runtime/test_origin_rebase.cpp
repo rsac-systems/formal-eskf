@@ -10,6 +10,8 @@
 #include <limits>
 
 #include <formal_eskf/runtime/origin_rebase.hpp>
+#include <formal_eskf/runtime/navigation_frame.hpp>
+#include <formal_eskf/runtime/frame_navigation.hpp>
 #include <formal_eskf/eskf/covariance_prediction.hpp>
 #include <formal_eskf/eskf/correction.hpp>
 
@@ -390,6 +392,128 @@ template <typename Scalar> void sequence(Context & test, std::string_view profil
                 "ordinary correction consumes the rebased state and P");
 }
 
+void origin_transaction(Context & test, std::string_view profile)
+{
+    using L = f::test::Backend<double>;
+    using Frame = f::runtime::NavigationFrame<L>;
+    Frame frame;
+    Fixture<double> fixture(test, profile);
+    test.expect(frame.prepare(fixture.state, fixture.P, fixture.minimum_norm) == Status::domain_error, profile,
+                "cannot migrate without an admitted geographic origin");
+    test.expect(frame.initialize({25, 121, 100}) == Status::success &&
+                    frame.initialize({0, 0, 0}) == Status::domain_error,
+                profile, "fixed reference is initialized once");
+    auto const before = fixture.state;
+    auto const P_before = fixture.P;
+    f::geodesy::GeodeticPosition geographic_before, geographic_after;
+    test.expect(frame.geographic(before.p_n, geographic_before) == Status::success &&
+                    frame.prepare(before, P_before, fixture.minimum_norm) == Status::success &&
+                    frame.generation() == 0 && same_state(before, fixture.state) && same(P_before, fixture.P),
+                profile, "preparation changes only persistent scratch");
+    frame.commit(fixture.state, fixture.P);
+    test.expect(frame.generation() == 1 && la::max_abs(fixture.state.p_n) < 1e-8 &&
+                    frame.geographic(fixture.state.p_n, geographic_after) == Status::success &&
+                    std::abs(geographic_before.latitude_deg - geographic_after.latitude_deg) < 1e-12 &&
+                    std::abs(geographic_before.longitude_deg - geographic_after.longitude_deg) < 1e-12 &&
+                    std::abs(geographic_before.height_ellipsoid_m - geographic_after.height_ellipsoid_m) < 1e-7,
+                profile, "airborne estimate becomes the new origin without changing geographic position");
+    Fixture<double>::state_type restored;
+    Fixture<double>::covariance_type restored_P;
+    test.expect(f::runtime::rebase_origin(fixture.state, fixture.P, frame.to_reference(), fixture.minimum_norm,
+                                          restored, restored_P) == Status::success &&
+                    la::max_abs(restored.p_n - before.p_n) < 1e-8 && near(restored.v_n, before.v_n) &&
+                    near(restored_P, P_before),
+                profile, "fixed-reference output retains position, velocity and covariance");
+    auto const committed = fixture.state;
+    auto const committed_P = fixture.P;
+    auto invalid = fixture.P;
+    invalid(0, 0) = -1;
+    test.expect(frame.prepare(fixture.state, invalid, fixture.minimum_norm) == Status::domain_error, profile,
+                "bad covariance rejects a candidate after geographic preparation");
+    frame.commit(fixture.state, fixture.P);
+    test.expect(same_state(committed, fixture.state) && same(committed_P, fixture.P) && frame.generation() == 1,
+                profile, "failed preparation cannot publish a mixed frame or change generation");
+}
+
+void framed_recovery(Context & test, std::string_view profile)
+{
+    using F = Fixture<double>;
+    using Reset = f::runtime::NavigationReset;
+    F f0(test, profile);
+    f0.transform.rotation = F::matrix_type::from_row_major({0, 1, 0, 0, 0, 1, 1, 0, 0});
+    auto const z = F::vector_type::from_row_major({4, -8, 2});
+    auto const variances = F::vector_type::from_row_major({0.5, 2, 3});
+    for (auto const group :
+         {Reset::horizontal_position, Reset::vertical_position, Reset::velocity, Reset::vertical_velocity})
+    {
+        auto state = f0.state;
+        auto P = f0.P;
+        F::state_type observation_before;
+        F::covariance_type observation_P;
+        test.expect(f::runtime::rebase_origin(state, P, f0.transform, f0.minimum_norm, observation_before,
+                                              observation_P) == Status::success,
+                    profile, "independent pre-reset observation basis");
+        F::vector_type delta;
+        test.expect(f::runtime::reset_navigation_in_frame(state, P, f0.transform, group, z, variances, f0.minimum_norm,
+                                                          delta) == Status::success,
+                    profile, "named recovery group in a tilted basis");
+        F::state_type observation_after;
+        test.expect(f::runtime::rebase_origin(state, P, f0.transform, f0.minimum_norm, observation_after,
+                                              observation_P) == Status::success,
+                    profile, "inspect result in declared measurement axes");
+        auto expected_position = observation_before.p_n;
+        auto expected_velocity = observation_before.v_n;
+        if (group == Reset::horizontal_position)
+        {
+            expected_position(0) = z(0);
+            expected_position(1) = z(1);
+        }
+        else if (group == Reset::vertical_position)
+        {
+            expected_position(2) = z(2);
+        }
+        else if (group == Reset::velocity)
+        {
+            expected_velocity = z;
+        }
+        else
+        {
+            expected_velocity(2) = z(2);
+        }
+        test.expect(near(observation_after.p_n, expected_position) && near(observation_after.v_n, expected_velocity),
+                    profile, "reset changes only observed directions, never an unrelated working axis");
+        for (std::size_t axis = 0; axis < 3; ++axis)
+        {
+            bool const position_axis =
+                group == Reset::horizontal_position ? axis < 2 : group == Reset::vertical_position && axis == 2;
+            bool const velocity_axis = group == Reset::velocity || (group == Reset::vertical_velocity && axis == 2);
+            if (position_axis || velocity_axis)
+            {
+                auto const column = position_axis ? axis : axis + 3;
+                double const expected_variance = group == Reset::horizontal_position ? 2.5 : variances(axis);
+                test.expect(std::abs(observation_P(column, column) - expected_variance) < 1e-12, profile,
+                            "reset variance is assigned in the measurement direction");
+                for (std::size_t other = 0; other < 15; ++other)
+                {
+                    if (other != column)
+                    {
+                        test.expect(std::abs(observation_P(column, other)) < 1e-12, profile,
+                                    "only reset-direction cross covariance is cleared");
+                    }
+                }
+            }
+        }
+        auto const prior = state;
+        auto const prior_P = P;
+        auto bad_variances = F::vector_type::from_row_major({-1, -1, -1});
+        auto const prior_delta = delta;
+        test.expect(f::runtime::reset_navigation_in_frame(state, P, f0.transform, group, z, bad_variances,
+                                                          f0.minimum_norm, delta) == Status::domain_error &&
+                        same_state(state, prior) && same(P, prior_P) && same(delta, prior_delta),
+                    profile, "rejected reset preserves state, P and reported delta together");
+    }
+}
+
 } // namespace
 
 int main(int argc, char ** argv)
@@ -397,6 +521,8 @@ int main(int argc, char ** argv)
     f::test::configure_backend_test();
     using f::test::Case;
     Case const cases[]{
+        {"TC-R-ORIGIN-REBASE-TRANSACTION", "binary64", origin_transaction},
+        {"TC-R-FRAME-OBSERVATIONS-RECOVERY", "binary64", framed_recovery},
         {"TC-R-ORIGIN-REBASE-STATE", "binary32", state_transform<float>},
         {"TC-R-ORIGIN-REBASE-STATE", "binary64", state_transform<double>},
         {"TC-R-ORIGIN-REBASE-COVARIANCE", "binary32", covariance_transform<float>},

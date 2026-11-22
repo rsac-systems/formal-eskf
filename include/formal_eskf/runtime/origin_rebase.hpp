@@ -186,4 +186,54 @@ rebase_origin(configuration::Ins::NominalState<Linalg> const & state,
     return Status::success;
 }
 
+/**
+ * Persistent scratch for a delayed post-fusion origin event. prepare() never
+ * changes the live frame/state/P. Candidate fields are usable only on success;
+ * failure may change scratch. Keep borrowed inputs disjoint from this workspace.
+ * The estimator owner coordinates other histories before publishing these fields.
+ */
+template <typename Linalg> struct OriginRebaseCandidate
+{
+    using state_type = configuration::Ins::NominalState<Linalg>;
+    using covariance_type = linalg::Matrix<Linalg, 15, 15>;
+    geodesy::LocalNed<Linalg> frame{};
+    geodesy::NedTransform<Linalg> transform{};
+    so3::UnitQuaternion<Linalg> rotation{};
+    state_type state{};
+    covariance_type covariance{};
+
+    [[nodiscard]] Status prepare(geodesy::LocalNed<Linalg> const & working, state_type const & prior,
+                                 covariance_type const & P, typename Linalg::value_type minimum_norm)
+    {
+        linalg::Vector<Linalg, 3> ecef;
+        auto status = working.ned_to_ecef(prior.p_n, ecef);
+        if (!succeeded(status))
+        {
+            return status;
+        }
+        geodesy::GeodeticPosition origin;
+        status = geodesy::ecef_to_geodetic<Linalg>(ecef, origin);
+        if (!succeeded(status))
+        {
+            return status;
+        }
+        status = frame.set_origin(origin);
+        if (!succeeded(status))
+        {
+            return status;
+        }
+        status = working.transform_to(frame, transform);
+        if (!succeeded(status))
+        {
+            return status;
+        }
+        status = rebase_origin(prior, P, transform, minimum_norm, state, covariance);
+        if (!succeeded(status))
+        {
+            return status;
+        }
+        return detail::rebase_rotation(transform.rotation, rotation);
+    }
+}; /* end struct OriginRebaseCandidate */
+
 } /* end namespace formal_eskf::runtime */

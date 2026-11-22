@@ -7955,6 +7955,10 @@
           {
             "file": "examples/replay_kitti.py",
             "symbol": "def navigation_sample("
+          },
+          {
+            "file": "examples/replay_ins.cpp",
+            "symbol": "origin_pending"
           }
         ],
         "esbmc": []
@@ -7979,6 +7983,14 @@
           {
             "file": "include/formal_eskf/runtime/origin_rebase.hpp",
             "symbol": "Status rebase_rotation("
+          },
+          {
+            "file": "include/formal_eskf/runtime/navigation_frame.hpp",
+            "symbol": "class NavigationFrame"
+          },
+          {
+            "file": "include/formal_eskf/runtime/origin_rebase.hpp",
+            "symbol": "struct OriginRebaseCandidate"
           }
         ],
         "esbmc": []
@@ -8027,6 +8039,22 @@
           {
             "file": "include/formal_eskf/runtime/frame_observations.hpp",
             "symbol": "msl_height_observation("
+          },
+          {
+            "file": "include/formal_eskf/runtime/frame_navigation.hpp",
+            "symbol": "check_frame_velocity("
+          },
+          {
+            "file": "include/formal_eskf/runtime/frame_navigation.hpp",
+            "symbol": "fuse_frame_velocity("
+          },
+          {
+            "file": "include/formal_eskf/runtime/frame_navigation.hpp",
+            "symbol": "fuse_frame_height("
+          },
+          {
+            "file": "include/formal_eskf/runtime/frame_navigation.hpp",
+            "symbol": "reset_navigation_in_frame("
           }
         ],
         "esbmc": []

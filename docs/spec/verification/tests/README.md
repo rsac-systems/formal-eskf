@@ -64,9 +64,9 @@ qualification keep their own runners.
 | Common | 6 | 1 | Failure/domain/numerical/language/layer contracts; Status. |
 | Math | 18 | 17 | Scalar, fixed-size linalg/adapters, quaternion, SO(3) and geodesy. |
 | ESKF core | 21 | 21 | State, prediction, correction, observations and transactions, including generated kernels. |
-| Portable runtime | 26 | 16 | Admission, health, lifecycle, alignment, reset/fusion orchestration, frame rebasing and fixed-capacity storage. |
+| Portable runtime | 26 | 18 | Admission, health, lifecycle, alignment, reset/fusion orchestration, frame rebasing and fixed-capacity storage. |
 | Software capabilities | 5 | Shared above | SW-CORE, SW-GNSS, SW-GRAVITY, SW-IMU and SW-MAGNETIC compositions. |
-| **Total** | **76** | **55** | Inventory denominator, not proof/test completion. |
+| **Total** | **76** | **57** | Inventory denominator, not proof/test completion. |
 
 The 76 IDs include parent and child requirement documents. They are not 76
 independent passing claims, and parent/child evidence must not be added together
