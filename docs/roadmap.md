@@ -1,8 +1,9 @@
 # Roadmap
 
 This is the single work list for functionality, architecture, verification and
-tooling. The target is a credible PX4 research demonstration, not full EKF2
-parity or hardware-flight qualification. Current behavior belongs to the
+tooling. The project targets portable navigation estimation, with PX4 as one
+integration and research demonstration. Full EKF2 parity and hardware-flight
+qualification are not implied. Current behavior belongs to the
 [requirements](spec/README.md) and [PX4 integration guide](../integrations/px4/README.md);
 the [verification guide](guides/verification.md) defines evidence boundaries.
 
@@ -143,6 +144,36 @@ simulator defect does not turn a failed acceptance scenario into a pass.
 These tracks do not reorder the functional work. Apply the
 [verification policy](spec/verification/assurance.md) and preserve the
 requirement-to-source-to-evidence chain.
+
+### A-01 — Portable navigation runtime
+
+Extract the existing INS session under
+[SW-NAV](spec/requirements/software/navigation-runtime.md) and the
+[runtime architecture](spec/architecture/navigation-runtime.md). Preserve the
+current PX4 profile and independently callable core/AHRS APIs. Each owner change
+includes its contracts, callers, tests and evidence-impact review. Separate path
+changes from behavior changes; no new initialization, rate, stationary-aiding or
+continuous-odometry feature is part of this extraction.
+
+| Task | Status | Completion boundary |
+|---|---|---|
+| A-01.1 — Ownership contracts | Completed | Runtime composition and adapter invocation/publication boundaries; requirements retain Draft status. |
+| A-01.2 — Runtime directories | Planned | Move existing headers by responsibility; update all consumers and source references without numerical changes. |
+| A-01.3 — IMU prediction policy | Planned | Portable noise/bias composition with explicit settings; retain deployment clipping/default bindings. |
+| A-01.4 — IMU history | Planned | Portable records, timing and fixed storage with the existing profile and failure rules. |
+| A-01.5 — Observation history | Planned | Portable delayed source/context admission, selection and generation handling. |
+| A-01.6 — Output prediction | Planned | Portable current-state/history feedback, reset and rebase transactions. |
+| A-01.7 — Height aiding | Planned | Portable source arbitration/recovery, with platform diagnostics outside the owner. |
+| A-01.8 — Magnetic reference | Planned | Portable adoption/coordination; external model lookup stays in the adapter. |
+| A-01.9 — INS initialization | Planned | Portable bounded bootstrap preserving current strict startup and seeding. |
+| A-01.10 — Session and PX4 delegation | Planned | One concrete owner; remove duplicate module ownership and preserve execution phases. |
+| A-01.11 — Standalone acceptance | Planned | Host example and canonical-input comparisons without platform dependencies. |
+| A-01.12 — Integration closure | Planned | Public usage, installed headers, dependency/resource review and current source/evidence bindings. |
+
+Preserve existing functional/proof scope and IDs during extraction. Retained local
+before/after traces support the refactor but do not establish physical accuracy,
+new source proofs or embedded timing qualification. No development logs belong in
+the specifications or commits.
 
 ### V-01 — Remaining proof boundaries
 

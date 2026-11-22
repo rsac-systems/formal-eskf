@@ -8,6 +8,8 @@
 
 **Parent:** [SW-PX4](../../software/px4-estimation.md).
 
+**Uses:** [SW-NAV](../../software/navigation-runtime.md).
+
 ## Basis
 
 [PX4 module architecture](../../../architecture/px4-module.md) identifies the pinned reference, project adaptations and scope.
@@ -35,6 +37,10 @@ flowchart TD
 The branches execute serially in the same work item at different time horizons.
 Their update rates may be equal; a longer main-filter interval requires the
 downsampling contract below. No additional estimator thread is introduced.
+
+Portable session extraction shall preserve these phase boundaries. The adapter
+invokes bounded session phases and publishes between them where specified; the
+session shall not call uORB or acquire a platform callback to publish output.
 
 For each callback:
 

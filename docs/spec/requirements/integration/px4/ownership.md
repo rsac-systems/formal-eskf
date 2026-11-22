@@ -8,6 +8,8 @@
 
 **Parent:** [SW-PX4](../../software/px4-estimation.md).
 
+**Uses:** [SW-NAV](../../software/navigation-runtime.md).
+
 ## Basis
 
 [PX4 module architecture](../../../architecture/px4-module.md) identifies the pinned reference, project adaptations and scope.
@@ -28,6 +30,8 @@ components own their source history, not copies of the full filter. Alignment,
 reset bookkeeping and estimator faults belong to the session, not to one sensor.
 
 These are responsibility boundaries, not a demand for one class per row.
+The extraction design assigns the session to the portable INS owner. PX4 retains
+invocation and publication; it shall not keep a second main state/covariance.
 Use concrete state and direct calls; do not add a generic sensor framework,
 virtual policies, callbacks between numerical stages or forwarding-only facades.
 PX4 messages are converted at the adapter boundary. Estimation operations receive

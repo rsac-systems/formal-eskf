@@ -8,6 +8,11 @@ own equations and behavior. [PX4 architecture](px4-module.md) owns
 execution and real-time contracts; [timing](../profiles/px4-sih-250hz.md) owns its
 implemented 250 Hz delayed-fusion profile.
 
+The [portable navigation-runtime design](navigation-runtime.md) adds a concrete
+caller-driven INS session under [SW-NAV](../requirements/software/navigation-runtime.md).
+Its extraction status is tracked by A-01; the current allocation below changes
+with each implemented owner, not merely by publishing the design.
+
 ## Architecture
 
 The [layer ownership contract](../requirements/common/layer-boundaries.md) defines

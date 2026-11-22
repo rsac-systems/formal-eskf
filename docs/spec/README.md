@@ -25,6 +25,7 @@ not derivation. The layer index below locates the same canonical contracts.
 | Software requirement | Complete behavior to review |
 |---|---|
 | [SW-CORE](requirements/software/core-estimation.md) | Portable prediction, correction and coherent state/covariance transactions. |
+| [SW-NAV](requirements/software/navigation-runtime.md) | Concrete portable INS ownership and bounded composition; extraction status is A-01. |
 | [SW-GNSS](requirements/software/gnss-aiding.md) | GNSS qualification, permission, actual update and recovery feedback. |
 | [SW-GRAVITY](requirements/software/gravity-aiding.md) | Real-interval observation preparation and conditional gravity correction. |
 | [SW-MAGNETIC](requirements/software/magnetic-aiding.md) | Fixed-field qualification, correction and heading recovery. |

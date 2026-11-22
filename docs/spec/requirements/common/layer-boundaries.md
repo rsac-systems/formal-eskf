@@ -16,13 +16,16 @@ Separate numerical behavior from policy and platform effects so each boundary ca
 |---|---|---|
 | Geodesy utilities | Geographic/Cartesian geometry and frame transforms | Estimator state, sensor policy, clocks or publication |
 | Numerical core | Prediction, correction, injection/reset and covariance | Clocks, queues, sensor policy or OS effects |
-| Portable runtime | Qualification, history, lifecycle and fusion decisions | Device access, scheduling or publication |
-| Platform adapter | Message/time conversion, session ordering and output | Undocumented changes to core equations |
+| Portable runtime | Qualification, history, lifecycle, fusion decisions and bounded session composition | Device access, OS scheduling or publication |
+| Platform adapter | Message/time conversion, invocation of session phases and output | Duplicated estimator ownership or undocumented changes to core equations |
 
 Keep numerical APIs independently callable and backend/platform effects behind
 their declared boundaries. These are responsibilities, not a required class
-hierarchy or a generic dispatch framework. Portable runtime has no single object
-that owns and schedules an entire estimator for every platform.
+hierarchy or a generic dispatch framework. A concrete caller-driven INS session
+may own the main state/covariance, component instances and their numerical update
+order under [SW-NAV](../software/navigation-runtime.md). Its caller owns scheduling,
+clock acquisition and platform effects. Components remain independently usable;
+the session shall not introduce virtual sensor policies or a platform scheduler.
 
 Geodesy depends on scalar/linalg utilities, not the ESKF. Runtime and adapters may
 compose geodesy with core operations. Geographic frame/datum ownership shall not

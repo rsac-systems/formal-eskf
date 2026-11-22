@@ -48,6 +48,10 @@ module does not impose its execution model on other callers.
 ## Design boundaries
 
 One work item owns the session, histories, numerical state and current-time output.
+The [portable session design](navigation-runtime.md) allocates reusable numerical
+sequencing to a caller-driven INS owner; the work item retains platform invocation
+and publication phases. A-01 tracks extraction from the current module. The
+adapter shall not retain duplicate live state/P after that ownership switch.
 The core stays platform-independent. Aiding policies own source history rather
 than copies of the full filter; diagnostic readers receive a coherent snapshot.
 The output predictor has its own nominal history, not another covariance or sensor
