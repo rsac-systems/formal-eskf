@@ -7,7 +7,7 @@
  */
 #pragma once
 #include "contracts.hpp"
-// Scoped value-storage model for HeightAiding's two sessions. ESBMC 8.4.0
+// Scoped value-storage model for HeightAiding's two sessions and two result events. ESBMC 8.4.0
 // both zeroes nonzero defaults in its std::array model and crashes converting
 // that model's copy constructor for Session. Named element storage retains
 // actual element constructors/copy operations. Only indexing, value copying

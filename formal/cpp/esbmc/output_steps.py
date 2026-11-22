@@ -21,7 +21,7 @@ PINS = {
     "formal/cpp/esbmc/support.hpp": "067c556f362de8f5ad21e8672b8711ce00311fe85f9898c8091e8ca6dbc8962e",
     "formal/cpp/esbmc/contracts.hpp": "6c5ba84e914ccb08b98acf02b204bbb07e455b166ad754f2634e6c3c65f0180c",
     "formal/cpp/esbmc/imu_owner_support.hpp": "a1a844da838694b3c6e88232e735faec690ebaf0983567dad49209905a26da3b",
-    "integrations/px4/module/DeploymentProfile.hpp": "2d9a4dff78996d82440e6f7dcc8feb5840a9266d88bafecbcc7c97903ffe1ae1",
+    "integrations/px4/module/DeploymentProfile.hpp": "0cda7d5e2bb3c7830ac9515dd42379c522a59c144f1a30a4fa09e7ff6f4ce285",
     "integrations/px4/module/DeploymentConfig.hpp": "015b515863ec85cbc1ebd4994ea6c2b6a1a8191fea825a63f48fc7a72935a8dd",
     "formal/cpp/esbmc/output/support.hpp": "60c7e1465cec23c42abc52ae4f556a8c3960783b0348fdbf18bd795ab447aa60",
     "formal/cpp/esbmc/output/frames.hpp": "8cd78b4983a56567c5fec18a1adaa6ba24036dad6c74b2475c499d83033d8502",

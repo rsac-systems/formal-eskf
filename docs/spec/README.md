@@ -153,6 +153,7 @@ remain empty: these two additional review units are proof gaps, not verified cla
 | `R-RING-BUFFER` | [Fixed-capacity timestamped history](requirements/runtime/ring-buffer.md) |
 | `R-TILT-ALIGNMENT` | [Covariance-based tilt alignment latch](requirements/runtime/tilt-alignment.md) |
 | `R-ORIGIN-REBASE` | [Cartesian INS state and covariance rebasing](requirements/runtime/origin-rebasing.md) |
+| `R-HEIGHT-AIDING` | [Two-source altitude coordination](requirements/runtime/height-aiding.md) |
 | `R-HEIGHT-DATUM` | [Ellipsoid and MSL height separation](requirements/runtime/height-datum.md) |
 | `R-FRAME-OBSERVATIONS` | [Observations across Cartesian navigation frames](requirements/runtime/frame-observations.md) |
 

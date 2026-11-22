@@ -2,9 +2,8 @@
 """Prepare the pinned HeightAiding source for compositional verification.
 
 One conditional lvalue needs explicit selection on the qualified frontend.
-InnovationRatio.update is a separately checked producer; its declaration keeps
-the actual receiver and arguments visible to the caller harness. No production
-files are modified. Reviewed correspondence is not an automated refinement proof.
+No numerical or reporting producer is replaced. No production files are modified.
+Reviewed correspondence is not an automated refinement proof.
 """
 
 import argparse
@@ -15,8 +14,7 @@ import sys
 
 REPO_DIR = Path(__file__).resolve().parents[3]
 PINS = {
-    "integrations/px4/module/HeightAiding.hpp": "52e84b822359b8747c7f580990fb31e3269dc6783cc98c2435166e6c60b45c54",
-    "integrations/px4/module/InnovationRatio.hpp": "6e621094546e82ee010409c31a1fa96d9ecf0d628b380ee2cee98bc0b3d36e9a",
+    "include/formal_eskf/runtime/sensors/height/height_aiding.hpp": "3f3042740a2f2689c083e66ba9a8ace713ba4d9b8fb23419280935a4cd325c93",
 }
 
 
@@ -41,7 +39,7 @@ def generate(OUTPUT_DIR):
             raise ValueError(f"source changed; review the verification boundary: {NAME}")
         SOURCES[Path(NAME).name] = DATA.decode()
 
-    HEIGHT = SOURCES["HeightAiding.hpp"]
+    HEIGHT = SOURCES["height_aiding.hpp"]
     HEIGHT = replace_once(HEIGHT, "source == Source::barometer ? barometer : gnss",
                           "selected_sample(source, barometer, gnss)")
     HELPER = """    static Sample const & selected_sample(Source source, Sample const & barometer, Sample const & gnss)
@@ -56,30 +54,16 @@ def generate(OUTPUT_DIR):
     ANCHOR = "    static constexpr std::size_t index(Source source)"
     HEIGHT = replace_once(HEIGHT, ANCHOR, HELPER + ANCHOR)
 
-    REPORT = SOURCES["InnovationRatio.hpp"]
-    SIGNATURE = "    void update(std::uint64_t sample_time_us, double innovation, double ratio)"
-    if REPORT.count(SIGNATURE) != 1:
-        raise ValueError("unexpected reporting producer signature")
-    START = REPORT.index("{", REPORT.index(SIGNATURE))
-    END, DEPTH = START + 1, 1
-    while DEPTH:
-        DEPTH += (REPORT[END] == "{") - (REPORT[END] == "}")
-        END += 1
-    DECLARATION_END = REPORT.index(SIGNATURE) + len(SIGNATURE)
-    REPORT_BODY = REPORT[START:END]
-    REPORT = REPORT[:DECLARATION_END] + ";" + REPORT[END:]
-
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    OUTPUTS = {"HeightAiding.hpp": HEIGHT, "InnovationRatio.hpp": REPORT}
+    OUTPUTS = {"HeightAiding.hpp": HEIGHT}
     for NAME, TEXT in OUTPUTS.items():
         (OUTPUT_DIR / NAME).write_text(TEXT)
     MANIFEST = {
         "claim": "Actual source caller with independently checked producer contracts and reviewed correspondence.",
         "source_sha256": PINS,
         "generator_sha256": sha256(Path(__file__).read_bytes()),
-        "reporting_body_sha256": sha256(REPORT_BODY.encode()),
         "generated_sha256": {NAME: sha256(TEXT.encode()) for NAME, TEXT in OUTPUTS.items()},
-        "transformation": "Select the same borrowed sample through explicit returns; replace only the reporting update body with its original declaration. Keep all fields, defaults, other bodies and evaluation order.",
+        "transformation": "Select the same borrowed sample through explicit returns. Keep all fields, settings, other bodies and evaluation order.",
     }
     (OUTPUT_DIR / "manifest.json").write_text(json.dumps(MANIFEST, indent=2) + "\n")
 

@@ -5,8 +5,9 @@
 // supplied by the accepted HeightAiding producer proofs, not assumed as success.
 #include "../contracts.hpp"
 #include "../height_support.hpp"
+#include "../../../../integrations/px4/module/DeploymentProfile.hpp"
 #define any_of formal_eskf_proof_any_of
-#include "../../../../integrations/px4/module/HeightAiding.hpp"
+#include "../../../../include/formal_eskf/runtime/sensors/height/height_aiding.hpp"
 #undef any_of
 
 extern bool nondet_bool();
@@ -20,7 +21,7 @@ namespace
 {
 namespace profile = formal_eskf::px4::profile;
 using Backend = contract_proof::Linalg;
-using Actual = formal_eskf::px4::HeightAiding<Backend>;
+using Actual = formal_eskf::runtime::HeightAiding<Backend>;
 using Vector = formal_eskf::linalg::Vector<Backend, 3>;
 using Quaternion = formal_eskf::so3::UnitQuaternion<Backend>;
 using Permissions = formal_eskf::configuration::Ins::BiasUpdate;

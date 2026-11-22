@@ -7,7 +7,7 @@ namespace height_transaction_proof
 {
 struct ProcessResult
 {
-    Manager manager;
+    Manager manager{height_proof::parameters()};
     State state;
     Covariance covariance;
     Result result;
@@ -36,11 +36,20 @@ struct Calls
 // Pure source-processing boundary. The candidate may be partially changed on
 // any failure. Actual process/recovery/reset producers must discharge the
 // boundary's input frames; this harness proves the enclosing transaction only.
-namespace formal_eskf::px4
+namespace formal_eskf::runtime
 {
-template <> inline void HeightBias<height_transaction_proof::Scalar>::predict(height_transaction_proof::Scalar interval)
+namespace profile = formal_eskf::px4::profile;
+template <>
+inline void HeightBias<height_transaction_proof::Scalar>::predict(
+    height_transaction_proof::Scalar interval,
+    HeightBiasParameters<height_transaction_proof::Scalar> const & parameters)
 {
     using namespace height_transaction_proof;
+    auto expected_parameters = height_proof::parameters();
+    auto supplied_parameters = expected_parameters;
+    supplied_parameters.bias = parameters;
+    __ESBMC_assert(same_parameters(supplied_parameters, expected_parameters),
+                   "Height transaction: bias prediction receives complete configured settings");
     unsigned const index = Calls::count;
     __ESBMC_assert(index < 2U, "Height transaction: bias prediction belongs to one of the two source stages");
     Manager const * prior = Calls::original_manager;
@@ -73,14 +82,13 @@ template <> inline void HeightBias<height_transaction_proof::Scalar>::predict(he
 }
 
 template <>
-inline void HeightAiding<height_transaction_proof::Backend>::process(Source source, std::uint64_t now,
-                                                                     Sample const & sample, bool velocity,
-                                                                     state_type & state, covariance_type & covariance,
-                                                                     Result & result,
-                                                                     configuration::Ins::BiasUpdate const & permissions,
-                                                                     Acceleration const & acceleration, bool ground)
+inline void HeightAiding<height_transaction_proof::Backend>::process(
+    Source source, std::uint64_t now, Sample const & sample, bool velocity, state_type & state,
+    covariance_type & covariance, Result & result, configuration::Ins::BiasUpdate const & permissions,
+    Acceleration const & acceleration, bool ground, Geometry const * geometry)
 {
     using namespace height_transaction_proof;
+    __ESBMC_assert(geometry == nullptr, "Height transaction: flat geometry forwarded to both stages");
     unsigned const index = Calls::count++;
     __ESBMC_assert(index < 2U && source == (index == 0U ? Source::barometer : Source::gnss),
                    "Height transaction: barometer then GNSS, once each");
@@ -147,7 +155,7 @@ inline void HeightAiding<height_transaction_proof::Backend>::process(Source sour
         result = Calls::second->result;
     }
 }
-} // namespace formal_eskf::px4
+} // namespace formal_eskf::runtime
 
 using namespace height_transaction_proof;
 
@@ -156,6 +164,9 @@ void verify_height_transaction(Manager owner, State state, Covariance covariance
                                bool ground, ProcessResult first, ProcessResult second, Scalar first_variance,
                                Scalar second_variance, bool shared_sample)
 {
+    height_proof::bind_parameters(owner);
+    first.manager.m_parameters = owner.m_parameters;
+    second.manager.m_parameters = owner.m_parameters;
     auto const epoch = owner.m_tick > owner.m_started ? owner.m_tick : owner.m_started;
     __ESBMC_assume(history_domain(owner, epoch));
     bool const control = control_domain(owner);

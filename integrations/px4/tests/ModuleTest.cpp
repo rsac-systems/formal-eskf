@@ -686,7 +686,7 @@ public:
         }
         if (scenario == HeightInputCase::calibration)
         {
-            expect(f.m_height_aiding.session(FormalEskf::height_type::Source::barometer).ratio.time_us == 0,
+            expect(f.m_height_ratios[0].time_us == 0,
                    "barometer calibration clears diagnostic filtering with its bias history");
         }
         test.snapshot("height-admission");
@@ -2290,7 +2290,9 @@ public:
         if (scenario == CapabilityCase::horizontal_only || scenario == CapabilityCase::velocity_without_height ||
             scenario == CapabilityCase::no_aiding)
         {
-            f.m_height_aiding = {};
+            f.m_height_aiding =
+                FormalEskf::height_type{formal_eskf::px4::profile::height_parameters<FormalEskf::height_type>()};
+            f.m_height_ratios = {};
             height = false;
             vertical_velocity = scenario == CapabilityCase::velocity_without_height;
         }

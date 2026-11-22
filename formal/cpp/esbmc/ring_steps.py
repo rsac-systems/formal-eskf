@@ -16,7 +16,7 @@ REPO_DIR = Path(__file__).resolve().parents[3]
 # Changes to source structure, record/storage types or the complete field oracle
 # require correspondence review. Do not update these solely to make a run pass.
 PINS = {
-    "integrations/px4/module/DeploymentProfile.hpp": "2d9a4dff78996d82440e6f7dcc8feb5840a9266d88bafecbcc7c97903ffe1ae1",
+    "integrations/px4/module/DeploymentProfile.hpp": "0cda7d5e2bb3c7830ac9515dd42379c522a59c144f1a30a4fa09e7ff6f4ce285",
     "include/formal_eskf/runtime/history/imu_history.hpp": "4516f6d8d890625acbcdb58ed493b8c4064286212d0159d12b84241412c7bd93",
     "include/formal_eskf/runtime/history/timing.hpp": "1a707281bab0b8dde664c1a1aed32a149c647c7620582604bb19322e0dabee6a",
     "include/formal_eskf/runtime/history/ring_buffer.hpp": "4e14776bcf6f1d4ba499c93a289a9ec6ceab1dc2b24173c7920f988bba9a0ac5",

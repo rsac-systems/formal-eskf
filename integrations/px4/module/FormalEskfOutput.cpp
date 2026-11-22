@@ -379,10 +379,8 @@ estimator_status_s FormalEskf::publish_estimator_status(std::uint64_t now, Outpu
     status.pos_test_ratio = innovation_ratio(
         std::max(std::abs(m_gnss.position_ratios[0].filtered), std::abs(m_gnss.position_ratios[1].filtered)),
         flags.cs_gnss_pos);
-    const float barometer_ratio =
-        innovation_ratio(m_height_aiding.session(height_type::Source::barometer).ratio.filtered, flags.cs_baro_hgt);
-    const float gnss_height_ratio =
-        innovation_ratio(m_height_aiding.session(height_type::Source::gnss).ratio.filtered, flags.cs_gps_hgt);
+    const float barometer_ratio = innovation_ratio(m_height_ratios[0].filtered, flags.cs_baro_hgt);
+    const float gnss_height_ratio = innovation_ratio(m_height_ratios[1].filtered, flags.cs_gps_hgt);
     status.hgt_test_ratio = std::isfinite(barometer_ratio) && std::isfinite(gnss_height_ratio)
                                 ? (barometer_ratio + gnss_height_ratio) / 2.f
                                 : std::fmax(barometer_ratio, gnss_height_ratio);

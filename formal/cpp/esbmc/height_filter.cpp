@@ -22,6 +22,7 @@ void verify_height_filter_range(height_proof::Scalar prior, height_proof::Scalar
 void verify_height_filter(height_proof::Manager manager, height_proof::Sample sample, height_proof::Scalar altitude,
                           height_proof::Result result)
 {
+    height_proof::bind_parameters(manager);
     using namespace height_proof;
     __ESBMC_assume(manager.m_barometer_samples <= setting::barometer_warmup_samples + 1U);
     auto const epoch = manager.m_tick > manager.m_started ? manager.m_tick : manager.m_started;

@@ -82,6 +82,7 @@ using namespace height_transaction_proof;
 void verify_height_reset(Manager owner, State state, Covariance P, std::uint64_t now, Scalar altitude, Scalar variance,
                          Result result, ResetResult numerical)
 {
+    height_proof::bind_parameters(owner);
     constexpr Source source = static_cast<Source>(FORMAL_ESKF_PROOF_HEIGHT_SOURCE);
     __ESBMC_assume(history_domain(owner, now));
     bool const control = control_domain(owner);
@@ -107,10 +108,11 @@ void verify_height_reset(Manager owner, State state, Covariance P, std::uint64_t
         auto & selected = expected.m_sessions[FORMAL_ESKF_PROOF_HEIGHT_SOURCE];
         selected.progress_time = now;
         selected.fusion_reset = true;
-        selected.ratio.time_us = selected.sample_time;
-        selected.ratio.filtered = 0.;
+        expected_result.diagnostics[FORMAL_ESKF_PROOF_HEIGHT_SOURCE].time_us = selected.sample_time;
+        expected_result.diagnostics[FORMAL_ESKF_PROOF_HEIGHT_SOURCE].reset = true;
+        expected_result.position_delta_n = result.position_delta_n + (numerical.state.p_n - old_state.p_n);
     }
-    owner.reset_height(source, now, altitude, variance, state, P, result);
+    owner.reset_height(source, now, altitude, variance, state, P, result, nullptr);
     __ESBMC_assert(ResetCall::count == 1U, "Height reset: exactly one numerical position reset");
     __ESBMC_assert(!control || control_domain(owner),
                    "Height reset/recovery: owner filter, intervals and active reference are preserved");
@@ -135,6 +137,7 @@ void verify_height_recovery(Manager owner, State state, Covariance P, std::uint6
                             Result result, ResetResult position, ResetResult velocity, bool velocity_aiding,
                             Acceleration acceleration)
 {
+    height_proof::bind_parameters(owner);
     constexpr Source source = static_cast<Source>(FORMAL_ESKF_PROOF_HEIGHT_SOURCE);
     constexpr bool barometer = source == Source::barometer;
     __ESBMC_assume(history_domain(owner, now));
@@ -153,7 +156,9 @@ void verify_height_recovery(Manager owner, State state, Covariance P, std::uint6
     bool const needs_reset =
         acceleration_reset || (progress != 0U && now > progress && now - progress > setting::fusion_timeout_us);
     bool const reset = owner.m_reference == source && needs_reset;
-    bool const vertical = reset && position.status == Status::success && barometer && !velocity_aiding;
+    Scalar const altitude_after = owner.m_origin_altitude - position.state.p_n(2);
+    bool const altitude_ok = std::isfinite(altitude_after);
+    bool const vertical = reset && position.status == Status::success && altitude_ok && barometer && !velocity_aiding;
     ResetCall::result = &position;
     ResetCall::velocity = &velocity;
     ResetCall::count = ResetCall::velocity_calls = 0U;
@@ -175,13 +180,25 @@ void verify_height_recovery(Manager owner, State state, Covariance P, std::uint6
             expected.m_last_height_progress = now;
             aid.progress_time = now;
             aid.fusion_reset = true;
-            aid.ratio.time_us = aid.sample_time;
-            aid.ratio.filtered = 0.;
-            aid.bias.value = (barometer ? expected.m_barometer_lpf : sample.altitude) -
-                             (expected.m_origin_altitude - position.state.p_n(2U));
+            expected_result.diagnostics[FORMAL_ESKF_PROOF_HEIGHT_SOURCE].time_us = aid.sample_time;
+            expected_result.diagnostics[FORMAL_ESKF_PROOF_HEIGHT_SOURCE].reset = true;
+            expected_result.position_delta_n = result.position_delta_n + (position.state.p_n - old_state.p_n);
+            expected_result.status = altitude_ok ? Status::success : Status::non_finite_result;
+            if (altitude_ok)
+            {
+                aid.bias.value = (barometer ? expected.m_barometer_lpf : sample.altitude) - altitude_after;
+            }
             if (vertical)
             {
                 expected_result.status = velocity.status;
+                if (velocity.status == Status::success)
+                {
+                    expected_result.velocity_delta_n = velocity.state.v_n - position.state.v_n;
+                }
+                else
+                {
+                    expected_result.velocity_delta_n = position.state.v_n - position.state.v_n;
+                }
                 if (velocity.status == Status::success)
                 {
                     expected_result.velocity_delta = velocity.delta;
@@ -201,7 +218,7 @@ void verify_height_recovery(Manager owner, State state, Covariance P, std::uint6
         }
         aid.fault = barometer && !needs_reset;
     }
-    owner.recover(source, now, sample, variance, velocity_aiding, state, P, result, acceleration);
+    owner.recover(source, now, sample, variance, velocity_aiding, state, P, result, acceleration, nullptr);
     __ESBMC_assert(ResetCall::count == static_cast<unsigned>(reset) &&
                        ResetCall::velocity_calls == static_cast<unsigned>(vertical),
                    "Height recovery: reference/reset authority, timeout latch and exact partial-result protocol");

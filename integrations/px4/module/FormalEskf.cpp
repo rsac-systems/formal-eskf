@@ -304,6 +304,8 @@ void FormalEskf::initialize(ImuInput const & sample, imu_type const & imu)
         return;
     }
 
+    m_height_ratios = {};
+
     double yaw{};
     if (!initialize_attitude(yaw))
     {

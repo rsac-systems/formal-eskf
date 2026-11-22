@@ -11,20 +11,27 @@
 #include <formal_eskf/runtime/fusion/navigation.hpp>
 #include <formal_eskf/runtime/sensors/imu/vertical_acceleration_health.hpp>
 #include "../../../integrations/px4/module/DeploymentProfile.hpp"
+#include <formal_eskf/runtime/fusion/frame_navigation.hpp>
 // Scoped library models and member-name workaround; source bodies are unchanged.
 #define max formal_eskf_proof_max
 #define min formal_eskf_proof_min
 #define any_of formal_eskf_proof_any_of
 #define finite formal_eskf_proof_finite
-#include "../../../integrations/px4/module/HeightAiding.hpp"
+#include "../../../include/formal_eskf/runtime/sensors/height/height_aiding.hpp"
 #undef finite
 #undef any_of
 #undef min
 #undef max
 using contract_proof::same;
 using contract_proof::Scalar;
-using Bias = formal_eskf::px4::HeightBias<Scalar>;
+using Bias = formal_eskf::runtime::HeightBias<Scalar>;
 namespace settings = formal_eskf::px4::profile::height_bias;
+auto parameters()
+{
+    using Manager = formal_eskf::runtime::HeightAiding<contract_proof::Linalg>;
+    return formal_eskf::px4::profile::height_parameters<Manager>().bias;
+}
+
 static_assert(settings::initial_maximum_variance == 2.0 && settings::initial_interval_s == 0.01 &&
                   settings::process_variance_density == 0.13 * 0.13 && settings::minimum_variance == 1e-8 &&
                   settings::measurement_variance_floor == 1e-4 && settings::gate_squared == 9.0 &&
@@ -40,7 +47,7 @@ bool same_bias(Bias const & a, Bias const & b)
 Scalar clipped(Scalar v, Scalar lo, Scalar hi) { return v < lo ? lo : (hi < v ? hi : v); }
 void verify_height_bias_initialization(Bias arbitrary)
 {
-    Bias bias;
+    Bias bias{parameters()};
     __ESBMC_assert(bias.formal_eskf_proof_finite() && bias.value == Scalar{0} && bias.variance == Scalar{0} &&
                        bias.maximum_variance == static_cast<Scalar>(settings::initial_maximum_variance) &&
                        bias.signed_ratio == Scalar{0} && bias.positive_time == Scalar{0} &&
@@ -70,7 +77,7 @@ void verify_height_bias_prediction(Bias bias, Scalar dt)
         clipped(bias.variance + static_cast<Scalar>(settings::process_variance_density) * dt *
                                     (offset ? static_cast<Scalar>(settings::offset_variance_multiplier) : Scalar{1}),
                 static_cast<Scalar>(settings::minimum_variance), bias.maximum_variance);
-    bias.predict(dt);
+    bias.predict(dt, parameters());
     __ESBMC_assert(same_bias(bias, expected),
                    "R-HEIGHT-FUSION: exact offset-triggered variance prediction and untouched bias fields");
     __ESBMC_assert(!finite_prior || (std::isfinite(bias.variance) &&
@@ -104,7 +111,7 @@ void verify_height_bias_update(Bias bias, Scalar measurement, Scalar measurement
                                                     (clipped(sign * ratio, Scalar{-1}, Scalar{1}) - bias.signed_ratio);
     expected.positive_time = residual > Scalar{0} ? Scalar{0} : bias.positive_time + bias.dt;
     expected.negative_time = residual > Scalar{0} ? bias.negative_time + bias.dt : Scalar{0};
-    bias.fuse(measurement, measurement_variance, sensor_variance);
+    bias.fuse(measurement, measurement_variance, sensor_variance, parameters());
     __ESBMC_assert(same_bias(bias, expected),
                    "R-HEIGHT-FUSION: exact strict gate, posterior, signed-ratio filter and one-sided timers");
     __ESBMC_assert(std::isfinite(bias.maximum_variance) && bias.maximum_variance >= floor,

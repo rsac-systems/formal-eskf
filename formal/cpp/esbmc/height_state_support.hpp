@@ -13,6 +13,7 @@
 #include <formal_eskf/runtime/fusion/navigation.hpp>
 #include <formal_eskf/runtime/sensors/imu/vertical_acceleration_health.hpp>
 #include "../../../integrations/px4/module/DeploymentProfile.hpp"
+#include <formal_eskf/runtime/fusion/frame_navigation.hpp>
 // Expose private producer state only after dependencies are loaded. ESBMC
 // mistakes a member named finite for its C intrinsic; alpha-renaming retains
 // the actual body. The bounded library models are checked separately.
@@ -26,7 +27,7 @@
 #ifdef FORMAL_ESKF_PROOF_HEIGHT_HEADER
 #include FORMAL_ESKF_PROOF_HEIGHT_HEADER
 #else
-#include "../../../integrations/px4/module/HeightAiding.hpp"
+#include "../../../include/formal_eskf/runtime/sensors/height/height_aiding.hpp"
 #endif
 #undef finite
 #undef any_of
@@ -40,13 +41,13 @@ using contract_proof::Scalar;
 using correction_proof::same;
 using correction_proof::same_matrix;
 using formal_eskf::Status;
-using Manager = formal_eskf::px4::HeightAiding<step_correction_proof::Backend>;
+using Manager = formal_eskf::runtime::HeightAiding<step_correction_proof::Backend>;
 using Source = Manager::Source;
 using Reason = Manager::StopReason;
 using Session = Manager::Session;
 using Sample = Manager::Sample;
 using Result = Manager::Result;
-using Bias = formal_eskf::px4::HeightBias<Scalar>;
+using Bias = formal_eskf::runtime::HeightBias<Scalar>;
 namespace setting = formal_eskf::px4::profile::height;
 static_assert(setting::fusion_timeout_us == 5000000U && setting::barometer_timeout_us == 400000U &&
                   setting::gnss_timeout_us == 1000000U && setting::barometer_maximum_age_us == 200000U &&
@@ -55,6 +56,37 @@ static_assert(setting::fusion_timeout_us == 5000000U && setting::barometer_timeo
                   setting::barometer_lpf_gain == 0.1 && setting::maximum_aided_gnss_variance == 100.0 &&
                   setting::gate_sigma == 5.0 && setting::reset_velocity_variance == 10.0,
               "height deployment defaults match their specified constants");
+inline Manager::Parameters parameters() { return formal_eskf::px4::profile::height_parameters<Manager>(); }
+inline void bind_parameters(Manager & owner) { owner.m_parameters = parameters(); }
+inline bool same_parameters(Manager::Parameters const & a, Manager::Parameters const & b)
+{
+    return same(a.minimum_quaternion_norm, b.minimum_quaternion_norm) && a.fusion_timeout_us == b.fusion_timeout_us &&
+           same(a.minimum_altitude_m, b.minimum_altitude_m) && same(a.maximum_altitude_m, b.maximum_altitude_m) &&
+           a.barometer_timeout_us == b.barometer_timeout_us && a.gnss_timeout_us == b.gnss_timeout_us &&
+           a.barometer_maximum_age_us == b.barometer_maximum_age_us && a.gnss_maximum_age_us == b.gnss_maximum_age_us &&
+           same(a.barometer_lpf_gain, b.barometer_lpf_gain) &&
+           a.barometer_warmup_samples == b.barometer_warmup_samples &&
+           same(a.reset_velocity_variance, b.reset_velocity_variance) &&
+           same(a.maximum_aided_gnss_variance, b.maximum_aided_gnss_variance) &&
+           same(a.ground_effect_deadzone_m, b.ground_effect_deadzone_m) && same(a.gate_sigma, b.gate_sigma) &&
+           same(a.bias.initial_maximum_variance, b.bias.initial_maximum_variance) &&
+           same(a.bias.initial_interval_s, b.bias.initial_interval_s) &&
+           same(a.bias.offset_ratio, b.bias.offset_ratio) && same(a.bias.offset_duration_s, b.bias.offset_duration_s) &&
+           same(a.bias.process_variance_density, b.bias.process_variance_density) &&
+           same(a.bias.offset_variance_multiplier, b.bias.offset_variance_multiplier) &&
+           same(a.bias.minimum_variance, b.bias.minimum_variance) &&
+           same(a.bias.measurement_variance_floor, b.bias.measurement_variance_floor) &&
+           same(a.bias.gate_squared, b.bias.gate_squared) &&
+           same(a.bias.ratio_filter_time_s, b.bias.ratio_filter_time_s) &&
+           same(a.bias_limits.accelerometer, b.bias_limits.accelerometer) &&
+           same(a.bias_limits.gyroscope, b.bias_limits.gyroscope);
+}
+inline bool same_diagnostic(Manager::DiagnosticUpdate const & a, Manager::DiagnosticUpdate const & b)
+{
+    return a.time_us == b.time_us && same(a.innovation, b.innovation) && same(a.test_ratio, b.test_ratio) &&
+           a.valid == b.valid && a.source_changed == b.source_changed && a.measurement == b.measurement &&
+           a.reset == b.reset;
+}
 inline bool same_bias(Bias const & a, Bias const & b)
 {
     return same(a.value, b.value) && same(a.variance, b.variance) && same(a.maximum_variance, b.maximum_variance) &&
@@ -71,7 +103,8 @@ inline bool bias_domain(Bias const & bias)
 }
 inline bool same_owner_constants(Manager const & a, Manager const & b)
 {
-    return same(a.m_origin_altitude, b.m_origin_altitude) && a.m_started == b.m_started && a.m_tick == b.m_tick;
+    return same_parameters(a.m_parameters, b.m_parameters) && same(a.m_origin_altitude, b.m_origin_altitude) &&
+           a.m_started == b.m_started && a.m_tick == b.m_tick;
 }
 inline bool history_domain(Manager const & owner, std::uint64_t epoch)
 {
@@ -83,45 +116,39 @@ inline bool history_domain(Manager const & owner, std::uint64_t epoch)
     for (auto const & aid : owner.m_sessions)
     {
         if (aid.data_time > aid.sample_time || aid.sample_time > epoch || aid.progress_time > epoch ||
-            aid.fused_time > epoch || aid.ratio.time_us > epoch || !bias_domain(aid.bias))
+            aid.fused_time > epoch || !bias_domain(aid.bias))
         {
             return false;
         }
     }
     return true;
 }
-inline bool same_ratio(formal_eskf::px4::InnovationRatio const & a, formal_eskf::px4::InnovationRatio const & b)
-{
-    double const left = a.filtered;
-    double const right = b.filtered;
-    return a.time_us == b.time_us &&
-           (__builtin_bit_cast(std::uint64_t, left) == __builtin_bit_cast(std::uint64_t, right) ||
-            (std::isnan(left) && std::isnan(right)));
-}
 inline bool same_session(Session const & a, Session const & b)
 {
     auto const & x = a.fusion;
     auto const & y = b.fusion;
-    return same_bias(a.bias, b.bias) && same_ratio(a.ratio, b.ratio) && x.status == y.status &&
-           x.decision == y.decision && x.diagnostics_valid == y.diagnostics_valid &&
-           same_matrix(x.innovation, y.innovation) && same_matrix(x.innovation_variance, y.innovation_variance) &&
-           same_matrix(x.test_ratio, y.test_ratio) && same(a.fusion_innovation, b.fusion_innovation) &&
-           a.innovation_limited == b.innovation_limited && a.sample_time == b.sample_time &&
-           a.data_time == b.data_time && a.progress_time == b.progress_time && a.fused_time == b.fused_time &&
-           a.device_id == b.device_id && a.calibration_count == b.calibration_count && a.generation == b.generation &&
-           a.active == b.active && a.fusion_reset == b.fusion_reset && a.fault == b.fault &&
-           a.stop_reason == b.stop_reason;
+    return same_bias(a.bias, b.bias) && x.status == y.status && x.decision == y.decision &&
+           x.diagnostics_valid == y.diagnostics_valid && same_matrix(x.innovation, y.innovation) &&
+           same_matrix(x.innovation_variance, y.innovation_variance) && same_matrix(x.test_ratio, y.test_ratio) &&
+           same(a.fusion_innovation, b.fusion_innovation) && a.innovation_limited == b.innovation_limited &&
+           a.sample_time == b.sample_time && a.data_time == b.data_time && a.progress_time == b.progress_time &&
+           a.fused_time == b.fused_time && a.device_id == b.device_id && a.calibration_count == b.calibration_count &&
+           a.generation == b.generation && a.active == b.active && a.fusion_reset == b.fusion_reset &&
+           a.fault == b.fault && a.stop_reason == b.stop_reason;
 }
 inline bool same_manager(Manager const & a, Manager const & b)
 {
-    return same_session(a.m_sessions[0U], b.m_sessions[0U]) && same_session(a.m_sessions[1U], b.m_sessions[1U]) &&
-           a.m_reference == b.m_reference && same(a.m_origin_altitude, b.m_origin_altitude) &&
-           same(a.m_barometer_lpf, b.m_barometer_lpf) && a.m_barometer_samples == b.m_barometer_samples &&
-           a.m_started == b.m_started && a.m_tick == b.m_tick && a.m_last_height_progress == b.m_last_height_progress;
+    return same_parameters(a.m_parameters, b.m_parameters) && same_session(a.m_sessions[0U], b.m_sessions[0U]) &&
+           same_session(a.m_sessions[1U], b.m_sessions[1U]) && a.m_reference == b.m_reference &&
+           same(a.m_origin_altitude, b.m_origin_altitude) && same(a.m_barometer_lpf, b.m_barometer_lpf) &&
+           a.m_barometer_samples == b.m_barometer_samples && a.m_started == b.m_started && a.m_tick == b.m_tick &&
+           a.m_last_height_progress == b.m_last_height_progress;
 }
 inline bool same_result(Result const & a, Result const & b)
 {
-    return a.status == b.status && a.fused == b.fused && a.rejected == b.rejected &&
+    return same_diagnostic(a.diagnostics[0], b.diagnostics[0]) && same_diagnostic(a.diagnostics[1], b.diagnostics[1]) &&
+           same_matrix(a.position_delta_n, b.position_delta_n) && same_matrix(a.velocity_delta_n, b.velocity_delta_n) &&
+           a.status == b.status && a.fused == b.fused && a.rejected == b.rejected &&
            a.height_resets == b.height_resets && a.velocity_resets == b.velocity_resets &&
            same(a.height_delta, b.height_delta) && same(a.velocity_delta, b.velocity_delta);
 }

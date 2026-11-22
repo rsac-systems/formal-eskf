@@ -197,11 +197,20 @@ do not revive the withdrawn text-based deduplication optimization.
 
 The `height` suite separates scalar/admission producers from the actual
 `HeightAiding` source-processing, reset/recovery and public-update callers.
-Owner profiles cover both sources, binary32/binary64, the complete 15-state
+Owner profiles bind the explicit deployment settings and flat geometry. They
+cover both sources, binary32/binary64, the complete 15-state
 covariance, arbitrary numerical producer outcomes and shared read-only sample
 arguments. They check barometer-before-GNSS order, prior-offset observation
 construction, reference-only recovery authority, complete reset accounting,
 validation precedence and joint owner/state/covariance rollback on failure.
+Frames include copied settings, both raw event records and working reset vectors.
+Completed process-owner revalidation remains missing for both sources and scalar
+formats. The binary32 attempts timed out; the binary64 profiles are unresolved.
+Passing the surrounding transaction, reset or scalar profiles does not discharge
+these producer contracts, and no complete height-owner proof is claimed.
+Geographic observations/resets retain native coverage only; they are outside these
+source profiles. Migration requires completed same-baseline reruns, not inherited
+results or merely refreshed source hashes.
 
 Construction and initialization establish the chronological/control domain.
 Actual admission, filter, stop, reset, recovery and update contracts preserve
@@ -222,10 +231,9 @@ The pinned [`height_source.py`](../../formal/cpp/esbmc/height_source.py)
 adapter exposes a borrowed conditional sample through explicit reference returns
 because the qualified verifier mishandles the original conditional lvalue.
 Selection profiles check reference identity and complete read-only payloads,
-including shared inputs. It also replaces only `InnovationRatio::update`'s body
-with its declaration, retaining the actual fields, defaults and reset body;
-the actual reporting producer separately discharges that pure contract. Source
-pins, reverse-comparison checks and native controls guard this reviewed
+including shared inputs. No reporting producer is replaced: the portable owner
+returns raw events and the adapter owns `InnovationRatio`. Source pins,
+reverse-comparison checks and native controls guard this reviewed
 correspondence. Unknown source revisions fail generation. Neither this adapter
 nor the qualified two-session library model proves target STL layout or ABI.
 

@@ -32,8 +32,7 @@ namespace setting = formal_eskf::px4::profile::height;
 bool empty_session(Session const & aid)
 {
     auto const & bias = aid.bias;
-    return aid.ratio.time_us == 0U && std::isnan(aid.ratio.filtered) && same(bias.value, Scalar{0}) &&
-           same(bias.variance, Scalar{0}) && same(bias.maximum_variance, Scalar{2}) &&
+    return same(bias.value, Scalar{0}) && same(bias.variance, Scalar{0}) && same(bias.maximum_variance, Scalar{2}) &&
            same(bias.signed_ratio, Scalar{0}) && same(bias.positive_time, Scalar{0}) &&
            same(bias.negative_time, Scalar{0}) && same(bias.dt, static_cast<Scalar>(0.01)) &&
            aid.fusion.status == Status::success &&
@@ -53,16 +52,17 @@ bool empty_history(Manager const & manager, std::uint64_t started, Scalar altitu
 }
 void verify_height_initialization(Manager manager, std::uint64_t now, Scalar altitude)
 {
-    Manager expected;
+    height_proof::bind_parameters(manager);
+    Manager expected{height_proof::parameters()};
     expected = manager;
     bool const valid = now != 0U && altitude_valid(altitude);
     if (valid)
     {
-        expected = Manager{};
+        expected = Manager{height_proof::parameters()};
         expected.m_origin_altitude = altitude;
         expected.m_started = now;
     }
-    Manager fresh;
+    Manager fresh{height_proof::parameters()};
     __ESBMC_assert(empty_history(fresh, 0U, Scalar{0}) && height_proof::control_domain(fresh),
                    "R-HEIGHT-FUSION: constructor establishes every specified empty field");
     auto const status = manager.initialize(now, altitude);
@@ -76,8 +76,9 @@ void verify_height_initialization(Manager manager, std::uint64_t now, Scalar alt
 }
 void verify_height_stop(Manager manager, Reason reason)
 {
+    height_proof::bind_parameters(manager);
     constexpr Source source = static_cast<Source>(FORMAL_ESKF_PROOF_HEIGHT_SOURCE);
-    Manager expected;
+    Manager expected{height_proof::parameters()};
     expected = manager;
     bool const control = height_proof::control_domain(manager);
     stopped(expected, source, reason);
@@ -90,6 +91,7 @@ void verify_height_stop(Manager manager, Reason reason)
 }
 void verify_height_admission(Manager manager, std::uint64_t now, Sample sample, Result result)
 {
+    height_proof::bind_parameters(manager);
     constexpr Source source = static_cast<Source>(FORMAL_ESKF_PROOF_HEIGHT_SOURCE);
     // Time subtraction requires the owner's chronological transition invariant.
     // This private lemma does not claim that public update establishes it.
@@ -97,7 +99,7 @@ void verify_height_admission(Manager manager, std::uint64_t now, Sample sample, 
     {
         __ESBMC_assume(aid.data_time <= aid.sample_time && aid.sample_time <= now);
     }
-    Manager expected;
+    Manager expected{height_proof::parameters()};
     expected = manager;
     auto expected_result = result;
     bool const domain = height_proof::history_domain(manager, now);
@@ -141,8 +143,8 @@ void verify_height_admission(Manager manager, std::uint64_t now, Sample sample, 
                 aid.generation = sample.generation;
                 aid.device_id = sample.device_id;
                 aid.calibration_count = sample.calibration_count;
-                aid.bias = {};
-                aid.ratio = {};
+                aid.bias = Bias{height_proof::parameters().bias};
+                expected_result.diagnostics[barometer ? 0U : 1U].source_changed = true;
                 aid.fault = false;
                 if (barometer)
                 {
@@ -182,8 +184,9 @@ void verify_height_admission(Manager manager, std::uint64_t now, Sample sample, 
 void verify_height_queries(Manager manager, std::uint64_t now,
                            formal_eskf::runtime::GnssFusion::VerticalAccelerationTimes acceleration)
 {
+    height_proof::bind_parameters(manager);
     constexpr Source source = static_cast<Source>(FORMAL_ESKF_PROOF_HEIGHT_SOURCE);
-    Manager before;
+    Manager before{height_proof::parameters()};
     before = manager;
     auto const progress = manager.m_last_height_progress == 0U ? manager.m_started : manager.m_last_height_progress;
     bool const acceleration_reset =

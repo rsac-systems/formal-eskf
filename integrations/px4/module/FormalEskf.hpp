@@ -42,7 +42,7 @@
 #include <formal_eskf/runtime/fusion/frame_navigation.hpp>
 
 #include "DeploymentProfile.hpp"
-#include "HeightAiding.hpp"
+#include <formal_eskf/runtime/sensors/height/height_aiding.hpp>
 #include "InnovationRatio.hpp"
 #include <formal_eskf/runtime/history/imu_history.hpp>
 #include <formal_eskf/runtime/history/observation_history.hpp>
@@ -77,7 +77,7 @@ private:
     using matrix3_type = formal_eskf::linalg::Matrix<backend_type, 3, 3>;
     using imu_type = types_type::imu_sample_type;
     using status_type = formal_eskf::Status;
-    using height_type = formal_eskf::px4::HeightAiding<backend_type>;
+    using height_type = formal_eskf::runtime::HeightAiding<backend_type>;
     using bias_learning_type = formal_eskf::runtime::ImuBiasInhibition<backend_type>;
     using vertical_health_type = formal_eskf::runtime::VerticalAccelerationHealth<backend_type>;
     using gravity_sampler_type =
@@ -472,7 +472,8 @@ private:
     StatusChanges m_status_changes{};
     ResetReport m_resets{};
 
-    height_type m_height_aiding{};
+    height_type m_height_aiding{formal_eskf::px4::profile::height_parameters<height_type>()};
+    std::array<formal_eskf::px4::InnovationRatio, 2> m_height_ratios{};
     GroundEffect m_ground_effect{};
     formal_eskf::runtime::TiltAlignment<backend_type> m_tilt_alignment{};
     Gravity m_gravity{};

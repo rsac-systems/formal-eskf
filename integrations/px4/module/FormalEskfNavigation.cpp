@@ -558,6 +558,23 @@ void FormalEskf::fuse_height()
     {
         return;
     }
+    for (std::size_t source = 0; source < m_height_ratios.size(); ++source)
+    {
+        auto const & event = result.diagnostics[source];
+        auto & ratio = m_height_ratios[source];
+        if (event.source_changed)
+        {
+            ratio = {};
+        }
+        if (event.measurement)
+        {
+            ratio.update(event.time_us, event.innovation, event.valid ? double(event.test_ratio) : double(NAN));
+        }
+        if (event.reset)
+        {
+            ratio.reset(event.time_us);
+        }
+    }
     if ((result.height_resets != 0 || result.velocity_resets != 0) &&
         !reset_output({}, result.velocity_delta_n, result.position_delta_n,
                       {.vertical_velocity = result.velocity_resets != 0,

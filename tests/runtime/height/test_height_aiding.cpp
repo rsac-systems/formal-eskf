@@ -1,21 +1,53 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include <limits>
 
-#include "../module/HeightAiding.hpp"
+#include <formal_eskf/runtime/sensors/height/height_aiding.hpp>
 #include "test_backend.hpp"
 #include "test_support.hpp"
+#include "test_cases.hpp"
 
 namespace
 {
 using formal_eskf::Status;
 using formal_eskf::test::Context;
 
+template <typename Scalar> formal_eskf::runtime::HeightParameters<Scalar> height_parameters()
+{
+    formal_eskf::runtime::HeightParameters<Scalar> result;
+    result.minimum_quaternion_norm = static_cast<Scalar>(1e-6);
+    result.bias_limits = {static_cast<Scalar>(0.4), static_cast<Scalar>(0.15)};
+    result.fusion_timeout_us = 5000000;
+    result.barometer_timeout_us = 400000;
+    result.gnss_timeout_us = 1000000;
+    result.barometer_maximum_age_us = 200000;
+    result.gnss_maximum_age_us = 500000;
+    result.minimum_altitude_m = -12000;
+    result.maximum_altitude_m = 100000;
+    result.barometer_lpf_gain = static_cast<Scalar>(0.1);
+    result.barometer_warmup_samples = 20;
+    result.reset_velocity_variance = 10;
+    result.maximum_aided_gnss_variance = 100;
+    result.gate_sigma = 5;
+    result.ground_effect_deadzone_m = 4;
+    result.bias.initial_maximum_variance = 2;
+    result.bias.initial_interval_s = static_cast<Scalar>(0.01);
+    result.bias.offset_ratio = static_cast<Scalar>(0.2);
+    result.bias.offset_duration_s = 10;
+    result.bias.process_variance_density = static_cast<Scalar>(0.13 * 0.13);
+    result.bias.offset_variance_multiplier = 1000;
+    result.bias.minimum_variance = static_cast<Scalar>(1e-8);
+    result.bias.measurement_variance_floor = static_cast<Scalar>(1e-4);
+    result.bias.gate_squared = 9;
+    result.bias.ratio_filter_time_s = 10;
+    return result;
+}
+
 template <typename Linalg> struct HeightFixture
 {
-    using aiding_type = formal_eskf::px4::HeightAiding<Linalg>;
+    using aiding_type = formal_eskf::runtime::HeightAiding<Linalg>;
     using value_type = typename Linalg::value_type;
     using Source = typename aiding_type::Source;
-    aiding_type aiding;
+    aiding_type aiding{height_parameters<value_type>()};
     typename aiding_type::state_type state;
     typename aiding_type::covariance_type P = aiding_type::covariance_type::identity() * static_cast<value_type>(0.01);
     std::uint64_t now = 1000000U;
@@ -47,8 +79,7 @@ template <typename Linalg> struct HeightFixture
         typename aiding_type::Sample baro{}, gps{};
         if (barometer)
         {
-            baro = {now, 1, calibration, baro_altitude,
-                    static_cast<value_type>(formal_eskf::px4::profile::height::barometer_variance)};
+            baro = {now, 1, calibration, baro_altitude, static_cast<value_type>(12.25)};
         }
         if (gnss)
         {
@@ -276,7 +307,7 @@ template <typename Linalg> void run(Context & test)
         test.expect(result.height_resets == 1 && result.fused == 0 && f.reset_counter == 1 && near(f.P(2, 2), 1) &&
                         f.aiding.valid(f.now),
                     "startup", "first GNSS starts with a real height/covariance reset");
-        for (unsigned i = 1; i < formal_eskf::px4::profile::height::barometer_warmup_samples; ++i)
+        for (unsigned i = 1; i < 20U; ++i)
         {
             test.expect(f.tick().status == Status::success, "startup", "barometer warmup");
         }
@@ -488,21 +519,22 @@ template <typename Linalg> void run(Context & test)
                     "failure", "bad prior preserves helper and estimator outputs");
     }
     {
-        formal_eskf::px4::HeightBias<Scalar> bias;
+        auto const parameters = height_parameters<Scalar>().bias;
+        formal_eskf::runtime::HeightBias<Scalar> bias{parameters};
         bias.variance = 1;
-        bias.fuse(2, 3, 3);
+        bias.fuse(2, 3, 3, parameters);
         test.expect(near(bias.value, static_cast<Scalar>(0.5)) && near(bias.variance, static_cast<Scalar>(0.75)),
                     "bias", "scalar Kalman offset estimate has the expected analytical posterior");
         auto const old = bias.value;
-        bias.fuse(1000, 1, 1);
+        bias.fuse(1000, 1, 1, parameters);
         test.expect(bias.value == old, "bias", "bias innovation gate rejects a large offset jump");
-        bias.predict(1000);
+        bias.predict(1000, parameters);
         test.expect(bias.variance <= Scalar{1} && bias.finite(), "bias", "bounded bias uncertainty");
     }
 }
 template <typename Linalg> void geographic_height(Context & test)
 {
-    using Aiding = formal_eskf::px4::HeightAiding<Linalg>;
+    using Aiding = formal_eskf::runtime::HeightAiding<Linalg>;
     using V = typename Aiding::vector_type;
     using Source = typename Aiding::Source;
     formal_eskf::geodesy::LocalNed<Linalg> old_frame, new_frame;
@@ -522,7 +554,7 @@ template <typename Linalg> void geographic_height(Context & test)
     test.expect(old_frame.transform_to(new_frame, transform) == Status::success &&
                     new_frame.transform_to(old_frame, inverse) == Status::success,
                 "geographic height", "frame transforms");
-    Aiding aiding;
+    Aiding aiding{height_parameters<typename Aiding::value_type>()};
     test.expect(aiding.initialize(1000000, 503.) == Status::success, "geographic height", "source startup");
     typename Aiding::Sample gps{1020000, 2, 0, 500., 1.};
     auto const first = aiding.update(gps.time_us, {}, gps, true, state, P, {}, {}, false, &old_geometry);
@@ -564,14 +596,88 @@ template <typename Linalg> void geographic_height(Context & test)
                 "geographic height", "missing datum preserves the source and whole estimator transaction");
 }
 
+template <typename Linalg> void parameters_and_events(Context & test)
+{
+    using F = HeightFixture<Linalg>;
+    using T = typename F::value_type;
+    using A = typename F::aiding_type;
+    auto settings = height_parameters<T>();
+    A copied{settings};
+    settings.fusion_timeout_us = 0;
+    test.expect(copied.initialize(1000000, T{500}) == Status::success, "parameters",
+                "caller settings are copied into the owner");
+    A invalid{settings};
+    test.expect(invalid.initialize(1000000, T{500}) == Status::domain_error && invalid.progress_time() == 0,
+                "parameters", "invalid settings cannot initialize height management");
+    settings = height_parameters<T>();
+    settings.bias.minimum_variance = settings.bias.measurement_variance_floor * T{2};
+    A unordered{settings};
+    test.expect(unordered.initialize(1000000, T{500}) == Status::domain_error, "parameters",
+                "reject invalid clamp bounds before any bias update");
+    settings = height_parameters<T>();
+    settings.gate_sigma = std::numeric_limits<T>::quiet_NaN();
+    A nonfinite{settings};
+    test.expect(nonfinite.initialize(1000000, T{500}) == Status::domain_error, "parameters",
+                "nonfinite numerical settings cannot become a live owner");
+    settings = height_parameters<T>();
+    settings.barometer_lpf_gain = T{2};
+    A unstable_filter{settings};
+    test.expect(unstable_filter.initialize(1000000, T{500}) == Status::domain_error, "parameters",
+                "reject a gain outside the declared convex filter range");
+    settings = height_parameters<T>();
+    settings.barometer_warmup_samples = std::numeric_limits<unsigned>::max();
+    A overflowing_count{settings};
+    test.expect(overflowing_count.initialize(1000000, T{500}) == Status::domain_error, "parameters",
+                "warmup successor must remain representable before processing samples");
+    settings.barometer_warmup_samples = std::numeric_limits<unsigned>::max() - 1U;
+    A overflowing_saturated_count{settings};
+    test.expect(overflowing_saturated_count.initialize(1000000, T{500}) == Status::domain_error, "parameters",
+                "the increment after saturation must also remain representable");
+    F f;
+    test.expect(f.aiding.initialize(f.now, T{500}) == Status::success, "events", "initialize");
+    auto const start = f.tick(false, true);
+    auto const & initial = start.diagnostics[1];
+    test.expect(initial.source_changed && initial.reset && !initial.measurement && initial.time_us == f.now, "events",
+                "first GNSS report clears source history then resets at the admitted epoch");
+    auto const fused = f.tick(false, true);
+    auto const & observation = fused.diagnostics[1];
+    auto const & aid = f.aiding.session(A::Source::gnss);
+    test.expect(!observation.source_changed && !observation.reset && observation.measurement && observation.valid &&
+                    observation.time_us == f.now && observation.innovation == -aid.fusion.innovation(0) &&
+                    observation.test_ratio == aid.fusion.test_ratio(0),
+                "events", "ordinary fusion returns unfiltered gate diagnostics with the reporting sign");
+    auto const time = aid.sample_time;
+    f.P(2, 2) = std::numeric_limits<T>::quiet_NaN();
+    auto const failed = f.tick(false, true);
+    test.expect(failed.status == Status::non_finite_input && !failed.diagnostics[1].source_changed &&
+                    !failed.diagnostics[1].measurement && !failed.diagnostics[1].reset &&
+                    f.aiding.session(A::Source::gnss).sample_time == time,
+                "events", "failed transaction publishes no diagnostic event or sample progress");
+}
+
+void management_case(Context & test, std::string_view profile)
+{
+    if (profile == "binary32")
+    {
+        run<formal_eskf::test::Backend<float>>(test);
+        parameters_and_events<formal_eskf::test::Backend<float>>(test);
+    }
+    else
+    {
+        run<formal_eskf::test::Backend<double>>(test);
+        parameters_and_events<formal_eskf::test::Backend<double>>(test);
+    }
+}
+void geographic_case(Context & test, std::string_view) { geographic_height<formal_eskf::test::Backend<double>>(test); }
 } /* end namespace */
 
-int main()
+int main(int argc, char ** argv)
 {
     formal_eskf::test::configure_backend_test();
-    Context test;
-    run<formal_eskf::test::Backend<float>>(test);
-    run<formal_eskf::test::Backend<double>>(test);
-    geographic_height<formal_eskf::test::Backend<double>>(test);
-    return test.failures() == 0 ? 0 : 1;
+    formal_eskf::test::Case const cases[]{
+        {"TC-R-HEIGHT-AIDING-01", "binary32", management_case},
+        {"TC-R-HEIGHT-AIDING-01", "binary64", management_case},
+        {"TC-R-HEIGHT-AIDING-02", "binary64", geographic_case},
+    };
+    return formal_eskf::test::run_cases(cases, argc, argv);
 }

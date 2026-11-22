@@ -90,7 +90,6 @@ inline void check_bias(Bias const & a, Bias const & b)
 inline void check_session(Session const & a, Session const & b)
 {
     check_bias(a.bias, b.bias);
-    __ESBMC_assert(same_ratio(a.ratio, b.ratio), "Height frame: reporting epoch and filtered ratio");
     __ESBMC_assert(a.fusion.status == b.fusion.status && a.fusion.decision == b.fusion.decision &&
                        a.fusion.diagnostics_valid == b.fusion.diagnostics_valid,
                    "Height frame: fusion status and diagnostic validity");
@@ -108,6 +107,7 @@ inline void check_session(Session const & a, Session const & b)
 }
 inline void check_manager(Manager const & a, Manager const & b)
 {
+    __ESBMC_assert(same_parameters(a.m_parameters, b.m_parameters), "Height frame: complete copied settings");
     check_session(a.m_sessions[0U], b.m_sessions[0U]);
     check_session(a.m_sessions[1U], b.m_sessions[1U]);
     __ESBMC_assert(same(a.m_origin_altitude, b.m_origin_altitude), "Height frame: configured origin");
@@ -119,6 +119,11 @@ inline void check_manager(Manager const & a, Manager const & b)
 }
 inline void check_result(Result const & a, Result const & b)
 {
+    __ESBMC_assert(same_diagnostic(a.diagnostics[0], b.diagnostics[0]) &&
+                       same_diagnostic(a.diagnostics[1], b.diagnostics[1]),
+                   "Height frame: complete raw diagnostic events for both sources");
+    check_matrix(a.position_delta_n, b.position_delta_n);
+    check_matrix(a.velocity_delta_n, b.velocity_delta_n);
     __ESBMC_assert(a.status == b.status && a.fused == b.fused && a.rejected == b.rejected &&
                        a.height_resets == b.height_resets && a.velocity_resets == b.velocity_resets,
                    "Height frame: status and complete event/reset counts");

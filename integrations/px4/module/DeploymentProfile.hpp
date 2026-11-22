@@ -271,4 +271,36 @@ template <typename Scalar> constexpr runtime::BiasLimits<Scalar> bias_limits()
             static_cast<Scalar>(ESKF_CFG_GYRO_BIAS_LIMIT)}; // m/s^2, rad/s.
 }
 
+template <typename Height> typename Height::Parameters height_parameters()
+{
+    using Scalar = typename Height::value_type;
+    typename Height::Parameters result;
+    result.minimum_quaternion_norm = static_cast<Scalar>(minimum_quaternion_norm);
+    result.bias_limits = bias_limits<Scalar>();
+    result.fusion_timeout_us = height::fusion_timeout_us;
+    result.minimum_altitude_m = static_cast<Scalar>(height::minimum_altitude_m);
+    result.maximum_altitude_m = static_cast<Scalar>(height::maximum_altitude_m);
+    result.barometer_timeout_us = height::barometer_timeout_us;
+    result.gnss_timeout_us = height::gnss_timeout_us;
+    result.barometer_maximum_age_us = height::barometer_maximum_age_us;
+    result.gnss_maximum_age_us = height::gnss_maximum_age_us;
+    result.barometer_lpf_gain = static_cast<Scalar>(height::barometer_lpf_gain);
+    result.barometer_warmup_samples = height::barometer_warmup_samples;
+    result.reset_velocity_variance = static_cast<Scalar>(height::reset_velocity_variance);
+    result.maximum_aided_gnss_variance = static_cast<Scalar>(height::maximum_aided_gnss_variance);
+    result.ground_effect_deadzone_m = static_cast<Scalar>(height::ground_effect_deadzone_m);
+    result.gate_sigma = static_cast<Scalar>(height::gate_sigma);
+    result.bias.initial_maximum_variance = static_cast<Scalar>(height_bias::initial_maximum_variance);
+    result.bias.initial_interval_s = static_cast<Scalar>(height_bias::initial_interval_s);
+    result.bias.offset_ratio = static_cast<Scalar>(height_bias::offset_ratio);
+    result.bias.offset_duration_s = static_cast<Scalar>(height_bias::offset_duration_s);
+    result.bias.process_variance_density = static_cast<Scalar>(height_bias::process_variance_density);
+    result.bias.offset_variance_multiplier = static_cast<Scalar>(height_bias::offset_variance_multiplier);
+    result.bias.minimum_variance = static_cast<Scalar>(height_bias::minimum_variance);
+    result.bias.measurement_variance_floor = static_cast<Scalar>(height_bias::measurement_variance_floor);
+    result.bias.gate_squared = static_cast<Scalar>(height_bias::gate_squared);
+    result.bias.ratio_filter_time_s = static_cast<Scalar>(height_bias::ratio_filter_time_s);
+    return result;
+}
+
 } /* end namespace formal_eskf::px4::profile */

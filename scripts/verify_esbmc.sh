@@ -1847,8 +1847,8 @@ run_height_suite()
     done
 }
 
-# Whole-owner contracts keep both sessions and the full INS covariance. The
-# separately checked reporting producer supplies only its typed field contract.
+# Whole-owner contracts keep both sessions, raw diagnostic events and the full
+# INS covariance. Platform reporting remains a separate producer/caller boundary.
 run_height_owner_suite()
 {
     local BINARY64 SOURCE KIND

@@ -4,170 +4,77 @@
 
 **Status:** Draft
 
-**Applies to:** Single-owner PX4 INS module; active deployment profile and stated dependencies apply.
+**Applies to:** Single-owner PX4 INS module and its active deployment profile.
 
 **Parent:** [SW-PX4](../../software/px4-estimation.md).
 
-**Uses:** [R-GNSS-VERTICAL-RECOVERY](../../runtime/gnss/vertical-recovery.md), [R-GNSS-RESET](../../runtime/gnss/reset.md), [PX4-CONFIG](configuration.md).
+**Uses:** [R-HEIGHT-AIDING](../../runtime/height-aiding.md),
+[R-GNSS-VERTICAL-RECOVERY](../../runtime/gnss/vertical-recovery.md),
+[PX4-CONFIG](configuration.md).
 
 ## Required behavior
 
-`integrations/px4/module/HeightAiding.hpp` owns the two-source deployment policy;
-its `HeightBias` type holds separate scalar sensor offsets, outside the 15-state INS.
-The module supplies calibrated MSL altitude (GNSS compensated to the IMU under
-`R-PX4-SENSOR-POSITIONS`), source identity, qualified GNSS,
-ordered IMU time and velocity-aiding activity. The helper returns applied reset
-counts/deltas; the module owns and publishes accumulated reset history only
-after the height transaction succeeds. uORB, clocks and estimator ownership
-remain in the module. No numerical-core equations or state dimensions change.
-The caller retains the core's finite-state, unit-quaternion and symmetric-PSD
-covariance preconditions; this helper does not prove or recheck positive semidefiniteness.
+The adapter shall bind the portable two-source height owner to the existing
+GNSS-preferred deployment. Supply calibrated MSL altitude, GNSS compensated to
+the IMU under [R-PX4-SENSOR-POSITIONS](sensor-positions.md), qualified source
+identity, historical context, selected delayed epoch, velocity-aiding activity
+and pre-height acceleration health. The live module shall supply geographic
+frame/datum geometry; the standalone flat-height path is not the live conversion.
 
-- Use the pinned v1.16.2 public defaults: GNSS is preferred height reference,
-  barometer is enabled, barometer standard deviation 3.5 m, GNSS standard deviation
-  `max(epv, 0.75 m)` capped at 10 m when barometer is active, and 5-sigma height gates.
-  Process barometer before GNSS, after horizontal/velocity operations. These are
-  deployment defaults for the configurable noise/gate values; source preference
-  and processing order are fixed. No live `EKF2_*` parameters are read.
-- Define each offset as `b = z_h - h`, where h is estimated MSL altitude.
-  The live geometric path obtains h through ECEF/geodetic conversion and the
-  admitted datum, following R-FRAME-OBSERVATIONS. Observe negative altitude with
-  residual `h - (z_h - b)`, the local geodetic Down row as position Jacobian,
-  and variance `R + P_b`. Bias training uses projected height variance `H P H^T`.
-  Standalone flat-frame callers without geometry retain `h = origin_altitude - p_D`
-  and the original selector Jacobian; the live module always supplies geometry.
-  Freeze the current observation at the prior offset before training the offset
-  for subsequent samples. Only active non-reference sources predict/learn their
-  offset; the current reference's offset and variance remain frozen.
-- Offset estimation uses a scalar Kalman update with a strict 3-sigma gate,
-  0.13 m/sqrt(s) process noise density; prediction and accepted updates constrain
-  variance between `1e-8` and `max(R, 1e-4)` m². Persistent signed innovations increase process variance by
-  1000: signed-ratio LPF magnitude >0.2 or a one-sided sequence >10 s, with a 10 s
-  LPF time constant. Prediction and sequence monitoring use the estimator tick
-  interval; their cadence is not a claim of bit-identical EKF2 bias evolution.
-- Start GNSS only with caller-qualified, finite data; start barometer after more
-  than 20 finite samples, with a reset-only altitude LPF (alpha 0.1). These fixed
-  warmup/LPF values follow the reference's 200 ms / 10 ms / 90 ms defaults;
-  warmup counts selected events, not arrivals or elapsed wall time. Queue admission
-  and selection follow `PX4-TIME-LIVE`. Source, calibration or generation changes
-  stop that session and clear its offset history; barometer also clears its fault
-  latch and repeats warmup.
-  Altitude must lie strictly between -12000 and 100000 m, with finite positive
-  measurement variance. An invalid initial GNSS altitude delays module startup
-  instead of latching a numerical-core fault.
-- GNSS start/re-entry resets height/P to its raw qualified altitude, selects GNSS
-  as reference and zeroes its offset. Secondary barometer start aligns its offset
-  to the current estimate without resetting navigation. Track session startup
-  grace separately from actual successful fusion/reset progress. An invalid or
-  unqualified observation stops only that source; it cannot claim fusion success.
-- Missing-data deadlines default to 400 ms for barometer and 1 s for GNSS, equality
-  expired. The helper retains its sample-age checks (200/500 ms); the live adapter
-  applies the stricter `PX4-TIME-LIVE` admission and selection limits first.
-  Future buffered samples wait; duplicate/stale samples cannot refresh progress. When the reference
-  stops, select an active GNSS source, otherwise active barometer, otherwise none.
-  Fallback selection alone changes no state/P or reset counter.
-- After the current height attempt, a source whose progress exceeds the configured
-  fusion timeout (default 5 s) stops
-  if it cannot reset. A failed barometer is fault-latched when another height
-  source still has recent progress; ordinary good samples do not clear that latch.
-  A reset is required if all height progress exceeds that timeout OR available health has
-  no last-good acceleration or that last-good time is strictly >500 ms old.
-  This predicate is shared with `GnssFusion::VerticalAccelerationTimes`; it is
-  independent of the 3 s held fault. Height consumes current pre-height health;
-  velocity consumes preceding health. Successful bounded fusion may refresh
-  progress but cannot cancel the independent acceleration reset. Unavailable
-  health alone cannot request reset. Future/inconsistent health times are rejected.
-  Only the current reference with a fresh, qualified sample may reset height:
-  GNSS uses raw altitude; barometer uses its filtered altitude minus offset. An outage without data cannot authorize a reset.
-- A real height reset preserves origin coordinates, decorrelates Down position
-  using the existing checked reset primitive and transports every sensor offset
-  by the applied Down delta. Barometer also resets only Down velocity to zero,
-  variance 10 (m/s)², when no velocity-aiding session is active. With active GNSS
-  velocity, the module uses preceding health and shared height progress for its
-  checked Down-only reset after the normal velocity attempt. A Down-only reset
-  retains that attempt's diagnostics; a full velocity reset clears its innovation.
-  Down is the declared observation vertical, not necessarily working Z. The
-  geometric reset moves along the estimated point's ellipsoid normal, transports
-  full P through that basis and returns reset-only working p/v deltas. Preserve
-  horizontal coordinates in that observation basis. The module computes actual
-  consumer-frame deltas; a changed output geographic basis can also require a
-  velocity/attitude reset notification. An internal coordinate-only event never
-  changes those counters.
-- Commit the height tick's state/P, history and counters only if all numerical
-  operations succeed. Rejection can update diagnostics/lifecycle but cannot act
-  as successful correction. Preserve raw gate evidence after a timeout reset;
-  reset metadata is separate. Publish applied Down/altitude deltas with opposite
-  signs and matching local/global/status counters, plus aggregate odometry reset
-  count. Accumulate multiple reset deltas within a tick. Height validity lasts
-  through the configured fusion timeout after actual height fusion/reset
-  (default 5 s, equality allowed), separately from session activity.
+Process height after GNSS velocity/horizontal operations and before gravity and
+magnetic aiding, as specified in [PX4-TIME-LIVE](delayed-fusion.md#r-px4-delayed-fusion-live-module-timeline). Apply that
+boundary's stricter admission/selection limits before the owner's retained age
+checks. Invalid initial altitude delays startup rather than latching a core fault.
 
-This profile covers GNSS and barometer with a fixed GNSS preference, including
-the bounded IMU-fault innovation exception and independent reset timing.
-[R-PX4-BARO-GROUND-EFFECT](barometer-ground-effect.md) owns the ground-effect extension; delayed/current timeline binding
-belongs to `R-PX4-DELAYED-FUSION`. GNSS lever-arm compensation belongs to the
-module input boundary, not this height manager. Dynamic-pressure correction,
-barometer lever arms, range/vision height and configurable reference selection
-remain outside this profile. Native/backend tests and closed-loop
-SITL are empirical evidence. `HeightBias.lean` proves the real scalar gain,
-unclamped posterior covariance (including Joseph equivalence), residual
-contraction and offset transport before source-specific re-alignment. It does
-not assert that the C++ variance floor always decreases variance.
+The profile shall retain these existing defaults; configurable values remain
+bound through `DeploymentProfile`/`DeploymentConfig`, not live `EKF2_*` reads:
 
-The existing `height` ESBMC evidence predates the optional geometric interface
-and added vector reset reports. It must be refreshed before it can cover the
-changed owner; native equivalence/rollback tests are not that refresh. The
-geometric path has no ESBMC claim in this functional round.
+| Setting | Default |
+|---|---|
+| Enabled sources / reference preference | Barometer and GNSS / GNSS |
+| Barometer noise / GNSS noise | 3.5 m / `max(epv, 0.75 m)`; GNSS capped at 10 m while barometer is active |
+| Height gate / fusion timeout | 5 sigma / 5 s |
+| Barometer / GNSS missing-data timeout | 400 ms / 1 s; equality expired |
+| Owner barometer / GNSS maximum sample age | 200 ms / 500 ms; strict upper bound |
+| Admissible altitude | Strictly between -12000 and 100000 m |
+| Barometer warmup / LPF | More than 20 selected valid events / gain 0.1 |
+| Recovery Down-velocity variance | 10 (m/s)² |
+| Bias initial ceiling / interval | 2 m² / 0.01 s |
+| Bias process density / variance floor / measurement floor | `(0.13)²` m²/s / `1e-8` m² / `1e-4` m² |
+| Bias gate / persistent-offset multiplier | 3 sigma / 1000 |
+| Bias signed-ratio threshold / one-sided time / LPF time | 0.2 / 10 s / 10 s |
 
-The `height` ESBMC suite checks actual scalar-offset equations and field frames,
-explicit defaults, finite classification, both sources' admission/stop behavior
-and read-only timeout/innovation queries. The actual barometer filter/warmup
-producer preserves its full field frame and saturates the counter at 21; a
-separate IEEE lemma proves the admitted LPF remains within ±131072 m from a
-prior within that bound. This bound is a verification invariant, not a new
-operational altitude limit. Source branches and both scalar formats
-are covered separately. The producer checks include reporting-field frames,
-report reset on source changes, and conditional preservation of the owner time
-and bias domains. The reporting helper has an independent IEEE double oracle.
-Bias prediction admits finite nonnegative variance and non-finite scratch;
-finite-result variance bounds retain the finite ceiling and interval premises.
-The owner profiles check these premises at the actual call sites, source order,
-prior-offset observation construction, reset/recovery authority, full field
-frames and the public transaction's publication/rollback. Construction and
-transition preservation establish the chronological/control domain, including
-reference activity, bounded filtering and finite nonnegative bias intervals.
-Both read-only sample arguments may share storage. Numerical producer outcomes
-remain arbitrary, including failure and non-finite scratch; acceptance requires
-the matching actual producers and core transaction dependencies.
+The warmup/LPF binding follows the pinned PX4 v1.16.2 200 ms / 10 ms / 90 ms
+reference defaults, but counts selected events rather than arrivals or wall time.
+Bias prediction uses the estimator tick; this is not a bit-identical EKF2 bias claim.
+The independent acceleration reset predicate remains owned by
+R-GNSS-VERTICAL-RECOVERY, separately from the held fault duration.
 
-The scoped standard-library models preserve min/max reference selection,
-bounded `any_of`, and the two sessions' value construction/copy/index/iteration
-semantics. A pinned verification adapter exposes conditional sample borrowing
-through explicit reference returns and the reporting update through its original
-declaration; all other production bodies and fields remain unchanged. The
-[verification guide](../../../../guides/verification.md#height-aiding) defines
-qualification, composition and evidence requirements. Source/model correspondence
-is reviewed, not an automated refinement proof or a target STL/ABI claim.
+PX4 reporting history shall remain in the adapter. After successful height update,
+apply each source's raw events in clear → measurement → reset order using the
+existing `InnovationRatio` filter. A failed transaction shall not change reports.
+Clear reporting history after successful owner initialization, including a startup
+retry. Apply events before later output-reset handling so a downstream fault does
+not retroactively undo an already committed height tick.
 
-Actual module/replay ordering/publication, numerical covariance invariants and
-floating-point error bounds remain separate obligations. Bias estimates are not
-independent altitude truth or a proof of physical sensor health.
+The adapter shall accumulate real reset reports, convert them to actual consumer
+axes and publish matching local/global/status and odometry counters. Down/altitude
+deltas have opposite signs. A changed consumer basis may also require velocity or
+attitude reset notification. Internal coordinate events do not change real-reset
+counters. Height validity, source activity and raw gate validity remain distinct.
 
-## Caller bindings
+Ground effect follows [R-PX4-BARO-GROUND-EFFECT](barometer-ground-effect.md).
+Velocity uses preceding health and shared height progress for its separate checked
+Down-only recovery, retaining that attempt's diagnostics; full velocity reset
+clears its innovation. Numerical quality rejection does not grant correction or
+reset authority. Dynamic-pressure correction, barometer lever arms, range/vision
+height and configurable reference preference remain outside this binding.
 
-- PX4 module barometer ground effect: [R-PX4-BARO-GROUND-EFFECT](barometer-ground-effect.md).
+## Acceptance and verification
 
-## Vertical innovation recovery binding
-
-The PX4 module connects the checked velocity/height entry points under
-[R-GNSS-VERTICAL-RECOVERY](../../runtime/gnss/vertical-recovery.md).
-Velocity consumes the preceding detector verdict and receiver-reported speed
-accuracy; quality/lifecycle failure never grants fusion or reset. A numerically
-valid quality-rejected sample from a still-active velocity source updates only
-the gate/health diagnostics, not state/P or progress. Invalid metadata clears
-that cache. Both GNSS and barometer convert their qualified altitude/offset
-observations to scalar NED Down before using the existing bounded-height path.
-The shared `fuse_height` entry point contains no receiver policy. No horizontal
-position exception is added. Raw test ratios remain visible even after a limited
-fusion; health consumes the selected innovation with the core-to-monitor sign
-conversion. Last-good timing separately drives the height-recovery rule above.
+Require the portable owner's scoped evidence plus adapter checks for selected
+sample/context/geometry, phase order, startup retries, diagnostic filtering,
+real-reset counters and partial-cycle failures. Compare complete PX4 fixture
+outputs against the same numerical/configuration baseline. Native/SITL evidence
+is empirical; it does not complete the geometric owner's ESBMC gap or establish
+physical sensor validity, target WCET or flight qualification.

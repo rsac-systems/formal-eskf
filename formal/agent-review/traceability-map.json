@@ -4962,11 +4962,11 @@
             "symbol": "void FormalEskf::fuse_gps("
           },
           {
-            "file": "integrations/px4/module/HeightAiding.hpp",
+            "file": "include/formal_eskf/runtime/sensors/height/height_aiding.hpp",
             "symbol": "vertical_innovation(Source source)"
           },
           {
-            "file": "integrations/px4/module/HeightAiding.hpp",
+            "file": "include/formal_eskf/runtime/sensors/height/height_aiding.hpp",
             "symbol": "HeightAiding<Linalg>::update("
           },
           {
@@ -5267,7 +5267,7 @@
             "symbol": "bool FormalEskf::record_gps_fusion("
           },
           {
-            "file": "integrations/px4/module/HeightAiding.hpp",
+            "file": "include/formal_eskf/runtime/sensors/height/height_aiding.hpp",
             "symbol": "void HeightAiding<Linalg>::process("
           },
           {
@@ -5446,7 +5446,7 @@
             "symbol": "void FormalEskf::fuse_gps("
           },
           {
-            "file": "integrations/px4/module/HeightAiding.hpp",
+            "file": "include/formal_eskf/runtime/sensors/height/height_aiding.hpp",
             "symbol": "void HeightAiding<Linalg>::process("
           },
           {
@@ -5819,9 +5819,13 @@
     },
     {
       "id": "R-HEIGHT-FUSION",
-      "title": "PX4 GNSS/barometer height management; geometric owner changes need formal evidence refresh",
+      "title": "Portable height aiding and PX4 binding; process-owner revalidation and geometric proof remain open",
       "references": {
         "spec": [
+          {
+            "file": "docs/spec/requirements/runtime/height-aiding.md",
+            "symbol": "# R-HEIGHT-AIDING: Two-source altitude coordination"
+          },
           {
             "file": "docs/spec/requirements/integration/px4/height-fusion.md",
             "symbol": "# R-HEIGHT-FUSION: PX4 GNSS/barometer height management"
@@ -5863,11 +5867,11 @@
         ],
         "cpp": [
           {
-            "file": "integrations/px4/module/HeightAiding.hpp",
+            "file": "include/formal_eskf/runtime/sensors/height/height_aiding.hpp",
             "symbol": "class HeightAiding"
           },
           {
-            "file": "integrations/px4/module/HeightAiding.hpp",
+            "file": "include/formal_eskf/runtime/sensors/height/height_aiding.hpp",
             "symbol": "struct HeightBias"
           },
           {
@@ -5917,6 +5921,18 @@
           {
             "file": "integrations/px4/module/InnovationRatio.hpp",
             "symbol": "struct InnovationRatio"
+          },
+          {
+            "file": "include/formal_eskf/runtime/sensors/height/height_aiding.hpp",
+            "symbol": "struct HeightParameters"
+          },
+          {
+            "file": "include/formal_eskf/runtime/sensors/height/height_aiding.hpp",
+            "symbol": "struct DiagnosticUpdate"
+          },
+          {
+            "file": "include/formal_eskf/runtime/sensors/height/height_aiding.hpp",
+            "symbol": "bool HeightAiding<Linalg>::valid_parameters() const"
           }
         ],
         "esbmc": [
@@ -6896,8 +6912,8 @@
             "symbol": "struct InnovationRatio"
           },
           {
-            "file": "integrations/px4/module/HeightAiding.hpp",
-            "symbol": "aid.ratio.update("
+            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
+            "symbol": "ratio.update(event.time_us"
           },
           {
             "file": "integrations/px4/module/FormalEskfAttitude.cpp",

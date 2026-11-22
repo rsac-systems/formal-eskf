@@ -1291,14 +1291,7 @@ with tempfile.TemporaryDirectory(prefix='formal-eskf-height-source-') as TEMP:
     END = HEIGHT.index('    static constexpr std::size_t index(', START)
     RESTORED = (HEIGHT[:START] + HEIGHT[END:]).replace(
         'selected_sample(source, barometer, gnss)', 'source == Source::barometer ? barometer : gnss')
-    assert RESTORED == ORIGINALS['integrations/px4/module/HeightAiding.hpp']
-    REPORT = (OUTPUT / 'InnovationRatio.hpp').read_text()
-    ORIGINAL = ORIGINALS['integrations/px4/module/InnovationRatio.hpp']
-    PREFIX = ORIGINAL[:ORIGINAL.index('    void update(')]
-    SUFFIX = ORIGINAL[ORIGINAL.index('    void reset('):]
-    assert REPORT.startswith(PREFIX) and REPORT.endswith(SUFFIX)
-    assert REPORT[len(PREFIX):-len(SUFFIX)].strip() == (
-        'void update(std::uint64_t sample_time_us, double innovation, double ratio);')
+    assert RESTORED == ORIGINALS['include/formal_eskf/runtime/sensors/height/height_aiding.hpp']
     for NAME in MODULE.PINS:
         TARGET = FIXTURE / NAME
         TARGET.write_text(ORIGINALS[NAME] + '\n// changed source\n')

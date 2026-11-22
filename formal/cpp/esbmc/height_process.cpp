@@ -17,6 +17,7 @@ static_assert(FORMAL_ESKF_PROOF_HEIGHT_SOURCE == 0 || FORMAL_ESKF_PROOF_HEIGHT_S
 // These fields are outside every summarized producer's write footprint.
 void retain_constants(Manager & candidate, Manager const & original)
 {
+    candidate.m_parameters = original.m_parameters;
     candidate.m_origin_altitude = original.m_origin_altitude;
     candidate.m_started = original.m_started;
     candidate.m_tick = original.m_tick;
@@ -24,12 +25,12 @@ void retain_constants(Manager & candidate, Manager const & original)
 
 struct Management
 {
-    Manager manager;
+    Manager manager{height_proof::parameters()};
     Result result;
 };
 struct Phase
 {
-    Manager manager;
+    Manager manager{height_proof::parameters()};
     State state;
     Covariance covariance;
     Result result;
@@ -40,11 +41,11 @@ struct Calls
     inline static Management const * prepared = nullptr;
     inline static Phase const * reset = nullptr;
     inline static Phase const * recovered = nullptr;
-    inline static Manager before_recovery{};
+    inline static Manager before_recovery{height_proof::parameters()};
     inline static Result recovery_result{};
     inline static State const * recovery_state = nullptr;
     inline static Covariance const * recovery_covariance = nullptr;
-    inline static Manager initial{}, ready{};
+    inline static Manager initial{height_proof::parameters()}, ready{height_proof::parameters()};
     inline static Result initial_result{}, ready_result{};
     inline static Sample sample{};
     inline static State prior{}, fused{}, limited{};
@@ -57,37 +58,15 @@ struct Calls
     inline static Scalar variance{}, observation{}, observation_variance{};
     inline static Status limit_status{};
     inline static bool admit{}, prepare{}, velocity{}, ground{};
-    inline static unsigned admissions{}, preparations{}, biases{}, resets{}, fusions{}, limits{}, recoveries{},
-        reports{};
-    inline static double reported{};
+    inline static unsigned admissions{}, preparations{}, biases{}, resets{}, fusions{}, limits{}, recoveries{};
 };
 } // namespace height_process_proof
 
 // Each summary is a separate producer boundary: admission/filter, bias equation,
 // reset/recovery, numerical fusion and bias limiting. Arbitrary outputs retain
 // failure paths. This file proves their actual process() caller, not the producer.
-namespace formal_eskf::px4
+namespace formal_eskf::runtime
 {
-inline void InnovationRatio::update(std::uint64_t time, double innovation, double ratio)
-{
-    using namespace height_process_proof;
-    auto const & prior = Calls::ready.m_sessions[FORMAL_ESKF_PROOF_HEIGHT_SOURCE].ratio;
-    auto const & fusion = Calls::measurement.fusion;
-    double const expected_innovation = -fusion.innovation(0U);
-    double const expected_ratio = fusion.diagnostics_valid ? double(fusion.test_ratio(0U)) : double(NAN);
-    auto same_double = [](double a, double b)
-    {
-        return (__builtin_bit_cast(std::uint64_t, a) == __builtin_bit_cast(std::uint64_t, b)) |
-               (std::isnan(a) & std::isnan(b));
-    };
-    __ESBMC_assert(Calls::reports++ == 0U && time == Calls::sample.time_us && same_ratio(*this, prior) &&
-                       same_double(innovation, expected_innovation) && same_double(ratio, expected_ratio),
-                   "Height process: reporting receives its original history and exact raw gate diagnostics");
-    // The actual reporting producer establishes its supplied epoch and modifies
-    // only these fields. Every IEEE result remains admitted at this boundary.
-    time_us = time;
-    filtered = Calls::reported;
-}
 template <>
 inline bool HeightAiding<height_process_proof::Backend>::admit(Source selected, std::uint64_t now,
                                                                Sample const & sample, Result & result)
@@ -111,17 +90,25 @@ inline bool HeightAiding<height_process_proof::Backend>::prepare_barometer(Sampl
                        same(altitude, Calls::admitted->manager.m_origin_altitude - Calls::prior.p_n(2U)),
                    "Height process: barometer warmup uses the original state altitude after admission");
     check_manager(*this, Calls::admitted->manager);
-    check_result(result, Calls::admitted->result);
+    auto expected_result = Calls::admitted->result;
+    expected_result.status = Status::success;
+    check_result(result, expected_result);
     *this = Calls::prepared->manager;
     result = Calls::prepared->result;
     return Calls::prepare;
 }
 template <>
-inline void HeightBias<height_process_proof::Scalar>::fuse(height_process_proof::Scalar measurement,
-                                                           height_process_proof::Scalar noise,
-                                                           height_process_proof::Scalar sensor)
+inline void
+HeightBias<height_process_proof::Scalar>::fuse(height_process_proof::Scalar measurement,
+                                               height_process_proof::Scalar noise, height_process_proof::Scalar sensor,
+                                               HeightBiasParameters<height_process_proof::Scalar> const & parameters)
 {
     using namespace height_process_proof;
+    auto expected_parameters = height_proof::parameters();
+    auto supplied_parameters = expected_parameters;
+    supplied_parameters.bias = parameters;
+    __ESBMC_assert(same_parameters(supplied_parameters, expected_parameters),
+                   "Height process: bias learning receives complete configured settings");
     auto const & ready = Calls::ready;
     auto const & aid = ready.m_sessions[FORMAL_ESKF_PROOF_HEIGHT_SOURCE];
     __ESBMC_assert(Calls::biases++ == 0U && aid.active && ready.m_reference != source && same_bias(*this, aid.bias) &&
@@ -138,9 +125,10 @@ template <>
 inline void HeightAiding<height_process_proof::Backend>::reset_height(Source selected, std::uint64_t now,
                                                                       value_type altitude, value_type variance,
                                                                       state_type & state, covariance_type & P,
-                                                                      Result & result)
+                                                                      Result & result, Geometry const * geometry)
 {
     using namespace height_process_proof;
+    __ESBMC_assert(geometry == nullptr, "Height process: flat reset binding");
     check_state(state, Calls::prior);
     check_matrix(P, Calls::covariance);
     __ESBMC_assert(
@@ -158,9 +146,11 @@ template <>
 inline void HeightAiding<height_process_proof::Backend>::recover(Source selected, std::uint64_t now,
                                                                  Sample const & sample, value_type variance,
                                                                  bool velocity, state_type & state, covariance_type & P,
-                                                                 Result & result, Acceleration const & acceleration)
+                                                                 Result & result, Acceleration const & acceleration,
+                                                                 Geometry const * geometry)
 {
     using namespace height_process_proof;
+    __ESBMC_assert(geometry == nullptr, "Height process: flat recovery binding");
     auto const & expected = Calls::before_recovery;
     __ESBMC_assert(Calls::recoveries++ == 0U && selected == source && now == Calls::now &&
                        same_sample(sample, Calls::sample) && same(variance, Calls::variance) &&
@@ -177,7 +167,7 @@ inline void HeightAiding<height_process_proof::Backend>::recover(Source selected
     P = Calls::recovered->covariance;
     result = Calls::recovered->result;
 }
-} // namespace formal_eskf::px4
+} // namespace formal_eskf::runtime
 
 namespace formal_eskf::runtime
 {
@@ -226,8 +216,9 @@ void verify_height_process(Manager owner, State state, Covariance P, Sample samp
                            Permissions permissions, Acceleration acceleration, bool velocity, bool ground,
                            Management admitted, Management prepared, Phase reset, Phase recovered,
                            Measurement measurement, State fused, Covariance fused_P, State limited, Status limit_status,
-                           Bias bias, bool admit, bool prepare, double reported)
+                           Bias bias, bool admit, bool prepare)
 {
+    height_proof::bind_parameters(owner);
     // The independently checked admission producer establishes this on true.
     __ESBMC_assume(!admit || (sample.time_us != 0U && sample.time_us <= now && altitude_valid(sample.altitude) &&
                               std::isfinite(sample.variance) && sample.variance > Scalar{0}));
@@ -268,18 +259,27 @@ void verify_height_process(Manager owner, State state, Covariance P, Sample samp
     Calls::limit_status = limit_status;
     Calls::bias = bias;
     Calls::admissions = Calls::preparations = Calls::biases = Calls::resets = Calls::fusions = Calls::limits =
-        Calls::recoveries = Calls::reports = 0U;
-    Calls::reported = reported;
+        Calls::recoveries = 0U;
     Manager expected = admitted.manager;
     Result expected_result = admitted.result;
     State const * expected_state = &Calls::prior;
     Covariance const * expected_covariance = &Calls::covariance;
-    if (admit && barometer)
+    Scalar const altitude = admitted.manager.m_origin_altitude - state.p_n(2);
+    bool const height_finite = std::isfinite(altitude);
+    bool const variance_finite = std::isfinite(P(2, 2));
+    bool const observation_ok = height_finite && variance_finite && P(2, 2) >= Scalar{0};
+    if (admit)
+    {
+        expected_result.status = !height_finite || !variance_finite ? Status::non_finite_result
+                                 : P(2, 2) < Scalar{0}              ? Status::domain_error
+                                                                    : Status::success;
+    }
+    if (admit && observation_ok && barometer)
     {
         expected = prepared.manager;
         expected_result = prepared.result;
     }
-    bool const ready = admit && (!barometer || prepare);
+    bool const ready = admit && observation_ok && (!barometer || prepare);
     Calls::ready = expected;
     Calls::ready_result = expected_result;
     auto & aid = expected.m_sessions[FORMAL_ESKF_PROOF_HEIGHT_SOURCE];
@@ -309,7 +309,7 @@ void verify_height_process(Manager owner, State state, Covariance P, Sample samp
             expected_covariance = &reset.covariance;
             if (reset.result.status == Status::success)
             {
-                aid.bias = {};
+                aid.bias = Bias{height_proof::parameters().bias};
                 expected.m_reference = source;
             }
         }
@@ -328,8 +328,12 @@ void verify_height_process(Manager owner, State state, Covariance P, Sample samp
     {
         aid.fusion_reset = false;
         aid.fusion = measurement.fusion;
-        aid.ratio.time_us = sample.time_us;
-        aid.ratio.filtered = reported;
+        auto & diagnostic = expected_result.diagnostics[FORMAL_ESKF_PROOF_HEIGHT_SOURCE];
+        diagnostic.time_us = sample.time_us;
+        diagnostic.innovation = -measurement.fusion.innovation(0);
+        diagnostic.test_ratio = measurement.fusion.test_ratio(0);
+        diagnostic.valid = measurement.fusion.diagnostics_valid;
+        diagnostic.measurement = true;
         aid.fusion_innovation = measurement.fusion_innovation(0U);
         aid.innovation_limited = measurement.innovation_limited;
         expected_result.status = aid.fusion.status;
@@ -354,12 +358,12 @@ void verify_height_process(Manager owner, State state, Covariance P, Sample samp
         Calls::recovery_state = expected_state;
         Calls::recovery_covariance = expected_covariance;
     }
-    owner.process(source, now, sample, velocity, state, P, result, permissions, acceleration, ground);
-    __ESBMC_assert(Calls::admissions == 1U && Calls::preparations == static_cast<unsigned>(admit && barometer) &&
+    owner.process(source, now, sample, velocity, state, P, result, permissions, acceleration, ground, nullptr);
+    __ESBMC_assert(Calls::admissions == 1U &&
+                       Calls::preparations == static_cast<unsigned>(admit && observation_ok && barometer) &&
                        Calls::biases == static_cast<unsigned>(learn) &&
                        Calls::resets == static_cast<unsigned>(start && !barometer) &&
-                       Calls::fusions == static_cast<unsigned>(fuse) && Calls::reports == static_cast<unsigned>(fuse) &&
-                       Calls::limits == static_cast<unsigned>(limit) &&
+                       Calls::fusions == static_cast<unsigned>(fuse) && Calls::limits == static_cast<unsigned>(limit) &&
                        Calls::recoveries == static_cast<unsigned>(recover),
                    "Height process: exact startup, nonreference bias, fusion, limiting and recovery eligibility");
     if (recover)
