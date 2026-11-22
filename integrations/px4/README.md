@@ -186,10 +186,13 @@ The live module owns separate working and fixed publication frames. GNSS
 position/velocity are fused in receiver geographic axes; height uses the held
 ellipsoid/MSL datum. Publication keeps the fixed PX4 map/MSL reference and reports
 velocity/attitude in geographic NED at the current body point. Internal frame
-events preserve that output and reset history. The explicit production-fixture
-request exercises the delayed transaction; automatic selection is not yet enabled.
+events preserve that output and reset history. Automatic selection is enabled
+after completed delayed fusion: 1 km displacement or 0.05-degree full-axis change,
+with 1 s dwell/retry intervals. The 2 km/0.10-degree working limits and datum/
+geographic constraints control navigation validity.
 See [origin migration](../../docs/spec/requirements/integration/px4/origin-rebasing.md)
-for the transaction and remaining profile qualification.
+and its [profile](../../docs/spec/profiles/px4-origin-rebasing.md) for the transaction,
+remaining target qualification and explicit differences from PX4 geographic dynamics.
 
 Current attitude/navigation timestamps identify latest IMU output; estimator
 status/bias and covariance diagnostics identify delayed main state. Navigation

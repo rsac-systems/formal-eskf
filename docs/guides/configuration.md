@@ -289,3 +289,10 @@ configuration tests check that menu symbols reach production consumers.
 Use the source declarations for exhaustive values rather than a second copied
 profile table. Replay macros remain in `examples/replay_ins.cpp` and are not
 controlled by the PX4 menu.
+
+The [Cartesian origin profile](../spec/profiles/px4-origin-rebasing.md) is enabled
+in the live PX4 module. Its displacement/axis, dwell/retry, datum and geographic
+limits are fixed typed values in `DeploymentProfile.hpp`, like the admitted
+history envelope. They are not unrestricted menu tuning controls: changing them
+requires reassessing that profile and its boundary/resource evidence. Replay
+continues to use explicit events rather than inheriting this deployment policy.

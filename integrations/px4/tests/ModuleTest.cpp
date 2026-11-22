@@ -220,8 +220,8 @@ public:
         gps.device_id = m_gps_device;
         gps.fix_type = 3U;
         gps.satellites_used = 12U;
-        gps.latitude_deg = 47.397742;
-        gps.longitude_deg = 8.545594;
+        gps.latitude_deg = m_latitude_deg;
+        gps.longitude_deg = m_longitude_deg;
         gps.altitude_msl_m = 488.f;
         gps.altitude_ellipsoid_m = 535.f;
         gps.hdop = 0.7f;
@@ -407,7 +407,7 @@ public:
         f.m_origin.altitude_msl_m = 488.;
         f.m_origin.altitude_ellipsoid_m = 535.;
         expect(formal_eskf::succeeded(f.m_navigation_frame.initialize({47.397742, 8.545594, 535.})) &&
-                   formal_eskf::succeeded(f.m_height_datum.update(clock_us, 535., 488.)),
+                   f.update_height_datum(clock_us, {47.397742, 8.545594, 535.}, 488.),
                "prepare geometric frame and paired height datum");
         f.m_gps.device_id = 201U;
         f.m_gps.latitude_deg = 47.397742;
@@ -1130,7 +1130,7 @@ public:
         filter.m_origin.projection.initReference(47.397742, 8.545594, clock_us);
         filter.m_origin.time_us = clock_us;
         expect(formal_eskf::succeeded(filter.m_navigation_frame.initialize({47.397742, 8.545594, 535.})) &&
-                   formal_eskf::succeeded(filter.m_height_datum.update(clock_us, 535., 488.)),
+                   filter.update_height_datum(clock_us, {47.397742, 8.545594, 535.}, 488.),
                "prepare magnetic geometric frame and datum");
         filter.m_mag_model_origin_time = clock_us;
         filter.m_mag.device_id = 301U;
@@ -2110,6 +2110,7 @@ public:
             f.m_gps.vel_e_m_s = static_cast<float>(gps_velocity(1));
             f.m_gps.vel_d_m_s = static_cast<float>(gps_velocity(2));
             f.m_navigation_frame = {};
+            f.m_height_datum.reset(); // Exercise fresh startup, not a second use of the prepared sample.
             f.m_gps.timestamp_sample = clock_us;
             expect(f.initialize_navigation(imu), "initialize navigation geometry");
             for (std::size_t axis = 0; axis < 3; ++axis)
@@ -2652,7 +2653,7 @@ public:
             f.m_navigation_frame = {};
             expect(formal_eskf::succeeded(f.m_navigation_frame.initialize({0., direction * 179.999, 535.})),
                    "dateline working frame");
-            f.m_state.p_n = FormalEskf::vector3(0., direction * 2000., 0.);
+            f.m_state.p_n = FormalEskf::vector3(0., direction * 1500., 0.);
             expect(f.m_output.apply_reset({}, {}, f.m_state.p_n), "dateline output setup");
             auto const state_before = f.m_state;
             auto const position_counter = f.m_resets.position_count;
@@ -2662,8 +2663,13 @@ public:
             // At the equator this east displacement has an independent atan2 solution.
             auto const point_ecef =
                 oracle_ecef(0., direction * 179.999, 535.) +
-                oracle_ned(0., direction * 179.999).transpose() * matrix::Vector3<double>(0., direction * 2000., 0.);
+                oracle_ned(0., direction * 179.999).transpose() * matrix::Vector3<double>(0., direction * 1500., 0.);
             double const expected_longitude = std::atan2(point_ecef(1), point_ecef(0)) * 180. / std::numbers::pi;
+            formal_eskf::geodesy::GeodeticPosition datum_point;
+            expect(f.m_navigation_frame.geographic(f.m_state.p_n, datum_point) == formal_eskf::Status::success &&
+                       f.update_height_datum(f.m_output.current().time_us, datum_point,
+                                             datum_point.height_ellipsoid_m - 47.),
+                   "dateline navigation uses a nearby admitted height pair");
             auto const lookups = f.m_magnetic_model.lookup_count();
             auto const unavailable = f.m_mag_model_unavailable;
             f.m_mag_model_origin_time = 0; // Request a lookup at the current estimated position.
@@ -2681,7 +2687,7 @@ public:
             orb_copy(ORB_ID(vehicle_local_position), test.m_outputs[1], &local);
             expect(global.lat_lon_valid && global.lon >= -180. && global.lon < 180. &&
                        std::abs(global.lon - expected_longitude) < 1e-7 && local.ref_lon == direction * 179.999 &&
-                       double(local.y) * direction > 1900. && f.m_resets.position_count == position_counter &&
+                       double(local.y) * direction > 1400. && f.m_resets.position_count == position_counter &&
                        same_bits(state_before.p_n, f.m_state.p_n),
                    "global longitude wraps without changing local origin, state or reset history");
         }
@@ -2693,7 +2699,7 @@ public:
         test.warmup(); // Several wraps of both retained IMU/output histories.
         auto & f = test.m_filter;
         f.m_sensor_positions.imu_b = FormalEskf::vector3(0.3, -0.2, 0.1);
-        auto const translation = FormalEskf::vector3(1200., 800., -120.);
+        auto const translation = FormalEskf::vector3(600., 400., -120.);
         f.m_state.p_n = f.m_state.p_n + translation;
         expect(f.m_output.apply_reset({}, {}, translation), "move a physical trajectory before the event");
         // Current output is a different point and epoch from the selected delayed origin.
@@ -2836,6 +2842,224 @@ public:
                "failure at each prepared owner preserves the whole pre-event bundle without faulting completed fusion");
     }
 
+    void move_origin_estimate(FormalEskf::vector3_type const & shift)
+    {
+        auto & f = m_filter;
+        f.m_state.p_n = f.m_state.p_n + shift;
+        expect(f.m_output.apply_reset({}, {}, shift), "move physical estimate for policy scenario");
+        formal_eskf::geodesy::GeodeticPosition geographic;
+        expect(f.m_navigation_frame.geographic(f.m_state.p_n, geographic) == formal_eskf::Status::success,
+               "resolve new receiver point for admitted datum");
+        expect(f.update_height_datum(f.m_output.current().time_us, geographic,
+                                     geographic.height_ellipsoid_m - f.m_height_datum.separation_m()),
+               "accepted paired datum follows the synthetic moving receiver");
+        m_send_gps = false; // Do not introduce an unrelated jump back to the fixture's stationary receiver.
+    }
+
+    static void origin_admission()
+    {
+        FormalEskfModuleTest test;
+        test.warmup();
+        auto & f = test.m_filter;
+        auto const epoch = f.m_output.current().time_us;
+        auto const zero = FormalEskf::vector3(0., 0., 0.);
+        for (auto distance : {999.999, 1000., 2000., 2000.001})
+        {
+            auto const admission = f.frame_admission(FormalEskf::vector3(distance, 0., 0.), zero, epoch);
+            expect(admission.within_domain && admission.request == (distance >= 1000.) &&
+                       admission.within_frame == (distance <= 2000.),
+                   "horizontal soft and hard thresholds have inclusive boundaries");
+        }
+        auto const datum_epoch = f.m_height_datum.time_us();
+        expect(f.frame_admission(zero, zero, datum_epoch + 30000000U).datum_usable &&
+                   !f.frame_admission(zero, zero, datum_epoch + 30000001U).datum_usable &&
+                   !f.frame_admission(zero, zero, datum_epoch - 1).datum_usable,
+               "datum age admits the boundary and rejects stale or future samples");
+        expect(f.frame_admission(zero, FormalEskf::vector3(100., 0., 0.), epoch).within_domain &&
+                   !f.frame_admission(zero, FormalEskf::vector3(100.001, 0., 0.), epoch).within_domain &&
+                   !f.frame_admission(zero, FormalEskf::vector3(NAN, 0., 0.), epoch).within_domain &&
+                   !f.frame_admission(FormalEskf::vector3(NAN, 0., 0.), zero, epoch).within_domain,
+               "speed and invalid geometry cannot qualify navigation");
+        expect(f.frame_admission(FormalEskf::vector3(999., 0., 0.), zero, epoch).datum_usable &&
+                   !f.frame_admission(FormalEskf::vector3(1001., 0., 0.), zero, epoch).datum_usable,
+               "held datum has a physical-distance boundary independent of the moving origin");
+        auto const datum = f.m_height_datum;
+        expect(!f.update_height_datum(epoch + 1, {NAN, 0., 500.}, 450.) &&
+                   f.m_height_datum.time_us() == datum.time_us() && f.frame_admission(zero, zero, epoch).datum_usable,
+               "invalid paired geography preserves both separation and its location");
+        // Independent physical coordinates exercise geography, rather than calling the predicate on invented angles.
+        for (auto height : {-1001., -999., 9999., 10001.})
+        {
+            auto const physical = oracle_ecef(47.397742, 8.545594, height);
+            FormalEskf::vector3_type position;
+            expect(
+                f.m_navigation_frame.working().ecef_to_ned(FormalEskf::vector3(physical(0), physical(1), physical(2)),
+                                                           position) == formal_eskf::Status::success,
+                "height boundary physical point");
+            expect(f.frame_admission(position, zero, epoch).within_domain == (height > -1000. && height < 10000.),
+                   "ellipsoidal height envelope is distinct from MSL altitude");
+        }
+        f.m_navigation_frame = {};
+        expect(f.m_navigation_frame.initialize({85., 0., 535.}) == formal_eskf::Status::success, "high-latitude frame");
+        auto const east = f.frame_admission(FormalEskf::vector3(0., 600., 0.), zero, epoch);
+        auto const far = f.frame_admission(FormalEskf::vector3(0., 1100., 0.), zero, epoch);
+        expect(east.within_domain && east.request && east.within_frame && far.request && !far.within_frame,
+               "full North convergence triggers below one kilometre and enforces its own hard limit");
+        expect(!f.frame_admission(FormalEskf::vector3(100., 0., 0.), zero, epoch).within_domain,
+               "crossing the admitted latitude boundary revokes admission");
+    }
+
+    static void automatic_origin(bool high_latitude)
+    {
+        FormalEskfModuleTest test;
+        if (high_latitude)
+        {
+            test.m_latitude_deg = 85.;
+            test.m_longitude_deg = 179.999;
+        }
+        test.warmup();
+        auto & f = test.m_filter;
+        auto const reference = f.m_origin;
+        auto const shift = high_latitude ? FormalEskf::vector3(0., 600., 0.) : FormalEskf::vector3(1001., 0., 0.);
+        test.move_origin_estimate(shift);
+        test.m_sample.timestamp_sample += 4000;
+        test.tick();
+        expect(!f.m_fault && f.m_navigation_frame.generation() == 1 &&
+                   f.m_origin_control.success_time_us == f.m_time_us && f.output_validity(clock_us).navigation,
+               "production Run automatically rebases at the completed delayed epoch");
+        FormalEskf::Diagnostics diagnostics;
+        expect(f.read_diagnostics(diagnostics) && diagnostics.origin_generation == 1 &&
+                   diagnostics.origin_success_us == f.m_time_us && diagnostics.origin_attempt_us == f.m_time_us,
+               "status snapshot identifies the committed frame and its actual attempt/success epoch");
+        auto const first_time = f.m_origin_control.success_time_us;
+        test.move_origin_estimate(shift);
+        for (unsigned i = 0; i < 249; ++i)
+        {
+            test.m_sample.timestamp_sample += 4000;
+            test.tick();
+        }
+        expect(!f.m_fault && f.m_navigation_frame.generation() == 1,
+               "repeated soft-limit requests do not bypass successful-event dwell");
+        test.m_sample.timestamp_sample += 4000;
+        test.tick();
+        expect(!f.m_fault && f.m_navigation_frame.generation() == 2 &&
+                   f.m_origin_control.success_time_us - first_time == 1000000U &&
+                   f.m_origin.time_us == reference.time_us && f.m_origin.altitude_msl_m == reference.altitude_msl_m,
+               "dwell expires exactly once, with fixed publication reference preserved");
+        auto const generation = f.m_navigation_frame.generation();
+        auto const updates = f.m_gnss.corrections;
+        f.update_origin();
+        expect(f.m_navigation_frame.generation() == generation && f.m_gnss.corrections == updates,
+               "same-epoch policy call neither repeats migration nor consumes aiding");
+    }
+
+    static void origin_retry()
+    {
+        FormalEskfModuleTest test;
+        test.warmup();
+        auto & f = test.m_filter;
+        test.move_origin_estimate(FormalEskf::vector3(1001., 0., 0.));
+        auto const P = f.m_covariance;
+        f.m_covariance(0, 0) = NAN;
+        auto const rejected = f.m_rejections;
+        f.update_origin();
+        expect(!f.m_fault && f.m_navigation_frame.generation() == 0 && f.m_rejections == rejected + 1 &&
+                   f.m_origin_control.attempt_time_us == f.m_time_us && f.m_origin_control.success_time_us == 0,
+               "failed candidate records one retry epoch and preserves the old frame");
+        f.m_covariance = P;
+        f.update_origin();
+        expect(f.m_navigation_frame.generation() == 0 && f.m_rejections == rejected + 1,
+               "same-epoch retry is suppressed even when the failed input is repaired");
+        auto const failed_time = f.m_origin_control.attempt_time_us;
+        for (unsigned i = 0; i < 249; ++i)
+        {
+            test.m_sample.timestamp_sample += 4000;
+            test.tick();
+        }
+        expect(!f.m_fault && f.m_navigation_frame.generation() == 0,
+               "old admitted frame continues through the bounded retry interval");
+        test.m_sample.timestamp_sample += 4000;
+        test.tick();
+        expect(!f.m_fault && f.m_navigation_frame.generation() == 1 &&
+                   f.m_origin_control.success_time_us - failed_time == 1000000U,
+               "production callback retries successfully at the exact interval boundary");
+    }
+
+    static void origin_unavailable()
+    {
+        FormalEskfModuleTest test;
+        test.warmup();
+        auto & f = test.m_filter;
+        test.move_origin_estimate(FormalEskf::vector3(2100., 0., 0.));
+        f.m_origin_control.attempt_time_us = f.m_time_us; // Previous failure is still in retry hold.
+        auto const before = f.m_state;
+        f.update_origin();
+        auto const validity = f.output_validity(clock_us);
+        expect(validity.healthy && !validity.navigation && !validity.gps && !validity.height && !f.m_fault &&
+                   same_bits(before.p_n, f.m_state.p_n),
+               "hard-limit overrun reports navigation unavailable without a numerical fault or partial event");
+        f.m_last_output = 0;
+        f.publish({});
+        f.publish_status(clock_us);
+        vehicle_local_position_s local{};
+        vehicle_global_position_s global{};
+        vehicle_odometry_s odometry{};
+        estimator_status_s status{};
+        orb_copy(ORB_ID(vehicle_local_position), test.m_outputs[1], &local);
+        orb_copy(ORB_ID(vehicle_global_position), test.m_outputs[2], &global);
+        orb_copy(ORB_ID(vehicle_odometry), test.m_outputs[3], &odometry);
+        orb_copy(ORB_ID(estimator_status), test.m_outputs[4], &status);
+        expect(!local.xy_valid && !local.z_valid && !local.v_xy_valid && !local.v_z_valid && !global.lat_lon_valid &&
+                   !global.alt_valid && std::isnan(odometry.position[0]) && std::isnan(odometry.velocity[0]) &&
+                   odometry.quality == -1 && (status.solution_status_flags & 0x33eU) == 0,
+               "all navigation consumers see unavailable capability, including odometry without validity flags");
+        f.m_origin_control.attempt_time_us = 0;
+        f.update_origin();
+        expect(!f.m_fault && f.m_navigation_frame.generation() == 1 && f.output_validity(clock_us).navigation,
+               "successful coordinate recovery restores geometry admission without inventing sensor success");
+        auto const epoch = f.m_output.current().time_us;
+        formal_eskf::geodesy::GeodeticPosition geographic;
+        expect(f.m_navigation_frame.geographic(f.m_state.p_n, geographic) == formal_eskf::Status::success,
+               "datum expiry location");
+        f.m_height_datum.reset();
+        expect(f.update_height_datum(epoch - 30000001U, geographic, geographic.height_ellipsoid_m - 47.),
+               "install an expired held pair");
+        f.m_rebase_requested = true;
+        f.m_origin_control = {f.m_origin_control.datum_frame, 0, 0};
+        auto const generation = f.m_navigation_frame.generation();
+        f.update_origin();
+        expect(!f.output_validity(clock_us).navigation && f.m_navigation_frame.generation() == generation &&
+                   f.m_origin_control.attempt_time_us == 0 && !f.m_fault,
+               "expired datum prevents requests and navigation availability, without assuming zero separation");
+        expect(f.update_height_datum(epoch, geographic, geographic.height_ellipsoid_m - 47.) &&
+                   f.output_validity(clock_us).navigation,
+               "a real admitted pair restores datum availability independently of frame generation");
+        expect(f.m_output.apply_reset({}, {}, FormalEskf::vector3(3000., 0., 0.)), "newer output outside hard frame");
+        expect(!f.output_validity(clock_us).navigation && f.rebase_navigation() != formal_eskf::Status::success &&
+                   f.m_navigation_frame.generation() == generation,
+               "zero delayed position cannot conceal an out-of-envelope current output");
+    }
+
+    static void origin_current_span()
+    {
+        FormalEskfModuleTest test;
+        test.m_latitude_deg = 85.;
+        test.warmup();
+        auto & f = test.m_filter;
+        f.m_state.p_n = FormalEskf::vector3(0., 600., 0.);
+        expect(f.m_output.apply_reset({}, {}, FormalEskf::vector3(0., -600., 0.)), "opposite newer point");
+        auto const before = f.m_state;
+        auto const output = f.m_output.current();
+        auto const main = f.frame_admission(f.m_state.p_n, f.m_state.v_n, output.time_us);
+        auto const current = f.frame_admission(output.p_n, output.v_n, output.time_us);
+        expect(main.within_frame && current.within_frame && main.datum_usable && current.datum_usable,
+               "both endpoints are individually admitted in the old frame");
+        expect(f.rebase_navigation() == formal_eskf::Status::domain_error && f.m_navigation_frame.generation() == 0 &&
+                   same_bits(before.p_n, f.m_state.p_n) && same_bits(output.p_n, f.m_output.current().p_n) &&
+                   !f.m_fault,
+               "candidate is rejected if the new delayed origin leaves current output beyond the angular limit");
+    }
+
     static void origin_benchmark()
     {
         std::int32_t const delay = 239; // Maximum admitted history length for this profile.
@@ -2845,12 +3069,13 @@ public:
         auto & f = test.m_filter;
         constexpr std::size_t count = 512;
         std::array<double, count> migration_us{}, publication_us{};
-        auto const translation = FormalEskf::vector3(1000., 100., 0.);
+        auto const translation = FormalEskf::vector3(600., 100., 0.);
         auto const length = f.m_output.entries();
         for (std::size_t i = 0; i < count; ++i)
         {
-            f.m_state.p_n = f.m_state.p_n + translation;
-            expect(f.m_output.apply_reset({}, {}, translation), "benchmark physical displacement");
+            auto const shift = translation * (i % 2 == 0 ? 1. : -1.);
+            f.m_state.p_n = f.m_state.p_n + shift;
+            expect(f.m_output.apply_reset({}, {}, shift), "benchmark physical displacement");
             auto const start = std::chrono::steady_clock::now();
             auto const status = f.rebase_navigation();
             auto const changed = std::chrono::steady_clock::now();
@@ -3348,6 +3573,7 @@ private:
     bool m_landed = true, m_at_rest = true;
     bool m_in_ground_effect = false, m_fixed_wing = false, m_send_status = true, m_send_land = true;
     float m_baro_altitude = 488.f;
+    double m_latitude_deg = 47.397742, m_longitude_deg = 8.545594;
     bool m_send_gps = true;
     bool m_gps_velocity_valid = true;
     std::uint32_t m_gps_device = 201U, m_mag_device = 301U, m_baro_device = 401U;
@@ -3505,6 +3731,12 @@ int main(int argc, char ** argv)
     FormalEskfModuleTest::navigation_covariance_frame();
     FormalEskfModuleTest::dateline_output();
     FormalEskfModuleTest::origin_transaction();
+    FormalEskfModuleTest::origin_admission();
+    FormalEskfModuleTest::automatic_origin(false);
+    FormalEskfModuleTest::automatic_origin(true);
+    FormalEskfModuleTest::origin_retry();
+    FormalEskfModuleTest::origin_unavailable();
+    FormalEskfModuleTest::origin_current_span();
     using OriginFailure = FormalEskfModuleTest::OriginFailure;
     for (auto failure : {OriginFailure::covariance, OriginFailure::heading, OriginFailure::tilt, OriginFailure::output})
     {

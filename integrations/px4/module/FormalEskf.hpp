@@ -218,9 +218,20 @@ private:
 
     struct OutputValidity
     {
-        bool healthy{}, gps_position{}, gps_velocity{}, gps{}, gps_height{};
+        bool healthy{}, navigation{}, gps_position{}, gps_velocity{}, gps{}, gps_height{};
         bool magnetic{}, magnetic_aiding{}, barometer{};
         bool height{}, vertical_velocity{}, dead_reckoning{};
+    };
+
+    struct FrameAdmission
+    {
+        bool within_domain{}, datum_usable{}, within_frame{}, request{};
+    };
+
+    struct OriginControl
+    {
+        formal_eskf::geodesy::LocalNed<backend_type> datum_frame{};
+        std::uint64_t attempt_time_us{}, success_time_us{};
     };
 
     struct OutputReset
@@ -263,6 +274,7 @@ private:
         std::uint64_t time_us{}, sample_time_us{}, output_time_us{}, lag_us{}, sequence{}, skipped{}, exchange_errors{};
         std::uint64_t arrival_rejections{}, rate_rejections{}, stale_arrivals{}, source_discards{}, overflows{},
             retired_observations{}, generation_loss{};
+        std::uint64_t origin_generation{}, origin_attempt_us{}, origin_success_us{};
         std::size_t imu_entries{};
         bool output_ready{};
         bool initialized{}, fault{}, qualified{}, metadata_valid{};
@@ -321,6 +333,12 @@ private:
     bool initialize_attitude(double & yaw);
     bool initialize_navigation(imu_type const & imu);
     status_type rebase_navigation();
+    bool update_height_datum(std::uint64_t time_us, formal_eskf::geodesy::GeodeticPosition const & position,
+                             double altitude_msl_m);
+    static double frame_angle(matrix3_type const & rotation);
+    FrameAdmission frame_admission(vector3_type const & position, vector3_type const & velocity,
+                                   std::uint64_t output_time_us) const;
+    void update_origin();
     status_type geographic_frame(vector3_type const & position, formal_eskf::geodesy::GeodeticPosition & geographic,
                                  formal_eskf::geodesy::NedTransform<backend_type> & transform) const;
     status_type gnss_frame(formal_eskf::geodesy::NedTransform<backend_type> & transform) const;
@@ -368,7 +386,8 @@ private:
                                                     OutputValidity const & validity);
     void publish_global_position(std::uint64_t now, vehicle_local_position_s const & local, BodyOutput const & body,
                                  OutputValidity const & validity);
-    void publish_odometry(std::uint64_t now, imu_type const & imu, BodyOutput const & body);
+    void publish_odometry(std::uint64_t now, imu_type const & imu, BodyOutput const & body,
+                          OutputValidity const & validity);
     OutputValidity output_validity(std::uint64_t now) const;
     void publish_status(uint64_t now);
     estimator_status_s publish_estimator_status(std::uint64_t now, OutputValidity const & validity,
@@ -423,6 +442,7 @@ private:
     NavigationOrigin m_origin{};
     formal_eskf::runtime::NavigationFrame<backend_type> m_navigation_frame{};
     formal_eskf::runtime::HeightDatum<backend_type> m_height_datum{};
+    OriginControl m_origin_control{};
     bool m_rebase_requested{};
     SensorPositions m_sensor_positions{};
     std::uint64_t m_time_us{}; // Completed prediction horizon; alignment IMU epoch before seeding.
@@ -466,3 +486,5 @@ private:
     perf_counter_t m_fusion_perf{perf_alloc(PC_ELAPSED, "formal_eskf: fusion")};
     perf_counter_t m_cycle_perf{perf_alloc(PC_ELAPSED, "formal_eskf: cycle")};
 }; /* end class FormalEskf */
+
+static_assert(sizeof(FormalEskf) <= formal_eskf::px4::profile::origin::module_budget_bytes);

@@ -5,7 +5,7 @@
 **Status:** Draft
 
 **Applies to:** Single-owner Cartesian INS PX4 module with admitted geodesy,
-datum and operating/resource profile. Explicit events precede automatic enablement.
+datum and operating/resource profile.
 
 **Parent:** [SW-PX4](../../software/px4-estimation.md).
 
@@ -77,7 +77,7 @@ output changes. Controller setpoints shall not be modified for internal rebasing
 ### Automatic policy and limits
 
 The policy shall use estimated horizontal displacement or NED-axis separation
-from the working origin, with explicit trigger limits, a minimum successful-event
+at the delayed IMU estimate from the working origin, with explicit trigger limits, a minimum successful-event
 interval and a bounded failed-attempt retry interval. Requests shall not bypass
 the transaction's eligibility checks. An admitted held datum can support an event
 without a new GNSS fix; missing or out-of-envelope datum cannot be assumed zero.
@@ -123,8 +123,13 @@ its controlled clock does not test concurrent scheduler execution.
 Sources: [module fixture](../../../../../integrations/px4/tests/ModuleTest.cpp),
 [height tests](../../../../../integrations/px4/tests/test_px4_height_aiding.cpp).
 Output-history component tests separately exercise late ring-entry failure and
-maximum capacity. Repeated automatic events, quantitative budgets and operational
-validity limits require the profile below; this table does not establish them.
+maximum capacity. `origin_admission` checks displacement, geography, full-axis,
+speed and datum boundaries. `automatic_origin` runs repeated delayed-callback
+events at ordinary/high latitude, including the antimeridian and exact dwell;
+`origin_retry` covers candidate failure and exact retry. `origin_unavailable`
+checks output validity/odometry and datum recovery. `origin_current_span` rejects
+a candidate that would leave the newer output beyond the new-frame angular limit.
+These native scenarios do not establish flight or formal acceptance.
 
 ## Profile completion
 

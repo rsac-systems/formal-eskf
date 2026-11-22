@@ -92,6 +92,24 @@ inline constexpr std::uint64_t barometer_spacing_us = 5000;
 inline constexpr std::size_t storage_budget_bytes = 64 * 1024;
 } // namespace history
 
+// Project-specific Cartesian profile; PX4 has no equivalent rebase thresholds.
+namespace origin
+{
+inline constexpr double trigger_distance_m = 1000.;
+inline constexpr double maximum_distance_m = 2000.;
+inline constexpr double trigger_angle_rad = 0.05 * std::numbers::pi / 180.;
+inline constexpr double maximum_angle_rad = 0.10 * std::numbers::pi / 180.;
+inline constexpr std::uint64_t minimum_interval_us = 1000000U;
+inline constexpr std::uint64_t retry_interval_us = 1000000U;
+inline constexpr double maximum_latitude_deg = 85.;
+inline constexpr double minimum_height_m = -1000.;
+inline constexpr double maximum_height_m = 10000.;
+inline constexpr double maximum_speed_m_s = 100.;
+inline constexpr std::uint64_t datum_maximum_age_us = 30000000U;
+inline constexpr double datum_maximum_distance_m = 1000.;
+inline constexpr std::size_t module_budget_bytes = 64 * 1024;
+} // namespace origin
+
 namespace gravity
 {
 inline constexpr bool enabled = ESKF_CFG_GRAVITY_AIDING;

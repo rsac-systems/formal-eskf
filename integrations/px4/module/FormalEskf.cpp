@@ -268,14 +268,11 @@ bool FormalEskf::initialize_navigation(imu_type const & imu)
 {
     formal_eskf::geodesy::GeodeticPosition const origin{m_gps.latitude_deg, m_gps.longitude_deg,
                                                         m_gps.altitude_ellipsoid_m};
-    formal_eskf::runtime::HeightDatum<backend_type> datum;
-    if (!formal_eskf::succeeded(
-            datum.update(m_gps.timestamp_sample, m_gps.altitude_ellipsoid_m, m_gps.altitude_msl_m)) ||
+    if (!update_height_datum(m_gps.timestamp_sample, origin, m_gps.altitude_msl_m) ||
         !formal_eskf::succeeded(m_navigation_frame.initialize(origin)))
     {
         return false;
     }
-    m_height_datum = datum;
     // The geographic reference remains the first antenna fix; the state is at the IMU.
     m_state.p_n = -gnss_position_offset();
     m_state.v_n = vector3(m_gps.vel_n_m_s, m_gps.vel_e_m_s, m_gps.vel_d_m_s) - gnss_velocity_offset(imu);
@@ -557,16 +554,7 @@ void FormalEskf::advance_fusion()
     predict_and_fuse(*interval);
     if (!m_fault && check_timing(m_output.correct(m_time_us, m_state) && m_imu_history.complete(m_time_us)))
     {
-        if (m_rebase_requested)
-        {
-            m_rebase_requested = false;
-            // Optional coordinate transaction failure retains the completed fusion.
-            auto const status = rebase_navigation();
-            if (!formal_eskf::succeeded(status))
-            {
-                ++m_rejections;
-            }
-        }
+        update_origin();
         publish(m_imu_history.latest()->sample.mean_rates());
     }
     perf_end(m_fusion_perf);

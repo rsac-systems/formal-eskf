@@ -120,8 +120,10 @@ void FormalEskf::update_gps_quality()
     if (m_initialized && m_gnss.sample.quality == GnssQualityDecision::accepted &&
         gps.stamp.time_us > m_height_datum.time_us())
     {
-        if (!check(m_height_datum.update(gps.stamp.time_us, gps.altitude_ellipsoid_m, gps.altitude_msl_m)))
+        if (!update_height_datum(gps.stamp.time_us, {gps.latitude_deg, gps.longitude_deg, gps.altitude_ellipsoid_m},
+                                 gps.altitude_msl_m))
         {
+            ++m_rejections;
             return;
         }
     }

@@ -8062,7 +8062,7 @@
     },
     {
       "id": "R-PX4-ORIGIN-REBASE",
-      "title": "Coordinated internal origin migration; explicit live/native coverage, automatic profile and formal evidence pending",
+      "title": "Coordinated internal origin migration; bounded automatic/native coverage, formal evidence pending",
       "references": {
         "spec": [
           {
@@ -8075,6 +8075,18 @@
           {
             "file": "integrations/px4/module/FormalEskfFrames.cpp",
             "symbol": "FormalEskf::rebase_navigation()"
+          },
+          {
+            "file": "integrations/px4/module/FormalEskfFrames.cpp",
+            "symbol": "FormalEskf::update_origin()"
+          },
+          {
+            "file": "integrations/px4/module/FormalEskfFrames.cpp",
+            "symbol": "FormalEskf::frame_admission("
+          },
+          {
+            "file": "integrations/px4/module/FormalEskfOutput.cpp",
+            "symbol": "FormalEskf::output_validity("
           },
           {
             "file": "integrations/px4/module/FormalEskfOutput.cpp",

@@ -36,7 +36,12 @@ converged are different facts. Reporting must not change fusion decisions.
   current body-point output, without predictor covariance propagation,
   installation uncertainty, lever-arm correlations or PX4's extra dead-reckoning
   residual inflation. They are not calibrated accuracy bounds. Odometry quality
-  remains zero (no percentage score).
+  remains zero (no percentage score) when frame/datum navigation is admitted.
+  Under the [origin profile](../../../profiles/px4-origin-rebasing.md), unavailable
+  geometry/datum clears position/velocity/height solution capabilities and local/
+  global validity; odometry position/velocity and their variances become NaN,
+  with quality -1. Keep numerical attitude health, sensor activity and numerical
+  fault history distinct. Restoring geometric admission cannot refresh aiding.
 - Bias validity requires a healthy estimator, a nonzero sensor ID, finite
   published bias/variance, nonnegative variance components and a variance-vector
   norm in `(0, 0.1]`, using the published float representation as PX4 does.

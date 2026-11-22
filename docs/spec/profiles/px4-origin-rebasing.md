@@ -21,7 +21,7 @@ the values below are project decisions.
 | Estimated speed | At most **100 m/s** at both positions. This supplies the trigger-to-limit scheduling margin. |
 | Held datum | Last accepted paired GNSS separation at most **30 s** old and at most **1,000 m** ECEF chord distance from both estimates. No assumed zero separation. |
 
-Either trigger requests an event; both hard frame limits must hold for usable
+Either trigger at the delayed IMU estimate requests an event; both hard frame limits must hold for usable
 navigation. A trigger is inclusive, a hard limit is inclusive, and time eligibility
 uses elapsed time greater than or equal to its interval. Non-finite or unavailable
 geometry fails admission. Ordinary IMU body offsets and the maximum 300 ms history

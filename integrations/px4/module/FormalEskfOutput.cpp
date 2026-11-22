@@ -143,7 +143,7 @@ void FormalEskf::publish(imu_type const & imu)
     m_last_output = time;
     auto const local = publish_local_position(now, imu, body, validity);
     publish_global_position(now, local, body, validity);
-    publish_odometry(now, imu, body);
+    publish_odometry(now, imu, body, validity);
 }
 
 void FormalEskf::publish_attitude(std::uint64_t now)
@@ -249,7 +249,8 @@ void FormalEskf::publish_global_position(std::uint64_t now, vehicle_local_positi
     record_publication(m_global_pub.publish(global));
 }
 
-void FormalEskf::publish_odometry(std::uint64_t now, imu_type const & imu, BodyOutput const & body)
+void FormalEskf::publish_odometry(std::uint64_t now, imu_type const & imu, BodyOutput const & body,
+                                  OutputValidity const & validity)
 {
     auto const position_variance = navigation_variance(0);
     auto const velocity_variance = navigation_variance(3);
@@ -264,15 +265,15 @@ void FormalEskf::publish_odometry(std::uint64_t now, imu_type const & imu, BodyO
     }
     for (size_t i = 0; i < 3; ++i)
     {
-        odometry.position[i] = body.position_n(i);
-        odometry.velocity[i] = body.velocity_n(i);
+        odometry.position[i] = validity.navigation ? float(body.position_n(i)) : NAN;
+        odometry.velocity[i] = validity.navigation ? float(body.velocity_n(i)) : NAN;
         odometry.angular_velocity[i] = imu.angular_rate_b(i) - m_state.b_g(i);
-        odometry.position_variance[i] = position_variance(i);
-        odometry.velocity_variance[i] = velocity_variance(i);
+        odometry.position_variance[i] = validity.navigation ? float(position_variance(i)) : NAN;
+        odometry.velocity_variance[i] = validity.navigation ? float(velocity_variance(i)) : NAN;
         odometry.orientation_variance[i] = m_covariance(i + 6, i + 6);
     }
     odometry.reset_counter = m_resets.odometry_count;
-    odometry.quality = 0; // Like EKF2: no calibrated percentage-quality score.
+    odometry.quality = validity.navigation ? 0 : -1; // Unknown quality when admitted; invalid otherwise.
     record_publication(m_odometry_pub.publish(odometry));
 }
 
@@ -282,20 +283,28 @@ FormalEskf::OutputValidity FormalEskf::output_validity(std::uint64_t now) const
     auto const time = m_output.current().time_us;
     result.healthy =
         m_initialized && !m_fault && m_output.ready() && now >= time && now - time < profile::output::maximum_age_us;
+    if (result.healthy)
+    {
+        auto const main = frame_admission(m_state.p_n, m_state.v_n, time);
+        auto const & output = m_output.current();
+        auto const current = frame_admission(output.p_n, output.v_n, time);
+        result.navigation = main.within_domain && main.datum_usable && main.within_frame && current.within_domain &&
+                            current.datum_usable && current.within_frame;
+    }
     const bool gps_current =
         m_observations.gnss_source().device_id != 0 && m_observations.gnss_generation() == m_gnss.generation;
     const bool magnetic_current = m_observations.magnetic_source().device_id != 0 &&
                                   m_observations.magnetic_generation() == m_magnetic.generation;
-    result.gps_position = result.healthy && gps_current && gps_position_valid();
-    result.gps_velocity = result.healthy && gps_current && gps_velocity_valid();
+    result.gps_position = result.navigation && gps_current && gps_position_valid();
+    result.gps_velocity = result.navigation && gps_current && gps_velocity_valid();
     result.gps = result.gps_position || result.gps_velocity;
     auto const & gnss_height = m_height_aiding.session(height_type::Source::gnss);
-    result.gps_height = result.healthy && gps_current && gnss_height.active &&
+    result.gps_height = result.navigation && gps_current && gnss_height.active &&
                         gnss_height.generation == m_observations.gnss_generation();
     result.magnetic = result.healthy && magnetic_current && magnetic_heading_valid();
     result.magnetic_aiding = result.healthy && magnetic_current && magnetic_heading_aiding();
     auto const & barometer = m_height_aiding.session(height_type::Source::barometer);
-    result.barometer = result.healthy && m_observations.barometer_source().device_id != 0 &&
+    result.barometer = result.navigation && m_observations.barometer_source().device_id != 0 &&
                        m_observations.barometer_generation() == barometer.generation && barometer.active;
     result.height = m_height_aiding.valid(m_time_us) && (result.barometer || result.gps_height);
     result.dead_reckoning = !(result.gps && (gps_position_valid(profile::output::dead_reckoning_age_us) ||
@@ -388,8 +397,9 @@ estimator_status_s FormalEskf::publish_estimator_status(std::uint64_t now, Outpu
         (unsigned(flags.cs_tilt_align) << 0) | (unsigned(validity.gps) << 1) |
         (unsigned(validity.vertical_velocity) << 2) | (unsigned(validity.gps) << 3) | (unsigned(validity.gps) << 4) |
         (unsigned(validity.height) << 5) | (unsigned(flags.cs_vehicle_at_rest) << 7) |
-        (unsigned(flags.cs_gnss_pos || flags.cs_gnss_vel) << 8) | (unsigned(flags.cs_gnss_pos) << 9) |
-        (unsigned(gnss_glitch) << 10) | (unsigned(flags.fs_bad_acc_vertical || flags.fs_bad_acc_clipping) << 11));
+        (unsigned(validity.navigation && (flags.cs_gnss_pos || flags.cs_gnss_vel)) << 8) |
+        (unsigned(validity.navigation && flags.cs_gnss_pos) << 9) | (unsigned(gnss_glitch) << 10) |
+        (unsigned(flags.fs_bad_acc_vertical || flags.fs_bad_acc_clipping) << 11));
     status.accel_device_id = m_imu_history.source().accelerometer_id;
     status.gyro_device_id = m_imu_history.source().gyroscope_id;
     status.mag_device_id = m_magnetic.source.device_id;
@@ -493,6 +503,9 @@ void FormalEskf::update_diagnostics(std::uint64_t now)
     snapshot.publication_failures = m_publication_failures;
     auto const & baro = m_height_aiding.session(height_type::Source::barometer);
     auto const & gps = m_height_aiding.session(height_type::Source::gnss);
+    snapshot.origin_generation = m_navigation_frame.generation();
+    snapshot.origin_attempt_us = m_origin_control.attempt_time_us;
+    snapshot.origin_success_us = m_origin_control.success_time_us;
     snapshot.initialized = m_initialized;
     snapshot.fault = m_fault;
     snapshot.predictions = m_predictions;
@@ -586,6 +599,8 @@ int FormalEskf::print_status()
              (unsigned long long)snapshot.stale_arrivals, (unsigned long long)snapshot.source_discards,
              (unsigned long long)snapshot.overflows, (unsigned long long)snapshot.retired_observations,
              (unsigned long long)snapshot.generation_loss);
+    PX4_INFO("origin: generation=%llu attempt_us=%llu success_us=%llu", (unsigned long long)snapshot.origin_generation,
+             (unsigned long long)snapshot.origin_attempt_us, (unsigned long long)snapshot.origin_success_us);
     PX4_INFO("formal-eskf INS / PX4 matrix / binary64 / C++20 / single instance");
     PX4_INFO("initialized=%d fault=%d predictions=%u gps=%u mag=%u baro=%u", snapshot.initialized, snapshot.fault,
              snapshot.predictions, snapshot.gps_updates, snapshot.mag_updates, snapshot.baro_updates);
