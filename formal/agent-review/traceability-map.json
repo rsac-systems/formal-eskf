@@ -8175,6 +8175,46 @@
         ],
         "esbmc": []
       }
+    },
+    {
+      "id": "R-INS-SESSION",
+      "title": "Portable INS session phase composition: native regression and independent fixtures; full symbolic and target evidence remain open",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/runtime/ins-session.md",
+            "symbol": "# R-INS-SESSION:"
+          },
+          {
+            "file": "docs/spec/verification/tests/runtime/ins-session.md",
+            "symbol": "## Cases"
+          }
+        ],
+        "lean": [],
+        "cpp": [
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session.hpp",
+            "symbol": "class InsSession"
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::process_imu("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::complete_fusion("
+          },
+          {
+            "file": "integrations/px4/tests/ModuleTest.cpp",
+            "symbol": "static void portable_session_equivalence()"
+          },
+          {
+            "file": "tests/runtime/session/test_session.cpp",
+            "symbol": "void stationary("
+          }
+        ],
+        "esbmc": []
+      }
     }
   ]
 }

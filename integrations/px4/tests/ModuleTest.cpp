@@ -3719,6 +3719,90 @@ public:
         test.snapshot("fault-latched");
     }
 
+    static void portable_session_equivalence()
+    {
+        InsSessionTest test;
+        using Session = FormalEskf::session_type;
+        namespace profile = formal_eskf::px4::profile;
+        Session direct{profile::session_parameters<Session>()};
+        expect(direct.configure_timing(profile::history::parameters) && direct.configure_gravity(true) &&
+                   direct.configure_magnetic({true, true, 0}) && direct.configure_sensor_positions({}),
+               "standalone caller uses the same explicit module profile");
+        bool equal = true;
+        for (unsigned step = 0; step < 3800 && equal; ++step)
+        {
+            test.m_send_gps = step < 3200 || step >= 3300;
+            if (step == 3400) { ++test.m_gps_device; }
+            if (step == 3500) { ++test.m_mag_calibration; }
+            if (step == 3700) { ++test.m_sample.accel_device_id; }
+            test.m_sample.timestamp_sample += 4000;
+            test.tick();
+            // A standalone adapter consumes the same canonical decoded records,
+            // without uORB, Run(), publication or any private numerical helper.
+            auto & module = test.m_filter;
+            auto const imu = FormalEskf::decode_imu(test.m_sample);
+            auto const gnss = FormalEskf::decode_gnss(module.m_gps);
+            auto const magnetic = FormalEskf::decode_magnetic(module.m_mag);
+            auto const barometer = FormalEskf::decode_barometer(module.m_baro);
+            Session::StartupInput startup;
+            startup.gnss = gnss;
+            startup.barometer = barometer;
+            startup.magnetic = {module.m_mag.timestamp_sample, module.m_mag.device_id, module.m_mag.calibration_count,
+                               Session::vector3_type::from_row_major({double(module.m_mag.magnetometer_ga[0]),
+                                                                     double(module.m_mag.magnetometer_ga[1]),
+                                                                     double(module.m_mag.magnetometer_ga[2])})};
+            startup.horizontal_speed = std::hypot(module.m_gps.vel_n_m_s, module.m_gps.vel_e_m_s);
+            startup.vertical_speed = std::abs(module.m_gps.vel_d_m_s);
+            bool const active = direct.initialized();
+            direct.process_imu(imu, clock_us, {module.land_state(), module.vehicle_state()}, startup);
+            if (direct.phase() == Session::Phase::initialization_model)
+            {
+                auto const model = module.lookup_magnetic_model(direct.model_request());
+                double yaw{};
+                if (direct.complete_initialization(model, yaw))
+                {
+                    expect(direct.seed_initialization(clock_us), "standalone seed completes");
+                }
+            }
+            (void)direct.take_innovations();
+            if (active && !direct.fault())
+            {
+                if (test.m_send_gps) { direct.receive_gnss(gnss, clock_us); }
+                direct.receive_magnetic(magnetic, clock_us);
+                direct.receive_barometer(barometer, clock_us);
+                if (direct.fusion_ready())
+                {
+                    direct.begin_fusion();
+                    auto const model = direct.model_request().required
+                                           ? module.lookup_magnetic_model(direct.model_request())
+                                           : std::optional<Session::magnetic_model_type::sample_type>{};
+                    (void)direct.complete_fusion(model);
+                    (void)direct.take_innovations();
+                }
+            }
+            auto const & actual = module.m_session;
+            auto const & a = actual.state();
+            auto const & b = direct.state();
+            auto const & ao = actual.output_predictor().current();
+            auto const & bo = direct.output_predictor().current();
+            equal = same_bits(a.p_n, b.p_n) && same_bits(a.v_n, b.v_n) && same_bits(a.b_a, b.b_a) &&
+                    same_bits(a.b_g, b.b_g) && same_bits(a.q_nb.coefficients(), b.q_nb.coefficients()) &&
+                    same_bits(actual.covariance(), direct.covariance()) && same_bits(ao.p_n, bo.p_n) &&
+                    same_bits(ao.v_n, bo.v_n) && same_bits(ao.q_nb.coefficients(), bo.q_nb.coefficients()) &&
+                    ao.time_us == bo.time_us && actual.fusion_time_us() == direct.fusion_time_us() &&
+                    actual.initialized() == direct.initialized() && actual.fault() == direct.fault() &&
+                    actual.statistics().predictions == direct.statistics().predictions &&
+                    actual.statistics().arrival_rejections == direct.statistics().arrival_rejections &&
+                    actual.statistics().errors == direct.statistics().errors &&
+                    actual.gnss_state().corrections == direct.gnss_state().corrections &&
+                    actual.magnetic_state().corrections == direct.magnetic_state().corrections &&
+                    actual.resets().odometry_count == direct.resets().odometry_count;
+            if (!equal) { std::fprintf(stderr, "Standalone/module mismatch at tick %u\n", step); }
+        }
+        expect(equal && direct.initialized() && direct.statistics().predictions > 500 && direct.fault(),
+               "canonical standalone/module sequence preserves exact state/P, epochs, decisions, resets and fault");
+    }
+
 private:
     FormalEskf m_filter;
     std::array<orb_id_t, 7U> m_topics{ORB_ID(vehicle_attitude),        ORB_ID(vehicle_local_position),
@@ -3901,6 +3985,7 @@ int main(int argc, char ** argv)
         InsSessionTest::origin_failure(failure);
     }
     InsSessionTest::configured_profile();
+    InsSessionTest::portable_session_equivalence();
     trace_file = comparison_trace;
     if (trace_file != nullptr)
     {

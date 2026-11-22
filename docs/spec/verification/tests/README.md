@@ -79,12 +79,10 @@ test, and this manual allocation is not an AST function-by-function coverage cla
 Excluded: platform message conversion, uORB, actual flight scheduling, legacy
 replay orchestration, tool runners and the generator pipeline. Extracted portable
 IMU/observation histories, output prediction, height aiding, magnetic-model coordination and strict INS initialization are in scope under their runtime
-contracts, with their component tests moved alongside them. Remaining private
-PX4 owners retain adapter coverage until their portable contracts are allocated.
+contracts, with their component tests moved alongside them. Platform message conversion and publication retain separate adapter coverage.
 External linalg internals and deployment qualification have separate boundaries.
-The complete SW-NAV session composition is still planned under
-[A-01](../../../roadmap.md#a-01--portable-navigation-runtime); component cases alone
-do not establish it.
+[Session cases](runtime/ins-session.md) cover the extracted composition; component
+cases alone do not establish it. Full symbolic and target acceptance remain separate.
 
 ## Requirement and case allocation
 
@@ -105,6 +103,7 @@ the canonical equations.
 | [Observations and innovation](core/observations.md) | E-OBS, E-OBS-POSITION, E-OBS-VELOCITY, E-OBS-ACCEL, E-OBS-MAGNETIC, E-MAG-TILT, E-INNOV. |
 | [GNSS and navigation](runtime/gnss-navigation.md) | R-MEASUREMENT-FUSION, R-GNSS-QUALITY, R-GNSS-FUSION, R-GNSS-RESET, R-GNSS-VERTICAL-RECOVERY; SW-GNSS. |
 | [Origin rebasing](runtime/origin-rebasing.md) | R-ORIGIN-REBASE. |
+| [Portable INS session](runtime/ins-session.md) | R-INS-SESSION; SW-NAV. |
 | [Strict INS initialization](runtime/ins-initialization.md) | R-INS-INITIALIZATION; SW-NAV. |
 | [Height aiding](runtime/height-aiding.md) | R-HEIGHT-AIDING, portable GNSS/barometer owner; PX4 filtering/publication remains adapter scope. |
 | [Height datum](runtime/height-datum.md) | R-HEIGHT-DATUM. |

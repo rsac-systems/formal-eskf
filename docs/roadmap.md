@@ -167,7 +167,7 @@ continuous-odometry feature is part of this extraction.
 | A-01.8 — Magnetic reference | Completed | Portable adoption/coordination; external model lookup stays in the adapter. |
 | A-01.9 — INS initialization | Completed | Portable bounded bootstrap preserving current strict startup and seeding. |
 | A-01.10 — Session and PX4 delegation | Completed | One concrete owner; remove duplicate module ownership and preserve execution phases. |
-| A-01.11 — Standalone acceptance | Planned | Host example and canonical-input comparisons without platform dependencies. |
+| A-01.11 — Standalone acceptance | Completed | Host example and canonical-input comparisons without platform dependencies. |
 | A-01.12 — Integration closure | Planned | Public usage, installed headers, dependency/resource review and current source/evidence bindings. |
 
 Preserve existing functional/proof scope and IDs during extraction. Retained local
