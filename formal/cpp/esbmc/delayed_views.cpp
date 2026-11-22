@@ -2,7 +2,7 @@
 
 #include "contracts.hpp"
 #include "delayed_library.hpp"
-#include "../../../integrations/px4/module/ImuPrediction.hpp"
+#include <formal_eskf/runtime/sensors/imu/imu.hpp>
 #include "../../../integrations/px4/module/DeploymentProfile.hpp"
 // Expose metadata to state the view precondition; retain every production body.
 #define private public

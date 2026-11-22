@@ -2,11 +2,11 @@
 #include <array>
 #include <limits>
 
-#include "../module/ImuPrediction.hpp"
 #include <formal_eskf/runtime/sensors/imu/imu.hpp>
 #include <formal_eskf/runtime/sensors/imu/vertical_acceleration_health.hpp>
 #include "test_backend.hpp"
 #include "test_support.hpp"
+#include "test_cases.hpp"
 
 namespace
 {
@@ -29,14 +29,14 @@ template <typename Matrix> bool equal(Matrix const & a, Matrix const & b)
     return true;
 }
 
-template <typename Linalg> void run(Context & test)
+template <typename Linalg> void run(Context & test, std::string_view)
 {
     using Scalar = typename Linalg::value_type;
     using Vector = formal_eskf::linalg::Vector<Linalg, 3>;
     using Covariance = formal_eskf::linalg::Matrix<Linalg, 15, 15>;
     using Health = formal_eskf::runtime::VerticalAccelerationHealth<Linalg>;
     using Bias = formal_eskf::runtime::ImuBiasInhibition<Linalg>;
-    using formal_eskf::px4::predict_imu;
+    using formal_eskf::runtime::predict_imu;
     constexpr Scalar dt = Scalar{0.125};
     constexpr Scalar tolerance = static_cast<Scalar>(1e-6);
     Ins::Parameters<Linalg> parameters;
@@ -67,8 +67,9 @@ template <typename Linalg> void run(Context & test)
     {
         auto state = initial;
         Covariance P;
-        test.expect(predict_imu(state, P, imu, dt, parameters, item.clipping, item.fault) == Status::success,
-                    "prediction", "real module prediction accepts selected clipped intervals");
+        test.expect(predict_imu(state, P, imu, dt, parameters, item.clipping, item.fault, static_cast<Scalar>(24.01)) ==
+                        Status::success,
+                    "prediction", "portable prediction accepts selected clipped intervals");
         for (std::size_t axis = 0; axis < 3; ++axis)
         {
             auto const nav_axis = (axis + 1) % 3;
@@ -88,7 +89,9 @@ template <typename Linalg> void run(Context & test)
         auto expected_P = P;
         test.expect(formal_eskf::predict(expected_state, expected_P, imu, dt, parameters, expected_state, expected_P) ==
                             Status::success &&
-                        predict_imu(state, P, imu, dt, parameters, 0, false) == Status::success && equal(P, expected_P),
+                        predict_imu(state, P, imu, dt, parameters, 0, false, static_cast<Scalar>(24.01)) ==
+                            Status::success &&
+                        equal(P, expected_P),
                     "recovery", "clear sample and configured-noise gap fallback cannot inherit an override");
     }
     {
@@ -96,7 +99,8 @@ template <typename Linalg> void run(Context & test)
         Covariance P;
         auto measured = imu;
         measured.specific_force_b = Vector::from_row_major({2, 0, 0});
-        test.expect(predict_imu(state, P, measured, dt, parameters, 1, false) == Status::success &&
+        test.expect(predict_imu(state, P, measured, dt, parameters, 1, false, static_cast<Scalar>(24.01)) ==
+                            Status::success &&
                         equal(state.v_n, Vector::from_row_major({0, Scalar{0.25}, 0})) &&
                         equal(state.p_n, Vector::from_row_major({0, Scalar{0.015625}, 0})),
                     "clipped motion", "retain measured increments rather than skipping or zeroing the interval");
@@ -110,8 +114,9 @@ template <typename Linalg> void run(Context & test)
         {
             P(9 + axis, 9 + axis) = prior[axis];
         }
-        test.expect(predict_imu(state, P, imu, dt, parameters, clipping, false) == Status::success, "bias noise",
-                    "module and gap-hold predictions select bias driving noise");
+        test.expect(predict_imu(state, P, imu, dt, parameters, clipping, false, static_cast<Scalar>(24.01)) ==
+                        Status::success,
+                    "bias noise", "real and gap-hold predictions select bias driving noise");
         std::array<Scalar, 6> const increment{clipping == 0 ? Scalar{0} : dt, 0, Scalar{3} * dt, 0, Scalar{5} * dt, 0};
         for (std::size_t axis = 0; axis < prior.size(); ++axis)
         {
@@ -119,9 +124,31 @@ template <typename Linalg> void run(Context & test)
                         "strict threshold uses selected IMU variance; intensity scales by dt without clamping P");
         }
         P(9, 9) = Scalar{0.5};
-        test.expect(predict_imu(state, P, imu, dt, parameters, 0, false) == Status::success &&
+        test.expect(predict_imu(state, P, imu, dt, parameters, 0, false, static_cast<Scalar>(24.01)) ==
+                            Status::success &&
                         P(9, 9) == Scalar{0.5} + dt,
                     "bias noise", "lower prior variance restores configured driving noise on a later prediction");
+    }
+    for (Scalar variance : {Scalar{0}, Scalar{4}, Scalar{121}})
+    {
+        auto state = initial;
+        Covariance P;
+        test.expect(predict_imu(state, P, imu, dt, parameters, 1, false, variance) == Status::success &&
+                        P(4, 4) == variance * dt * dt,
+                    "fault variance", "use the supplied squared variance, including zero, without a hidden default");
+    }
+    for (Scalar variance :
+         {Scalar{-1}, std::numeric_limits<Scalar>::infinity(), std::numeric_limits<Scalar>::quiet_NaN()})
+    {
+        auto state = initial;
+        Covariance P = Covariance::identity();
+        auto const before = P;
+        auto const status = predict_imu(state, P, imu, dt, parameters, 0, false, variance);
+        test.expect(status == (variance < Scalar{0} ? Status::domain_error : Status::non_finite_input) &&
+                        equal(P, before) && equal(state.q_nb.coefficients(), initial.q_nb.coefficients()) &&
+                        equal(state.p_n, initial.p_n) && equal(state.v_n, initial.v_n) &&
+                        equal(state.b_a, initial.b_a) && equal(state.b_g, initial.b_g),
+                    "fault variance", "invalid unused variance is rejected without a partial prediction");
     }
     for (unsigned failure = 0; failure < 4; ++failure)
     {
@@ -139,8 +166,8 @@ template <typename Linalg> void run(Context & test)
         {
             invalid.process_noise.specific_force_variance(0) = std::numeric_limits<Scalar>::quiet_NaN();
         }
-        test.expect(predict_imu(state, P, imu, failure == 1 ? -dt : dt, invalid, failure == 2 ? 8 : 1, false) !=
-                        Status::success,
+        test.expect(predict_imu(state, P, imu, failure == 1 ? -dt : dt, invalid, failure == 2 ? 8 : 1, false,
+                                static_cast<Scalar>(24.01)) != Status::success,
                     "failure", "invalid noise, interval, clipping mask or bias variance is rejected");
         test.expect(equal(state.p_n, before.p_n) && equal(state.v_n, before.v_n) && equal(state.b_a, before.b_a) &&
                         equal(state.b_g, before.b_g) && equal(state.q_nb.coefficients(), before.q_nb.coefficients()) &&
@@ -167,7 +194,8 @@ template <typename Linalg> void run(Context & test)
                         permissions.bias_update.gyroscope[0],
                     "health", "current clipped axis is inhibited; preceding fault inhibits all accel axes");
         test.expect(
-            predict_imu(state, P, imu, dt, parameters, 4, preceding_fault) == Status::success &&
+            predict_imu(state, P, imu, dt, parameters, 4, preceding_fault, static_cast<Scalar>(24.01)) ==
+                    Status::success &&
                 formal_eskf::test::near(P(4, 4), static_cast<Scalar>(preceding_fault ? 24.01 : 1) * dt * dt, tolerance),
             "health", "all-axis noise follows the preceding verdict, not a future fault");
         test.expect(health.update(sample, observations) == Status::success && health.state().clip_count[2] == step + 1,
@@ -187,26 +215,13 @@ template <typename Linalg> void run(Context & test)
 }
 } /* end namespace */
 
-int main()
+int main(int argc, char ** argv)
 {
     formal_eskf::test::configure_backend_test();
-    Context test;
-    struct ClippingCase
-    {
-        std::uint8_t accel, gyro;
-        bool initialized, accepted;
+    using formal_eskf::test::Case;
+    Case const cases[] = {
+        {"TC-R-IMU-PREDICTION-01", "float", run<formal_eskf::test::Backend<float>>},
+        {"TC-R-IMU-PREDICTION-01", "double", run<formal_eskf::test::Backend<double>>},
     };
-    std::array const cases{ClippingCase{0, 0, false, true},  ClippingCase{1, 0, false, false},
-                           ClippingCase{7, 0, false, false}, ClippingCase{1, 0, true, true},
-                           ClippingCase{4, 0, true, true},   ClippingCase{7, 0, true, true},
-                           ClippingCase{8, 0, true, false},  ClippingCase{255, 0, true, false},
-                           ClippingCase{0, 1, true, false},  ClippingCase{7, 4, true, false}};
-    for (auto const & item : cases)
-    {
-        test.expect(formal_eskf::px4::imu_clipping_acceptable(item.accel, item.gyro, item.initialized) == item.accepted,
-                    "acceptance", "startup, valid accel bits, unknown bits and gyro clipping");
-    }
-    run<formal_eskf::test::Backend<float>>(test);
-    run<formal_eskf::test::Backend<double>>(test);
-    return test.failures() == 0 ? 0 : 1;
+    return formal_eskf::test::run_cases(cases, argc, argv);
 }

@@ -5,6 +5,7 @@
 // return/status contracts overapproximate every successful and failing result.
 #include <cstdint>
 #include <formal_eskf/status.hpp>
+#include "../../../../integrations/px4/module/DeploymentConfig.hpp"
 
 extern bool nondet_bool();
 extern std::uint64_t nondet_time();
@@ -139,11 +140,13 @@ namespace formal_eskf::so3
 {
 Vector rotate(unsigned, Vector) { return {}; }
 } // namespace formal_eskf::so3
-namespace formal_eskf::px4
+namespace formal_eskf::runtime
 {
 status_type predict_imu(State & state, unsigned & P, Rates const & rates, double dt, unsigned const & settings,
-                        std::uint8_t clipping, bool bad_acceleration)
+                        std::uint8_t clipping, bool bad_acceleration, double fault_variance)
 {
+    __ESBMC_assert(fault_variance == profile::imu::faulty_specific_force_variance,
+                   "Prediction receives the deployment fault variance");
     __ESBMC_assert(&state == main_state && &P == covariance && &settings == parameters,
                    "Both prediction segments use the live main state, covariance and parameter owner");
     if (rates.held)
@@ -159,7 +162,7 @@ status_type predict_imu(State & state, unsigned & P, Rates const & rates, double
                    "Real segment uses current rates/period/clipping and preceding acceleration health");
     return result(real_prediction);
 }
-} // namespace formal_eskf::px4
+} // namespace formal_eskf::runtime
 
 namespace
 {

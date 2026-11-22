@@ -427,6 +427,21 @@ int main()
 {
     formal_eskf::test::configure_backend_test();
     Context test;
+    struct ClippingCase
+    {
+        std::uint8_t accel, gyro;
+        bool initialized, accepted;
+    };
+    std::array const cases{ClippingCase{0, 0, false, true},  ClippingCase{1, 0, false, false},
+                           ClippingCase{7, 0, false, false}, ClippingCase{1, 0, true, true},
+                           ClippingCase{4, 0, true, true},   ClippingCase{7, 0, true, true},
+                           ClippingCase{8, 0, true, false},  ClippingCase{255, 0, true, false},
+                           ClippingCase{0, 1, true, false},  ClippingCase{7, 4, true, false}};
+    for (auto const & item : cases)
+    {
+        test.expect(formal_eskf::px4::imu_clipping_acceptable(item.accel, item.gyro, item.initialized) == item.accepted,
+                    "acceptance", "startup, valid accel bits, unknown bits and gyro clipping");
+    }
     configuration(test);
     startup(test);
     ordered_prediction(test, {}, 1000000);

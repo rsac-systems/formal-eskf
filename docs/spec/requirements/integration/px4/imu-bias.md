@@ -78,7 +78,7 @@ inward recovery. The gravity adapter applies the same limiter after successful g
 
 ## Bias process-noise binding
 
-The PX4 module applies the same production selector through `px4::predict_imu`
+The PX4 module applies the same production selector through `runtime::predict_imu`
 before real and synthetic gap-hold predictions. Real intervals first select
 fault/clipping-dependent IMU variance; gap holds use configured IMU variance.
 Both use the prior covariance and start from configured intensities on every
@@ -90,7 +90,7 @@ failure rollback.
 
 ## Sampled IMU variance binding
 
-The PX4 module uses `px4::predict_imu` for actual accepted IMU intervals.
+The PX4 module uses `runtime::predict_imu` for actual accepted IMU intervals.
 It copies configured parameters, selects noise with the configured fault variance
 (default `4.9^2` m²/s⁴),
 applies `R-BIAS-PROCESS-NOISE`, then calls atomic INS prediction in place.
@@ -111,8 +111,8 @@ not assertions of EKF2 equivalence. Clipping flags do not reconstruct lost motio
 
 ## Verification boundary
 
-The `imu-prediction` suite verifies actual `ImuPrediction.hpp` clipping admission and
-composition: a fresh parameter copy, exact bit decoding/fault variance, selection
+The `imu-prediction` suite verifies clipping admission in `ImuHistory.hpp` and the portable
+[prediction composition](../../runtime/imu/prediction.md): a fresh parameter copy, exact bit decoding/supplied fault variance, selection
 before bias inhibition using prior P, one in-place prediction and first-error
 rollback. Same-type actual selector producers and E-STEP supply its explicit
 callee frames; arbitrary callee statuses/results are admitted. This is helper

@@ -188,7 +188,7 @@ formal_eskf_add_backend_test(test_accelerometer_sample runtime/gravity/test_samp
 formal_eskf_add_backend_test(test_measurement_fusion runtime/test_measurement_fusion formal_eskf.measurement_fusion.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_px4_magnetic_model ../integrations/px4/tests/test_px4_magnetic_model formal_eskf.px4_magnetic_model.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_px4_height_aiding ../integrations/px4/tests/test_px4_height_aiding formal_eskf.px4_height_aiding.eigen formal_eskf::runtime)
-formal_eskf_add_backend_test(test_px4_imu_prediction ../integrations/px4/tests/test_px4_imu_prediction formal_eskf.px4_imu_prediction.eigen formal_eskf::runtime)
+formal_eskf_add_backend_test(test_imu_prediction runtime/imu/test_prediction formal_eskf.imu_prediction.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_px4_imu_history ../integrations/px4/tests/test_px4_imu_history formal_eskf.px4_imu_history.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_px4_output_predictor ../integrations/px4/tests/test_px4_output_predictor formal_eskf.px4_output_predictor.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_px4_observation_history ../integrations/px4/tests/test_px4_observation_history formal_eskf.px4_observation_history.eigen formal_eskf::runtime)

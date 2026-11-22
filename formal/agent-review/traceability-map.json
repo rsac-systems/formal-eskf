@@ -5038,6 +5038,10 @@
           {
             "file": "docs/guides/verification.md",
             "symbol": "### PX4 and replay temporal callers"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/imu/prediction.md",
+            "symbol": "# R-IMU-PREDICTION: IMU policy and prediction composition"
           }
         ],
         "lean": [
@@ -5060,12 +5064,12 @@
             "symbol": "select_imu_process_noise(configuration::Ins::ProcessNoise"
           },
           {
-            "file": "integrations/px4/module/ImuPrediction.hpp",
+            "file": "integrations/px4/module/ImuHistory.hpp",
             "symbol": "bool imu_clipping_acceptable("
           },
           {
-            "file": "integrations/px4/module/ImuPrediction.hpp",
-            "symbol": "Status predict_imu("
+            "file": "include/formal_eskf/runtime/sensors/imu/imu.hpp",
+            "symbol": "predict_imu(configuration::Ins::NominalState"
           },
           {
             "file": "integrations/px4/module/FormalEskf.cpp",
@@ -5166,8 +5170,8 @@
             "symbol": "[[nodiscard]] Status inhibit_bias_process_noise("
           },
           {
-            "file": "integrations/px4/module/ImuPrediction.hpp",
-            "symbol": "Status predict_imu("
+            "file": "include/formal_eskf/runtime/sensors/imu/imu.hpp",
+            "symbol": "predict_imu(configuration::Ins::NominalState"
           },
           {
             "file": "integrations/px4/module/FormalEskf.cpp",

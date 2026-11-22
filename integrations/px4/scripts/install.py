@@ -21,7 +21,7 @@ MODULE_FILES = (
     "FormalEskfAttitude.cpp", "FormalEskfOutput.cpp", "DeploymentProfile.hpp",
     "DeploymentConfig.hpp",
     "MagneticModel.hpp", "HeightAiding.hpp", "InnovationRatio.hpp",
-    "ImuPrediction.hpp", "ImuHistory.hpp", "OutputPredictor.hpp", "ObservationHistory.hpp", "Kconfig", "formal_eskf_params.c",
+    "ImuHistory.hpp", "OutputPredictor.hpp", "ObservationHistory.hpp", "Kconfig", "formal_eskf_params.c",
 )
 HEADER_SUFFIXES = (".h", ".hpp", ".hxx", ".inl", ".tpp")
 

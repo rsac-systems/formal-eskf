@@ -136,6 +136,7 @@ remain empty: these two additional review units are proof gaps, not verified cla
 | `R-IMU-BIAS-INHIBITION` | [Decaying-peak bias-learning permissions](requirements/runtime/imu/bias-inhibition.md) |
 | `R-BIAS-LIMITS` | [per-axis bias-value limits](requirements/runtime/imu/bias-limits.md) |
 | `R-BIAS-PROCESS-NOISE` | [variance-dependent bias driving noise](requirements/runtime/imu/bias-process-noise.md) |
+| `R-IMU-PREDICTION` | [IMU prediction composition](requirements/runtime/imu/prediction.md) |
 | `R-IMU-PROCESS-NOISE` | [fault-dependent sampled IMU variance](requirements/runtime/imu/process-noise.md) |
 | `R-VERTICAL-ACCELERATION` | [apparent falling and clipping detection](requirements/runtime/imu/vertical-health.md) |
 | `R-MAGNETIC-FIELD` | [instantaneous magnetic-field plausibility](requirements/runtime/magnetic/field.md) |

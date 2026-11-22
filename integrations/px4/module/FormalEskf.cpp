@@ -585,17 +585,17 @@ void FormalEskf::predict_and_fuse(imu_history_type::Interval const & interval)
         ++m_gaps;
         reset_imu_observations();
         m_magnetic.heading.reset_acceleration();
-        if (!check(formal_eskf::px4::predict_imu(m_state, m_covariance, interval.held_rate,
-                                                 interval.hold_period_us * profile::seconds_per_microsecond,
-                                                 m_parameters, 0, false)))
+        if (!check(formal_eskf::runtime::predict_imu(
+                m_state, m_covariance, interval.held_rate, interval.hold_period_us * profile::seconds_per_microsecond,
+                m_parameters, 0, false, profile::imu::faulty_specific_force_variance)))
         {
             return;
         }
     }
     if (!update_imu_bias(sample, imu) ||
-        !check(formal_eskf::px4::predict_imu(m_state, m_covariance, imu, sample.angular_interval_s(), m_parameters,
-                                             sample.accelerometer_clipping,
-                                             m_vertical_health.state().bad_vertical_acceleration)))
+        !check(formal_eskf::runtime::predict_imu(
+            m_state, m_covariance, imu, sample.angular_interval_s(), m_parameters, sample.accelerometer_clipping,
+            m_vertical_health.state().bad_vertical_acceleration, profile::imu::faulty_specific_force_variance)))
     {
         return;
     }

@@ -7,7 +7,12 @@
  */
 #include "covariance_oracle.hpp"
 #include <formal_eskf/eskf/eskf.hpp>
-#include "../../../integrations/px4/module/ImuPrediction.hpp"
+#include "delayed_library.hpp"
+#include "../../../integrations/px4/module/DeploymentProfile.hpp"
+#define max formal_eskf_proof_max
+#include "../../../integrations/px4/module/ImuHistory.hpp"
+#undef max
+#include <formal_eskf/runtime/sensors/imu/imu.hpp>
 
 using contract_proof::Linalg;
 using contract_proof::same;
@@ -118,7 +123,7 @@ struct Prediction
     inline static Matrix covariance{}, candidate_covariance{};
     inline static Imu imu{};
     inline static Parameters parameters{};
-    inline static Scalar dt{};
+    inline static Scalar dt{}, fault_variance{};
     inline static Status status{};
     inline static unsigned calls{}, selections{}, inhibitions{};
     inline static Noise selected{}, inhibited{};
@@ -136,9 +141,8 @@ inline Status select_imu_process_noise<Linalg>(Noise const & noise, ImuNoiseCond
     __ESBMC_assert(
         Prediction::selections++ == 0U && Prediction::inhibitions == 0U && Prediction::calls == 0U &&
             same_noise(noise, Prediction::parameters.process_noise) && same_noise(output, noise) && &noise != &output &&
-            conditions.bad_vertical_acceleration == Prediction::fault &&
-            same(fault, static_cast<Scalar>(px4::profile::imu::faulty_specific_force_variance)),
-        "IMU prediction: selection starts from the complete configured noise and fixed squared fault variance");
+            conditions.bad_vertical_acceleration == Prediction::fault && same(fault, Prediction::fault_variance),
+        "IMU prediction: selection starts from the complete configured noise and supplied squared fault variance");
     for (std::size_t axis = 0U; axis < 3U; ++axis)
     {
         __ESBMC_assert(conditions.accelerometer_clipped[axis] == (((Prediction::clipping >> axis) & 1U) != 0U),
@@ -199,9 +203,9 @@ void verify_imu_admission(std::uint8_t accel, std::uint8_t gyro, bool initialize
 }
 #if FORMAL_ESKF_PROOF_IMU_PREDICTION_CALLER
 void verify_imu_prediction(State state, Matrix covariance, Imu imu, Scalar dt, Parameters parameters,
-                           std::uint8_t clipping, bool fault, Status selection_status, Status inhibition_status,
-                           Status prediction_status, Noise selected, Noise inhibited, State candidate,
-                           Matrix candidate_covariance)
+                           std::uint8_t clipping, bool fault, Scalar fault_variance, Status selection_status,
+                           Status inhibition_status, Status prediction_status, Noise selected, Noise inhibited,
+                           State candidate, Matrix candidate_covariance)
 {
     auto const old_state = state;
     auto const old_covariance = covariance;
@@ -228,8 +232,10 @@ void verify_imu_prediction(State state, Matrix covariance, Imu imu, Scalar dt, P
     Prediction::inhibition_status = inhibition_status;
     Prediction::clipping = clipping;
     Prediction::fault = fault;
+    Prediction::fault_variance = fault_variance;
     Prediction::calls = Prediction::selections = Prediction::inhibitions = 0U;
-    auto const result = formal_eskf::px4::predict_imu(state, covariance, imu, dt, parameters, clipping, fault);
+    auto const result =
+        formal_eskf::runtime::predict_imu(state, covariance, imu, dt, parameters, clipping, fault, fault_variance);
     __ESBMC_assert(result == expected_status && Prediction::selections == (selected_stage ? 1U : 0U) &&
                        Prediction::inhibitions == (inhibited_stage ? 1U : 0U) &&
                        Prediction::calls == (predicted_stage ? 1U : 0U),

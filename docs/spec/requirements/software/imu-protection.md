@@ -35,6 +35,7 @@ requirements.
 |---|---|
 | [R-IMU-BIAS-INHIBITION](../runtime/imu/bias-inhibition.md) | Maintain motion envelopes and select per-axis bias-learning permissions. |
 | [R-VERTICAL-ACCELERATION](../runtime/imu/vertical-health.md) | Track clipping/apparent-falling health and its distinct timing signals. |
+| [R-IMU-PREDICTION](../runtime/imu/prediction.md) | Compose noise selection, bias inhibition and atomic prediction with explicit fault variance. |
 | [R-IMU-PROCESS-NOISE](../runtime/imu/process-noise.md) | Select fault-dependent sampled IMU variance. |
 | [R-BIAS-PROCESS-NOISE](../runtime/imu/bias-process-noise.md) | Select bias driving noise from the prior variance. |
 | [R-BIAS-LIMITS](../runtime/imu/bias-limits.md) | Apply finite per-axis bias bounds with failure preservation. |

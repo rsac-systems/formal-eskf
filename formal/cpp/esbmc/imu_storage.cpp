@@ -6,7 +6,7 @@
 #undef private
 #include "contracts.hpp"
 #include "delayed_library.hpp"
-#include "../../../integrations/px4/module/ImuPrediction.hpp"
+#include <formal_eskf/runtime/sensors/imu/imu.hpp>
 #include "../../../integrations/px4/module/DeploymentProfile.hpp"
 
 #define private public

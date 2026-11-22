@@ -9,10 +9,15 @@
 #include <formal_eskf/runtime/history/ring_buffer.hpp>
 
 #include "DeploymentProfile.hpp"
-#include "ImuPrediction.hpp"
 
 namespace formal_eskf::px4
 {
+
+/** Only an initialized filter may propagate accelerometer-clipped intervals. */
+inline bool imu_clipping_acceptable(std::uint8_t accelerometer, std::uint8_t gyroscope, bool initialized)
+{
+    return accelerometer <= 7U && gyroscope == 0U && (initialized || accelerometer == 0U);
+}
 
 struct ImuSource
 {

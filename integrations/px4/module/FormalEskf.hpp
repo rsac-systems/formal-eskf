@@ -44,7 +44,6 @@
 #include "DeploymentProfile.hpp"
 #include "HeightAiding.hpp"
 #include "InnovationRatio.hpp"
-#include "ImuPrediction.hpp"
 #include "ImuHistory.hpp"
 #include "ObservationHistory.hpp"
 #include "OutputPredictor.hpp"

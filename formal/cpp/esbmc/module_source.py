@@ -20,10 +20,9 @@ PINS = {
     "integrations/px4/module/FormalEskf.hpp": "ffe1420cb9a9f8e5ae2f440300342add58c40c96e51afcec204eb503fbf1b843",
     "integrations/px4/module/FormalEskfOutput.cpp": "6f3d790874661887e1e388063c8fd8969a696f2b17afe1a5650d88fd020ac760",
     "integrations/px4/module/DeploymentProfile.hpp": "d665bc65cf9c6e8f2c3d1af0642ef8852e5e0d39455b047ef4b2e2165c030664",
-    "integrations/px4/module/ImuPrediction.hpp": "d07a78e14d2963cab95cca1da47998a0de2b16d3081ca97f5c5024c4195266e0",
     "integrations/px4/module/FormalEskfNavigation.cpp": "3c7479b6cf3f026a71f98eff34730278c8b61f097947f803428e83d69c27ba32",
     "integrations/px4/module/FormalEskfAttitude.cpp": "f3df7057b135a74fe3a045577e35fb0faaf80453ca724989b0d5c032a315bba9",
-    "integrations/px4/module/ImuHistory.hpp": "644218fc1bb050c8192aaf1584d6b226e2b55c07027d72461936b8ccd08d07c9",
+    "integrations/px4/module/ImuHistory.hpp": "6b536215c201555809c0c7023e9d54e3e7cb7453d43a2fa0ff62ad0ddf4b07f1",
     "integrations/px4/module/DeploymentConfig.hpp": "015b515863ec85cbc1ebd4994ea6c2b6a1a8191fea825a63f48fc7a72935a8dd",
     "examples/replay_ins.cpp": "52c8c3cfdaf2398729e150f68823ddd50358479382fed984d4b38823f0cbdd43",
 }
@@ -131,7 +130,11 @@ def generate(OUTPUT_DIR):
                           SOURCES["DeploymentProfile.hpp"], re.MULTILINE)
     if len(CONSTANT) != 1:
         raise ValueError("ambiguous IMU context age")
-    TEXT += "namespace profile::imu\n{\n" + CONSTANT[0] + "\n}\n"
+    FAULT = re.findall(r"^inline constexpr [^\n]*\bfaulty_specific_force_variance = [^\n]*$",
+                       SOURCES["DeploymentProfile.hpp"], re.MULTILINE)
+    if len(FAULT) != 1:
+        raise ValueError("ambiguous IMU fault variance")
+    TEXT += "namespace profile::imu\n{\n" + CONSTANT[0] + "\n" + FAULT[0] + "\n}\n"
     for NAMESPACE, NAMES in {
             "output": ("maximum_age_us", "navigation_interval_us", "dead_reckoning_age_us"),
             "history": ("minimum_period_us", "maximum_period_us"),
@@ -147,7 +150,7 @@ def generate(OUTPUT_DIR):
         TEXT += "}\n"
     OUTPUTS["module_constants.inc"] = TEXT
     TEXT = "namespace formal_eskf::px4\n{\n" + method(
-        SOURCES["ImuPrediction.hpp"], "inline bool imu_clipping_acceptable(") + "\n}\n"
+        SOURCES["ImuHistory.hpp"], "inline bool imu_clipping_acceptable(") + "\n}\n"
     OUTPUTS["module_clipping.inc"] = TEXT
     TEXT = "namespace formal_eskf::px4\n{\n" + method(
         SOURCES["ImuHistory.hpp"], "struct TimingParameters\n{") + ";\n}\n"

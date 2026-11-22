@@ -2467,7 +2467,7 @@ CASES = {
 }
 for CASE, (HEADER, OLD, NEW) in CASES.items():
     DEST = OUTPUT / CASE
-    for NAME in ('ImuHistory.hpp', 'ImuPrediction.hpp', 'DeploymentProfile.hpp', 'InnovationRatio.hpp'):
+    for NAME in ('ImuHistory.hpp', 'DeploymentProfile.hpp', 'InnovationRatio.hpp'):
         RELATIVE = pathlib.Path('integrations/px4/module', NAME)
         TARGET = DEST / RELATIVE
         TARGET.parent.mkdir(parents=True, exist_ok=True)
