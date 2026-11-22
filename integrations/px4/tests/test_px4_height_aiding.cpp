@@ -500,6 +500,70 @@ template <typename Linalg> void run(Context & test)
         test.expect(bias.variance <= Scalar{1} && bias.finite(), "bias", "bounded bias uncertainty");
     }
 }
+template <typename Linalg> void geographic_height(Context & test)
+{
+    using Aiding = formal_eskf::px4::HeightAiding<Linalg>;
+    using V = typename Aiding::vector_type;
+    using Source = typename Aiding::Source;
+    formal_eskf::geodesy::LocalNed<Linalg> old_frame, new_frame;
+    formal_eskf::runtime::HeightDatum<Linalg> datum;
+    test.expect(old_frame.set_origin({47., 8., 550.}) == Status::success &&
+                    new_frame.set_origin({46., 7., 600.}) == Status::success &&
+                    datum.update(1000000, 550., 503.) == Status::success,
+                "geographic height", "independent origins and paired datum");
+    typename Aiding::Geometry old_geometry{old_frame, datum}, new_geometry{new_frame, datum};
+    typename Aiding::state_type state;
+    state.p_n = V::from_row_major({1200., -800., -20.});
+    auto P = Aiding::covariance_type::identity();
+    P(0, 0) = 4.;
+    P(1, 1) = 9.;
+    P(0, 2) = P(2, 0) = 0.2;
+    formal_eskf::geodesy::NedTransform<Linalg> transform, inverse;
+    test.expect(old_frame.transform_to(new_frame, transform) == Status::success &&
+                    new_frame.transform_to(old_frame, inverse) == Status::success,
+                "geographic height", "frame transforms");
+    Aiding aiding;
+    test.expect(aiding.initialize(1000000, 503.) == Status::success, "geographic height", "source startup");
+    typename Aiding::Sample gps{1020000, 2, 0, 500., 1.};
+    auto const first = aiding.update(gps.time_us, {}, gps, true, state, P, {}, {}, false, &old_geometry);
+    V ecef;
+    formal_eskf::geodesy::GeodeticPosition point;
+    test.expect(first.status == Status::success && first.height_resets == 1 &&
+                    old_frame.ned_to_ecef(state.p_n, ecef) == Status::success &&
+                    formal_eskf::geodesy::ecef_to_geodetic<Linalg>(ecef, point) == Status::success &&
+                    std::abs(point.height_ellipsoid_m - 547.) < 2e-7,
+                "geographic height", "reset moves along the point's normal to the requested physical MSL height");
+    auto moved_aiding = aiding;
+    typename Aiding::state_type moved;
+    typename Aiding::covariance_type moved_P;
+    test.expect(formal_eskf::runtime::rebase_origin(state, P, transform, 1e-6, moved, moved_P) == Status::success,
+                "geographic height", "transport full prior");
+    gps.time_us += 20000;
+    gps.altitude += 0.5;
+    auto const a = aiding.update(gps.time_us, {}, gps, true, state, P, {}, {}, false, &old_geometry);
+    auto const b = moved_aiding.update(gps.time_us, {}, gps, true, moved, moved_P, {}, {}, false, &new_geometry);
+    typename Aiding::state_type back;
+    typename Aiding::covariance_type back_P;
+    test.expect(
+        a.status == Status::success && b.status == Status::success && a.fused == 1 && b.fused == 1 &&
+            formal_eskf::runtime::rebase_origin(moved, moved_P, inverse, 1e-6, back, back_P) == Status::success &&
+            formal_eskf::linalg::max_abs(back.p_n - state.p_n) < 2e-7 &&
+            formal_eskf::linalg::max_abs(back_P - P) < 1e-9 &&
+            aiding.session(Source::gnss).bias.value == moved_aiding.session(Source::gnss).bias.value,
+        "geographic height", "same MSL observation produces equivalent full-covariance correction after rebasing");
+    auto const prior = state;
+    auto const prior_P = P;
+    auto const epoch = aiding.session(Source::gnss).sample_time;
+    formal_eskf::runtime::HeightDatum<Linalg> missing;
+    typename Aiding::Geometry invalid{old_frame, missing};
+    gps.time_us += 20000;
+    auto const failure = aiding.update(gps.time_us, {}, gps, true, state, P, {}, {}, false, &invalid);
+    test.expect(failure.status == Status::domain_error && aiding.session(Source::gnss).sample_time == epoch &&
+                    formal_eskf::linalg::max_abs(state.p_n - prior.p_n) == 0. &&
+                    formal_eskf::linalg::max_abs(P - prior_P) == 0.,
+                "geographic height", "missing datum preserves the source and whole estimator transaction");
+}
+
 } /* end namespace */
 
 int main()
@@ -508,5 +572,6 @@ int main()
     Context test;
     run<formal_eskf::test::Backend<float>>(test);
     run<formal_eskf::test::Backend<double>>(test);
+    geographic_height<formal_eskf::test::Backend<double>>(test);
     return test.failures() == 0 ? 0 : 1;
 }

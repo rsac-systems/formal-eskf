@@ -29,8 +29,13 @@ covariance preconditions; this helper does not prove or recheck positive semidef
   Process barometer before GNSS, after horizontal/velocity operations. These are
   deployment defaults for the configurable noise/gate values; source preference
   and processing order are fixed. No live `EKF2_*` parameters are read.
-- With altitude `h = origin_altitude - p_D`, define each offset as `b = z_h - h`.
-  The core observes `p_D = origin_altitude - z_h + b` with variance `R + P_b`.
+- Define each offset as `b = z_h - h`, where h is estimated MSL altitude.
+  The live geometric path obtains h through ECEF/geodetic conversion and the
+  admitted datum, following R-FRAME-OBSERVATIONS. Observe negative altitude with
+  residual `h - (z_h - b)`, the local geodetic Down row as position Jacobian,
+  and variance `R + P_b`. Bias training uses projected height variance `H P H^T`.
+  Standalone flat-frame callers without geometry retain `h = origin_altitude - p_D`
+  and the original selector Jacobian; the live module always supplies geometry.
   Freeze the current observation at the prior offset before training the offset
   for subsequent samples. Only active non-reference sources predict/learn their
   offset; the current reference's offset and variance remain frozen.
@@ -81,7 +86,13 @@ covariance preconditions; this helper does not prove or recheck positive semidef
   velocity, the module uses preceding health and shared height progress for its
   checked Down-only reset after the normal velocity attempt. A Down-only reset
   retains that attempt's diagnostics; a full velocity reset clears its innovation.
-  Horizontal values and reset counters are unaffected by either Down-only operation.
+  Down is the declared observation vertical, not necessarily working Z. The
+  geometric reset moves along the estimated point's ellipsoid normal, transports
+  full P through that basis and returns reset-only working p/v deltas. Preserve
+  horizontal coordinates in that observation basis. The module computes actual
+  consumer-frame deltas; a changed output geographic basis can also require a
+  velocity/attitude reset notification. An internal coordinate-only event never
+  changes those counters.
 - Commit the height tick's state/P, history and counters only if all numerical
   operations succeed. Rejection can update diagnostics/lifecycle but cannot act
   as successful correction. Preserve raw gate evidence after a timeout reset;
@@ -102,6 +113,11 @@ SITL are empirical evidence. `HeightBias.lean` proves the real scalar gain,
 unclamped posterior covariance (including Joseph equivalence), residual
 contraction and offset transport before source-specific re-alignment. It does
 not assert that the C++ variance floor always decreases variance.
+
+The existing `height` ESBMC evidence predates the optional geometric interface
+and added vector reset reports. It must be refreshed before it can cover the
+changed owner; native equivalence/rollback tests are not that refresh. The
+geometric path has no ESBMC claim in this functional round.
 
 The `height` ESBMC suite checks actual scalar-offset equations and field frames,
 explicit defaults, finite classification, both sources' admission/stop behavior

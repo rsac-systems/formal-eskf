@@ -101,14 +101,7 @@ bool FormalEskf::magnetic_heading_aiding() const
            (!m_magnetic.horizontal_aiding || m_magnetic.heading.state().consistent);
 }
 
-FormalEskf::vector3_type FormalEskf::rotation_variance_n() const
-{
-    // The core uses right-local body errors; PX4 heading/tilt proxies use NED errors.
-    // Use the delayed attitude that belongs to this covariance, not current output.
-    auto const R = formal_eskf::so3::to_rotation_matrix(m_state.q_nb);
-    auto const covariance_n = formal_eskf::linalg::sandwich(R, m_covariance.block<6U, 6U, 3U, 3U>());
-    return vector3(covariance_n(0, 0), covariance_n(1, 1), covariance_n(2, 2));
-}
+FormalEskf::vector3_type FormalEskf::rotation_variance_n() const { return navigation_variance(6); }
 
 bool FormalEskf::magnetic_heading_valid() const
 {
@@ -163,8 +156,13 @@ void FormalEskf::update_magnetic_model()
     double longitude = m_origin.projection.getProjectionReferenceLon();
     if (position_valid)
     {
-        m_origin.projection.reproject(m_state.p_n(0), m_state.p_n(1), latitude, longitude);
-        longitude = matrix::wrap(longitude, -180., 180.);
+        formal_eskf::geodesy::GeodeticPosition geographic;
+        if (!check(m_navigation_frame.geographic(m_state.p_n, geographic)))
+        {
+            return;
+        }
+        latitude = geographic.latitude_deg;
+        longitude = matrix::wrap(geographic.longitude_deg, -180., 180.);
     }
     auto const model = lookup_magnetic_model(latitude, longitude);
     m_mag_model_unavailable += !model.has_value();
@@ -266,16 +264,18 @@ FormalEskf::status_type FormalEskf::prepare_magnetic_observation(MagneticSample 
     formal_eskf::runtime::MagneticHeading<backend_type>::Parameters const parameters{
         profile::magnetic::heading_noise_rad, profile::magnetic::acceleration_limit_m_s2,
         profile::magnetic::field.minimum_horizontal_field};
-    auto const status = m_magnetic.heading.update(m_state.q_nb, sample.field_b, m_magnetic_model.observation_n(),
-                                                  parameters, m_heading_aligned, conditions.horizontal_aiding);
+    auto const status =
+        m_magnetic.heading.update(m_state.q_nb, sample.field_b, magnetic_reference(m_magnetic_model.observation_n()),
+                                  parameters, m_heading_aligned, conditions.horizontal_aiding);
     if (!formal_eskf::succeeded(status))
     {
         return status;
     }
-    auto const * health = m_magnetic_model.available() ? &m_magnetic_model.health_n() : nullptr;
-    m_magnetic.observation.field =
-        formal_eskf::runtime::check_magnetic_field(m_state.q_nb, sample.field_b, m_magnetic_model.observation_n(),
-                                                   health, profile::magnetic::field, false, profile::magnetic::checks);
+    auto const health_n = magnetic_reference(m_magnetic_model.health_n());
+    auto const * health = m_magnetic_model.available() ? &health_n : nullptr;
+    m_magnetic.observation.field = formal_eskf::runtime::check_magnetic_field(
+        m_state.q_nb, sample.field_b, magnetic_reference(m_magnetic_model.observation_n()), health,
+        profile::magnetic::field, false, profile::magnetic::checks);
     event.field_accepted = m_magnetic.observation.field.accepted;
     return m_magnetic.observation.field.status;
 }
@@ -283,11 +283,12 @@ FormalEskf::status_type FormalEskf::prepare_magnetic_observation(MagneticSample 
 bool FormalEskf::fuse_magnetic_observation(MagneticSample const & sample)
 {
     auto const V = matrix3_type::identity() * profile::magnetic::noise_variance;
-    auto const * health = m_magnetic_model.available() ? &m_magnetic_model.health_n() : nullptr;
+    auto const health_n = magnetic_reference(m_magnetic_model.health_n());
+    auto const * health = m_magnetic_model.available() ? &health_n : nullptr;
     m_magnetic.observation = formal_eskf::runtime::fuse_magnetometer(
-        m_state, m_covariance, sample.field_b, m_magnetic_model.observation_n(), health, V, profile::magnetic::field,
-        false, profile::minimum_quaternion_norm, profile::magnetic::gate_sigma, m_state, m_covariance,
-        m_bias_learning_result.bias_update, profile::magnetic::checks);
+        m_state, m_covariance, sample.field_b, magnetic_reference(m_magnetic_model.observation_n()), health, V,
+        profile::magnetic::field, false, profile::minimum_quaternion_norm, profile::magnetic::gate_sigma, m_state,
+        m_covariance, m_bias_learning_result.bias_update, profile::magnetic::checks);
     auto const & fusion = m_magnetic.observation.fusion;
     for (std::size_t axis = 0; axis < 3; ++axis)
     {
@@ -307,7 +308,7 @@ FormalEskf::status_type FormalEskf::reset_magnetic_heading(std::uint64_t sample_
 {
     quaternion_type delta;
     auto const status = formal_eskf::runtime::reset_magnetic_heading(
-        m_state, m_covariance, m_magnetic.filter.field_b(), m_magnetic_model.observation_n(),
+        m_state, m_covariance, m_magnetic.filter.field_b(), magnetic_reference(m_magnetic_model.observation_n()),
         profile::magnetic::heading_noise_rad * profile::magnetic::heading_noise_rad,
         profile::magnetic::field.minimum_horizontal_field, profile::minimum_quaternion_norm, m_state, m_covariance,
         delta);
@@ -319,12 +320,11 @@ FormalEskf::status_type FormalEskf::reset_magnetic_heading(std::uint64_t sample_
     }
     if (reset)
     {
-        if (!reset_output(delta, {}, {}))
+        if (!reset_output(delta, {}, {}, {.attitude = true}))
         {
             return status_type::out_of_range;
         }
-        m_resets.attitude_delta = delta;
-        ++m_resets.attitude_count;
+
         m_heading_aligned = true;
         m_magnetic.heading.reset_heading();
         for (auto & ratio : m_magnetic.ratios)
@@ -393,13 +393,11 @@ void FormalEskf::fuse_mag()
         fused = m_magnetic.observation.fusion.decision == formal_eskf::runtime::FusionDecision::fused;
         rejected = m_magnetic.observation.fusion.decision == formal_eskf::runtime::FusionDecision::rejected;
     }
-    bool reset = false;
     status_type reset_status = status_type::success;
     // Rejected fusion feedback can request a reset in the same tick.
     if (lifecycle.action == magnetic_lifecycle_type::Action::reset)
     {
         reset_status = reset_magnetic_heading(event.time_us);
-        reset = formal_eskf::succeeded(reset_status);
     }
     // Preserve the separate post-feedback transition, including reset failure.
     if (previous.active && !lifecycle.active && !conditions.horizontal_aiding)
@@ -412,5 +410,4 @@ void FormalEskf::fuse_mag()
     }
     m_magnetic.corrections += fused;
     m_rejections += rejected;
-    m_resets.odometry_count += reset;
 }

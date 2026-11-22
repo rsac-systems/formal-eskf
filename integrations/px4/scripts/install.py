@@ -17,7 +17,7 @@ BOARD = "boards/px4/sitl/formal_eskf.px4board"
 RECEIPT = f"{MODULE}/package-manifest.json"
 SCRIPT_DIR = Path(__file__).resolve().parent
 MODULE_FILES = (
-    "CMakeLists.txt", "FormalEskf.cpp", "FormalEskf.hpp", "FormalEskfNavigation.cpp",
+    "CMakeLists.txt", "FormalEskf.cpp", "FormalEskf.hpp", "FormalEskfNavigation.cpp", "FormalEskfFrames.cpp",
     "FormalEskfAttitude.cpp", "FormalEskfOutput.cpp", "DeploymentProfile.hpp",
     "DeploymentConfig.hpp",
     "MagneticModel.hpp", "HeightAiding.hpp", "InnovationRatio.hpp",

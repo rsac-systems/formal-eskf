@@ -11,6 +11,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <limits>
+#include <numbers>
 #include <platforms/posix/apps.h>
 #include <uORB/uORBManager.hpp>
 #include <px4_platform_common/param.h>
@@ -67,6 +68,35 @@ template <typename Matrix> bool same_bits(Matrix const & a, Matrix const & b)
         }
     }
     return true;
+}
+
+// Independent forward geometry oracle. No production inverse or frame transform.
+matrix::Vector3<double> oracle_ecef(double latitude, double longitude, double height)
+{
+    long double const lat = latitude * std::numbers::pi_v<long double> / 180;
+    long double const lon = longitude * std::numbers::pi_v<long double> / 180;
+    constexpr long double a = 6378137.L, f = 1.L / 298.257223563L;
+    constexpr long double e2 = f * (2 - f);
+    long double const N = a / std::sqrt(1 - e2 * std::sin(lat) * std::sin(lat));
+    return {double((N + height) * std::cos(lat) * std::cos(lon)), double((N + height) * std::cos(lat) * std::sin(lon)),
+            double((N * (1 - e2) + height) * std::sin(lat))};
+}
+
+matrix::SquareMatrix<double, 3> oracle_ned(double latitude, double longitude)
+{
+    double const lat = latitude * std::numbers::pi / 180;
+    double const lon = longitude * std::numbers::pi / 180;
+    matrix::SquareMatrix<double, 3> result;
+    result(0, 0) = -std::sin(lat) * std::cos(lon);
+    result(0, 1) = -std::sin(lat) * std::sin(lon);
+    result(0, 2) = std::cos(lat);
+    result(1, 0) = -std::sin(lon);
+    result(1, 1) = std::cos(lon);
+    result(1, 2) = 0;
+    result(2, 0) = -std::cos(lat) * std::cos(lon);
+    result(2, 1) = -std::cos(lat) * std::sin(lon);
+    result(2, 2) = -std::sin(lat);
+    return result;
 }
 
 } // namespace
@@ -375,6 +405,9 @@ public:
         f.m_origin.time_us = clock_us;
         f.m_origin.altitude_msl_m = 488.;
         f.m_origin.altitude_ellipsoid_m = 535.;
+        expect(formal_eskf::succeeded(f.m_navigation_frame.initialize({47.397742, 8.545594, 535.})) &&
+                   formal_eskf::succeeded(f.m_height_datum.update(clock_us, 535., 488.)),
+               "prepare geometric frame and paired height datum");
         f.m_gps.device_id = 201U;
         f.m_gps.latitude_deg = 47.397742;
         f.m_gps.longitude_deg = 8.545594;
@@ -582,17 +615,17 @@ public:
         auto const velocity_resets = f.m_resets.velocity_count;
         auto const position_resets = f.m_resets.position_count;
         auto const corrections = f.m_gnss.corrections;
-        // Fault injection after metadata qualification: exercise partial failure of
-        // the second operation, not external-coordinate admission.
+        // Both receiver velocity and position need the declared geographic frame.
+        // Malformed coordinates cannot be used to interpret even a finite velocity.
         f.m_gps.latitude_deg = std::numeric_limits<double>::quiet_NaN();
         f.m_gps.vel_n_m_s = 1.f;
+        auto const prior = f.m_state;
         test.navigation_tick();
-        expect(f.m_fault && f.m_errors == 1U && f.m_state.v_n(0) > 0.,
-               "position failure preserves preceding velocity result and faults once");
-        expect(f.m_resets.position_count == position_resets &&
-                   f.m_resets.velocity_count == velocity_resets + unsigned(reset) &&
-                   f.m_gnss.corrections == corrections + unsigned(!reset),
-               "only the completed velocity operation receives success bookkeeping");
+        expect(f.m_fault && f.m_errors == 1U && f.m_state.v_n(0) == prior.v_n(0),
+               "malformed receiver frame faults before numerical fusion");
+        expect(f.m_resets.position_count == position_resets && f.m_resets.velocity_count == velocity_resets &&
+                   f.m_gnss.corrections == corrections,
+               "invalid receiver frame cannot advance either group's bookkeeping");
     }
 
     enum class HeightInputCase
@@ -756,7 +789,7 @@ public:
         f.m_gnss.quality_result.decision = formal_eskf::runtime::GnssQualityDecision::accepted;
         test.navigation_tick();
         expect(!f.m_fault && f.m_resets.height_count == std::uint8_t(height_resets + 2U) &&
-                   std::abs(f.m_resets.height_delta - (-3. - position)) < 1e-12 &&
+                   std::abs(f.m_resets.height_delta - (-3. - position)) < 2e-7 &&
                    f.m_resets.vertical_velocity_count == std::uint8_t(vertical_resets + 1U),
                "pre-height Down reset and two height resets retain distinct counters and aggregate height delta");
     }
@@ -839,16 +872,17 @@ public:
             orb_copy(ORB_ID(vehicle_local_position), test.m_outputs[1], &local);
             orb_copy(ORB_ID(vehicle_global_position), test.m_outputs[2], &global);
             orb_copy(ORB_ID(vehicle_odometry), test.m_outputs[3], &odometry);
-            expect(local.x == float(expected_position(0)) && local.vx == float(expected_velocity(0)) &&
+            auto const output = f.body_output();
+            expect(local.x == float(output.position_n(0)) && local.vx == float(output.velocity_n(0)) &&
                        local.delta_z == float(-0.6) && global.delta_alt == -local.delta_z &&
                        local.z_reset_counter == global.alt_reset_counter && odometry.reset_counter == 251U &&
-                       odometry.q[0] == float(f.m_output.current().q_nb.coefficients()(0)),
+                       odometry.q[0] == float(output.q_nb.coefficients()(0)),
                    "navigation reads current output, with reset signs/counters and published rounding");
             double latitude{}, longitude{};
             f.m_origin.projection.reproject(local.x, local.y, latitude, longitude);
-            expect(global.lat == latitude && global.lon == longitude && local.xy_valid && local.z_valid &&
-                       global.alt == float(f.m_origin.altitude_msl_m - f.m_output.current().p_n(2)),
-                   "global mapping uses current local output rather than the delayed position");
+            expect(std::abs(global.lat - latitude) < 1e-9 && std::abs(global.lon - longitude) < 1e-9 &&
+                       local.xy_valid && local.z_valid && global.alt == float(output.altitude_msl_m),
+                   "fixed projection and exact geographic output describe the current body point");
             expect(local.timestamp_sample == f.m_output.current().time_us &&
                        global.timestamp_sample == local.timestamp_sample &&
                        odometry.timestamp_sample == local.timestamp_sample &&
@@ -1094,6 +1128,9 @@ public:
         filter.m_initialized = true;
         filter.m_origin.projection.initReference(47.397742, 8.545594, clock_us);
         filter.m_origin.time_us = clock_us;
+        expect(formal_eskf::succeeded(filter.m_navigation_frame.initialize({47.397742, 8.545594, 535.})) &&
+                   formal_eskf::succeeded(filter.m_height_datum.update(clock_us, 535., 488.)),
+               "prepare magnetic geometric frame and datum");
         filter.m_mag_model_origin_time = clock_us;
         filter.m_mag.device_id = 301U;
         filter.m_mag.magnetometer_ga[0] = 0.3f;
@@ -2071,7 +2108,9 @@ public:
             f.m_gps.vel_n_m_s = static_cast<float>(gps_velocity(0));
             f.m_gps.vel_e_m_s = static_cast<float>(gps_velocity(1));
             f.m_gps.vel_d_m_s = static_cast<float>(gps_velocity(2));
-            f.initialize_navigation(imu);
+            f.m_navigation_frame = {};
+            f.m_gps.timestamp_sample = clock_us;
+            expect(f.initialize_navigation(imu), "initialize navigation geometry");
             for (std::size_t axis = 0; axis < 3; ++axis)
             {
                 expect(std::abs(f.m_state.p_n(axis) - imu_position(axis)) < 1e-12 &&
@@ -2094,7 +2133,7 @@ public:
             f.fuse_height();
             for (std::size_t axis = 0; axis < 3; ++axis)
             {
-                expect(!f.m_fault && std::abs(f.m_state.p_n(axis) - imu_position(axis)) < 1e-10 &&
+                expect(!f.m_fault && std::abs(f.m_state.p_n(axis) - imu_position(axis)) < 2e-7 &&
                            std::abs(f.m_state.v_n(axis) - imu_velocity(axis)) < 2e-7,
                        "qualified GNSS horizontal/height/velocity resets consume compensated observations");
             }
@@ -2153,21 +2192,34 @@ public:
         orb_copy(ORB_ID(vehicle_global_position), test.m_outputs[2], &global);
         orb_copy(ORB_ID(vehicle_odometry), test.m_outputs[3], &odometry);
         auto const body = f.body_output();
+        auto const origin_basis = oracle_ned(47.397742, 8.545594);
+        auto const point_basis = oracle_ned(body.geographic.latitude_deg, body.geographic.longitude_deg);
+        matrix::Vector3<double> const body_position(current.p_n(0) - position_offset(0),
+                                                    current.p_n(1) - position_offset(1),
+                                                    current.p_n(2) - position_offset(2));
+        auto const expected_ecef = oracle_ecef(47.397742, 8.545594, 535.) + origin_basis.transpose() * body_position;
+        auto const actual_ecef = oracle_ecef(body.geographic.latitude_deg, body.geographic.longitude_deg,
+                                             body.geographic.height_ellipsoid_m);
+        matrix::Vector3<double> const body_velocity(current.v_n(0) - velocity_offset(0),
+                                                    current.v_n(1) - velocity_offset(1),
+                                                    current.v_n(2) - velocity_offset(2));
+        matrix::Vector3<double> const expected_velocity = point_basis * origin_basis.transpose() * body_velocity;
+        expect((actual_ecef - expected_ecef).norm() < 2e-7,
+               "published body geographic point agrees with independent ECEF forward geometry");
         for (std::size_t axis = 0; axis < 3; ++axis)
         {
-            expect(std::abs(body.position_n(axis) - (current.p_n(axis) - position_offset(axis))) < 1e-12 &&
-                       std::abs(body.velocity_n(axis) - (current.v_n(axis) - velocity_offset(axis))) < 1e-9 &&
+            expect(std::abs(body.velocity_n(axis) - expected_velocity(axis)) < 1e-9 &&
                        odometry.position[axis] == float(body.position_n(axis)) &&
                        odometry.velocity[axis] == float(body.velocity_n(axis)),
-                   "current body output agrees with an independent rotating-point derivative");
-            expect(odometry.position_variance[axis] == float(f.m_covariance(axis, axis)),
-                   "reported uncertainty retains the documented delayed IMU-state proxy");
+                   "current body velocity agrees with the rotating-point derivative in geographic NED");
+            expect(odometry.position_variance[axis] == float(f.navigation_variance(0)(axis)),
+                   "publication consumes the separately tested delayed geographic covariance proxy");
         }
         expect(local.x == odometry.position[0] && local.y == odometry.position[1] && local.z == odometry.position[2] &&
                    local.vx == odometry.velocity[0] && local.vy == odometry.velocity[1] &&
                    local.vz == odometry.velocity[2] && local.z_deriv == local.vz &&
                    global.alt == float(f.m_origin.altitude_msl_m - body.position_n(2)) &&
-                   global.alt_ellipsoid == float(f.m_origin.altitude_ellipsoid_m - body.position_n(2)) &&
+                   global.alt_ellipsoid == float(body.geographic.height_ellipsoid_m) &&
                    same_bits(current.p_n, f.m_output.current().p_n) && same_bits(current.v_n, f.m_output.current().v_n),
                "local/global/odometry share one body point without moving the retained IMU state");
         FormalEskf::quaternion_type yaw_delta;
@@ -2186,6 +2238,10 @@ public:
         f.m_resets.record_vertical_velocity(f.m_time_us, velocity(2));
         expect(f.reset_output(yaw_delta, {}, {}), "attitude reset transforms output history");
         auto const after = f.body_output();
+        auto const quaternion_delta = after.q_nb * body.q_nb.inverse();
+        expect(formal_eskf::linalg::max_abs(f.m_resets.attitude_delta.coefficients() -
+                                            quaternion_delta.coefficients()) < 1e-12,
+               "reported quaternion reset uses consumer geographic axes");
         auto const dp = after.position_n - body.position_n;
         auto const dv = after.velocity_n - body.velocity_n;
         expect(f.m_resets.position_count == std::uint8_t(positions + 2U) &&
@@ -2197,6 +2253,13 @@ public:
                    std::abs(f.m_resets.height_delta - 0.6 - dp(2)) < 1e-12 &&
                    std::abs(f.m_resets.vertical_velocity_delta - velocity(2) - dv(2)) < 1e-12,
                "heading-induced body point changes accumulate with same-step translation reset notifications");
+        auto const count = f.m_resets.attitude_count;
+        expect(f.reset_output(yaw_delta.inverse(), {}, {}, {.attitude = true}), "second same-tick attitude reset");
+        auto const combined = f.body_output().q_nb * body.q_nb.inverse();
+        expect(f.m_resets.attitude_count == std::uint8_t(count + 1) &&
+                   formal_eskf::linalg::max_abs(f.m_resets.attitude_delta.coefficients() - combined.coefficients()) <
+                       1e-12,
+               "same-tick quaternion notifications compose instead of discarding the first reset");
     }
 
     enum class CapabilityCase
@@ -2546,7 +2609,11 @@ public:
                 }
             }
             auto const before = f.m_covariance;
-            auto const expected = R * P * R.transpose();
+            formal_eskf::geodesy::GeodeticPosition point;
+            expect(formal_eskf::succeeded(f.m_navigation_frame.geographic(f.m_state.p_n, point)), "delayed point");
+            auto const A =
+                oracle_ned(point.latitude_deg, point.longitude_deg) * oracle_ned(47.397742, 8.545594).transpose();
+            auto const expected = A * R * P * R.transpose() * A.transpose();
             auto const variance = f.rotation_variance_n();
             for (std::size_t axis = 0; axis < 3; ++axis)
             {
@@ -2581,6 +2648,9 @@ public:
             test.warmup();
             auto & f = test.m_filter;
             f.m_origin.projection.initReference(0., direction * 179.999, f.m_origin.time_us);
+            f.m_navigation_frame = {};
+            expect(formal_eskf::succeeded(f.m_navigation_frame.initialize({0., direction * 179.999, 535.})),
+                   "dateline working frame");
             f.m_state.p_n = FormalEskf::vector3(0., direction * 2000., 0.);
             expect(f.m_output.apply_reset({}, {}, f.m_state.p_n), "dateline output setup");
             auto const state_before = f.m_state;
@@ -2588,7 +2658,11 @@ public:
             double latitude{}, longitude{};
             f.m_origin.projection.reproject(f.m_state.p_n(0), f.m_state.p_n(1), latitude, longitude);
             expect(std::abs(longitude) > 180., "raw projection crosses the longitude convention boundary");
-            double const expected_longitude = longitude - direction * 360.;
+            // At the equator this east displacement has an independent atan2 solution.
+            auto const point_ecef =
+                oracle_ecef(0., direction * 179.999, 535.) +
+                oracle_ned(0., direction * 179.999).transpose() * matrix::Vector3<double>(0., direction * 2000., 0.);
+            double const expected_longitude = std::atan2(point_ecef(1), point_ecef(0)) * 180. / std::numbers::pi;
             auto const lookups = f.m_magnetic_model.lookup_count();
             auto const unavailable = f.m_mag_model_unavailable;
             f.m_mag_model_origin_time = 0; // Request a lookup at the current estimated position.
@@ -2610,6 +2684,155 @@ public:
                        same_bits(state_before.p_n, f.m_state.p_n),
                    "global longitude wraps without changing local origin, state or reset history");
         }
+    }
+
+    static void origin_transaction()
+    {
+        FormalEskfModuleTest test;
+        test.warmup(); // Several wraps of both retained IMU/output histories.
+        auto & f = test.m_filter;
+        f.m_sensor_positions.imu_b = FormalEskf::vector3(0.3, -0.2, 0.1);
+        auto const translation = FormalEskf::vector3(1200., 800., -120.);
+        f.m_state.p_n = f.m_state.p_n + translation;
+        expect(f.m_output.apply_reset({}, {}, translation), "move a physical trajectory before the event");
+        // Current output is a different point and epoch from the selected delayed origin.
+        expect(f.m_output.apply_reset({}, {}, FormalEskf::vector3(2., -1., 0.4)), "distinct output point");
+        auto const before = f.body_output();
+        auto const old_state = f.m_state;
+        auto const old_P = f.m_covariance;
+        auto const old_frame = f.m_navigation_frame.working();
+        auto const before_output = f.m_output.current();
+        auto const resets = f.m_resets;
+        auto const origin = f.m_origin;
+        auto const heading = f.m_magnetic.heading.state();
+        auto const tilt = f.m_tilt_alignment.aligned();
+        auto const bias = f.m_height_aiding.session(FormalEskf::height_type::Source::barometer).bias;
+        auto const imu_entries = f.m_imu_history.entries();
+        auto const output_entries = f.m_output.entries();
+        auto const gps_epoch = f.m_gnss.sample_time_us;
+        auto const datum_epoch = f.m_height_datum.time_us();
+        auto const corrections = f.m_gnss.corrections;
+        auto const reference = f.m_magnetic_model.reference_id();
+        expect(f.rebase_navigation() == formal_eskf::Status::success, "prepare and commit live owner transaction");
+        auto const after = f.body_output();
+        expect(before.status == formal_eskf::Status::success && after.status == formal_eskf::Status::success &&
+                   formal_eskf::linalg::max_abs(after.position_n - before.position_n) < 2e-6 &&
+                   formal_eskf::linalg::max_abs(after.velocity_n - before.velocity_n) < 1e-10 &&
+                   formal_eskf::linalg::max_abs(after.q_nb.coefficients() - before.q_nb.coefficients()) < 1e-12 &&
+                   std::abs(after.geographic.height_ellipsoid_m - before.geographic.height_ellipsoid_m) < 2e-7,
+               "frozen physical body point, velocity and attitude survive internal migration");
+        auto const setpoint = FormalEskf::vector3(1300., 900., -150.);
+        expect(formal_eskf::linalg::max_abs((setpoint - after.position_n) - (setpoint - before.position_n)) < 2e-6,
+               "unchanged PX4 controller setpoint retains the same position error");
+        expect(formal_eskf::linalg::norm(f.m_state.p_n) < 2e-7 &&
+                   formal_eskf::linalg::norm(f.m_output.current().p_n) > 1. &&
+                   f.m_output.current().time_us == before_output.time_us && f.m_time_us < before_output.time_us,
+               "origin uses delayed IMU position, not the newer output or terrain");
+        expect(f.m_navigation_frame.generation() == 1 && f.m_origin.time_us == origin.time_us &&
+                   f.m_origin.altitude_msl_m == origin.altitude_msl_m &&
+                   f.m_origin.projection.getProjectionReferenceLat() == origin.projection.getProjectionReferenceLat() &&
+                   f.m_resets.position_count == resets.position_count &&
+                   f.m_resets.height_count == resets.height_count &&
+                   f.m_resets.velocity_count == resets.velocity_count &&
+                   f.m_resets.attitude_count == resets.attitude_count &&
+                   same_bits(f.m_resets.position_delta, resets.position_delta) &&
+                   same_bits(f.m_resets.attitude_delta.coefficients(), resets.attitude_delta.coefficients()),
+               "internal event preserves publication reference and every reset notification");
+        expect(f.m_imu_history.entries() == imu_entries && f.m_output.entries() == output_entries &&
+                   f.m_gnss.sample_time_us == gps_epoch && f.m_height_datum.time_us() == datum_epoch &&
+                   f.m_gnss.corrections == corrections && f.m_magnetic_model.reference_id() == reference &&
+                   f.m_magnetic.heading.state().consistent == heading.consistent &&
+                   f.m_tilt_alignment.aligned() == tilt &&
+                   f.m_height_aiding.session(FormalEskf::height_type::Source::barometer).bias.value == bias.value &&
+                   same_bits(f.m_state.b_a, old_state.b_a) && same_bits(f.m_state.b_g, old_state.b_g),
+               "migration neither consumes samples nor refreshes source health, alignment or body bias history");
+        formal_eskf::geodesy::NedTransform<FormalEskf::backend_type> transform;
+        expect(old_frame.transform_to(f.m_navigation_frame.working(), transform) == formal_eskf::Status::success,
+               "obtain independent full covariance oracle transform");
+        auto J = FormalEskf::covariance_type::identity();
+        J.set_block<0, 0>(transform.rotation);
+        J.set_block<3, 3>(transform.rotation);
+        expect(formal_eskf::linalg::max_abs(f.m_covariance - J * old_P * formal_eskf::linalg::transpose(J)) < 1e-10,
+               "live transaction transports all covariance cross-blocks");
+        f.m_rebase_requested = true;
+        auto const predictions = f.m_predictions;
+        test.m_sample.timestamp_sample += 4000;
+        test.tick();
+        expect(!f.m_fault && f.m_predictions == predictions + 1 && f.m_navigation_frame.generation() == 2 &&
+                   !f.m_rebase_requested && f.m_imu_history.fusion_time_us() == f.m_time_us &&
+                   f.m_output.fusion_time_us() == f.m_time_us,
+               "actual Run executes one request after matching feedback and IMU completion");
+        // A new estimator tick permits new height/source feedback; no same-tick replay.
+        f.m_time_us += 4000;
+        // Return the receiver to the moved frame's physical estimate, then force normal recovery.
+        formal_eskf::geodesy::GeodeticPosition point;
+        expect(f.m_navigation_frame.geographic(f.m_state.p_n, point) == formal_eskf::Status::success,
+               "receiver physical estimate");
+        f.m_gnss.input.sample.latitude_deg = point.latitude_deg;
+        f.m_gnss.input.sample.longitude_deg = point.longitude_deg;
+        f.m_gnss.input.sample.altitude_ellipsoid_m = point.height_ellipsoid_m;
+        expect(f.m_height_datum.to_msl(point.height_ellipsoid_m, f.m_gnss.input.sample.altitude_msl_m) ==
+                   formal_eskf::Status::success,
+               "receiver height datum");
+        f.m_gnss.input.time_us = f.m_time_us;
+        f.m_gnss.sample = {f.m_time_us, formal_eskf::runtime::GnssQualityDecision::accepted};
+        f.m_gnss.lifecycle.reset();
+        f.fuse_gps({});
+        f.fuse_height();
+        expect(!f.m_fault && f.m_gnss.lifecycle.state().horizontal_position.active &&
+                   f.m_gnss.lifecycle.state().velocity.active,
+               "post-event actual GNSS recovery and geographic height remain usable");
+    }
+
+    enum class OriginFailure
+    {
+        covariance,
+        heading,
+        tilt,
+        output
+    };
+    static void origin_failure(OriginFailure fault)
+    {
+        FormalEskfModuleTest test;
+        test.warmup();
+        auto & f = test.m_filter;
+        f.m_state.p_n(0) += 1200.;
+        if (fault == OriginFailure::covariance)
+        {
+            f.m_covariance(0, 0) = -1.;
+        }
+        else if (fault == OriginFailure::heading)
+        {
+            expect(f.m_magnetic.heading.update_acceleration(FormalEskf::vector3(0., 0., 1e200), 1.) ==
+                       formal_eskf::Status::success,
+                   "finite Down-only history can overflow when rotated");
+        }
+        else if (fault == OriginFailure::tilt)
+        {
+            f.m_covariance(6, 6) = f.m_covariance(7, 7) = f.m_covariance(8, 8) = 1e308;
+        }
+        else
+        {
+            // Inject a corrupted retained diagnostic into this non-const owned object.
+            auto & error = const_cast<FormalEskf::output_predictor_type::TrackingError &>(f.m_output.tracking_error());
+            error.velocity_n = FormalEskf::vector3(1.7976931348623157e308, 0., -1.7976931348623157e308);
+        }
+        auto const prior = f.m_state;
+        auto const P = f.m_covariance;
+        auto const output = f.m_output.current();
+        auto const heading = f.m_magnetic.heading.state();
+        auto const reference = f.m_origin;
+        auto const generation = f.m_navigation_frame.generation();
+        auto const gps = f.m_gnss.sample_time_us;
+        expect(f.rebase_navigation() != formal_eskf::Status::success && !f.m_fault &&
+                   f.m_navigation_frame.generation() == generation && same_bits(f.m_state.p_n, prior.p_n) &&
+                   same_bits(f.m_state.q_nb.coefficients(), prior.q_nb.coefficients()) &&
+                   same_bits(f.m_covariance, P) && same_bits(f.m_output.current().p_n, output.p_n) &&
+                   f.m_output.current().time_us == output.time_us && f.m_gnss.sample_time_us == gps &&
+                   f.m_magnetic.heading.state().innovation_valid == heading.innovation_valid &&
+                   f.m_magnetic.heading.state().consistent == heading.consistent &&
+                   f.m_origin.time_us == reference.time_us,
+               "failure at each prepared owner preserves the whole pre-event bundle without faulting completed fusion");
     }
 
     static void timing_parameters()
@@ -2754,13 +2977,16 @@ public:
         f.m_gnss.input.sample.latitude_deg += 0.00001;
         f.m_gnss.sample = {f.m_time_us, formal_eskf::runtime::GnssQualityDecision::accepted};
         auto const before = f.m_output.current();
+        auto const before_body = f.body_output();
         auto const main_before = f.m_state;
         auto const position_counter = f.m_resets.position_count;
         auto const velocity_counter = f.m_resets.velocity_count;
         f.fuse_gps({});
         expect(!f.m_fault && f.m_resets.position_count == std::uint8_t(position_counter + 1) &&
-                   f.m_resets.velocity_count == std::uint8_t(velocity_counter + 1),
-               "delayed GNSS reacquisition executes both production reset paths");
+                   f.m_resets.velocity_count == std::uint8_t(velocity_counter + 2) &&
+                   formal_eskf::linalg::norm(f.m_resets.velocity_delta -
+                                             (f.body_output().velocity_n - before_body.velocity_n)) < 1e-10,
+               "velocity reset and position-induced geographic basis change both report actual output deltas");
         expect(formal_eskf::linalg::norm((f.m_output.current().v_n - before.v_n) - (f.m_state.v_n - main_before.v_n)) <
                        1e-12 &&
                    formal_eskf::linalg::norm((f.m_output.current().p_n - before.p_n) -
@@ -3234,6 +3460,12 @@ int main(int argc, char ** argv)
     FormalEskfModuleTest::diagnostic_flags();
     FormalEskfModuleTest::navigation_covariance_frame();
     FormalEskfModuleTest::dateline_output();
+    FormalEskfModuleTest::origin_transaction();
+    using OriginFailure = FormalEskfModuleTest::OriginFailure;
+    for (auto failure : {OriginFailure::covariance, OriginFailure::heading, OriginFailure::tilt, OriginFailure::output})
+    {
+        FormalEskfModuleTest::origin_failure(failure);
+    }
     FormalEskfModuleTest::configured_profile();
     trace_file = comparison_trace;
     if (trace_file != nullptr)

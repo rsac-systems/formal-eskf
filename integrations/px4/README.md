@@ -176,6 +176,15 @@ Settings are validated together and require restart. See the
 [timing profile](../../docs/spec/profiles/px4-sih-250hz.md) for rate, capacity, offset,
 freshness, gap and fault rules. Storage does not resize during operation.
 
+The live module owns separate working and fixed publication frames. GNSS
+position/velocity are fused in receiver geographic axes; height uses the held
+ellipsoid/MSL datum. Publication keeps the fixed PX4 map/MSL reference and reports
+velocity/attitude in geographic NED at the current body point. Internal frame
+events preserve that output and reset history. The explicit production-fixture
+request exercises the delayed transaction; automatic selection is not yet enabled.
+See [origin migration](../../docs/spec/requirements/integration/px4/origin-rebasing.md)
+for the transaction and remaining profile qualification.
+
 Current attitude/navigation timestamps identify latest IMU output; estimator
 status/bias and covariance diagnostics identify delayed main state. Navigation
 variance fields use delayed covariance proxies, not a current-time error bound.

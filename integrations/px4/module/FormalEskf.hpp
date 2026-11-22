@@ -38,6 +38,9 @@
 #include <formal_eskf/runtime/magnetometer.hpp>
 #include <formal_eskf/runtime/magnetometer_lifecycle.hpp>
 
+#include <formal_eskf/runtime/navigation_frame.hpp>
+#include <formal_eskf/runtime/frame_navigation.hpp>
+
 #include "DeploymentProfile.hpp"
 #include "HeightAiding.hpp"
 #include "InnovationRatio.hpp"
@@ -146,6 +149,9 @@ private:
 
     struct GnssVelocityObservation
     {
+        status_type status = status_type::success;
+        formal_eskf::geodesy::NedTransform<backend_type> frame{};
+        formal_eskf::runtime::FrameObservation<backend_type, 3> model{};
         vector3_type velocity_n{};
         vector3_type variances{};
         matrix3_type covariance{};
@@ -159,7 +165,12 @@ private:
 
     struct BodyOutput
     {
+        status_type status = status_type::domain_error;
         vector3_type position_n{}, velocity_n{};
+        quaternion_type q_nb{};
+        matrix3_type rotation{}; // Working NED to geographic NED at this output point.
+        formal_eskf::geodesy::GeodeticPosition geographic{};
+        double altitude_msl_m{};
     };
 
     struct Gravity
@@ -212,6 +223,12 @@ private:
         bool height{}, vertical_velocity{}, dead_reckoning{};
     };
 
+    struct OutputReset
+    {
+        bool attitude{}, horizontal_position{}, velocity{}, vertical_velocity{};
+        std::uint8_t height_count{};
+    };
+
     // Reporting state shared by navigation, attitude and status publications.
     // Same-epoch additive resets accumulate; the public counters wrap at uint8_t.
     struct ResetReport
@@ -220,10 +237,12 @@ private:
         vector2_type position_delta{};
         vector3_type velocity_delta{};
         double height_delta{}, vertical_velocity_delta{};
-        std::uint64_t position_time_us{}, velocity_time_us{}, height_time_us{}, vertical_velocity_time_us{};
+        std::uint64_t attitude_time_us{}, position_time_us{}, velocity_time_us{}, height_time_us{},
+            vertical_velocity_time_us{};
         std::uint8_t attitude_count{}, position_count{}, velocity_count{}, height_count{}, vertical_velocity_count{},
             odometry_count{};
 
+        void record_attitude(std::uint64_t time_us, quaternion_type const & delta);
         void record_position(std::uint64_t time_us, vector2_type const & delta);
         void record_velocity(std::uint64_t time_us, vector3_type const & delta);
         void record_height(std::uint64_t time_us, double delta, std::uint8_t count);
@@ -288,7 +307,8 @@ private:
     void select_observations();
     void record_admission(observation_history_type::PushResult const & result);
     bool check_timing(bool succeeded);
-    bool reset_output(quaternion_type const & delta_q, vector3_type const & delta_v, vector3_type const & delta_p);
+    bool reset_output(quaternion_type const & delta_q, vector3_type const & delta_v, vector3_type const & delta_p,
+                      OutputReset request = {false, false, false, false, 0});
     static observation_history_type::GnssSample decode_gnss(sensor_gps_s const & sample);
     static observation_history_type::MagneticSample decode_magnetic(vehicle_magnetometer_s const & sample);
     static observation_history_type::BarometerSample decode_barometer(vehicle_air_data_s const & sample);
@@ -299,7 +319,13 @@ private:
     bool collect_initialization_samples(imu_type const & imu);
     bool initialization_ready() const;
     bool initialize_attitude(double & yaw);
-    void initialize_navigation(imu_type const & imu);
+    bool initialize_navigation(imu_type const & imu);
+    status_type rebase_navigation();
+    status_type geographic_frame(vector3_type const & position, formal_eskf::geodesy::GeodeticPosition & geographic,
+                                 formal_eskf::geodesy::NedTransform<backend_type> & transform) const;
+    status_type gnss_frame(formal_eskf::geodesy::NedTransform<backend_type> & transform) const;
+    vector3_type magnetic_reference(vector3_type const & fixed) const;
+    vector3_type navigation_variance(std::size_t start) const;
     static types_type::parameter_type estimator_parameters();
     static bias_learning_type::Parameters bias_learning_parameters();
     bool load_startup_parameters();
@@ -334,6 +360,8 @@ private:
     bool prepare_publications();
     void record_publication(bool delivered);
     BodyOutput body_output() const;
+    BodyOutput body_output(vector3_type const & position, vector3_type const & velocity,
+                           quaternion_type const & attitude, vector3_type const & angular_rate) const;
     void publish(imu_type const & imu);
     void publish_attitude(std::uint64_t now);
     vehicle_local_position_s publish_local_position(std::uint64_t now, imu_type const & imu, BodyOutput const & body,
@@ -393,6 +421,9 @@ private:
     std::uint64_t m_arrival_rejections{}, m_rate_rejections{}, m_stale_arrivals{}, m_source_discards{}, m_overflows{},
         m_retired_observations{}, m_generation_loss{};
     NavigationOrigin m_origin{};
+    formal_eskf::runtime::NavigationFrame<backend_type> m_navigation_frame{};
+    formal_eskf::runtime::HeightDatum<backend_type> m_height_datum{};
+    bool m_rebase_requested{};
     SensorPositions m_sensor_positions{};
     std::uint64_t m_time_us{}; // Completed prediction horizon; alignment IMU epoch before seeding.
     bool m_initialized{};

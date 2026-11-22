@@ -19,6 +19,7 @@ px4_add_module(
 	SRCS
 		FormalEskf.cpp
 		FormalEskfNavigation.cpp
+		FormalEskfFrames.cpp
 		FormalEskfAttitude.cpp
 		FormalEskfOutput.cpp
 	DEPENDS px4_work_queue geo world_magnetic_model

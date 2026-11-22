@@ -11,15 +11,15 @@
 ## Required behavior
 
 The module retains a fixed publication reference. An admitted internal migration
-profile follows [R-PX4-ORIGIN-REBASE](origin-rebasing.md); the legacy fixed-origin
-profile does not gain live migration merely from a conversion helper. Both retain
-the Cartesian motion model. Projection accuracy, model fidelity and estimator
+profile follows [R-PX4-ORIGIN-REBASE](origin-rebasing.md); explicit live events use the coordinated delayed callback, independently of
+automatic policy enablement. Retain the Cartesian motion model. Projection accuracy, model fidelity and estimator
 accuracy are distinct;
 F-05.2 in the [functional backlog](../../../../roadmap.md#f-05--sensor-location-and-frames)
 tracks geographic-domain validation and the remaining operating-envelope decisions.
 
 - The core's attitude error is body-local. For the delayed attitude/covariance
-  pair compute `P_theta_n = R(q_nb) P_theta_b R(q_nb)^T`, retaining all attitude
+  pair compute `P_theta_n = A R(q_nb) P_theta_b R(q_nb)^T A^T`, where A rotates
+  working NED into geographic NED at the delayed body point, retaining all attitude
   cross terms. Publish its Down diagonal as `heading_var` and the sum of its
   North/East diagonals as `tilt_var`. The heading-validity threshold uses the
   same Down variance. Do not combine current predictor attitude with delayed P.
@@ -33,6 +33,13 @@ tracks geographic-domain validation and the remaining operating-envelope decisio
   origin, state, covariance, reference timestamp and reset history during longitude
   normalization. Raw malformed
   receiver coordinates still follow the existing rejection policy.
+- Obtain the current estimated body point through working NED -> ECEF ->
+  geodetic coordinates. Convert ellipsoid height to MSL using the admitted
+  held separation. Publish geographic velocity/attitude at that same point.
+  Global position retains binary64 coordinates rather than re-inverting rounded
+  local float coordinates. Position/velocity variance proxies rotate their full
+  3x3 delayed blocks at the delayed body point; they are not a map-projection
+  Jacobian or current-time covariance.
 - The module's horizontal coordinates use PX4 spherical azimuthal-equidistant
   projection, its Down coordinate uses MSL altitude difference, and receiver
   velocity remains local geographic NED. Replay uses WGS84 ECEF projected to

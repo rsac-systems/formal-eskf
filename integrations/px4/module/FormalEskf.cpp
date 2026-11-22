@@ -264,8 +264,18 @@ bool FormalEskf::initialize_attitude(double & yaw)
     return true;
 }
 
-void FormalEskf::initialize_navigation(imu_type const & imu)
+bool FormalEskf::initialize_navigation(imu_type const & imu)
 {
+    formal_eskf::geodesy::GeodeticPosition const origin{m_gps.latitude_deg, m_gps.longitude_deg,
+                                                        m_gps.altitude_ellipsoid_m};
+    formal_eskf::runtime::HeightDatum<backend_type> datum;
+    if (!formal_eskf::succeeded(
+            datum.update(m_gps.timestamp_sample, m_gps.altitude_ellipsoid_m, m_gps.altitude_msl_m)) ||
+        !formal_eskf::succeeded(m_navigation_frame.initialize(origin)))
+    {
+        return false;
+    }
+    m_height_datum = datum;
     // The geographic reference remains the first antenna fix; the state is at the IMU.
     m_state.p_n = -gnss_position_offset();
     m_state.v_n = vector3(m_gps.vel_n_m_s, m_gps.vel_e_m_s, m_gps.vel_d_m_s) - gnss_velocity_offset(imu);
@@ -282,6 +292,7 @@ void FormalEskf::initialize_navigation(imu_type const & imu)
     m_mag_model_origin_time = m_origin.time_us;
     m_origin.altitude_msl_m = m_gps.altitude_msl_m;
     m_origin.altitude_ellipsoid_m = m_gps.altitude_ellipsoid_m;
+    return true;
 }
 
 void FormalEskf::initialize(ImuInput const & sample, imu_type const & imu)
@@ -301,7 +312,10 @@ void FormalEskf::initialize(ImuInput const & sample, imu_type const & imu)
     {
         return;
     }
-    initialize_navigation(imu);
+    if (!initialize_navigation(imu))
+    {
+        return;
+    }
     m_initialization.magnetic_source.reference_id = m_magnetic_model.reference_id();
     initialize_magnetic_aiding(m_initialization.magnetic_source, m_mag.timestamp_sample);
     m_initialized = true;
@@ -543,6 +557,16 @@ void FormalEskf::advance_fusion()
     predict_and_fuse(*interval);
     if (!m_fault && check_timing(m_output.correct(m_time_us, m_state) && m_imu_history.complete(m_time_us)))
     {
+        if (m_rebase_requested)
+        {
+            m_rebase_requested = false;
+            // Optional coordinate transaction failure retains the completed fusion.
+            auto const status = rebase_navigation();
+            if (!formal_eskf::succeeded(status))
+            {
+                ++m_rejections;
+            }
+        }
         publish(m_imu_history.latest()->sample.mean_rates());
     }
     perf_end(m_fusion_perf);
@@ -620,33 +644,48 @@ void FormalEskf::predict_and_fuse(imu_history_type::Interval const & interval)
 }
 
 bool FormalEskf::reset_output(quaternion_type const & delta_q, vector3_type const & delta_v,
-                              vector3_type const & delta_p)
+                              vector3_type const & delta_p, OutputReset request)
 {
-    // Alignment corrections precede output seeding. Afterwards every state
-    // reset must transform the current output and its retained history.
-    if (m_output.current().time_us == 0)
-    {
-        return true;
-    }
-    auto const before = body_output();
-    if (!check_timing(m_output.apply_reset(delta_q, delta_v, delta_p)))
+    bool const seeded = m_output.current().time_us != 0;
+    auto const before =
+        seeded ? body_output()
+               : body_output(m_state.p_n - delta_p, m_state.v_n - delta_v, delta_q.inverse() * m_state.q_nb, {});
+    if (!check(before.status) || (seeded && !check_timing(m_output.apply_reset(delta_q, delta_v, delta_p))))
     {
         return false;
     }
-    auto const & q = delta_q.coefficients();
-    if ((q(1) != 0. || q(2) != 0. || q(3) != 0.) && formal_eskf::linalg::squared_norm(m_sensor_positions.imu_b) > 0.)
+    auto const after = seeded ? body_output() : body_output(m_state.p_n, m_state.v_n, m_state.q_nb, {});
+    if (!check(after.status))
     {
-        // A heading reset also moves an offset output point. Translation resets
-        // are recorded by their callers; add only the reference-point change here.
-        auto const after = body_output();
-        auto const position_delta = after.position_n - before.position_n - delta_p;
-        auto const velocity_delta = after.velocity_n - before.velocity_n - delta_v;
-        // Count the point reset once even when an individual component is zero.
-        m_resets.record_position(m_time_us, vector2_type::from_row_major({position_delta(0), position_delta(1)}));
-        m_resets.record_height(m_time_us, position_delta(2), 1);
-        m_resets.record_velocity(m_time_us, velocity_delta);
-        m_resets.record_vertical_velocity(m_time_us, velocity_delta(2));
+        return false;
     }
+    auto const position = after.position_n - before.position_n;
+    auto const velocity = after.velocity_n - before.velocity_n;
+    auto const attitude = after.q_nb * before.q_nb.inverse();
+    bool const rotated_point = seeded && formal_eskf::linalg::max_abs(delta_q.coefficients().segment<1, 3>()) > 0. &&
+                               formal_eskf::linalg::squared_norm(m_sensor_positions.imu_b) > 0.;
+    // Ignore representation noise in unrelated axes, not an estimator innovation.
+    if (request.horizontal_position || rotated_point || (seeded && std::hypot(position(0), position(1)) > 1e-7))
+    {
+        m_resets.record_position(m_time_us, vector2_type::from_row_major({position(0), position(1)}));
+    }
+    if (request.height_count != 0 || rotated_point || (seeded && std::abs(position(2)) > 1e-7))
+    {
+        m_resets.record_height(m_time_us, position(2), std::max<std::uint8_t>(request.height_count, 1));
+    }
+    if (request.velocity || rotated_point || (seeded && std::hypot(velocity(0), velocity(1)) > 1e-10))
+    {
+        m_resets.record_velocity(m_time_us, velocity);
+    }
+    if (request.vertical_velocity || rotated_point || (seeded && std::abs(velocity(2)) > 1e-10))
+    {
+        m_resets.record_vertical_velocity(m_time_us, velocity(2));
+    }
+    if (request.attitude || (seeded && formal_eskf::linalg::max_abs(attitude.coefficients().segment<1, 3>()) > 1e-12))
+    {
+        m_resets.record_attitude(m_time_us, attitude);
+    }
+    m_resets.odometry_count += std::max<unsigned>(1, request.height_count + request.vertical_velocity);
     return true;
 }
 

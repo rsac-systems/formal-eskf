@@ -106,6 +106,26 @@ work, stack and storage for the identified target/profile; host timing is not a
 hardware WCET guarantee. Automatic boundaries and retries require native end-to-end
 tests. Lean/ESBMC claims remain separate and are deferred for this functional work.
 
+## Native integration coverage
+
+The production-module fixture binds this contract to actual uORB and `Run()`;
+its controlled clock does not test concurrent scheduler execution.
+
+| Scenario | Executable coverage |
+|---|---|
+| Coordinate transaction with nonzero body offset and unequal epochs | `origin_transaction`: frozen output p/v/q, setpoint error, full P, reference/reset preservation, history counts and owner latches. |
+| Delayed callback and post-event aiding | `origin_transaction`: one explicit event after feedback/completion, then real GNSS recovery and geographic height. |
+| Candidate failures | `origin_failure`: invalid main P, rotated heading overflow, tilt variance overflow and output-feedback overflow; no visible owner commit or fault-latch change. |
+| Output geometry and covariance | `body_reference_output`, `navigation_covariance_frame`, `dateline_output`: independent forward ECEF/basis oracles, body-point rate derivative, correlated delayed P and both longitude crossings. |
+| Real reset reports | `delayed_resets_and_failure`, `body_reference_output`: observable deltas, same-tick accumulation and geographic basis changes. |
+| Geographic height owner | Native `geographic_height`: normal-direction altitude reset, full-covariance correction equivariance and missing-datum transaction rollback. |
+
+Sources: [module fixture](../../../../../integrations/px4/tests/ModuleTest.cpp),
+[height tests](../../../../../integrations/px4/tests/test_px4_height_aiding.cpp).
+Output-history component tests separately exercise late ring-entry failure and
+maximum capacity. Repeated automatic events, quantitative budgets and operational
+validity limits require the profile below; this table does not establish them.
+
 ## Profile completion
 
 Distance/angle limits, dwell/retry times, stale-datum allowance and numerical/

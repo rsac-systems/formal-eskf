@@ -5815,7 +5815,7 @@
     },
     {
       "id": "R-HEIGHT-FUSION",
-      "title": "Height offset mathematics, owner transaction and chronological/control invariants under producer contracts; live module binding remains separate",
+      "title": "PX4 GNSS/barometer height management; geometric owner changes need formal evidence refresh",
       "references": {
         "spec": [
           {
@@ -6733,7 +6733,7 @@
           },
           {
             "file": "integrations/px4/module/FormalEskf.cpp",
-            "symbol": "void FormalEskf::initialize_navigation("
+            "symbol": "bool FormalEskf::initialize_navigation("
           },
           {
             "file": "integrations/px4/module/FormalEskf.cpp",
@@ -8062,7 +8062,7 @@
     },
     {
       "id": "R-PX4-ORIGIN-REBASE",
-      "title": "Coordinated internal origin migration; specification only, implementation and evidence pending",
+      "title": "Coordinated internal origin migration; explicit live/native coverage, automatic profile and formal evidence pending",
       "references": {
         "spec": [
           {
@@ -8071,7 +8071,16 @@
           }
         ],
         "lean": [],
-        "cpp": [],
+        "cpp": [
+          {
+            "file": "integrations/px4/module/FormalEskfFrames.cpp",
+            "symbol": "FormalEskf::rebase_navigation()"
+          },
+          {
+            "file": "integrations/px4/module/FormalEskfOutput.cpp",
+            "symbol": "FormalEskf::body_output("
+          }
+        ],
         "esbmc": []
       }
     }

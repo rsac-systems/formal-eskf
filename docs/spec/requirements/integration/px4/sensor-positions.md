@@ -28,10 +28,13 @@ of gravity. These are different points in the same FRD/NED frames.
   rate, subtract `R r` from GNSS NED position and
   `R ((omega_measured - b_g) cross r)` from GNSS NED velocity. Add `(R r)_D`
   to GNSS MSL altitude because altitude has the opposite sign to Down.
-  Compensation precedes gating, correction and all GNSS reset paths. Use each
+  These vectors are first computed in working NED, then rotated into the
+  receiver local NED before compensation. Receiver coordinates therefore must
+  be valid even for velocity fusion. Compensation precedes gating, correction
+  and all GNSS reset paths. Use each
   operation's latest committed prior, consistent with the module's existing
   ordered fusion contract; do not substitute current output attitude/rate.
-- Keep the geographic origin at the first accepted antenna fix. Initialize
+- Keep the fixed publication reference at the first accepted antenna fix. Initialize
   IMU position to `-R r` and velocity to compensated receiver velocity. Keep
   MSL and ellipsoid reference altitudes unchanged. Raw receiver quality checks,
   drift checks, buffered data and source metadata remain at the antenna.
@@ -47,7 +50,7 @@ of gravity. These are different points in the same FRD/NED frames.
   reset counters. Accumulate these with translation resets in the same fusion
   step. Do not double count their translation or the odometry reset event.
   A zero IMU offset adds no reference-point reset notifications.
-- Preserve receiver noise floors/caps, observation Jacobians, state dimension
+- Preserve receiver noise floors/caps and physical observation axes, state dimension
   and core covariance equations. As in the reference's nominal preprocessing,
   treat installation offsets as deterministic. Calibration uncertainty and
   attitude/gyro-error correlations introduced by preprocessing are not modeled.
@@ -59,7 +62,8 @@ of gravity. These are different points in the same FRD/NED frames.
 - Keep all transforms fixed-size and allocation-free. Non-finite transformed
   navigation output must not be published as valid. GNSS numerical failures
   retain the existing checked-operation/fault behavior. No terrain, barometer
-  lever arm, moving installation geometry or geographic recentering is added.
+  lever arm or moving installation geometry is added by this compensation.
+  Internal recentering is separately owned by R-PX4-ORIGIN-REBASE.
 
 Native module tests must exercise zero/coincident and nonzero installations,
 tilted rotation, gyro bias, startup and normal/reset fusion, altitude signs,
