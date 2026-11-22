@@ -9,9 +9,7 @@
 #include <px4_platform_common/module.h>
 #include <px4_platform_common/px4_work_queue/ScheduledWorkItem.hpp>
 #include <drivers/drv_hrt.h>
-#include <lib/geo/geo.h>
 #include <lib/perf/perf_counter.h>
-#include <matrix/matrix/math.hpp>
 #include <uORB/Publication.hpp>
 #include <uORB/Subscription.hpp>
 #include <uORB/SubscriptionCallback.hpp>
@@ -28,30 +26,13 @@
 #include <uORB/topics/estimator_status.h>
 #include <uORB/topics/estimator_status_flags.h>
 #include <uORB/topics/estimator_sensor_bias.h>
-#include <formal_eskf/eskf/eskf.hpp>
+#include <formal_eskf/runtime/session/ins_session.hpp>
 #include <formal_eskf/linalg/backend/px4_matrix.hpp>
-#include <formal_eskf/runtime/sensors/gnss/gnss_lifecycle.hpp>
-#include <formal_eskf/runtime/fusion/navigation.hpp>
-#include <formal_eskf/runtime/sensors/imu/imu.hpp>
-#include <formal_eskf/runtime/sensors/gravity/accelerometer.hpp>
-#include <formal_eskf/runtime/session/tilt_alignment.hpp>
-#include <formal_eskf/runtime/sensors/magnetic/magnetometer.hpp>
-#include <formal_eskf/runtime/sensors/magnetic/magnetometer_lifecycle.hpp>
-
-#include <formal_eskf/runtime/frames/navigation_frame.hpp>
-#include <formal_eskf/runtime/fusion/frame_navigation.hpp>
 
 #include "DeploymentProfile.hpp"
-#include <formal_eskf/runtime/sensors/height/height_aiding.hpp>
 #include "InnovationRatio.hpp"
-#include <formal_eskf/runtime/history/imu_history.hpp>
-#include <formal_eskf/runtime/history/observation_history.hpp>
-#include <formal_eskf/runtime/session/output_predictor.hpp>
-#include <formal_eskf/runtime/session/ins_initialization.hpp>
-#include <formal_eskf/runtime/sensors/magnetic/magnetic_model.hpp>
 
-// Single writer: all filter state is owned by this work item. The core has no
-// PX4 dependencies except its explicitly selected matrix backend.
+// Single work-item writer invokes the portable INS session and owns platform I/O.
 
 class FormalEskf final : public ModuleBase<FormalEskf>, public px4::ScheduledWorkItem
 {
@@ -65,207 +46,49 @@ public:
     bool init();
 
 private:
-    friend class FormalEskfModuleTest;
+    friend class formal_eskf::testing::InsSessionTest;
 
     using backend_type = formal_eskf::linalg::Px4MatrixBackend<double>;
-    using types_type = formal_eskf::EskfTypes<backend_type, formal_eskf::configuration::Ins>;
-    using state_type = types_type::nominal_state_type;
-    using covariance_type = types_type::error_covariance_type;
-    using gnss_lifecycle_type = formal_eskf::runtime::GnssFusion;
-    using vector2_type = formal_eskf::linalg::Vector<backend_type, 2>;
-    using matrix2_type = formal_eskf::linalg::Matrix<backend_type, 2, 2>;
-    using vector3_type = formal_eskf::linalg::Vector<backend_type, 3>;
-    using matrix3_type = formal_eskf::linalg::Matrix<backend_type, 3, 3>;
-    using imu_type = types_type::imu_sample_type;
-    using status_type = formal_eskf::Status;
-    using height_type = formal_eskf::runtime::HeightAiding<backend_type>;
-    using bias_learning_type = formal_eskf::runtime::ImuBiasInhibition<backend_type>;
-    using vertical_health_type = formal_eskf::runtime::VerticalAccelerationHealth<backend_type>;
-    using gravity_sampler_type =
-        formal_eskf::runtime::AccelerometerSample<backend_type,
-                                                  formal_eskf::px4::profile::gravity::observation_interval_us>;
-    using quaternion_type = formal_eskf::so3::UnitQuaternion<backend_type>;
-    using magnetic_lifecycle_type = formal_eskf::runtime::MagnetometerFusion;
-    using magnetic_model_type = formal_eskf::runtime::MagneticModel<backend_type>;
-
-    using initialization_type = formal_eskf::runtime::InsInitialization<backend_type>;
-
-    using ImuSource = formal_eskf::runtime::ImuSource;
-    using ImuInput = formal_eskf::runtime::ImuInput<backend_type>;
-
-    using imu_history_type =
-        formal_eskf::runtime::ImuHistory<backend_type, formal_eskf::px4::profile::history::imu_capacity>;
-    using observation_history_type =
-        formal_eskf::runtime::ObservationHistory<backend_type, formal_eskf::px4::profile::history::gnss_capacity,
-                                                 formal_eskf::px4::profile::history::magnetic_capacity,
-                                                 formal_eskf::px4::profile::history::barometer_capacity,
-                                                 formal_eskf::px4::profile::history::context_capacity>;
-    using output_predictor_type =
-        formal_eskf::runtime::OutputPredictor<backend_type, formal_eskf::px4::profile::history::imu_capacity>;
-    static_assert(sizeof(imu_history_type) + sizeof(observation_history_type) + sizeof(output_predictor_type) <=
-                  formal_eskf::px4::profile::history::storage_budget_bytes);
-
-    struct NavigationOrigin
-    {
-        MapProjection projection{};
-        std::uint64_t time_us{};
-        double altitude_msl_m{};
-    };
-
-    struct Gnss
-    {
-        observation_history_type::GnssObservation input{};
-        observation_history_type::Context context{};
-        std::uint64_t generation{};
-        MapProjection previous_fix{};
-        formal_eskf::runtime::GnssQuality<backend_type> quality{};
-        formal_eskf::runtime::GnssQualityParameters<double> quality_parameters =
-            formal_eskf::px4::profile::gnss::quality;
-        formal_eskf::runtime::GnssQualityResult<double> quality_result{};
-        gnss_lifecycle_type lifecycle{};
-        gnss_lifecycle_type::Sample sample{};
-        vertical_health_type::Innovation vertical_innovation{};
-        double previous_altitude{};
-        std::uint32_t device_id{};
-        std::uint64_t sample_time_us{};
-        bool metadata_valid{};
-        std::uint32_t corrections{};
-        bool position_rejected{}, velocity_rejected{};
-        std::array<formal_eskf::px4::InnovationRatio, 2> position_ratios{};
-        std::array<formal_eskf::px4::InnovationRatio, 3> velocity_ratios{};
-        double position_test_ratio = NAN;
-        vector3_type velocity_test_ratios = vector3_type::from_row_major({NAN, NAN, NAN});
-
-        // Retain the consumed watermark and session correction count.
-        void change_source(std::uint32_t new_device_id, std::uint64_t new_generation);
-    };
-
-    struct GnssVelocityObservation
-    {
-        status_type status = status_type::success;
-        formal_eskf::geodesy::NedTransform<backend_type> frame{};
-        formal_eskf::runtime::FrameObservation<backend_type, 3> model{};
-        vector3_type velocity_n{};
-        vector3_type variances{};
-        matrix3_type covariance{};
-        formal_eskf::runtime::GnssVelocityConditions<double> conditions{};
-    };
-
-    struct SensorPositions
-    {
-        vector3_type imu_b{}, gnss_b{}; // Body FRD metres from the output/body origin.
-    };
-
-    struct GeographicFrame
-    {
-        status_type status = status_type::domain_error;
-        formal_eskf::geodesy::GeodeticPosition point{};
-        vector3_type ecef{};
-        matrix3_type rotation{};
-    };
-
-    struct NavigationVariance
-    {
-        vector3_type position{}, velocity{}, attitude{};
-    };
-
-    struct BodyOutput
-    {
-        status_type status = status_type::domain_error;
-        vector3_type position_n{}, velocity_n{};
-        quaternion_type q_nb{};
-        matrix3_type rotation{}; // Working NED to geographic NED at this output point.
-        formal_eskf::geodesy::GeodeticPosition geographic{};
-        double altitude_msl_m{};
-    };
-
-    struct Gravity
-    {
-        gravity_sampler_type sampler{};
-        bool active{};
-        std::uint32_t samples{};
-        std::uint32_t corrections{};
-        std::uint64_t interval_us{};
-
-        // Discard partial observations/LPF history, retaining session counters.
-        void reset_samples();
-    };
-
-    struct Magnetic
-    {
-        observation_history_type::MagneticObservation input{};
-        observation_history_type::Context context{};
-        std::uint64_t generation{};
-        formal_eskf::runtime::MagneticHeading<backend_type> heading{};
-        formal_eskf::runtime::MagnetometerFilter<backend_type> filter{};
-        magnetic_lifecycle_type lifecycle{};
-        formal_eskf::runtime::MagnetometerFusionResult<backend_type> observation{};
-        magnetic_lifecycle_type::Source source{};
-        std::uint64_t sample_time_us{}; // Newest consumed effective event, including invalid payloads.
-        bool horizontal_aiding{};
-        std::uint32_t corrections{};
-        std::array<formal_eskf::px4::InnovationRatio, 3> ratios{};
-    };
-
-    struct MagneticSample
-    {
-        vector3_type field_b{}; // Calibrated body FRD, microtesla.
-        magnetic_lifecycle_type::Source source{};
-        std::uint64_t time_us{}; // Zero denotes no eligible new arrival.
-        bool fresh{};
-        bool usable{};
-    };
-
-    struct GroundEffect
-    {
-        std::uint64_t last_detection_us{}, land_time_us{}, vehicle_time_us{};
-        bool active{};
-    };
-
-    struct OutputValidity
-    {
-        bool healthy{}, navigation{}, gps_position{}, gps_velocity{}, gps{}, gps_height{};
-        bool magnetic{}, magnetic_aiding{}, barometer{};
-        bool height{}, vertical_velocity{}, dead_reckoning{};
-    };
-
-    struct FrameAdmission
-    {
-        GeographicFrame frame{};
-        bool within_domain{}, datum_usable{}, within_frame{}, request{};
-    };
-
-    struct OriginControl
-    {
-        formal_eskf::geodesy::LocalNed<backend_type> datum_frame{};
-        std::uint64_t attempt_time_us{}, success_time_us{};
-    };
-
-    struct OutputReset
-    {
-        bool attitude{}, horizontal_position{}, velocity{}, vertical_velocity{};
-        std::uint8_t height_count{};
-    };
-
-    // Reporting state shared by navigation, attitude and status publications.
-    // Same-epoch additive resets accumulate; the public counters wrap at uint8_t.
-    struct ResetReport
-    {
-        quaternion_type attitude_delta{};
-        vector2_type position_delta{};
-        vector3_type velocity_delta{};
-        double height_delta{}, vertical_velocity_delta{};
-        std::uint64_t attitude_time_us{}, position_time_us{}, velocity_time_us{}, height_time_us{},
-            vertical_velocity_time_us{};
-        std::uint8_t attitude_count{}, position_count{}, velocity_count{}, height_count{}, vertical_velocity_count{},
-            odometry_count{};
-
-        void record_attitude(std::uint64_t time_us, quaternion_type const & delta);
-        void record_position(std::uint64_t time_us, vector2_type const & delta);
-        void record_velocity(std::uint64_t time_us, vector3_type const & delta);
-        void record_height(std::uint64_t time_us, double delta, std::uint8_t count);
-        void record_vertical_velocity(std::uint64_t time_us, double delta);
-    };
+    using session_type = formal_eskf::runtime::InsSession<backend_type, formal_eskf::px4::profile::InsLayout>;
+    using types_type = session_type::types_type;
+    using state_type = session_type::state_type;
+    using covariance_type = session_type::covariance_type;
+    using gnss_lifecycle_type = session_type::gnss_lifecycle_type;
+    using vector2_type = session_type::vector2_type;
+    using matrix2_type = session_type::matrix2_type;
+    using vector3_type = session_type::vector3_type;
+    using matrix3_type = session_type::matrix3_type;
+    using imu_type = session_type::imu_type;
+    using status_type = session_type::status_type;
+    using height_type = session_type::height_type;
+    using bias_learning_type = session_type::bias_learning_type;
+    using vertical_health_type = session_type::vertical_health_type;
+    using gravity_sampler_type = session_type::gravity_sampler_type;
+    using quaternion_type = session_type::quaternion_type;
+    using magnetic_lifecycle_type = session_type::magnetic_lifecycle_type;
+    using magnetic_model_type = session_type::magnetic_model_type;
+    using initialization_type = session_type::initialization_type;
+    using ImuSource = session_type::ImuSource;
+    using ImuInput = session_type::ImuInput;
+    using imu_history_type = session_type::imu_history_type;
+    using observation_history_type = session_type::observation_history_type;
+    using output_predictor_type = session_type::output_predictor_type;
+    using NavigationOrigin = session_type::NavigationOrigin;
+    using Gnss = session_type::Gnss;
+    using GnssVelocityObservation = session_type::GnssVelocityObservation;
+    using SensorPositions = session_type::SensorPositions;
+    using GeographicFrame = session_type::GeographicFrame;
+    using NavigationVariance = session_type::NavigationVariance;
+    using BodyOutput = session_type::BodyOutput;
+    using Gravity = session_type::Gravity;
+    using Magnetic = session_type::Magnetic;
+    using MagneticSample = session_type::MagneticSample;
+    using GroundEffect = session_type::GroundEffect;
+    using OutputValidity = session_type::OutputValidity;
+    using FrameAdmission = session_type::FrameAdmission;
+    using OriginControl = session_type::OriginControl;
+    using OutputReset = session_type::OutputReset;
+    using ResetReport = session_type::ResetReport;
 
     struct StatusChanges
     {
@@ -321,74 +144,19 @@ private:
     void Run() override;
     static ImuInput decode_imu(vehicle_imu_s const & sample);
     void process_imu(ImuInput const & sample);
-    void predict_and_fuse(imu_history_type::interval_type const & interval);
     void advance_fusion();
-    void select_observations();
-    void record_admission(observation_history_type::PushResult const & result);
-    bool check_timing(bool succeeded);
-    bool reset_output(quaternion_type const & delta_q, vector3_type const & delta_v, vector3_type const & delta_p,
-                      OutputReset request = {false, false, false, false, 0});
     static observation_history_type::GnssSample decode_gnss(sensor_gps_s const & sample);
     static observation_history_type::MagneticSample decode_magnetic(vehicle_magnetometer_s const & sample);
     static observation_history_type::BarometerSample decode_barometer(vehicle_air_data_s const & sample);
     observation_history_type::LandState land_state() const;
     observation_history_type::VehicleState vehicle_state() const;
-    observation_history_type::Context startup_context(std::uint64_t epoch, std::uint64_t maximum_age) const;
-    void initialize(ImuInput const & sample, imu_type const & imu);
-    bool collect_initialization_samples(imu_type const & imu);
-    bool initialization_ready() const;
-    bool initialize_attitude(double & yaw);
-    bool initialize_navigation(imu_type const & imu);
     // Admission snapshots belong to the unchanged main/current estimates of this single-writer transaction.
-    status_type rebase_navigation(FrameAdmission const & main, FrameAdmission const & current);
-    bool update_height_datum(std::uint64_t time_us, formal_eskf::geodesy::GeodeticPosition const & position,
-                             double altitude_msl_m);
-    static double frame_angle(matrix3_type const & rotation);
-    FrameAdmission frame_admission(vector3_type const & position, vector3_type const & velocity,
-                                   std::uint64_t output_time_us) const;
-    void update_origin();
-    GeographicFrame geographic_frame(vector3_type const & position) const;
-    status_type gnss_frame(formal_eskf::geodesy::NedTransform<backend_type> & transform) const;
-    vector3_type magnetic_reference(vector3_type const & fixed) const;
-    GeographicFrame delayed_body_frame() const;
-    vector3_type navigation_variance(std::size_t start) const;
-    vector3_type navigation_variance(std::size_t start, GeographicFrame const & frame) const;
-    static types_type::parameter_type estimator_parameters();
-    static bias_learning_type::Parameters bias_learning_parameters();
     bool load_startup_parameters();
     bool load_timing_parameters();
     bool load_magnetic_parameters();
     bool load_sensor_positions();
-    bool accept_imu(ImuInput const & sample);
-    void reset_imu_observations();
-    void fuse_gps(imu_type const & imu);
-    vector3_type gnss_position_offset() const;
-    vector3_type gnss_velocity_offset(imu_type const & imu) const;
-    formal_eskf::runtime::GnssQualitySample<backend_type> gnss_quality_sample() const;
-    formal_eskf::runtime::GnssQualityMotion gnss_motion() const;
-    GnssVelocityObservation gnss_velocity_observation(imu_type const & imu) const;
-    void check_gnss_velocity_observation(GnssVelocityObservation const & observation);
-    bool fuse_gps_velocity(GnssVelocityObservation const & observation);
-    bool fuse_gps_position();
-    void fuse_mag();
-    void initialize_magnetic_aiding(magnetic_lifecycle_type::Source const & source, std::uint64_t sample_time_us);
-    magnetic_lifecycle_type::Conditions magnetic_conditions() const;
-    MagneticSample consume_magnetic_sample();
-    status_type prepare_magnetic_observation(MagneticSample const & sample,
-                                             magnetic_lifecycle_type::Conditions const & conditions,
-                                             magnetic_lifecycle_type::Sample & event);
-    bool fuse_magnetic_observation(MagneticSample const & sample);
-    status_type reset_magnetic_heading(std::uint64_t sample_time_us);
-    void update_ground_effect();
-    void fuse_height();
-    void fuse_gravity(ImuInput const & sample, imu_type const & imu);
-    bool update_imu_bias(ImuInput const & sample, imu_type const & imu);
-    bool update_imu_health(std::uint8_t accelerometer_clipping);
     bool prepare_publications();
     void record_publication(bool delivered);
-    BodyOutput body_output() const;
-    BodyOutput body_output(vector3_type const & position, vector3_type const & velocity,
-                           quaternion_type const & attitude, vector3_type const & angular_rate) const;
     void publish(imu_type const & imu);
     void publish_attitude(std::uint64_t now);
     vehicle_local_position_s publish_local_position(std::uint64_t now, imu_type const & imu, BodyOutput const & body,
@@ -398,8 +166,6 @@ private:
                                  OutputValidity const & validity);
     void publish_odometry(std::uint64_t now, imu_type const & imu, BodyOutput const & body,
                           OutputValidity const & validity, NavigationVariance const & variance);
-    bool output_healthy(std::uint64_t now) const;
-    OutputValidity output_validity(std::uint64_t now) const;
     void publish_status(uint64_t now);
     estimator_status_s publish_estimator_status(std::uint64_t now, OutputValidity const & validity,
                                                 estimator_status_flags_s const & flags);
@@ -407,21 +173,11 @@ private:
     void publish_sensor_bias(std::uint64_t now, bool healthy);
     void update_diagnostics(std::uint64_t now);
     bool read_diagnostics(Diagnostics & snapshot);
-    void update_gps_quality();
-    void update_magnetic_model();
-    std::optional<magnetic_model_type::sample_type> lookup_magnetic_model(double latitude, double longitude) const;
-    bool gps_good() const;
-    vector3_type rotation_variance_n() const;
-    bool magnetic_heading_valid() const;
-    bool magnetic_heading_aiding() const;
+    std::optional<magnetic_model_type::sample_type>
+    lookup_magnetic_model(session_type::ModelRequest const & request) const;
+    void update_innovations();
+    void report_session_failure(std::uint32_t previous_errors) const;
     uint16_t gps_failure_flags() const;
-    bool gps_position_valid(std::uint64_t max_age = formal_eskf::px4::profile::gnss::maximum_aiding_age_us) const;
-    bool gps_velocity_valid(std::uint64_t max_age = formal_eskf::px4::profile::gnss::maximum_aiding_age_us) const;
-    bool record_gps_fusion(gnss_lifecycle_type::Group group, formal_eskf::runtime::FusionDecision decision,
-                           status_type status);
-    bool check(status_type status);
-    // Inclusive age at the admitted IMU horizon; callers select their own policy.
-    bool recent(std::uint64_t sample, std::uint64_t max_age) const;
     static vector3_type vector3(double x, double y, double z) { return vector3_type::from_row_major({x, y, z}); }
     static double square(double x) { return x * x; }
 
@@ -439,54 +195,17 @@ private:
     uORB::Publication<estimator_status_flags_s> m_flags_pub{ORB_ID(estimator_status_flags)};
     uORB::Publication<estimator_sensor_bias_s> m_bias_pub{ORB_ID(estimator_sensor_bias)};
 
-    state_type m_state{};
-    covariance_type m_covariance{};
-    types_type::parameter_type m_parameters = estimator_parameters();
-    initialization_type m_initialization{formal_eskf::px4::profile::initialization_parameters<initialization_type>()};
-    imu_history_type m_imu_history{};
-    observation_history_type m_observations{formal_eskf::px4::profile::history::observation_timing};
-    output_predictor_type m_output{formal_eskf::px4::profile::output_parameters};
-    observation_history_type::Context m_imu_context{};
-    observation_history_type::BarometerObservation m_barometer{};
-    std::uint64_t m_arrival_rejections{}, m_rate_rejections{}, m_stale_arrivals{}, m_source_discards{}, m_overflows{},
-        m_retired_observations{}, m_generation_loss{};
-    NavigationOrigin m_origin{};
-    formal_eskf::runtime::NavigationFrame<backend_type> m_navigation_frame{};
-    formal_eskf::runtime::HeightDatum<backend_type> m_height_datum{};
-    OriginControl m_origin_control{};
-    SensorPositions m_sensor_positions{};
-    std::uint64_t m_time_us{}; // Completed prediction horizon; alignment IMU epoch before seeding.
-    bool m_initialized{};
-    bool m_fault{};
+    session_type m_session{formal_eskf::px4::profile::session_parameters<session_type>()};
     StatusChanges m_status_changes{};
-    ResetReport m_resets{};
-
-    height_type m_height_aiding{formal_eskf::px4::profile::height_parameters<height_type>()};
-    std::array<formal_eskf::px4::InnovationRatio, 2> m_height_ratios{};
-    GroundEffect m_ground_effect{};
-    formal_eskf::runtime::TiltAlignment<backend_type> m_tilt_alignment{};
-    Gravity m_gravity{};
-    bool m_gravity_enabled = true;
-    bias_learning_type m_bias_learning{bias_learning_parameters()};
-    bias_learning_type::Result m_bias_learning_result{};
-    vertical_health_type m_vertical_health{};
-    double m_average_imu_interval = formal_eskf::px4::profile::imu::nominal_interval_s;
-    Magnetic m_magnetic{};
-    bool m_heading_aligned{};
-    magnetic_model_type m_magnetic_model{formal_eskf::px4::profile::magnetic::model_interval_us};
-    magnetic_model_type::Settings m_magnetic_settings{};
-    uint64_t m_mag_model_origin_time{};
-    uint32_t m_mag_model_unavailable{};
-    Gnss m_gnss{};
+    std::array<formal_eskf::px4::InnovationRatio, 2> m_position_ratios{}, m_height_ratios{};
+    std::array<formal_eskf::px4::InnovationRatio, 3> m_velocity_ratios{}, m_magnetic_ratios{};
+    std::uint64_t m_generation_loss{};
     sensor_gps_s m_gps{};
     vehicle_magnetometer_s m_mag{};
     vehicle_air_data_s m_baro{};
     vehicle_land_detected_s m_land{};
     vehicle_status_s m_vehicle_status{};
     uint64_t m_last_status{}, m_last_output{};
-    uint64_t m_max_fusion_age{};
-    uint32_t m_predictions{}, m_baro_updates{};
-    uint32_t m_rejections{}, m_errors{}, m_gaps{};
     std::uint64_t m_publication_failures{};
     // One writer; only this fixed-size copy is shared with shell readers.
     pthread_mutex_t m_diagnostics_mutex{};

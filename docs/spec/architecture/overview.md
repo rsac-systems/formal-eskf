@@ -10,8 +10,7 @@ implemented 250 Hz delayed-fusion profile.
 
 The [portable navigation-runtime design](navigation-runtime.md) adds a concrete
 caller-driven INS session under [SW-NAV](../requirements/software/navigation-runtime.md).
-Its extraction status is tracked by A-01; the current allocation below changes
-with each implemented owner, not merely by publishing the design.
+A-01 tracks extraction and acceptance; the allocation below identifies current owners.
 
 ## Architecture
 
@@ -31,13 +30,15 @@ binary64 and PX4 matrix, with one estimator owner and serialized updates.
 | Portable height coordination | [height_aiding.hpp](../../../include/formal_eskf/runtime/sensors/height/height_aiding.hpp) | Owns two-source arbitration, scalar offsets, recovery and transactional raw outcomes. Copied settings are explicit; PX4 diagnostic filtering remains in its adapter. |
 | Magnetic reference coordination | [magnetic_model.hpp](../../../include/formal_eskf/runtime/sensors/magnetic/magnetic_model.hpp) | Coordinates health/heading references with explicit settings and lookup results; owns no provider or publication. |
 | Strict INS bootstrap | [ins_initialization.hpp](../../../include/formal_eskf/runtime/session/ins_initialization.hpp) | Accumulates stationary samples and constructs initial attitude, biases and navigation variances. Callers own sensor qualification, external reference lookup, frame/datum setup and activation. |
-| PX4 module | [FormalEskf.hpp](../../../integrations/px4/module/FormalEskf.hpp), [FormalEskf.cpp](../../../integrations/px4/module/FormalEskf.cpp) | Owns the INS state/covariance, runtime/helper instances, geographic origin, sensor subscriptions, sample times, fault state and published reset counters. |
+| Portable INS session | [ins_session.hpp](../../../include/formal_eskf/runtime/session/ins_session.hpp) | Owns main state/P, source policies, histories, frame/datum, bootstrap and fault/reset bookkeeping. Explicit bounded phases separate external lookup and publication. |
+| PX4 module | [FormalEskf.hpp](../../../integrations/px4/module/FormalEskf.hpp), [FormalEskf.cpp](../../../integrations/px4/module/FormalEskf.cpp) | Owns one portable session, uORB subscriptions, input conversion, clock/parameter/provider access and publication/diagnostic formatting. |
 | Host replay | [examples/](../../../examples) | Owns log decoding, replay scheduling and output. Calling the same core does not establish equivalence to the PX4 module's timing or integration. |
-| Delayed timeline | [imu_history.hpp](../../../include/formal_eskf/runtime/history/imu_history.hpp), [observation_history.hpp](../../../include/formal_eskf/runtime/history/observation_history.hpp), [output_predictor.hpp](../../../include/formal_eskf/runtime/session/output_predictor.hpp) | Retained IMU intervals, observation/context admission/selection and current-time output tracking; the module owns their ordering and feedback. |
+| Delayed timeline | [imu_history.hpp](../../../include/formal_eskf/runtime/history/imu_history.hpp), [observation_history.hpp](../../../include/formal_eskf/runtime/history/observation_history.hpp), [output_predictor.hpp](../../../include/formal_eskf/runtime/session/output_predictor.hpp) | Retained IMU intervals, observation/context admission/selection and current-time output tracking; the portable session owns their ordering and feedback. |
 
-`FormalEskf.cpp` owns entry, initialization and IMU flow. Navigation, attitude
-aiding and publication definitions are grouped in the three corresponding C++
-files; they do not create additional estimator owners. uORB arrivals are converted
+`FormalEskf.cpp` owns platform entry, settings, input conversion and session
+invocation. `FormalEskfOutput.cpp` owns publication and synchronized diagnostic
+snapshots. Session template definitions are grouped by execution, navigation,
+attitude and frames; these groups do not create additional estimator owners. uORB arrivals are converted
 at the adapter boundary, with raw arrival caches distinct from delayed selections.
 Platform effects stay outside numerical operations.
 

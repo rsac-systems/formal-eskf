@@ -154,6 +154,7 @@ remain empty: these two additional review units are proof gaps, not verified cla
 | `R-RING-BUFFER` | [Fixed-capacity timestamped history](requirements/runtime/ring-buffer.md) |
 | `R-TILT-ALIGNMENT` | [Covariance-based tilt alignment latch](requirements/runtime/tilt-alignment.md) |
 | `R-ORIGIN-REBASE` | [Cartesian INS state and covariance rebasing](requirements/runtime/origin-rebasing.md) |
+| `R-INS-SESSION` | [ordered geographic INS session](requirements/runtime/ins-session.md) |
 | `R-INS-INITIALIZATION` | [strict stationary INS initialization](requirements/runtime/ins-initialization.md) |
 | `R-HEIGHT-AIDING` | [Two-source altitude coordination](requirements/runtime/height-aiding.md) |
 | `R-HEIGHT-DATUM` | [Ellipsoid and MSL height separation](requirements/runtime/height-datum.md) |

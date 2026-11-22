@@ -16,7 +16,7 @@
 ## Required behavior
 
 The PX4 module uses `AccelerometerSample` and `runtime::TiltAlignment`.
-`FormalEskf::fuse_gravity` runs after navigation corrections and before magnetic aiding.
+The portable session's gravity phase runs after navigation corrections and before magnetic aiding.
 It receives actual gyro/accel integration periods: sampler angular rate is scaled
 by their ratio, preserving measured delta-angle while averaging force over the
 accel period. Historical `vehicle_land_detected.at_rest` (strictly less than 2 s

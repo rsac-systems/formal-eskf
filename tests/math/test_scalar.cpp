@@ -112,6 +112,29 @@ template <typename Scalar> void basic(Context & test, std::string_view profile)
                 profile, "pi agrees with independent enclosing decimal constant");
 }
 
+template <typename Scalar> void inverse_cosine(Context & test, std::string_view profile)
+{
+    using Math = formal_eskf::scalar::StandardMath<Scalar>;
+    using Limits = std::numeric_limits<Scalar>;
+    auto const pi = pi_interval();
+    auto const tolerance = 4 * static_cast<long double>(Limits::epsilon());
+    test.expect(Math::acos(Scalar{1}) == Scalar{0}, profile, "acos at positive unit endpoint is exact zero");
+    for (auto x : {Scalar{-1}, Scalar{-0.5}, Scalar{0}, Scalar{0.5}})
+    {
+        auto const expected = x == Scalar{-1}     ? pi
+                              : x == Scalar{-0.5} ? divide(multiply({2, 2}, pi), 3)
+                              : x == Scalar{0}    ? divide(pi, 2)
+                                                  : divide(pi, 3);
+        auto const actual = static_cast<long double>(Math::acos(x));
+        test.expect(actual >= expected.low - tolerance && actual <= expected.high + tolerance, profile,
+                    "inverse-cosine quadrant fixtures agree with independent pi fractions");
+    }
+    for (auto x : {Scalar{-2}, Scalar{2}, Limits::infinity(), -Limits::infinity(), Limits::quiet_NaN()})
+    {
+        test.expect(std::isnan(Math::acos(x)), profile, "raw inverse-cosine invalid inputs remain NaN");
+    }
+}
+
 template <typename Scalar> void hypotenuse(Context & test, std::string_view profile)
 {
     using Math = formal_eskf::scalar::StandardMath<Scalar>;
@@ -382,6 +405,8 @@ int main(int argc, char ** argv)
     Case const cases[]{
         {"TC-F-SCALAR-BASIC", "binary32", basic<float>},
         {"TC-F-SCALAR-BASIC", "binary64", basic<double>},
+        {"TC-F-SCALAR-ACOS", "binary32", inverse_cosine<float>},
+        {"TC-F-SCALAR-ACOS", "binary64", inverse_cosine<double>},
         {"TC-F-SCALAR-HYPOT", "binary32", hypotenuse<float>},
         {"TC-F-SCALAR-HYPOT", "binary64", hypotenuse<double>},
         {"TC-F-SCALAR-SQRT", "binary32", root<float>},

@@ -30,7 +30,8 @@ components own their source history, not copies of the full filter. Alignment,
 reset bookkeeping and estimator faults belong to the session, not to one sensor.
 
 These are responsibility boundaries, not a demand for one class per row.
-The extraction design assigns the session to the portable INS owner. PX4 retains
+The [ordered session contract](../../runtime/ins-session.md) assigns the numerical
+session to the portable INS owner. PX4 retains
 invocation and publication; it shall not keep a second main state/covariance.
 Use concrete state and direct calls; do not add a generic sensor framework,
 virtual policies, callbacks between numerical stages or forwarding-only facades.

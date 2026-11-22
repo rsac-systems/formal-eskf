@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include "FormalEskf.hpp"
+#include <mathlib/mathlib.h>
 
 #include <algorithm>
 #include <cmath>
 #include <new>
+#include <lib/world_magnetic_model/geo_mag_declination.h>
 #include <px4_platform_common/param.h>
 
 namespace profile = formal_eskf::px4::profile;
@@ -11,37 +13,6 @@ namespace profile = formal_eskf::px4::profile;
 // Binary64 estimator operations use a dedicated SITL stack; target budgets are separate.
 static constexpr px4::wq_config_t formal_eskf_queue{"wq:formal_eskf", profile::work_queue_stack_bytes,
                                                     profile::work_queue_relative_priority};
-
-FormalEskf::types_type::parameter_type FormalEskf::estimator_parameters()
-{
-    types_type::parameter_type result;
-    result.gravity_n = vector3(0., 0., profile::gravity_m_s2);
-    result.minimum_quaternion_norm = profile::minimum_quaternion_norm;
-    result.quaternion_squared_norm_tolerance = profile::quaternion_squared_norm_tolerance;
-    result.dt_min = profile::imu::minimum_interval_s;
-    result.dt_max = profile::imu::maximum_interval_s;
-    for (std::size_t axis = 0U; axis < 3U; ++axis)
-    {
-        result.process_noise.specific_force_variance(axis) = profile::imu::specific_force_variance;
-        result.process_noise.angular_rate_variance(axis) = profile::imu::angular_rate_variance;
-        result.process_noise.accelerometer_bias_random_walk_variance_density(axis) =
-            profile::imu::accelerometer_bias_variance_density;
-        result.process_noise.gyroscope_bias_random_walk_variance_density(axis) =
-            profile::imu::gyroscope_bias_variance_density;
-    }
-    return result;
-}
-
-FormalEskf::bias_learning_type::Parameters FormalEskf::bias_learning_parameters()
-{
-    bias_learning_type::Parameters result;
-    result.maximum_specific_force = profile::imu::maximum_specific_force_m_s2;
-    result.maximum_angular_rate = profile::imu::maximum_angular_rate_rad_s;
-    result.decay_time_constant = profile::imu::bias_learning_decay_s;
-    result.accelerometer_enabled = profile::imu::accelerometer_bias_learning;
-    result.gyroscope_enabled = profile::imu::gyroscope_bias_learning;
-    return result;
-}
 
 FormalEskf::FormalEskf() : ScheduledWorkItem(MODULE_NAME, formal_eskf_queue) {}
 
@@ -64,9 +35,7 @@ bool FormalEskf::load_timing_parameters()
         param_get(param_find("FESKF_DELAY_MS"), &timing.fusion_delay_ms) != 0 ||
         param_get(param_find("FESKF_GPS_DLY"), &timing.gnss_delay_ms) != 0 ||
         param_get(param_find("FESKF_MAG_DLY"), &timing.magnetic_delay_ms) != 0 ||
-        param_get(param_find("FESKF_BARO_DLY"), &timing.barometer_delay_ms) != 0 ||
-        !m_imu_history.configure(timing, profile::history::timing) ||
-        !m_observations.configure(timing, profile::history::imu_capacity) || !m_output.configure(timing))
+        param_get(param_find("FESKF_BARO_DLY"), &timing.barometer_delay_ms) != 0 || !m_session.configure_timing(timing))
     {
         PX4_ERR("unsupported delayed-fusion timing settings");
         return false;
@@ -85,9 +54,8 @@ bool FormalEskf::load_magnetic_parameters()
         PX4_ERR("invalid magnetic declination settings");
         return false;
     }
-    m_magnetic_settings = {(declination_source & 1) != 0, (declination_source & 2) != 0,
-                           math::radians(static_cast<double>(saved_declination))};
-    return true;
+    return m_session.configure_magnetic({(declination_source & 1) != 0, (declination_source & 2) != 0,
+                                         math::radians(static_cast<double>(saved_declination))});
 }
 
 bool FormalEskf::load_sensor_positions()
@@ -108,8 +76,7 @@ bool FormalEskf::load_sensor_positions()
         positions.imu_b(axis) = imu;
         positions.gnss_b(axis) = gnss;
     }
-    m_sensor_positions = positions;
-    return true;
+    return m_session.configure_sensor_positions(positions);
 }
 
 bool FormalEskf::load_startup_parameters()
@@ -124,8 +91,8 @@ bool FormalEskf::load_startup_parameters()
         PX4_ERR("invalid gravity aiding setting");
         return false;
     }
-    m_gravity_enabled = profile::gravity::enabled && gravity_enabled != 0;
-    return m_initialization.valid() && load_magnetic_parameters() && load_sensor_positions();
+    return m_session.configure_gravity(profile::gravity::enabled && gravity_enabled != 0) &&
+           m_session.initialization_valid() && load_magnetic_parameters() && load_sensor_positions();
 }
 
 bool FormalEskf::init()
@@ -147,126 +114,6 @@ bool FormalEskf::init()
     }
     ScheduleNow();
     return true;
-}
-
-bool FormalEskf::recent(uint64_t sample, uint64_t max_age) const
-{
-    return sample != 0 && sample <= m_time_us && m_time_us - sample <= max_age;
-}
-
-bool FormalEskf::check(status_type status)
-{
-    if (formal_eskf::succeeded(status))
-    {
-        return true;
-    }
-    ++m_errors;
-    m_fault = true; // Latch numerical failures; no silent reset or fallback.
-    PX4_ERR("numerical failure %d at %llu", static_cast<int>(status), static_cast<unsigned long long>(m_time_us));
-    return false;
-}
-
-bool FormalEskf::collect_initialization_samples(imu_type const & imu)
-{
-    initialization_type::MagneticSample magnetic{
-        m_mag.timestamp_sample, m_mag.device_id, m_mag.calibration_count,
-        vector3(m_mag.magnetometer_ga[0], m_mag.magnetometer_ga[1], m_mag.magnetometer_ga[2])};
-    return m_initialization.collect(m_time_us, m_vehicle_status.arming_state == vehicle_status_s::ARMING_STATE_ARMED,
-                                    imu, magnetic);
-}
-
-bool FormalEskf::initialization_ready() const
-{
-    return m_initialization.ready(m_time_us, {gps_good(), m_baro.timestamp_sample, m_baro.baro_alt_meter,
-                                              std::hypot(m_gps.vel_n_m_s, m_gps.vel_e_m_s), std::abs(m_gps.vel_d_m_s)});
-}
-
-bool FormalEskf::initialize_attitude(double & yaw)
-{
-    initialization_type::Tilt tilt;
-    if (!m_initialization.tilt(tilt))
-    {
-        return false;
-    }
-    auto const model = lookup_magnetic_model(m_gps.latitude_deg, m_gps.longitude_deg);
-    m_mag_model_unavailable += !model.has_value();
-    auto const & field = tilt.level_field_gauss;
-    if (!check(m_magnetic_model.initialize(m_time_us, m_magnetic_settings,
-                                           vector3(profile::microtesla_per_gauss * field(0),
-                                                   profile::microtesla_per_gauss * field(1),
-                                                   profile::microtesla_per_gauss * field(2)),
-                                           model)))
-    {
-        return false;
-    }
-    return check(m_initialization.align(tilt, m_magnetic_model.declination(), m_state, yaw));
-}
-
-bool FormalEskf::initialize_navigation(imu_type const & imu)
-{
-    formal_eskf::geodesy::GeodeticPosition const origin{m_gps.latitude_deg, m_gps.longitude_deg,
-                                                        m_gps.altitude_ellipsoid_m};
-    if (!update_height_datum(m_gps.timestamp_sample, origin, m_gps.altitude_msl_m) ||
-        !formal_eskf::succeeded(m_navigation_frame.initialize(origin)))
-    {
-        return false;
-    }
-    // The geographic reference remains the first antenna fix; the state is at the IMU.
-    m_initialization.seed_navigation(vector3(m_gps.vel_n_m_s, m_gps.vel_e_m_s, m_gps.vel_d_m_s), gnss_position_offset(),
-                                     gnss_velocity_offset(imu), m_state, m_covariance);
-    m_origin.time_us = m_time_us;
-    m_origin.projection.initReference(m_gps.latitude_deg, m_gps.longitude_deg, m_origin.time_us);
-    m_mag_model_origin_time = m_origin.time_us;
-    m_origin.altitude_msl_m = m_gps.altitude_msl_m;
-    return true;
-}
-
-void FormalEskf::initialize(ImuInput const & sample, imu_type const & imu)
-{
-    if (!collect_initialization_samples(imu) || !initialization_ready())
-    {
-        return;
-    }
-    // Invalid external altitude delays startup; it is not a numerical-core fault.
-    if (!formal_eskf::succeeded(m_height_aiding.initialize(m_time_us, m_gps.altitude_msl_m)))
-    {
-        return;
-    }
-
-    m_height_ratios = {};
-
-    double yaw{};
-    if (!initialize_attitude(yaw))
-    {
-        return;
-    }
-    if (!initialize_navigation(imu))
-    {
-        return;
-    }
-    m_initialization.magnetic_reference(m_magnetic_model.reference_id());
-    initialize_magnetic_aiding(m_initialization.history().magnetic_source, m_mag.timestamp_sample);
-    m_initialized = true;
-    if (!update_imu_bias(sample, imu))
-    {
-        return;
-    }
-    fuse_gps(imu);
-    if (!m_fault && update_imu_health(sample.accelerometer_clipping))
-    {
-        fuse_height();
-    }
-    observation_history_type::Seed seed;
-    seed.context = startup_context(m_time_us, profile::gnss::context_maximum_age_us);
-    seed.gnss = m_gnss.input.sample.stamp;
-    seed.magnetic = decode_magnetic(m_mag).stamp;
-    seed.barometer = m_barometer.sample.stamp;
-    if (m_fault || !check_timing(m_imu_history.seed(sample, hrt_absolute_time()) && m_observations.seed(seed) &&
-                                 m_output.seed(m_state, m_time_us)))
-    {
-        return;
-    }
-    PX4_INFO("initialized from IMU + magnetometer + GNSS; yaw=%.2f deg, EKF2 replacement", math::degrees(yaw));
 }
 
 FormalEskf::InputUpdates FormalEskf::read_inputs()
@@ -302,7 +149,7 @@ void FormalEskf::Run()
     ScheduleDelayed(profile::backup_interval_us); // Status timeout, not an independent watchdog.
     perf_begin(m_cycle_perf);
     auto const updates = read_inputs();
-    bool const was_initialized = m_initialized;
+    bool const was_initialized = m_session.initialized();
     if (updates.imu)
     {
         // Admission/current propagation and fast attitude precede delayed work.
@@ -311,19 +158,19 @@ void FormalEskf::Run()
         perf_end(m_output_perf);
     }
     uint64_t const now = hrt_absolute_time();
-    if (was_initialized && !m_fault)
+    if (was_initialized && !m_session.fault())
     {
         if (updates.gps)
         {
-            record_admission(m_observations.push_gnss(decode_gnss(m_gps), now));
+            m_session.receive_gnss(decode_gnss(m_gps), now);
         }
         if (updates.magnetic)
         {
-            record_admission(m_observations.push_magnetic(decode_magnetic(m_mag), now));
+            m_session.receive_magnetic(decode_magnetic(m_mag), now);
         }
         if (updates.barometer)
         {
-            record_admission(m_observations.push_barometer(decode_barometer(m_baro), now));
+            m_session.receive_barometer(decode_barometer(m_baro), now);
         }
         if (updates.imu)
         {
@@ -360,27 +207,6 @@ FormalEskf::ImuInput FormalEskf::decode_imu(vehicle_imu_s const & sample)
     return result;
 }
 
-bool FormalEskf::check_timing(bool succeeded)
-{
-    if (!succeeded)
-    {
-        ++m_errors;
-        m_fault = true;
-        PX4_ERR("history/timing failure; restart required");
-    }
-    return succeeded;
-}
-
-void FormalEskf::record_admission(observation_history_type::PushResult const & result)
-{
-    using Admission = observation_history_type::Admission;
-    m_arrival_rejections += result.decision != Admission::queued;
-    m_rate_rejections += result.decision == Admission::too_fast;
-    m_stale_arrivals += result.decision == Admission::stale || result.decision == Admission::imu_stale;
-    m_source_discards += result.source_discarded;
-    m_overflows += result.overwritten;
-}
-
 FormalEskf::observation_history_type::LandState FormalEskf::land_state() const
 {
     return {m_land.timestamp, m_land.timestamp != 0, m_land.landed, m_land.at_rest, m_land.in_ground_effect};
@@ -391,263 +217,6 @@ FormalEskf::observation_history_type::VehicleState FormalEskf::vehicle_state() c
     return {m_vehicle_status.timestamp, m_vehicle_status.timestamp != 0,
             m_vehicle_status.arming_state == vehicle_status_s::ARMING_STATE_ARMED,
             m_vehicle_status.vehicle_type == vehicle_status_s::VEHICLE_TYPE_FIXED_WING};
-}
-
-FormalEskf::observation_history_type::Context FormalEskf::startup_context(std::uint64_t epoch,
-                                                                          std::uint64_t maximum_age) const
-{
-    observation_history_type::Context context{epoch, land_state(), vehicle_state()};
-    context.land.known &= context.land.time_us <= epoch && epoch - context.land.time_us < maximum_age;
-    context.vehicle.known &= context.vehicle.time_us <= epoch && epoch - context.vehicle.time_us < maximum_age;
-    return context;
-}
-
-bool FormalEskf::accept_imu(ImuInput const & sample)
-{
-    auto const now = hrt_absolute_time();
-    if (sample.time_us <= m_time_us || sample.time_us > now || now - sample.time_us > profile::output::maximum_age_us ||
-        sample.angular_period_us < profile::history::minimum_period_us ||
-        sample.angular_period_us > profile::history::maximum_period_us ||
-        sample.acceleration_period_us < profile::history::minimum_period_us ||
-        sample.acceleration_period_us > profile::history::maximum_period_us ||
-        !formal_eskf::runtime::imu_clipping_acceptable(sample.accelerometer_clipping, sample.gyroscope_clipping, false))
-    {
-        ++m_rejections;
-        // Revoke permissions and partial observations without consuming the horizon.
-        m_bias_learning_result = {};
-        reset_imu_observations();
-        return false;
-    }
-    return true;
-}
-
-void FormalEskf::reset_imu_observations()
-{
-    m_vertical_health.reset();
-    m_gravity.reset_samples();
-    m_average_imu_interval = profile::imu::nominal_interval_s;
-}
-
-void FormalEskf::process_imu(ImuInput const & sample)
-{
-    if (m_fault)
-    {
-        return;
-    }
-    if (!m_initialized)
-    {
-        if (!accept_imu(sample))
-        {
-            return;
-        }
-        auto const imu = sample.mean_rates();
-        if (!formal_eskf::linalg::all_finite(imu.specific_force_b) ||
-            !formal_eskf::linalg::all_finite(imu.angular_rate_b))
-        {
-            ++m_rejections;
-            return;
-        }
-        m_time_us = sample.time_us;
-        m_imu_context = startup_context(m_time_us, profile::imu::rest_maximum_age_us);
-        m_gnss.input = {m_gps.timestamp_sample, 0, 0, 0, decode_gnss(m_gps)};
-        m_gnss.context = startup_context(m_gnss.input.time_us, profile::gnss::context_maximum_age_us);
-        m_barometer = {m_baro.timestamp_sample, 0, 0, 0, decode_barometer(m_baro)};
-        update_gps_quality();
-        if (!m_fault)
-        {
-            initialize(sample, imu);
-        }
-        return;
-    }
-    if (!check_timing(m_imu_history.push(sample, hrt_absolute_time())))
-    {
-        return;
-    }
-    auto const & interval = *m_imu_history.latest();
-    if (!check_timing(m_observations.record_imu(interval, land_state(), vehicle_state()) && m_output.predict(interval)))
-    {
-        return;
-    }
-    if (output_healthy(hrt_absolute_time()))
-    {
-        publish_attitude(hrt_absolute_time());
-    }
-}
-
-void FormalEskf::advance_fusion()
-{
-    auto const * interval = m_imu_history.delayed();
-    if (interval == nullptr || m_fault)
-    {
-        return;
-    }
-    perf_begin(m_fusion_perf);
-    predict_and_fuse(*interval);
-    if (!m_fault && check_timing(m_output.correct(m_time_us, m_state) && m_imu_history.complete(m_time_us)))
-    {
-        update_origin();
-        publish(m_imu_history.latest()->sample.mean_rates());
-    }
-    perf_end(m_fusion_perf);
-}
-
-void FormalEskf::select_observations()
-{
-    // A missed pop must not reuse an old event. GNSS data may be retained for
-    // diagnostics, but update_gps_quality's watermark prevents a second use.
-    auto const gps = m_observations.pop_gnss(m_gnss.input);
-    m_magnetic.input = {};
-    auto const magnetic = m_observations.pop_magnetic(m_magnetic.input);
-    m_barometer = {};
-    auto const barometer = m_observations.pop_barometer(m_barometer);
-    m_retired_observations += gps.retired + magnetic.retired + barometer.retired;
-    m_gnss.context = m_observations.context(m_gnss.input.time_us, profile::gnss::context_maximum_age_us);
-    m_magnetic.context = m_observations.context(m_magnetic.input.time_us != 0 ? m_magnetic.input.time_us : m_time_us,
-                                                profile::magnetic::context_maximum_age_us);
-    update_gps_quality();
-}
-
-void FormalEskf::predict_and_fuse(imu_history_type::interval_type const & interval)
-{
-    auto const & sample = interval.sample;
-    auto const imu = sample.mean_rates();
-    m_imu_context = m_observations.prediction_context(interval, profile::imu::rest_maximum_age_us);
-    if (interval.hold_period_us != 0)
-    {
-        ++m_gaps;
-        reset_imu_observations();
-        m_magnetic.heading.reset_acceleration();
-        if (!check(formal_eskf::runtime::predict_imu(
-                m_state, m_covariance, interval.held_rate, interval.hold_period_us * profile::seconds_per_microsecond,
-                m_parameters, 0, false, profile::imu::faulty_specific_force_variance)))
-        {
-            return;
-        }
-    }
-    if (!update_imu_bias(sample, imu) ||
-        !check(formal_eskf::runtime::predict_imu(
-            m_state, m_covariance, imu, sample.angular_interval_s(), m_parameters, sample.accelerometer_clipping,
-            m_vertical_health.state().bad_vertical_acceleration, profile::imu::faulty_specific_force_variance)))
-    {
-        return;
-    }
-    m_time_us = sample.time_us;
-    ++m_predictions;
-    if (!check_timing(m_observations.begin_fusion(interval)))
-    {
-        return;
-    }
-    select_observations();
-    auto const acceleration_n = formal_eskf::so3::rotate(m_state.q_nb, imu.specific_force_b - m_state.b_a);
-    if (m_fault || !check(m_magnetic.heading.update_acceleration(acceleration_n, sample.acceleration_interval_s())))
-    {
-        return;
-    }
-    fuse_gps(imu);
-    // Current delayed GNSS velocity and preceding height evidence feed health.
-    if (m_fault || !update_imu_health(sample.accelerometer_clipping))
-    {
-        return;
-    }
-    update_ground_effect();
-    fuse_height();
-    if (m_fault)
-    {
-        return;
-    }
-    fuse_gravity(sample, imu);
-    if (!m_fault)
-    {
-        fuse_mag();
-    }
-}
-
-bool FormalEskf::reset_output(quaternion_type const & delta_q, vector3_type const & delta_v,
-                              vector3_type const & delta_p, OutputReset request)
-{
-    bool const seeded = m_output.current().time_us != 0;
-    auto const before =
-        seeded ? body_output()
-               : body_output(m_state.p_n - delta_p, m_state.v_n - delta_v, delta_q.inverse() * m_state.q_nb, {});
-    if (!check(before.status) || (seeded && !check_timing(m_output.apply_reset(delta_q, delta_v, delta_p))))
-    {
-        return false;
-    }
-    auto const after = seeded ? body_output() : body_output(m_state.p_n, m_state.v_n, m_state.q_nb, {});
-    if (!check(after.status))
-    {
-        return false;
-    }
-    auto const position = after.position_n - before.position_n;
-    auto const velocity = after.velocity_n - before.velocity_n;
-    auto const attitude = after.q_nb * before.q_nb.inverse();
-    bool const rotated_point = seeded && formal_eskf::linalg::max_abs(delta_q.coefficients().segment<1, 3>()) > 0. &&
-                               formal_eskf::linalg::squared_norm(m_sensor_positions.imu_b) > 0.;
-    // Ignore representation noise in unrelated axes, not an estimator innovation.
-    if (request.horizontal_position || rotated_point ||
-        (seeded && std::hypot(position(0), position(1)) > profile::output::position_reset_resolution_m))
-    {
-        m_resets.record_position(m_time_us, vector2_type::from_row_major({position(0), position(1)}));
-    }
-    if (request.height_count != 0 || rotated_point ||
-        (seeded && std::abs(position(2)) > profile::output::position_reset_resolution_m))
-    {
-        m_resets.record_height(m_time_us, position(2), std::max<std::uint8_t>(request.height_count, 1));
-    }
-    if (request.velocity || rotated_point ||
-        (seeded && std::hypot(velocity(0), velocity(1)) > profile::output::velocity_reset_resolution_m_s))
-    {
-        m_resets.record_velocity(m_time_us, velocity);
-    }
-    if (request.vertical_velocity || rotated_point ||
-        (seeded && std::abs(velocity(2)) > profile::output::velocity_reset_resolution_m_s))
-    {
-        m_resets.record_vertical_velocity(m_time_us, velocity(2));
-    }
-    if (request.attitude || (seeded && formal_eskf::linalg::max_abs(attitude.coefficients().segment<1, 3>()) >
-                                           profile::output::attitude_reset_resolution))
-    {
-        m_resets.record_attitude(m_time_us, attitude);
-    }
-    m_resets.odometry_count += std::max<unsigned>(1, request.height_count + request.vertical_velocity);
-    return true;
-}
-
-bool FormalEskf::update_imu_bias(ImuInput const & sample, imu_type const & imu)
-{
-    double const angular_interval = sample.angular_interval_s();
-    double const force_interval = sample.acceleration_interval_s();
-    m_average_imu_interval = profile::imu::interval_history_weight * m_average_imu_interval +
-                             profile::imu::interval_sample_weight *
-                                 std::clamp(0.5 * (angular_interval + force_interval),
-                                            profile::imu::minimum_interval_ratio * profile::imu::nominal_interval_s,
-                                            profile::imu::maximum_interval_ratio * profile::imu::nominal_interval_s);
-    bias_learning_type::Conditions conditions;
-    conditions.at_rest = m_imu_context.land.known && m_imu_context.land.at_rest;
-    conditions.accelerometer_clipping = sample.accelerometer_clipping;
-    conditions.bad_vertical_acceleration = m_vertical_health.state().bad_vertical_acceleration;
-    // This module has no fake-position/height modes. A GNSS outage is not a fake-aiding mode.
-    m_bias_learning_result = m_bias_learning.update(angular_interval, force_interval, m_state, imu, conditions);
-    return check(m_bias_learning_result.status);
-}
-
-bool FormalEskf::update_imu_health(std::uint8_t accelerometer_clipping)
-{
-    vertical_health_type::Observations observations;
-    observations.barometer_height = m_height_aiding.vertical_innovation(height_type::Source::barometer);
-    observations.gnss_height = m_height_aiding.vertical_innovation(height_type::Source::gnss);
-    observations.gnss_velocity_down = m_gnss.vertical_innovation;
-    observations.gnss_velocity_down.active &= m_gnss.lifecycle.state().velocity.active;
-    vertical_health_type::Sample health_sample;
-    health_sample.time_us = m_time_us;
-    health_sample.average_interval_s = m_average_imu_interval;
-    health_sample.clipping_available = true;
-    for (size_t axis = 0; axis < 3; ++axis)
-    {
-        health_sample.clipped[axis] = (accelerometer_clipping & (1U << axis)) != 0;
-    }
-    // Current GNSS velocity, preceding height attempts: evaluate before current height correction.
-    return check(m_vertical_health.update(health_sample, observations));
 }
 
 int FormalEskf::task_spawn(int argc, char * argv[])
@@ -685,3 +254,177 @@ int FormalEskf::print_usage(char const * reason)
 }
 
 extern "C" __EXPORT int formal_eskf_main(int argc, char * argv[]) { return FormalEskf::main(argc, argv); }
+
+FormalEskf::observation_history_type::GnssSample FormalEskf::decode_gnss(sensor_gps_s const & sample)
+{
+    observation_history_type::GnssSample result;
+    result.stamp = {sample.timestamp_sample, {sample.device_id, 0}};
+    result.latitude_deg = sample.latitude_deg;
+    result.longitude_deg = sample.longitude_deg;
+    result.altitude_msl_m = sample.altitude_msl_m;
+    result.altitude_ellipsoid_m = sample.altitude_ellipsoid_m;
+    result.velocity_n = vector3(sample.vel_n_m_s, sample.vel_e_m_s, sample.vel_d_m_s);
+    result.horizontal_accuracy_m = sample.eph;
+    result.vertical_accuracy_m = sample.epv;
+    result.speed_accuracy_m_s = sample.s_variance_m_s;
+    result.hdop = sample.hdop;
+    result.vdop = sample.vdop;
+    result.fix_type = sample.fix_type;
+    result.satellites = sample.satellites_used;
+    result.velocity_valid = sample.vel_ned_valid;
+    result.spoofed = sample.spoofing_state == sensor_gps_s::SPOOFING_STATE_MULTIPLE;
+    return result;
+}
+FormalEskf::observation_history_type::BarometerSample FormalEskf::decode_barometer(vehicle_air_data_s const & sample)
+{
+    return {{sample.timestamp_sample, {sample.baro_device_id, sample.calibration_count}}, sample.baro_alt_meter};
+}
+FormalEskf::observation_history_type::MagneticSample FormalEskf::decode_magnetic(vehicle_magnetometer_s const & sample)
+{
+    return {{sample.timestamp_sample, {sample.device_id, sample.calibration_count}},
+            vector3(profile::microtesla_per_gauss * double(sample.magnetometer_ga[0]),
+                    profile::microtesla_per_gauss * double(sample.magnetometer_ga[1]),
+                    profile::microtesla_per_gauss * double(sample.magnetometer_ga[2]))};
+}
+
+std::optional<FormalEskf::magnetic_model_type::sample_type>
+FormalEskf::lookup_magnetic_model(session_type::ModelRequest const & request) const
+{
+    double const latitude = request.latitude_deg, longitude = request.longitude_deg;
+    if constexpr (!profile::magnetic::use_model)
+    {
+        return std::nullopt;
+    }
+    if (!std::isfinite(latitude) || !std::isfinite(longitude) || std::abs(latitude) > 90. || std::abs(longitude) > 180.)
+    {
+        return std::nullopt;
+    }
+    magnetic_model_type::sample_type const local{
+        math::radians(double(get_mag_declination_degrees(latitude, longitude))),
+        math::radians(double(get_mag_inclination_degrees(latitude, longitude))),
+        profile::microtesla_per_gauss * double(get_mag_strength_gauss(latitude, longitude))};
+    magnetic_model_type::sample_type model;
+    if (!formal_eskf::succeeded(magnetic_model_type::to_origin_frame(
+            local, latitude, longitude, request.origin_latitude_deg, request.origin_longitude_deg, model)))
+    {
+        return std::nullopt;
+    }
+    return model;
+}
+void FormalEskf::process_imu(ImuInput const & sample)
+{
+    if (m_session.fault())
+    {
+        return;
+    }
+    auto const errors = m_session.statistics().errors;
+    bool const active = m_session.initialized();
+    session_type::StartupInput startup;
+    if (!active)
+    {
+        startup.gnss = decode_gnss(m_gps);
+        startup.barometer = decode_barometer(m_baro);
+        startup.magnetic = {m_mag.timestamp_sample, m_mag.device_id, m_mag.calibration_count,
+                            vector3(m_mag.magnetometer_ga[0], m_mag.magnetometer_ga[1], m_mag.magnetometer_ga[2])};
+        startup.horizontal_speed = std::hypot(m_gps.vel_n_m_s, m_gps.vel_e_m_s);
+        startup.vertical_speed = std::abs(m_gps.vel_d_m_s);
+    }
+    m_session.process_imu(sample, hrt_absolute_time(), {land_state(), vehicle_state()}, startup);
+    if (m_session.phase() == session_type::Phase::initialization_model)
+    {
+        auto const model = lookup_magnetic_model(m_session.model_request());
+        double yaw{};
+        if (m_session.complete_initialization(model, yaw) && m_session.seed_initialization(hrt_absolute_time()))
+        {
+            PX4_INFO("initialized from IMU + magnetometer + GNSS; yaw=%.2f deg, EKF2 replacement", math::degrees(yaw));
+        }
+    }
+    if (active && m_session.output_healthy(hrt_absolute_time()))
+    {
+        publish_attitude(hrt_absolute_time());
+    }
+    update_innovations();
+    report_session_failure(errors);
+}
+
+void FormalEskf::advance_fusion()
+{
+    if (!m_session.fusion_ready())
+    {
+        return;
+    }
+    perf_begin(m_fusion_perf);
+    auto const errors = m_session.statistics().errors;
+    m_session.begin_fusion();
+    std::optional<magnetic_model_type::sample_type> model;
+    if (!m_session.fault() && m_session.model_request().required)
+    {
+        model = lookup_magnetic_model(m_session.model_request());
+    }
+    bool const complete = m_session.complete_fusion(model);
+    update_innovations();
+    report_session_failure(errors);
+    if (complete)
+    {
+        publish(m_session.imu_history().latest()->sample.mean_rates());
+    }
+    perf_end(m_fusion_perf);
+}
+
+void FormalEskf::update_innovations()
+{
+    auto const events = m_session.take_innovations();
+    auto apply = [](auto & ratios, auto const & observations)
+    {
+        for (std::size_t axis = 0; axis < ratios.size(); ++axis)
+        {
+            auto & ratio = ratios[axis];
+            auto const & event = observations[axis];
+            if (event.clear)
+            {
+                ratio = {};
+            }
+            if (event.measurement)
+            {
+                ratio.update(event.time_us, event.innovation, event.test_ratio);
+            }
+            if (event.reset)
+            {
+                ratio.reset(event.time_us);
+            }
+        }
+    };
+    apply(m_position_ratios, events.position);
+    apply(m_velocity_ratios, events.velocity);
+    apply(m_magnetic_ratios, events.magnetic);
+    if (events.clear_height)
+    {
+        m_height_ratios = {};
+    }
+    for (std::size_t source = 0; source < m_height_ratios.size(); ++source)
+    {
+        auto & ratio = m_height_ratios[source];
+        auto const & event = events.height[source];
+        if (event.source_changed)
+        {
+            ratio = {};
+        }
+        if (event.measurement)
+        {
+            ratio.update(event.time_us, event.innovation, event.valid ? event.test_ratio : double(NAN));
+        }
+        if (event.reset)
+        {
+            ratio.reset(event.time_us);
+        }
+    }
+}
+
+void FormalEskf::report_session_failure(std::uint32_t previous_errors) const
+{
+    if (m_session.statistics().errors != previous_errors)
+    {
+        PX4_ERR("session failure %d at %llu; restart required", static_cast<int>(m_session.failure_status()),
+                static_cast<unsigned long long>(m_session.fusion_time_us()));
+    }
+}

@@ -12,7 +12,7 @@
 
 ## Required behavior
 
-`FormalEskfAttitude.cpp` connects the existing field check, heading monitor,
+The portable session's magnetic phase connects the existing field check, heading monitor,
 lifecycle, gated correction, reset LPF and heading reset for the fixed-field INS.
 The module's `Magnetic` record owns sensor history and diagnostics; estimator
 members own heading alignment and quaternion reset bookkeeping. Named operations

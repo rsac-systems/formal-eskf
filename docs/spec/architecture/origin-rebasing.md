@@ -49,7 +49,7 @@ to the requirement and profile, rather than inferred from this inventory.
 | Output tracking errors/sums | Navigation p/v, body attitude correction and IMU bias/rate feedback. | Rotate p/v errors and sums; preserve body values and tracking/fault state. |
 | [ImuHistory](../../../include/formal_eskf/runtime/history/imu_history.hpp) | Body rates/increments, integration intervals, admission/complete watermarks. | Preserve complete storage/metadata. Complete the actual delayed interval once before the event. |
 | [ObservationHistory](../../../include/formal_eskf/runtime/history/observation_history.hpp) and selected samples | Raw geodetic GNSS, receiver-local velocity, body field, pressure altitude and historical flight context. | Preserve queues, selected source epochs and generations. Prepare active-frame observation models only at consumption. |
-| [GNSS coordination](../../../integrations/px4/module/FormalEskfNavigation.cpp) | Quality uses adjacent fixes/receiver NED; fusion diagnostics use declared observation axes. | Preserve source/lifecycle/quality/ratios and cached diagnostics whose basis is unchanged. Recompute newly consumed h/H; bind real recovery resets to the observation axes. |
+| [GNSS coordination](../../../include/formal_eskf/runtime/session/ins_session_navigation.hpp) | Quality uses adjacent fixes/receiver NED; fusion diagnostics use declared observation axes. | Preserve source/lifecycle/quality/ratios and cached diagnostics whose basis is unchanged. Recompute newly consumed h/H; bind real recovery resets to the observation axes. |
 | [HeightAiding](../../../include/formal_eskf/runtime/sensors/height/height_aiding.hpp) | Scalar MSL reference, barometer bias, source history and Down-positive observation diagnostics. | Preserve physical datum/bias and timers. Supply the geographic height prediction/Jacobian instead of assuming internal p_z is MSL-relative altitude. |
 | [MagneticModel](../../../include/formal_eskf/runtime/sensors/magnetic/magnetic_model.hpp) | Model/observation vectors in their fixed reference basis; model revision/source identity. | Keep references in that basis and transform vectors on use. Do not trigger a WMM adoption, reference revision or heading reset merely for rebasing. |
 | [MagneticHeading](../../../include/formal_eskf/runtime/sensors/magnetic/magnetometer.hpp) | Filtered navigation force vector, scalar heading-error history and consistency latch. | Rotate complete force history; invalidate/reseed scalar history from a real new-frame sample; preserve the latch until normal evidence updates it. |
@@ -134,7 +134,7 @@ duplicated here; canonical headers own concrete signatures when implemented.
 
 ## Geometry and publication ownership
 
-The adapter builds local geographic snapshots from each unchanged estimate.
+The portable session builds local geographic snapshots from each unchanged estimate.
 Each snapshot contains its checked geographic point, ECEF point and working-to-
 geographic rotation. Admission reuses that ECEF point for the datum-distance
 check; the transaction consumes the same main/current snapshots before any
@@ -148,7 +148,7 @@ Standalone heading/status queries still obtain their own matching delayed basis.
 The fast attitude phase checks numerical output freshness directly and does not
 run unused navigation admission or aiding diagnostics.
 
-The existing `FormalEskfFrames.cpp` groups datum, geometry, admission and the
+The session's `ins_session_frames.hpp` groups datum, geometry, admission and the
 origin transaction. `FormalEskfOutput.cpp` owns message mapping and reset
 notifications; predictor and height owners retain their transactional scratch.
 No persistent derived-geometry cache, second covariance, generic policy dispatch

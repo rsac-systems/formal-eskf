@@ -331,4 +331,100 @@ template <typename Height> typename Height::Parameters height_parameters()
     return result;
 }
 
+struct InsLayout
+{
+    static constexpr std::size_t imu_capacity = history::imu_capacity;
+    static constexpr std::size_t context_capacity = history::context_capacity;
+    static constexpr std::size_t gnss_capacity = history::gnss_capacity;
+    static constexpr std::size_t magnetic_capacity = history::magnetic_capacity;
+    static constexpr std::size_t barometer_capacity = history::barometer_capacity;
+    static constexpr std::uint64_t gravity_interval_us = gravity::observation_interval_us;
+    static constexpr bool gravity_aiding = gravity::enabled;
+    static constexpr bool ground_effect = height::ground_effect_enabled;
+    static constexpr bool magnetic_model = magnetic::use_model;
+};
+
+template <typename Session> typename Session::Parameters session_parameters()
+{
+    typename Session::Parameters result;
+    result.initialization = initialization_parameters<typename Session::initialization_type>();
+    result.observation_timing = history::observation_timing;
+    result.output = output_parameters;
+    result.height = height_parameters<typename Session::height_type>();
+    result.gnss_quality = gnss::quality;
+    result.magnetic_lookup_interval_us = magnetic::model_interval_us;
+    result.settings.projection_radius_m = 6371000.;
+    result.settings.bias_limits = bias_limits<double>();
+    result.settings.gnss.context_maximum_age_us = gnss::context_maximum_age_us;
+    result.settings.gnss.gate_sigma = gnss::gate_sigma;
+    result.settings.gnss.maximum_position_noise_m = gnss::maximum_position_noise_m;
+    result.settings.gnss.maximum_sample_age_us = gnss::maximum_sample_age_us;
+    result.settings.gnss.minimum_position_noise_m = gnss::minimum_position_noise_m;
+    result.settings.gnss.minimum_velocity_noise_m_s = gnss::minimum_velocity_noise_m_s;
+    result.settings.gnss.timing = gnss::timing;
+    result.settings.gnss.vertical_variance_multiplier = gnss::vertical_variance_multiplier;
+    result.settings.height.barometer_variance = height::barometer_variance;
+    result.settings.height.context_maximum_age_us = height::context_maximum_age_us;
+    result.settings.height.ground_effect_timeout_us = height::ground_effect_timeout_us;
+    result.settings.height.minimum_gnss_noise_m = height::minimum_gnss_noise_m;
+    result.settings.imu.faulty_specific_force_variance = imu::faulty_specific_force_variance;
+    result.settings.imu.interval_history_weight = imu::interval_history_weight;
+    result.settings.imu.interval_sample_weight = imu::interval_sample_weight;
+    result.settings.imu.maximum_interval_ratio = imu::maximum_interval_ratio;
+    result.settings.imu.minimum_interval_ratio = imu::minimum_interval_ratio;
+    result.settings.imu.nominal_interval_s = imu::nominal_interval_s;
+    result.settings.imu.rest_maximum_age_us = imu::rest_maximum_age_us;
+    result.settings.magnetic.acceleration_limit_m_s2 = magnetic::acceleration_limit_m_s2;
+    result.settings.magnetic.checks = magnetic::checks;
+    result.settings.magnetic.context_maximum_age_us = magnetic::context_maximum_age_us;
+    result.settings.magnetic.field = magnetic::field;
+    result.settings.magnetic.gate_sigma = magnetic::gate_sigma;
+    result.settings.magnetic.heading_noise_rad = magnetic::heading_noise_rad;
+    result.settings.magnetic.maximum_heading_age_us = magnetic::maximum_heading_age_us;
+    result.settings.magnetic.maximum_heading_variance = magnetic::maximum_heading_variance;
+    result.settings.magnetic.noise_variance = magnetic::noise_variance;
+    result.settings.magnetic.timing = magnetic::timing;
+    result.settings.origin.datum_maximum_age_us = origin::datum_maximum_age_us;
+    result.settings.origin.datum_maximum_distance_m = origin::datum_maximum_distance_m;
+    result.settings.origin.maximum_angle_rad = origin::maximum_angle_rad;
+    result.settings.origin.maximum_distance_m = origin::maximum_distance_m;
+    result.settings.origin.maximum_height_m = origin::maximum_height_m;
+    result.settings.origin.maximum_latitude_deg = origin::maximum_latitude_deg;
+    result.settings.origin.maximum_speed_m_s = origin::maximum_speed_m_s;
+    result.settings.origin.minimum_height_m = origin::minimum_height_m;
+    result.settings.origin.minimum_interval_us = origin::minimum_interval_us;
+    result.settings.origin.retry_interval_us = origin::retry_interval_us;
+    result.settings.origin.trigger_angle_rad = origin::trigger_angle_rad;
+    result.settings.origin.trigger_distance_m = origin::trigger_distance_m;
+    result.settings.output.attitude_reset_resolution = output::attitude_reset_resolution;
+    result.settings.output.dead_reckoning_age_us = output::dead_reckoning_age_us;
+    result.settings.output.maximum_age_us = output::maximum_age_us;
+    result.settings.output.position_reset_resolution_m = output::position_reset_resolution_m;
+    result.settings.output.velocity_reset_resolution_m_s = output::velocity_reset_resolution_m_s;
+    result.settings.gnss.maximum_aiding_age_us = gnss::maximum_aiding_age_us;
+
+    result.estimator.gravity_n = Session::vector3_type::from_row_major({0., 0., gravity_m_s2});
+    result.estimator.minimum_quaternion_norm = minimum_quaternion_norm;
+    result.estimator.quaternion_squared_norm_tolerance = quaternion_squared_norm_tolerance;
+    result.estimator.dt_min = imu::minimum_interval_s;
+    result.estimator.dt_max = imu::maximum_interval_s;
+    for (std::size_t axis = 0U; axis < 3U; ++axis)
+    {
+        result.estimator.process_noise.specific_force_variance(axis) = imu::specific_force_variance;
+        result.estimator.process_noise.angular_rate_variance(axis) = imu::angular_rate_variance;
+        result.estimator.process_noise.accelerometer_bias_random_walk_variance_density(axis) =
+            imu::accelerometer_bias_variance_density;
+        result.estimator.process_noise.gyroscope_bias_random_walk_variance_density(axis) =
+            imu::gyroscope_bias_variance_density;
+    }
+
+    result.bias_learning.maximum_specific_force = imu::maximum_specific_force_m_s2;
+    result.bias_learning.maximum_angular_rate = imu::maximum_angular_rate_rad_s;
+    result.bias_learning.decay_time_constant = imu::bias_learning_decay_s;
+    result.bias_learning.accelerometer_enabled = imu::accelerometer_bias_learning;
+    result.bias_learning.gyroscope_enabled = imu::gyroscope_bias_learning;
+
+    return result;
+}
+
 } /* end namespace formal_eskf::px4::profile */

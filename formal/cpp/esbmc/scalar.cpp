@@ -77,6 +77,11 @@ void verify_scalar_backend(Scalar x, Scalar y, Scalar root, Scalar sine, Scalar 
     __ESBMC_assert(same(actual_hypot, hypotenuse) && Libm::angle.calls == 1U && same(Libm::angle.y, x) &&
                        same(Libm::angle.x, y) && Libm::count == 1U,
                    "F-SCALAR: StandardMath hypot forwards original operands and arbitrary libm result");
+    Libm::prepare(Scalar{0}, Scalar{0}, cosine, Scalar{0});
+    auto const actual_acos = Math::acos(x);
+    __ESBMC_assert(same(actual_acos, cosine) && Libm::cosine.calls == 1U && same(Libm::cosine.argument, x) &&
+                       Libm::count == 1U,
+                   "F-SCALAR: StandardMath acos forwards the operand and arbitrary libm result");
 }
 
 void verify_scalar_sqrt(Scalar input, Scalar output, Scalar root)

@@ -3486,8 +3486,8 @@
             "symbol": "def magnetic_field_parameters("
           },
           {
-            "file": "integrations/px4/module/FormalEskfAttitude.cpp",
-            "symbol": "FormalEskf::prepare_magnetic_observation("
+            "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
+            "symbol": "InsSession<Linalg, Layout>::prepare_magnetic_observation("
           }
         ],
         "esbmc": [
@@ -3636,12 +3636,16 @@
             "symbol": "read_magnetic_heading_parameters("
           },
           {
-            "file": "integrations/px4/module/FormalEskfAttitude.cpp",
-            "symbol": "FormalEskf::prepare_magnetic_observation("
+            "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
+            "symbol": "InsSession<Linalg, Layout>::prepare_magnetic_observation("
           },
           {
-            "file": "integrations/px4/module/FormalEskfAttitude.cpp",
-            "symbol": "void FormalEskf::fuse_mag()"
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::begin_magnetic("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::complete_magnetic("
           },
           {
             "file": "include/formal_eskf/runtime/sensors/magnetic/magnetometer.hpp",
@@ -3790,12 +3794,16 @@
             "symbol": "class MagneticModel"
           },
           {
-            "file": "integrations/px4/module/FormalEskfAttitude.cpp",
+            "file": "integrations/px4/module/FormalEskf.cpp",
             "symbol": "FormalEskf::lookup_magnetic_model("
           },
           {
-            "file": "integrations/px4/module/FormalEskfAttitude.cpp",
-            "symbol": "void FormalEskf::update_magnetic_model()"
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::prepare_magnetic_model("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::apply_magnetic_model("
           },
           {
             "file": "include/formal_eskf/runtime/sensors/magnetic/magnetic_model.hpp",
@@ -3911,8 +3919,8 @@
             "symbol": "void replay("
           },
           {
-            "file": "integrations/px4/module/FormalEskfAttitude.cpp",
-            "symbol": "bool FormalEskf::fuse_magnetic_observation("
+            "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_magnetic_observation("
           }
         ],
         "esbmc": [
@@ -3992,12 +4000,16 @@
             "symbol": "MagneticContext read_magnetic_context("
           },
           {
-            "file": "integrations/px4/module/FormalEskfAttitude.cpp",
-            "symbol": "void FormalEskf::initialize_magnetic_aiding("
+            "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
+            "symbol": "InsSession<Linalg, Layout>::initialize_magnetic_aiding("
           },
           {
-            "file": "integrations/px4/module/FormalEskfAttitude.cpp",
-            "symbol": "void FormalEskf::fuse_mag()"
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::begin_magnetic("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::complete_magnetic("
           }
         ],
         "esbmc": [
@@ -4066,8 +4078,12 @@
             "symbol": "class MagnetometerFilter"
           },
           {
-            "file": "integrations/px4/module/FormalEskfAttitude.cpp",
-            "symbol": "void FormalEskf::fuse_mag()"
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::begin_magnetic("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::complete_magnetic("
           }
         ],
         "esbmc": [
@@ -4176,12 +4192,16 @@
             "symbol": "reset_magnetic_heading("
           },
           {
-            "file": "integrations/px4/module/FormalEskfAttitude.cpp",
-            "symbol": "FormalEskf::status_type FormalEskf::reset_magnetic_heading("
+            "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
+            "symbol": "InsSession<Linalg, Layout>::reset_magnetic_heading("
           },
           {
-            "file": "integrations/px4/module/FormalEskfAttitude.cpp",
-            "symbol": "void FormalEskf::fuse_mag()"
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::begin_magnetic("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::complete_magnetic("
           },
           {
             "file": "integrations/px4/module/FormalEskfOutput.cpp",
@@ -4674,12 +4694,12 @@
             "symbol": "class TiltAlignment"
           },
           {
-            "file": "integrations/px4/module/FormalEskf.hpp",
-            "symbol": "formal_eskf::runtime::TiltAlignment<backend_type> m_tilt_alignment"
+            "file": "include/formal_eskf/runtime/session/ins_session.hpp",
+            "symbol": "TiltAlignment<backend_type> m_tilt_alignment"
           },
           {
-            "file": "integrations/px4/module/FormalEskfAttitude.cpp",
-            "symbol": "void FormalEskf::fuse_gravity("
+            "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_gravity("
           },
           {
             "file": "include/formal_eskf/runtime/session/tilt_alignment.hpp",
@@ -4776,16 +4796,16 @@
             "symbol": "void replay("
           },
           {
-            "file": "integrations/px4/module/FormalEskf.hpp",
+            "file": "include/formal_eskf/runtime/session/ins_session.hpp",
             "symbol": "struct Gravity"
           },
           {
-            "file": "integrations/px4/module/FormalEskfAttitude.cpp",
-            "symbol": "void FormalEskf::Gravity::reset_samples()"
+            "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
+            "symbol": "InsSession<Linalg, Layout>::Gravity::reset_samples("
           },
           {
-            "file": "integrations/px4/module/FormalEskfAttitude.cpp",
-            "symbol": "void FormalEskf::fuse_gravity("
+            "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_gravity("
           }
         ],
         "esbmc": [
@@ -4938,8 +4958,8 @@
             "symbol": "FormalEskf::ImuInput FormalEskf::decode_imu("
           },
           {
-            "file": "integrations/px4/module/FormalEskf.cpp",
-            "symbol": "bool FormalEskf::accept_imu("
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::accept_imu("
           },
           {
             "file": "include/formal_eskf/runtime/history/imu_history.hpp",
@@ -4954,16 +4974,16 @@
             "symbol": "class VerticalAccelerationHealth"
           },
           {
-            "file": "integrations/px4/module/FormalEskf.cpp",
-            "symbol": "bool FormalEskf::update_imu_bias("
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::update_imu_bias("
           },
           {
-            "file": "integrations/px4/module/FormalEskf.cpp",
-            "symbol": "bool FormalEskf::update_imu_health("
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::update_imu_health("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "void FormalEskf::fuse_gps("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_gps("
           },
           {
             "file": "include/formal_eskf/runtime/sensors/height/height_aiding.hpp",
@@ -4974,20 +4994,20 @@
             "symbol": "HeightAiding<Linalg>::update("
           },
           {
-            "file": "integrations/px4/module/FormalEskfAttitude.cpp",
-            "symbol": "bool FormalEskf::fuse_magnetic_observation("
+            "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_magnetic_observation("
           },
           {
             "file": "integrations/px4/module/FormalEskf.cpp",
             "symbol": "void FormalEskf::process_imu("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "bool FormalEskf::fuse_gps_velocity("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_gps_velocity("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "bool FormalEskf::fuse_gps_position("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_gps_position("
           },
           {
             "file": "include/formal_eskf/runtime/history/imu_history.hpp",
@@ -5084,8 +5104,8 @@
             "symbol": "void replay("
           },
           {
-            "file": "integrations/px4/module/FormalEskf.cpp",
-            "symbol": "void FormalEskf::predict_and_fuse("
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::predict_and_fuse("
           },
           {
             "file": "examples/replay_ins.cpp",
@@ -5186,8 +5206,8 @@
             "symbol": "void replay("
           },
           {
-            "file": "integrations/px4/module/FormalEskf.cpp",
-            "symbol": "void FormalEskf::predict_and_fuse("
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::predict_and_fuse("
           },
           {
             "file": "examples/replay_ins.cpp",
@@ -5267,20 +5287,20 @@
             "symbol": "runtime::BiasLimits<Scalar> bias_limits()"
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "bool FormalEskf::record_gps_fusion("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::record_gps_fusion("
           },
           {
             "file": "include/formal_eskf/runtime/sensors/height/height_aiding.hpp",
             "symbol": "void HeightAiding<Linalg>::process("
           },
           {
-            "file": "integrations/px4/module/FormalEskfAttitude.cpp",
-            "symbol": "bool FormalEskf::fuse_magnetic_observation("
+            "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_magnetic_observation("
           },
           {
-            "file": "integrations/px4/module/FormalEskfAttitude.cpp",
-            "symbol": "void FormalEskf::fuse_gravity("
+            "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_gravity("
           }
         ],
         "esbmc": [
@@ -5446,20 +5466,20 @@
             "symbol": "void replay("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "void FormalEskf::fuse_gps("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_gps("
           },
           {
             "file": "include/formal_eskf/runtime/sensors/height/height_aiding.hpp",
             "symbol": "void HeightAiding<Linalg>::process("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "bool FormalEskf::fuse_gps_velocity("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_gps_velocity("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "void FormalEskf::check_gnss_velocity_observation("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::check_gnss_velocity_observation("
           }
         ],
         "esbmc": [
@@ -5640,16 +5660,16 @@
             "symbol": "reset_velocity(configuration::Ins::NominalState<Linalg> const & state"
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "void FormalEskf::fuse_gps("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_gps("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "bool FormalEskf::fuse_gps_velocity("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_gps_velocity("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "bool FormalEskf::fuse_gps_position("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_gps_position("
           }
         ],
         "esbmc": [
@@ -5777,16 +5797,16 @@
             "symbol": "auto record_fusion ="
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "void FormalEskf::fuse_gps("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_gps("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "bool FormalEskf::fuse_gps_velocity("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_gps_velocity("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "bool FormalEskf::fuse_gps_position("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_gps_position("
           }
         ],
         "esbmc": [
@@ -5879,16 +5899,16 @@
             "symbol": "struct HeightBias"
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "void FormalEskf::fuse_height()"
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_height("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "void FormalEskf::ResetReport::record_vertical_velocity("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::ResetReport::record_vertical_velocity("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "void FormalEskf::fuse_gps("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_gps("
           },
           {
             "file": "integrations/px4/module/FormalEskfOutput.cpp",
@@ -5915,12 +5935,12 @@
             "symbol": "struct VerticalAccelerationTimes"
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "bool FormalEskf::fuse_gps_velocity("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_gps_velocity("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "void FormalEskf::update_ground_effect("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::update_ground_effect("
           },
           {
             "file": "integrations/px4/module/InnovationRatio.hpp",
@@ -6084,16 +6104,16 @@
             "symbol": "GnssQuality::Result check_gnss_quality("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "void FormalEskf::update_gps_quality()"
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::update_gps_quality("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "FormalEskf::gnss_quality_sample() const"
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::gnss_quality_sample("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "FormalEskf::gnss_motion() const"
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::gnss_motion("
           }
         ],
         "esbmc": [
@@ -6768,48 +6788,48 @@
             "symbol": "bool FormalEskf::load_startup_parameters("
           },
           {
-            "file": "integrations/px4/module/FormalEskf.cpp",
-            "symbol": "bool FormalEskf::initialize_navigation("
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::initialize_navigation("
           },
           {
-            "file": "integrations/px4/module/FormalEskf.cpp",
-            "symbol": "bool FormalEskf::reset_output("
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::reset_output("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "FormalEskf::vector3_type FormalEskf::gnss_position_offset("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::gnss_position_offset("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "FormalEskf::vector3_type FormalEskf::gnss_velocity_offset("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::gnss_velocity_offset("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "FormalEskf::GnssVelocityObservation FormalEskf::gnss_velocity_observation("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::gnss_velocity_observation("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "bool FormalEskf::fuse_gps_position("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_gps_position("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "void FormalEskf::fuse_height("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_height("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "void FormalEskf::ResetReport::record_position("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::ResetReport::record_position("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "void FormalEskf::ResetReport::record_velocity("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::ResetReport::record_velocity("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "void FormalEskf::ResetReport::record_height("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::ResetReport::record_height("
           },
           {
-            "file": "integrations/px4/module/FormalEskfOutput.cpp",
-            "symbol": "FormalEskf::BodyOutput FormalEskf::body_output("
+            "file": "include/formal_eskf/runtime/session/ins_session_frames.hpp",
+            "symbol": "InsSession<Linalg, Layout>::body_output("
           },
           {
             "file": "integrations/px4/module/FormalEskfOutput.cpp",
@@ -6852,16 +6872,20 @@
         "lean": [],
         "cpp": [
           {
-            "file": "integrations/px4/module/FormalEskfAttitude.cpp",
-            "symbol": "FormalEskf::vector3_type FormalEskf::rotation_variance_n("
+            "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
+            "symbol": "InsSession<Linalg, Layout>::rotation_variance_n("
           },
           {
-            "file": "integrations/px4/module/FormalEskfAttitude.cpp",
-            "symbol": "bool FormalEskf::magnetic_heading_valid("
+            "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
+            "symbol": "InsSession<Linalg, Layout>::magnetic_heading_valid("
           },
           {
-            "file": "integrations/px4/module/FormalEskfAttitude.cpp",
-            "symbol": "void FormalEskf::update_magnetic_model("
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::prepare_magnetic_model("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::apply_magnetic_model("
           },
           {
             "file": "integrations/px4/module/FormalEskfOutput.cpp",
@@ -6892,8 +6916,8 @@
         "lean": [],
         "cpp": [
           {
-            "file": "integrations/px4/module/FormalEskfOutput.cpp",
-            "symbol": "FormalEskf::OutputValidity FormalEskf::output_validity("
+            "file": "include/formal_eskf/runtime/session/ins_session_frames.hpp",
+            "symbol": "InsSession<Linalg, Layout>::output_validity("
           },
           {
             "file": "integrations/px4/module/FormalEskfOutput.cpp",
@@ -6916,20 +6940,20 @@
             "symbol": "struct InnovationRatio"
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
+            "file": "integrations/px4/module/FormalEskf.cpp",
             "symbol": "ratio.update(event.time_us"
           },
           {
-            "file": "integrations/px4/module/FormalEskfAttitude.cpp",
-            "symbol": "bool FormalEskf::fuse_magnetic_observation("
+            "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_magnetic_observation("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "bool FormalEskf::fuse_gps_velocity("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_gps_velocity("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "bool FormalEskf::fuse_gps_position("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_gps_position("
           },
           {
             "file": "integrations/px4/module/FormalEskfOutput.cpp",
@@ -7390,8 +7414,16 @@
             "symbol": "void FormalEskf::Run("
           },
           {
-            "file": "integrations/px4/module/FormalEskf.cpp",
-            "symbol": "void FormalEskf::initialize("
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::process_imu("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::complete_initialization("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::seed_initialization("
           },
           {
             "file": "integrations/px4/module/FormalEskf.cpp",
@@ -7402,32 +7434,32 @@
             "symbol": "void FormalEskf::advance_fusion("
           },
           {
-            "file": "integrations/px4/module/FormalEskf.cpp",
-            "symbol": "void FormalEskf::select_observations("
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::select_observations("
           },
           {
-            "file": "integrations/px4/module/FormalEskf.cpp",
-            "symbol": "void FormalEskf::predict_and_fuse("
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::predict_and_fuse("
           },
           {
-            "file": "integrations/px4/module/FormalEskf.cpp",
-            "symbol": "bool FormalEskf::reset_output("
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::reset_output("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "bool FormalEskf::fuse_gps_velocity("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_gps_velocity("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "bool FormalEskf::fuse_gps_position("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_gps_position("
           },
           {
-            "file": "integrations/px4/module/FormalEskfNavigation.cpp",
-            "symbol": "void FormalEskf::fuse_height("
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_height("
           },
           {
-            "file": "integrations/px4/module/FormalEskfAttitude.cpp",
-            "symbol": "FormalEskf::status_type FormalEskf::reset_magnetic_heading("
+            "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
+            "symbol": "InsSession<Linalg, Layout>::reset_magnetic_heading("
           },
           {
             "file": "integrations/px4/module/FormalEskfOutput.cpp",
@@ -7438,8 +7470,8 @@
             "symbol": "void FormalEskf::publish_attitude("
           },
           {
-            "file": "integrations/px4/module/FormalEskfOutput.cpp",
-            "symbol": "FormalEskf::OutputValidity FormalEskf::output_validity("
+            "file": "include/formal_eskf/runtime/session/ins_session_frames.hpp",
+            "symbol": "InsSession<Linalg, Layout>::output_validity("
           },
           {
             "file": "integrations/px4/module/FormalEskfOutput.cpp",
@@ -8121,24 +8153,24 @@
         "lean": [],
         "cpp": [
           {
-            "file": "integrations/px4/module/FormalEskfFrames.cpp",
-            "symbol": "FormalEskf::rebase_navigation("
+            "file": "include/formal_eskf/runtime/session/ins_session_frames.hpp",
+            "symbol": "InsSession<Linalg, Layout>::rebase_navigation("
           },
           {
-            "file": "integrations/px4/module/FormalEskfFrames.cpp",
-            "symbol": "FormalEskf::update_origin()"
+            "file": "include/formal_eskf/runtime/session/ins_session_frames.hpp",
+            "symbol": "InsSession<Linalg, Layout>::update_origin("
           },
           {
-            "file": "integrations/px4/module/FormalEskfFrames.cpp",
-            "symbol": "FormalEskf::frame_admission("
+            "file": "include/formal_eskf/runtime/session/ins_session_frames.hpp",
+            "symbol": "InsSession<Linalg, Layout>::frame_admission("
           },
           {
-            "file": "integrations/px4/module/FormalEskfOutput.cpp",
-            "symbol": "FormalEskf::output_validity("
+            "file": "include/formal_eskf/runtime/session/ins_session_frames.hpp",
+            "symbol": "InsSession<Linalg, Layout>::output_validity("
           },
           {
-            "file": "integrations/px4/module/FormalEskfOutput.cpp",
-            "symbol": "FormalEskf::body_output("
+            "file": "include/formal_eskf/runtime/session/ins_session_frames.hpp",
+            "symbol": "InsSession<Linalg, Layout>::body_output("
           }
         ],
         "esbmc": []

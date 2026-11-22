@@ -5,7 +5,7 @@
 [SW-NAV](../requirements/software/navigation-runtime.md) defines a concrete,
 caller-driven INS session. [C-LAYER-BOUNDARY](../requirements/common/layer-boundaries.md)
 and the [C++ subset](../requirements/common/cpp-subset.md) constrain dependencies
-and implementation. This is the extraction design; implementation status belongs
+and implementation. Implementation status belongs
 to [A-01](../../roadmap.md#a-01--portable-navigation-runtime).
 
 The first profile preserves existing binary64 geographic INS behavior, including
@@ -46,8 +46,8 @@ policy. Session composes lower components; lower components do not include it.
 
 The adapter supplies admitted source records with sample and arrival times in a
 common monotonic domain. It supplies historical motion/vehicle context and
-external magnetic-reference results with explicit provenance. Configuration is
-validated before startup; fixed backing storage is not resized while running.
+external magnetic-reference results with explicit provenance. The caller validates the complete profile before startup; component checks
+retain their own domains and do not validate the entire session configuration. Fixed backing storage is not resized while running.
 
 The profile defines bounded phase ordering. For PX4, retain
 [PX4-EXEC](../requirements/integration/px4/execution.md): current IMU output and
@@ -61,6 +61,13 @@ their failure precedence. A callback is not one atomic transaction. Origin chang
 use prepare/commit across all participants; ordinary source updates retain their
 existing individual commit boundaries. Diagnostics are copied after a bounded
 phase; concurrent readers synchronize in their adapter, not inside the runtime.
+
+The [ordered session contract](../requirements/runtime/ins-session.md) owns the
+startup/model/seed and current/fusion/model/completion phase protocol. The public
+[session header](../../../include/formal_eskf/runtime/session/ins_session.hpp)
+includes grouped template definition headers; callers include the public header.
+Take raw innovation events after each completed phase; the PX4 adapter applies its
+reporting filters to those events and then publishes synchronized snapshots.
 
 ## Design decisions
 

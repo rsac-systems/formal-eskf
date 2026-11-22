@@ -43,11 +43,12 @@ Run native suites in both modes.
 
 ### Raw scalar library boundaries
 
-The standard backend's runtime `hypot` primitive preserves libm behavior.
-Native fixtures cover finite axes, a large diagonal and exceptional values;
+The standard backend's runtime `hypot` and `acos` primitives preserve libm behavior.
+Native fixtures cover finite axes, a large diagonal, inverse-cosine anchors
+and exceptional values;
 the scalar backend source profile checks operand/result forwarding only.
-ESBMC 8.4 omits the standard overload declarations, so the proof include overlay
-supplies declarations without a numerical body. Calling harnesses must bind an
+ESBMC 8.4 omits the `hypot` overload declarations, so the proof include overlay
+supplies those declarations without a numerical body. Calling harnesses must bind an
 explicit scalar summary. Neither that overlay nor an arbitrary-return proof
 establishes libm accuracy, its resource bound or finite-result guarantees.
 

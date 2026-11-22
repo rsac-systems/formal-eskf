@@ -41,7 +41,7 @@ No global epsilon, argument reduction policy or deployed-libm error bound is
 introduced by this contract. Principal-angle branch endpoints, signed zero and
 rounding must be interpreted under the selected math-library profile.
 
-### Raw runtime norm primitive
+### Raw runtime math primitives
 
 The selected scalar backend shall also supply `hypot(x, y)` for the portable
 runtime's existing two-axis norms, without intermediate squaring overflow or
@@ -51,6 +51,12 @@ infinity precedence over NaN, NaN propagation otherwise, and final overflow to
 infinity. Callers own domain/result checks and their existing failure ordering.
 Finite fixtures establish conformance only on those fixtures; no uniform libm
 error bound or automatic runtime-level formal proof is implied.
+
+The raw backend shall also supply inverse cosine for spherical projection. For
+finite inputs in [-1, 1], its range is [0, pi]; inputs outside that domain and NaN
+retain the selected library's invalid-result classification. There is no checked
+output parameter or clamp in this forwarding primitive. Target libm accuracy and
+projection accuracy remain separate from source-forwarding evidence.
 
 ## Acceptance and verification
 

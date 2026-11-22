@@ -225,6 +225,8 @@ template <typename Linalg>
 void InsInitialization<Linalg>::seed_navigation(vector_type const & receiver_velocity,
                                                 vector_type const & position_offset,
                                                 vector_type const & velocity_offset, state_type & state,
+                                                // Matrix's mutable accessor writes the diagonal below.
+                                                // cppcheck-suppress constParameterReference
                                                 covariance_type & covariance) const
 {
     state.p_n = -position_offset;

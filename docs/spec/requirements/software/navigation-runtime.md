@@ -61,6 +61,7 @@ remain at the declared C++ boundaries.
 
 | Child | Allocated obligation |
 |---|---|
+| [R-INS-SESSION](../runtime/ins-session.md) | Ordered owner phases, external model boundary, faults and raw reports. |
 | [R-INS-INITIALIZATION](../runtime/ins-initialization.md) | Strict stationary accumulation, tilt/heading preparation and initial state/P values. |
 | [R-HEIGHT-AIDING](../runtime/height-aiding.md) | Two-source altitude/bias coordination, recovery and transactional raw outcomes. |
 | [R-OBSERVATION-HISTORY](../runtime/history/observation-history.md) | Delayed raw source/context retention, admission, generation and once-only selection. |

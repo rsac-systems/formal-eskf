@@ -64,6 +64,8 @@ public:
 
     static value_type cos(value_type value) { return std::cos(value); }
 
+    static value_type acos(value_type value) { return std::acos(value); }
+
     static value_type atan2(value_type y, value_type x) { return std::atan2(y, x); }
 
 }; /* end class StandardMath */
