@@ -8,6 +8,7 @@
 
 #include <formal_eskf/runtime/sensors/imu/imu.hpp>
 #include <formal_eskf/runtime/history/timing.hpp>
+#include <formal_eskf/runtime/session/output_predictor.hpp>
 #include <formal_eskf/runtime/sensors/gnss/gnss_lifecycle.hpp>
 #include <formal_eskf/runtime/sensors/gnss/gnss_quality.hpp>
 
@@ -243,6 +244,20 @@ inline constexpr runtime::ObservationTiming observation_timing{timing,
                                                                imu::interval_history_weight,
                                                                imu::interval_sample_weight};
 } // namespace history
+
+inline constexpr runtime::OutputParameters output_parameters{history::timing,
+                                                             gravity_m_s2,
+                                                             minimum_quaternion_norm,
+                                                             quaternion_squared_norm_tolerance,
+                                                             imu::minimum_interval_s,
+                                                             imu::maximum_interval_s,
+                                                             imu::nominal_interval_s,
+                                                             output::velocity_time_constant_s,
+                                                             output::position_time_constant_s,
+                                                             output::interval_history_weight,
+                                                             output::interval_sample_weight,
+                                                             output::attitude_tracking_gain,
+                                                             output::integral_tracking_gain};
 
 // SITL scheduling profile; target resource acceptance is separate.
 inline constexpr std::uint16_t work_queue_stack_bytes = 60U * 1024U;

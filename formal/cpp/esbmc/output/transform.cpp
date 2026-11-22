@@ -65,6 +65,7 @@ Status UnitQuaternion<output_proof::Backend>::from_coefficients(vector4_type con
 void verify_output_transform_step(Output object, Quaternion delta_q, Vector velocity, Vector position,
                                   Quaternion normalized, formal_eskf::Status status, Quaternion product)
 {
+    output_proof::bind_parameters(object);
     constexpr bool seed_only = FORMAL_ESKF_PROOF_SEED_ONLY != 0;
     constexpr std::size_t slot = FORMAL_ESKF_PROOF_SLOT;
     static_assert(slot < 64);
@@ -144,4 +145,5 @@ void verify_output_transform_step(Output object, Quaternion delta_q, Vector velo
         __ESBMC_assert(same(velocity(i), input_v(i)) && same(position(i), input_p(i)),
                        "Output reset step preserves external translation deltas");
     }
+    output_proof::check_parameters(object);
 }

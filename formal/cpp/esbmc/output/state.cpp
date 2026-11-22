@@ -2,8 +2,9 @@
 
 #include "support.hpp"
 using namespace output_proof;
-void verify_output_validation(State state)
+void verify_output_validation(Output input_owner, State state)
 {
+    output_proof::bind_parameters(input_owner);
     Scalar previous[16];
     previous[0] = state.q_nb.q0();
     previous[1] = state.q_nb.q1();
@@ -33,7 +34,7 @@ void verify_output_validation(State state)
     {
         expected = std::isfinite(previous[i]) && expected;
     }
-    bool const actual = Output::valid_state(state);
+    bool const actual = input_owner.valid_state(state);
     __ESBMC_assert(actual == expected, "Output state validation: ordered norm residual and all finite vectors");
     __ESBMC_assert(same(state.q_nb.q0(), previous[0]), "Validation preserves input q_nb.q0()");
     __ESBMC_assert(same(state.q_nb.q1(), previous[1]), "Validation preserves input q_nb.q1()");
@@ -63,4 +64,5 @@ void verify_output_validation(State state)
                    "Validation preserves input b_g.m_storage.values.tail.head");
     __ESBMC_assert(same(state.b_g.m_storage.values.tail.tail.head, previous[15]),
                    "Validation preserves input b_g.m_storage.values.tail.tail.head");
+    output_proof::check_parameters(input_owner);
 }

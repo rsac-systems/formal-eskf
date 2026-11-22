@@ -6,7 +6,7 @@
 // Keep the actual timing producer available under a distinct name. The output
 // caller binds to the summary below; the actual producer has separate evidence.
 #define configure_timing output_verified_timing
-#include "../imu_owner_support.hpp"
+#include <formal_eskf/runtime/history/timing.hpp>
 #undef configure_timing
 namespace formal_eskf::runtime
 {
@@ -65,6 +65,7 @@ template <> void formal_eskf::runtime::RingBuffer<output_proof::Sample, 64>::res
 void verify_output_configuration(Output input_owner, formal_eskf::runtime::TimingParameters parameters,
                                  formal_eskf::runtime::TimingConfiguration output, bool success)
 {
+    output_proof::bind_parameters(input_owner);
     owner = &input_owner;
     __ESBMC_assume(!success || (output.imu_length >= 2 && output.imu_length <= 64));
     expected_parameters = parameters;
@@ -76,6 +77,7 @@ void verify_output_configuration(Output input_owner, formal_eskf::runtime::Timin
     bool const can_call = integers[field::time] == 0 && fault == Output::Fault::none;
     bool const expected = can_call && success;
     bool const changed = expected && output.imu_length != integers[field::length];
+    rebase_prepared = false;
     bool const accepted = input_owner.configure(parameters);
     __ESBMC_assert(accepted == expected && timing_calls == static_cast<unsigned>(can_call) &&
                        resets == static_cast<unsigned>(changed),
@@ -95,4 +97,5 @@ void verify_output_configuration(Output input_owner, formal_eskf::runtime::Timin
                        parameters.magnetic_delay_ms == expected_parameters.magnetic_delay_ms &&
                        parameters.barometer_delay_ms == expected_parameters.barometer_delay_ms,
                    "Output configuration preserves every signed timing parameter");
+    output_proof::check_parameters(input_owner);
 }

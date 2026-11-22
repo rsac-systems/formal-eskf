@@ -4,7 +4,7 @@
 #pragma once
 #include "../imu_owner_support.hpp"
 #define private public
-#include "../../../../integrations/px4/module/OutputPredictor.hpp"
+#include <formal_eskf/runtime/session/output_predictor.hpp>
 #undef private
 
 namespace output_proof
@@ -13,13 +13,54 @@ using imu_proof::Backend;
 using imu_proof::same;
 using imu_proof::same_configuration;
 using imu_proof::Scalar;
-using Output = formal_eskf::px4::OutputPredictor<Backend>;
+using Output = formal_eskf::runtime::OutputPredictor<Backend, 64>;
 using Sample = Output::Sample;
 using State = Output::state_type;
 using Vector = Output::vector3_type;
 using Quaternion = Output::quaternion_type;
 namespace profile = formal_eskf::px4::profile;
 static_assert(profile::history::imu_capacity == 64);
+
+using Parameters = formal_eskf::runtime::OutputParameters;
+inline bool same_parameters(Parameters const & a, Parameters const & b)
+{
+    return imu_proof::same_timing(a.timing, b.timing) &&
+           __builtin_bit_cast(std::uint64_t, a.gravity_m_s2) == __builtin_bit_cast(std::uint64_t, b.gravity_m_s2) &&
+           __builtin_bit_cast(std::uint64_t, a.minimum_quaternion_norm) ==
+               __builtin_bit_cast(std::uint64_t, b.minimum_quaternion_norm) &&
+           __builtin_bit_cast(std::uint64_t, a.quaternion_squared_norm_tolerance) ==
+               __builtin_bit_cast(std::uint64_t, b.quaternion_squared_norm_tolerance) &&
+           __builtin_bit_cast(std::uint64_t, a.minimum_interval_s) ==
+               __builtin_bit_cast(std::uint64_t, b.minimum_interval_s) &&
+           __builtin_bit_cast(std::uint64_t, a.maximum_interval_s) ==
+               __builtin_bit_cast(std::uint64_t, b.maximum_interval_s) &&
+           __builtin_bit_cast(std::uint64_t, a.nominal_interval_s) ==
+               __builtin_bit_cast(std::uint64_t, b.nominal_interval_s) &&
+           __builtin_bit_cast(std::uint64_t, a.velocity_time_constant_s) ==
+               __builtin_bit_cast(std::uint64_t, b.velocity_time_constant_s) &&
+           __builtin_bit_cast(std::uint64_t, a.position_time_constant_s) ==
+               __builtin_bit_cast(std::uint64_t, b.position_time_constant_s) &&
+           __builtin_bit_cast(std::uint64_t, a.interval_history_weight) ==
+               __builtin_bit_cast(std::uint64_t, b.interval_history_weight) &&
+           __builtin_bit_cast(std::uint64_t, a.interval_sample_weight) ==
+               __builtin_bit_cast(std::uint64_t, b.interval_sample_weight) &&
+           __builtin_bit_cast(std::uint64_t, a.attitude_tracking_gain) ==
+               __builtin_bit_cast(std::uint64_t, b.attitude_tracking_gain) &&
+           __builtin_bit_cast(std::uint64_t, a.integral_tracking_gain) ==
+               __builtin_bit_cast(std::uint64_t, b.integral_tracking_gain);
+}
+// The source profiles retain the deployed values, now explicitly copied by construction.
+inline void bind_parameters(Output & owner)
+{
+    // Materialize the fixed-profile premise before symbolic execution. Other owner
+    // fields and numerical producer outcomes remain arbitrary, including failures.
+    owner.m_parameters = profile::output_parameters;
+}
+inline void check_parameters(Output const & owner)
+{
+    __ESBMC_assert(same_parameters(owner.m_parameters, profile::output_parameters),
+                   "Output owner preserves its complete deployment parameters");
+}
 
 void zero_vector(Vector const & vector)
 {

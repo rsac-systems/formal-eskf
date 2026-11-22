@@ -28,11 +28,11 @@ void check_state(State const & state)
     }
 }
 } // namespace
-namespace formal_eskf::px4
+namespace formal_eskf::runtime
 {
 template <>
-bool OutputPredictor<output_proof::Backend>::stage_translation(vector3_type const & velocity,
-                                                               vector3_type const & position)
+bool OutputPredictor<output_proof::Backend, 64>::stage_translation(vector3_type const & velocity,
+                                                                   vector3_type const & position)
 {
     check();
     __ESBMC_assert(this == owner && translations == 0 && commits == 0,
@@ -49,7 +49,7 @@ bool OutputPredictor<output_proof::Backend>::stage_translation(vector3_type cons
     ++translations;
     return translation_ok;
 }
-template <> void OutputPredictor<output_proof::Backend>::commit_history()
+template <> void OutputPredictor<output_proof::Backend, 64>::commit_history()
 {
     check();
     __ESBMC_assert(this == owner && translations == 1 && translation_ok && commits == 0 && m_history.m_count > 0,
@@ -62,11 +62,12 @@ template <> void OutputPredictor<output_proof::Backend>::commit_history()
     expect_current(committed);
     ++commits;
 }
-} // namespace formal_eskf::px4
+} // namespace formal_eskf::runtime
 #include <feedback_steps.hpp>
 void verify_output_feedback_finish(Output object, State state, std::uint64_t time,
                                    output_steps::FeedbackValues feedback, bool staged, Sample newest)
 {
+    output_proof::bind_parameters(object);
     owner = &object;
     metadata(object);
     __ESBMC_assume(object.m_history.m_count > 0);
@@ -133,4 +134,5 @@ void verify_output_feedback_finish(Output object, State state, std::uint64_t tim
         __ESBMC_assert(same(feedback.position_delta(i), before_feedback.position_delta(i)),
                        "Output feedback tail preserves input position_delta");
     }
+    output_proof::check_parameters(object);
 }

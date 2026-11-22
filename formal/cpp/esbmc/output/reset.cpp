@@ -7,9 +7,9 @@ using namespace output_boundary;
 unsigned commits;
 Sample committed;
 } // namespace
-namespace formal_eskf::px4
+namespace formal_eskf::runtime
 {
-template <> void OutputPredictor<output_proof::Backend>::commit_history()
+template <> void OutputPredictor<output_proof::Backend, 64>::commit_history()
 {
     check();
     __ESBMC_assert(this == owner && commits == 0 && m_history.m_count > 0,
@@ -22,11 +22,12 @@ template <> void OutputPredictor<output_proof::Backend>::commit_history()
     // every storage frame; the commit steps supply the actual copy equations.
     ++commits;
 }
-} // namespace formal_eskf::px4
+} // namespace formal_eskf::runtime
 #include <source_steps.hpp>
 void verify_output_reset_plan(Output object, Quaternion q, Vector velocity, Vector position,
                               output_steps::ResetPlan plan)
 {
+    output_proof::bind_parameters(object);
     owner = &object;
     metadata(object);
     capture();
@@ -48,6 +49,7 @@ void verify_output_reset_plan(Output object, Quaternion q, Vector velocity, Vect
         valid = std::isfinite(velocity(i)) & std::isfinite(position(i)) & valid;
     }
     bool const active = integers[field::time] != 0 && fault == Output::Fault::none;
+    rebase_prepared = false;
     bool const result = output_steps::reset_plan(object, q, velocity, position, plan);
     __ESBMC_assert(result == (active && valid),
                    "Output reset prefix rejects inactive or invalid requests before staging");
@@ -80,9 +82,11 @@ void verify_output_reset_plan(Output object, Quaternion q, Vector velocity, Vect
         __ESBMC_assert(same(velocity(i), input_v(i)) && same(position(i), input_p(i)),
                        "Output reset prefix preserves translation inputs");
     }
+    output_proof::check_parameters(object);
 }
 void verify_output_reset_finish(Output object, Sample newest)
 {
+    output_proof::bind_parameters(object);
     __ESBMC_assert(FORMAL_ESKF_PROOF_FRAME_FIRST == 0 && FORMAL_ESKF_PROOF_FRAME_END == 0,
                    "Runner error: reset publication requires its complementary storage frame profiles");
     owner = &object;
@@ -101,4 +105,5 @@ void verify_output_reset_finish(Output object, Sample newest)
         expect_current(expected_seed);
     }
     check();
+    output_proof::check_parameters(object);
 }

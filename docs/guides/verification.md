@@ -463,6 +463,16 @@ constant-evaluation support for unrelated source.
 
 ### Output predictor
 
+The portable predictor copies explicit numerical/tracking parameters. Existing
+source profiles bind the deployed values and 64-slot history, including complete
+parameter and rebase-candidate preservation/cancellation frames in ordinary
+operations. Rebase prepare/commit remains separately covered by native tests;
+these source profiles do not prove that coordinated transaction or qualify other
+settings. Full acceptance still requires all listed producer/frame partitions.
+The migrated prediction-owner profiles require a completed solver rerun; a timeout
+is incomplete evidence. Source correspondence and native regression results do not
+discharge that obligation.
+
 `delayed-output` covers the fixed 64-slot output owner in binary32/binary64,
 with 64-bit words and the default deployment profile. It checks initialization,
 configuration, seed, propagation wiring, feedback, reset and complete storage

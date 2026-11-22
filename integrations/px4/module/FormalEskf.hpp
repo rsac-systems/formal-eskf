@@ -46,7 +46,7 @@
 #include "InnovationRatio.hpp"
 #include <formal_eskf/runtime/history/imu_history.hpp>
 #include <formal_eskf/runtime/history/observation_history.hpp>
-#include "OutputPredictor.hpp"
+#include <formal_eskf/runtime/session/output_predictor.hpp>
 #include "MagneticModel.hpp"
 
 // Single writer: all filter state is owned by this work item. The core has no
@@ -111,7 +111,8 @@ private:
                                                  formal_eskf::px4::profile::history::magnetic_capacity,
                                                  formal_eskf::px4::profile::history::barometer_capacity,
                                                  formal_eskf::px4::profile::history::context_capacity>;
-    using output_predictor_type = formal_eskf::px4::OutputPredictor<backend_type>;
+    using output_predictor_type =
+        formal_eskf::runtime::OutputPredictor<backend_type, formal_eskf::px4::profile::history::imu_capacity>;
     static_assert(sizeof(imu_history_type) + sizeof(observation_history_type) + sizeof(output_predictor_type) <=
                   formal_eskf::px4::profile::history::storage_budget_bytes);
 
@@ -455,7 +456,7 @@ private:
     Initialization m_initialization{};
     imu_history_type m_imu_history{};
     observation_history_type m_observations{formal_eskf::px4::profile::history::observation_timing};
-    output_predictor_type m_output{};
+    output_predictor_type m_output{formal_eskf::px4::profile::output_parameters};
     observation_history_type::Context m_imu_context{};
     observation_history_type::BarometerObservation m_barometer{};
     std::uint64_t m_arrival_rejections{}, m_rate_rejections{}, m_stale_arrivals{}, m_source_discards{}, m_overflows{},

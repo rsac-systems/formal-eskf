@@ -8,121 +8,40 @@
 
 **Parent:** [SW-PX4](../../software/px4-estimation.md).
 
+**Uses:** [R-OUTPUT-PREDICTOR](../../runtime/output-predictor.md).
+
 ## Required behavior
 
-`px4::OutputPredictor` owns current nominal INS output and matching history under
-[the deployment profile](../../../profiles/px4-sih-250hz.md).
-It owns neither covariance nor sensor admission, clock, fusion or publication.
+Bind the portable predictor to the [deployment profile](../../../profiles/px4-sih-250hz.md)
+and the same active length/seed epoch as IMU history. Supply the existing NED
+gravity, quaternion and prediction-domain parameters. Preserve the initial 4 ms
+average, `0.8`/`0.2` period weights, attitude gain `0.5`, integral gain `0.1` and
+independent velocity/position time constants, both defaulting to 0.25 s under
+[PX4-CONFIG](configuration.md). These settings are not validated flight tuning.
 
-- Configure fixed storage and seed a finite state with a valid unit quaternion
-  at a nonzero epoch; reject invalid/repeated seed or live reconfiguration without
-  mutation. Use the IMU owner's configuration and seed epoch; no synthetic history.
-- Consume each admitted IMU interval exactly once, in order. Propagate held and
-  real segments using the declared core model and feedback biases; commit the
-  endpoint only if both succeed. Never overwrite output awaiting feedback.
-- Retain the body angular rate used for the latest real propagation, including
-  its bias and tracking correction. Later feedback must not retroactively change
-  this rate; failed propagation preserves it and session reset clears it.
-- Enforce actual lag bounds and exact delayed/start-epoch pairing. After main
-  success, apply the specified attitude-rate feedback, velocity/position PI
-  history translations and bias feedback. No interpolation or ordinary-feedback
-  reset counters. Main success and valid IMU admission are caller premises.
-- Apply a main reset's common left quaternion delta and additive NED deltas to
-  all occupied history and current output, preserving epochs and tracking sums.
-  A reset before the first interval transforms the seed without creating history.
-- Validate all history candidates before committing a correction/reset. On an
-  operational fault, preserve current output, retained history, feedback and
-  completion cursor, latch the cause, and block use until explicit session reset.
-  A session reset clears temporal state and feedback, retaining configuration.
-- Use bounded work and fixed persistent storage. Readiness indicates completed
-  feedback and no fault; it does not certify freshness, accuracy or safe publication.
+The adapter shall invoke current prediction, delayed feedback and real resets in
+[R-PX4-DELAYED-FUSION](delayed-fusion.md) order. Publish fast attitude before
+delayed main fusion, and navigation after feedback and any coordinated rebase.
+Convert the IMU-point nominal output and propagated body rate to the body output
+point under [R-PX4-SENSOR-POSITIONS](sensor-positions.md). Own publication timing,
+freshness tests and real reset counters outside the predictor; readiness alone is
+not permission to publish. Do not advertise a current-time covariance.
 
-Acceptance requires the [output-owner verification scope](../../../../guides/verification.md#output-predictor):
-source contracts and complete storage frames in both scalar formats, temporal and
-stage/commit induction, and matching producer evidence. Source-step extraction and
-the Lean correspondence require review; they are not an automated refinement proof.
-Native binary64 tests with Eigen and PX4 matrix supplement these claims with
-analytic motion, variable periods, repeated wraps, feedback, reset and numerical
-rollback. Nonlinear stability, uniform floating-point error and target resource
-bounds remain separate obligations. Live binding is owned by
-[R-PX4-DELAYED-FUSION](delayed-fusion.md).
+Retain the following differences from the pinned PX4 predictor:
 
-The tracking structure follows the pinned PX4 output predictor. Let subscript
-`d` denote the matching delayed output, `m` the completed main state, and
-`lag = (t_current - t_d)` in seconds. Use the shortest-sign, normalized difference:
+- This project's prior-attitude constant-acceleration propagation is retained;
+  PX4 rotates delta velocity with the updated attitude.
+- Average real delayed angular periods, not callback wall time. Apply attitude
+  feedback as a rate across held and real segments; at fixed period this equals
+  PX4's `0.5 * dt / lag` angle correction. Gaps add no feedback observations.
+- Require exact delayed epochs and failure-atomic history updates. Keep Cartesian
+  position; no separate vertical-position-derivative filter or unaided-yaw output
+  is introduced. Geographic/controller-facing conversion remains with its owner.
 
-\[
-q_e = q_m^{-1} \otimes q_d,\qquad
-e_\theta = -2\,\operatorname{sign}_+(q_{e,0})\,q_{e,v},\qquad
-\delta\omega = \frac{0.5}{\mathrm{lag}}e_\theta,
-\]
+## Acceptance and verification
 
-where `sign_+(0) = +1`. This is PX4's small-angle tracking error, not quaternion
-Log; the exactly-180-degree choice is ambiguous. Add `delta_omega` to the next
-prediction's body angular rate. Do not rewrite past attitudes during ordinary
-feedback. For velocity and position, independently:
-
-\[
-\bar{\Delta t}_k = 0.8\bar{\Delta t}_{k-1} + 0.2\Delta t_{d,k},\quad
-g_x = \bar{\Delta t}_k / \tau_x,\quad
-e = x_m-x_d,\quad s_k=s_{k-1}+e,\quad
-\delta x = g_x e + 0.1g_x^2s_k.
-\]
-
-Initialize the average to 4 ms and both sums to zero. Apply each translation to
-every retained output and the current output; commit only after all candidates
-are finite. Bias feedback takes effect on the next prediction. Constants live in
-`profile::output`; tau_x is the selected velocity or position time constant,
-respectively. Both default to 0.25 s and may be configured independently under
-[PX4-CONFIG](configuration.md). These PX4 reference defaults are not flight tuning
-validated for this module.
-
-`apply_reset` applies the same left quaternion delta and additive NED velocity /
-position deltas as the main reset, to the current output and every retained
-record. Preserve epochs. Common transforms leave the delayed tracking residuals
-and their sums unchanged; preserve them. The caller owns reset counters and must
-stop on failure. This operation is not a coordinate-frame rotation of NED vectors.
-`reset()` instead clears all temporal/tracking state and fault for a new session.
-
-### Internal coordinate event
-
-`prepare_rebase` stages a common left quaternion rotation and affine position
-translation for the current sample and every occupied history record. Rotate
-velocity, position/velocity tracking errors and their integral sums; preserve
-body attitude error, body rates/bias feedback, epochs, ring indices/occupancy,
-readiness and fault. The caller supplies a valid unit frame quaternion. The
-persistent candidate ring is reused; no history-sized callback stack copy or
-allocation is permitted.
-
-Preparation must leave visible state unchanged. Invalid inputs or any candidate
-overflow return failure without latching an operational fault. `commit_rebase`
-performs bounded assignments only, once after all estimator owners have prepared;
-without successful preparation it is a no-op. Any other mutating owner operation
-cancels preparation to prevent publication of stale scratch. IMU and observation
-histories remain in their body/raw measurement bases and are not consumed by this
-event. Subsequent prediction uses the selected new Down-aligned gravity.
-
-Native checks in [the output predictor test](../../../../../integrations/px4/tests/test_px4_output_predictor.cpp)
-cover seed-only state, default/maximum timing configurations, every occupied slot
-after wrap, distinct delayed/current epochs, tracking-integral continuation,
-late candidate overflow, retry and canceled staging. They extend the prior native
-scope; existing formal evidence does not establish these new methods or modified
-owner state. A later formal evidence refresh remains required.
-
-The intended differences from PX4 are explicit:
-
-- Reuse this project's prior-attitude, constant-acceleration prediction; PX4's
-  output predictor rotates its delta velocity with the updated attitude.
-- Average the matching real angular periods, not callback wall time. Apply
-  attitude feedback as a rate across held and real segments; at a fixed period
-  it equals PX4's `0.5 * dt / lag` angle correction. Permitted gaps do not count
-  as additional observations or feedback updates.
-- Require exact epochs and failure-atomic history updates. Keep local Cartesian
-  position; no global-reference recentering, separate vertical-position-derivative
-  filter or unaided-yaw output is implemented here. The predictor retains the
-  IMU-point state and latest propagated body rate; the module converts to the
-  body output point under `R-PX4-SENSOR-POSITIONS`.
-
-History-wide translation/reset uses persistent candidate storage, not a callback-local array.
-
-Borrowed history views are valid only until the next owner mutation; callers shall consume them synchronously.
+Portable equations, history transactions, reset/rebase behavior and their proof
+limits belong to R-OUTPUT-PREDICTOR. Verify adapter timing, parameter forwarding,
+reset notifications and output-point conversion against that contract. Compare
+current and delayed epochs and state traces against the retained profile. Native
+SITL checks do not establish target WCET, tracking stability or flight accuracy.

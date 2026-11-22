@@ -59,31 +59,32 @@ qualification keep their own runners.
 
 ## Scope inventory
 
-| Layer | Canonical requirements | Production headers | Responsibility |
-|---|---:|---:|---|
-| Common | 6 | 1 | Failure/domain/numerical/language/layer contracts; Status. |
-| Math | 18 | 17 | Scalar, fixed-size linalg/adapters, quaternion, SO(3) and geodesy. |
-| ESKF core | 21 | 21 | State, prediction, correction, observations and transactions, including generated kernels. |
-| Portable runtime | 26 | 18 | Admission, health, lifecycle, alignment, reset/fusion orchestration, frame rebasing and fixed-capacity storage. |
-| Software capabilities | 5 | Shared above | SW-CORE, SW-GNSS, SW-GRAVITY, SW-IMU and SW-MAGNETIC compositions. |
-| **Total** | **76** | **57** | Inventory denominator, not proof/test completion. |
+| Layer | Responsibility |
+|---|---|
+| Common | Failure/domain/numerical/language/layer contracts; Status. |
+| Math | Scalar, fixed-size linalg/adapters, quaternion, SO(3) and geodesy. |
+| ESKF core | State, prediction, correction, observations and transactions, including generated kernels. |
+| Portable runtime | Admission, histories, current output tracking, health, lifecycle, alignment, fusion and frame ownership. |
+| Software capabilities | Composition of the numerical and sensor contracts; session-level acceptance follows SW-NAV. |
 
-The 76 IDs include parent and child requirement documents. They are not 76
-independent passing claims, and parent/child evidence must not be added together
-to manufacture a completion percentage.
+The requirement allocation below includes parents and children. Their evidence
+must not be added together to manufacture a completion percentage. Header and
+requirement counts alone do not establish test coverage.
 
 The header boundary is `include/formal_eskf/{eskf,runtime,linalg,scalar,so3,geodesy}` plus
 `status.hpp`. Each family's source/operation table maps public API groups and
 internal dependencies to cases or an explicit disposition. One header is not one
 test, and this manual allocation is not an AST function-by-function coverage claim.
 
-Excluded: `integrations/`, `examples/`, PX4/replay owners, uORB, actual
-flight scheduling, tool runners and the generator pipeline. In particular,
-ImuHistory, ObservationHistory, OutputPredictor and HeightAiding currently owned
-under the PX4 integration are outside this task even where proof work groups
-them with portable runtime. Portable sequences calling real core/runtime APIs
-remain in scope; this exclusion does not remove component-composition tests.
+Excluded: platform message conversion, uORB, actual flight scheduling, legacy
+replay orchestration, tool runners and the generator pipeline. Extracted portable
+IMU/observation histories and output prediction are in scope under their runtime
+contracts, with their component tests moved alongside them. Remaining private
+PX4 owners retain adapter coverage until their portable contracts are allocated.
 External linalg internals and deployment qualification have separate boundaries.
+The complete SW-NAV session composition is still planned under
+[A-01](../../../roadmap.md#a-01--portable-navigation-runtime); component cases alone
+do not establish it.
 
 ## Requirement and case allocation
 
@@ -106,9 +107,9 @@ the canonical equations.
 | [Origin rebasing](runtime/origin-rebasing.md) | R-ORIGIN-REBASE. |
 | [Height datum](runtime/height-datum.md) | R-HEIGHT-DATUM. |
 | [Frame observations](runtime/frame-observations.md) | R-FRAME-OBSERVATIONS. |
-| [Gravity and IMU](runtime/gravity-imu.md) | R-ACCELEROMETER-MAGNITUDE, R-ACCELEROMETER-SAMPLING, R-ACCELEROMETER-CONDITIONS, R-ACCELEROMETER-FUSION, R-IMU-BIAS-INHIBITION, R-IMU-PROCESS-NOISE, R-BIAS-PROCESS-NOISE, R-BIAS-LIMITS, R-VERTICAL-ACCELERATION; SW-GRAVITY, SW-IMU. |
+| [Gravity and IMU](runtime/gravity-imu.md) | R-ACCELEROMETER-MAGNITUDE, R-ACCELEROMETER-SAMPLING, R-ACCELEROMETER-CONDITIONS, R-ACCELEROMETER-FUSION, R-IMU-BIAS-INHIBITION, R-IMU-PROCESS-NOISE, R-BIAS-PROCESS-NOISE, R-BIAS-LIMITS, R-VERTICAL-ACCELERATION, R-IMU-PREDICTION; SW-GRAVITY, SW-IMU. |
 | [Magnetic aiding](runtime/magnetic.md) | R-MAGNETIC-REFERENCE, R-MAGNETIC-FIELD, R-MAGNETIC-HEADING, R-MAGNETOMETER-FILTER, R-MAGNETOMETER-FUSION, R-MAGNETOMETER-RESET, R-MAGNETOMETER-LIFECYCLE; SW-MAGNETIC. |
-| [Storage and alignment](runtime/storage-alignment.md) | R-RING-BUFFER, R-TILT-ALIGNMENT; existing alignment test IDs retain their R-ACCELEROMETER-CONDITIONS prefix. |
+| [Storage and alignment](runtime/storage-alignment.md) | R-RING-BUFFER, R-TILT-ALIGNMENT, R-IMU-HISTORY, R-OBSERVATION-HISTORY, R-OUTPUT-PREDICTOR; existing alignment test IDs retain their R-ACCELEROMETER-CONDITIONS prefix. |
 
 ## What completeness means here
 

@@ -11,7 +11,7 @@ void verify_output_interval_range(Scalar previous, std::uint16_t period)
     __ESBMC_assume(period >= 3800 && period <= 4200);
     Sample sample;
     sample.angular_period_us = period;
-    auto const mean = output_steps::interval_average(previous, &sample);
+    auto const mean = output_steps::interval_average(profile::output_parameters, previous, &sample);
     __ESBMC_assert(mean > Scalar{0} && mean <= static_cast<Scalar>(0.005),
                    "Output interval average preserves a positive finite 5 ms envelope");
     auto const velocity_gain = mean / static_cast<Scalar>(profile::output::velocity_time_constant_s);

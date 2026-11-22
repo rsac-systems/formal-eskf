@@ -12,6 +12,26 @@ using namespace output_frames;
 // frame after whole-root havoc; arbitrary producer payloads remain unconstrained.
 void restore_outer()
 {
+    owner->m_parameters = parameter_snapshot;
+    owner->m_rebase.prepared = rebase_prepared;
+    owner->m_rebase.current.time_us = rebase_integers[0];
+    owner->m_rebase.current.start_time_us = rebase_integers[1];
+    owner->m_rebase.current.angular_period_us = static_cast<std::uint32_t>(rebase_integers[2]);
+    owner->m_rebase.current.q_nb.m_q0 = rebase_values[0];
+    owner->m_rebase.current.q_nb.m_q1 = rebase_values[1];
+    owner->m_rebase.current.q_nb.m_q2 = rebase_values[2];
+    owner->m_rebase.current.q_nb.m_q3 = rebase_values[3];
+    for (std::size_t axis = 0; axis < 3; ++axis)
+    {
+        owner->m_rebase.current.v_n(axis) = rebase_values[4 + axis];
+        owner->m_rebase.current.p_n(axis) = rebase_values[7 + axis];
+        owner->m_rebase.error.attitude_b(axis) = rebase_values[10 + axis];
+        owner->m_rebase.error.velocity_n(axis) = rebase_values[13 + axis];
+        owner->m_rebase.error.position_n(axis) = rebase_values[16 + axis];
+        owner->m_rebase.velocity_sum(axis) = rebase_values[19 + axis];
+        owner->m_rebase.position_sum(axis) = rebase_values[22 + axis];
+    }
+
     owner->m_current.time_us = integers[field::time];
     owner->m_current.start_time_us = integers[field::start_time];
     owner->m_current.angular_period_us = integers[field::period];

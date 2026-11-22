@@ -60,6 +60,7 @@ void verify_output_advance(output_proof::Output input_owner, output_proof::Sampl
                            formal_eskf::ImuSample<output_proof::Backend> imu, output_proof::Scalar dt,
                            output_proof::State candidate, formal_eskf::Status status)
 {
+    output_proof::bind_parameters(input_owner);
     using namespace output_frames;
     owner = &input_owner;
     capture();
@@ -93,4 +94,5 @@ void verify_output_advance(output_proof::Output input_owner, output_proof::Sampl
                        sample.angular_period_us == expected_sample.angular_period_us && same(dt, expected_dt),
                    "Output advance preserves epochs, period and external duration");
     check();
+    output_proof::check_parameters(input_owner);
 }

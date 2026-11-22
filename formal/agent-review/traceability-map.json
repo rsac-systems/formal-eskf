@@ -6285,6 +6285,10 @@
           {
             "file": "docs/spec/requirements/integration/px4/output-predictor.md",
             "symbol": "# R-PX4-OUTPUT-PREDICTOR: current-time output tracking"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/output-predictor.md",
+            "symbol": "# R-OUTPUT-PREDICTOR: current-time output tracking"
           }
         ],
         "lean": [
@@ -6487,72 +6491,84 @@
         ],
         "cpp": [
           {
-            "file": "integrations/px4/module/OutputPredictor.hpp",
+            "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
             "symbol": "class OutputPredictor"
           },
           {
-            "file": "integrations/px4/module/OutputPredictor.hpp",
-            "symbol": "OutputPredictor<Linalg>::configure("
+            "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
+            "symbol": "OutputPredictor<Linalg, Capacity>::configure("
           },
           {
-            "file": "integrations/px4/module/OutputPredictor.hpp",
-            "symbol": "OutputPredictor<Linalg>::seed("
+            "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
+            "symbol": "OutputPredictor<Linalg, Capacity>::seed("
           },
           {
-            "file": "integrations/px4/module/OutputPredictor.hpp",
-            "symbol": "OutputPredictor<Linalg>::predict("
+            "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
+            "symbol": "OutputPredictor<Linalg, Capacity>::predict("
           },
           {
-            "file": "integrations/px4/module/OutputPredictor.hpp",
-            "symbol": "OutputPredictor<Linalg>::delayed()"
+            "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
+            "symbol": "OutputPredictor<Linalg, Capacity>::delayed()"
           },
           {
-            "file": "integrations/px4/module/OutputPredictor.hpp",
-            "symbol": "OutputPredictor<Linalg>::correct("
+            "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
+            "symbol": "OutputPredictor<Linalg, Capacity>::correct("
           },
           {
-            "file": "integrations/px4/module/OutputPredictor.hpp",
-            "symbol": "OutputPredictor<Linalg>::apply_reset("
+            "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
+            "symbol": "OutputPredictor<Linalg, Capacity>::apply_reset("
           },
           {
-            "file": "integrations/px4/module/OutputPredictor.hpp",
-            "symbol": "OutputPredictor<Linalg>::reset()"
+            "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
+            "symbol": "OutputPredictor<Linalg, Capacity>::reset()"
           },
           {
-            "file": "integrations/px4/module/OutputPredictor.hpp",
+            "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
             "symbol": "vector3_type const & angular_rate_b() const"
           },
           {
-            "file": "integrations/px4/module/OutputPredictor.hpp",
-            "symbol": "OutputPredictor<Linalg>::valid_quaternion("
+            "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
+            "symbol": "OutputPredictor<Linalg, Capacity>::valid_quaternion("
           },
           {
-            "file": "integrations/px4/module/OutputPredictor.hpp",
-            "symbol": "OutputPredictor<Linalg>::valid_state("
+            "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
+            "symbol": "OutputPredictor<Linalg, Capacity>::valid_state("
           },
           {
-            "file": "integrations/px4/module/OutputPredictor.hpp",
-            "symbol": "OutputPredictor<Linalg>::advance("
+            "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
+            "symbol": "OutputPredictor<Linalg, Capacity>::advance("
           },
           {
-            "file": "integrations/px4/module/OutputPredictor.hpp",
-            "symbol": "OutputPredictor<Linalg>::stage_translation("
+            "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
+            "symbol": "OutputPredictor<Linalg, Capacity>::stage_translation("
           },
           {
-            "file": "integrations/px4/module/OutputPredictor.hpp",
-            "symbol": "OutputPredictor<Linalg>::commit_history("
+            "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
+            "symbol": "OutputPredictor<Linalg, Capacity>::commit_history("
           },
           {
-            "file": "integrations/px4/module/OutputPredictor.hpp",
-            "symbol": "OutputPredictor<Linalg>::fail("
+            "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
+            "symbol": "OutputPredictor<Linalg, Capacity>::fail("
           },
           {
-            "file": "integrations/px4/module/OutputPredictor.hpp",
+            "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
             "symbol": "::prepare_rebase("
           },
           {
-            "file": "integrations/px4/module/OutputPredictor.hpp",
+            "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
             "symbol": "::commit_rebase("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
+            "symbol": "struct OutputParameters"
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
+            "symbol": "OutputPredictor<Linalg, Capacity>::valid_parameters()"
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
+            "symbol": "OutputPredictor<Linalg, Capacity>::initial_interval()"
           }
         ],
         "esbmc": [
@@ -6788,7 +6804,7 @@
             "symbol": "void FormalEskf::publish_odometry("
           },
           {
-            "file": "integrations/px4/module/OutputPredictor.hpp",
+            "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
             "symbol": "vector3_type const & angular_rate_b() const"
           },
           {

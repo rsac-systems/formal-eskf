@@ -6,6 +6,7 @@ using namespace output_boundary;
 void verify_output_feedback_numerics(Output object, State state, Sample sample, Quaternion q, std::uint64_t time,
                                      output_steps::FeedbackValues result)
 {
+    output_proof::bind_parameters(object);
     owner = &object;
     capture();
     auto const before_state = state;
@@ -65,4 +66,5 @@ void verify_output_feedback_numerics(Output object, State state, Sample sample, 
                        "Output feedback arithmetic preserves both external quaternions");
     }
     check();
+    output_proof::check_parameters(object);
 }

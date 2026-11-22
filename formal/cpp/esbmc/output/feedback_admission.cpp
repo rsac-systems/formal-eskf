@@ -24,16 +24,16 @@ void check_state(State const & state)
     }
 }
 } // namespace
-namespace formal_eskf::px4
+namespace formal_eskf::runtime
 {
-template <> bool OutputPredictor<output_proof::Backend>::valid_state(state_type const & state)
+template <> bool OutputPredictor<output_proof::Backend, 64>::valid_state(state_type const & state) const
 {
     check_state(state);
     __ESBMC_assert(validations == 0, "Output feedback admission validates main state exactly once");
     ++validations;
     return valid;
 }
-} // namespace formal_eskf::px4
+} // namespace formal_eskf::runtime
 namespace formal_eskf::so3
 {
 template <>
@@ -78,6 +78,7 @@ Status UnitQuaternion<output_proof::Backend>::from_coefficients(vector4_type con
 #include <feedback_steps.hpp>
 void verify_output_feedback_admission(Output object, State state, std::uint64_t time, bool state_valid)
 {
+    output_proof::bind_parameters(object);
     owner = &object;
     metadata(object);
     capture();
@@ -94,6 +95,7 @@ void verify_output_feedback_admission(Output object, State state, std::uint64_t 
                 delayed.start_time_us == integers[field::fusion_time];
     }
     Sample const * selected = nullptr;
+    rebase_prepared = false;
     bool const result = output_steps::correction_plan(object, time, state, selected);
     __ESBMC_assert(result == (active && epoch && valid) && validations == static_cast<unsigned>(active && epoch),
                    "Output feedback exact activity, delayed-epoch and validation precedence");
@@ -112,10 +114,12 @@ void verify_output_feedback_admission(Output object, State state, std::uint64_t 
     }
     check();
     check_state(state);
+    output_proof::check_parameters(object);
 }
 void verify_output_feedback_normalization(Output object, State state, Sample sample, Quaternion output,
                                           Quaternion product, Quaternion result, formal_eskf::Status status)
 {
+    output_proof::bind_parameters(object);
     owner = &object;
     capture();
     requested = state;
@@ -149,4 +153,5 @@ void verify_output_feedback_normalization(Output object, State state, Sample sam
     check();
     check_state(state);
     __ESBMC_assert(same_sample(sample, before_sample), "Output feedback normalization preserves the delayed record");
+    output_proof::check_parameters(object);
 }

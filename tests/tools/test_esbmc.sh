@@ -1013,10 +1013,10 @@ with tempfile.TemporaryDirectory(prefix='formal-eskf-output-steps-') as TEMP:
     assert MANIFEST['generator_sha256'] == hashlib.sha256((FIXTURE / RELATIVE).read_bytes()).hexdigest()
     for NAME, HASH in MANIFEST['generated_sha256'].items():
         assert hashlib.sha256((OUTPUT / NAME).read_bytes()).hexdigest() == HASH
-    SOURCE = (FIXTURE / 'integrations/px4/module/OutputPredictor.hpp').read_text()
+    SOURCE = (FIXTURE / 'include/formal_eskf/runtime/session/output_predictor.hpp').read_text()
     assert MANIFEST['feedback_fragments']['correct'] == MODULE.sha256(
-        MODULE.body(SOURCE, 'bool OutputPredictor<Linalg>::correct(').encode())
-    RESET = MODULE.body(SOURCE, 'bool OutputPredictor<Linalg>::apply_reset(')
+        MODULE.body(SOURCE, 'bool OutputPredictor<Linalg, Capacity>::correct(').encode())
+    RESET = MODULE.body(SOURCE, 'bool OutputPredictor<Linalg, Capacity>::apply_reset(')
     assert MANIFEST['history_fragments']['reset'] == MODULE.sha256(RESET.encode())
     for NAME in MODULE.PINS:
         SOURCE_FILE = FIXTURE / NAME
@@ -1028,7 +1028,7 @@ with tempfile.TemporaryDirectory(prefix='formal-eskf-output-steps-') as TEMP:
     for NAME in ['include', 'integrations', 'formal', 'tests', 'scripts', 'configs']:
         RESULT = subprocess.run([*COMMAND, str(FIXTURE / NAME)], capture_output=True, text=True)
         assert RESULT.returncode == 1 and 'must not replace' in RESULT.stderr
-    assert (FIXTURE / 'integrations/px4/module/OutputPredictor.hpp').read_text() == SOURCE
+    assert (FIXTURE / 'include/formal_eskf/runtime/session/output_predictor.hpp').read_text() == SOURCE
 PYTHON
 }
 

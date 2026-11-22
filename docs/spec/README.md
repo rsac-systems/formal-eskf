@@ -137,6 +137,7 @@ remain empty: these two additional review units are proof gaps, not verified cla
 | `R-BIAS-LIMITS` | [per-axis bias-value limits](requirements/runtime/imu/bias-limits.md) |
 | `R-BIAS-PROCESS-NOISE` | [variance-dependent bias driving noise](requirements/runtime/imu/bias-process-noise.md) |
 | `R-OBSERVATION-HISTORY` | [Delayed observations and context](requirements/runtime/history/observation-history.md) |
+| `R-OUTPUT-PREDICTOR` | [Current-time output tracking](requirements/runtime/output-predictor.md) |
 | `R-IMU-HISTORY` | [Retained IMU timeline](requirements/runtime/history/imu-history.md) |
 | `R-IMU-PREDICTION` | [IMU prediction composition](requirements/runtime/imu/prediction.md) |
 | `R-IMU-PROCESS-NOISE` | [fault-dependent sampled IMU variance](requirements/runtime/imu/process-noise.md) |

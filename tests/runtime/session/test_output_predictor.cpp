@@ -6,37 +6,52 @@
 #include <cstdint>
 #include <limits>
 
-#include "../module/OutputPredictor.hpp"
+#include <formal_eskf/runtime/session/output_predictor.hpp>
 #include "test_backend.hpp"
 #include "test_support.hpp"
+#include "test_cases.hpp"
 
 namespace
 {
-namespace profile = formal_eskf::px4::profile;
 using formal_eskf::test::Context;
 using formal_eskf::test::near;
 using Backend = formal_eskf::test::Backend<double>;
-using Predictor = formal_eskf::px4::OutputPredictor<Backend>;
+using Predictor = formal_eskf::runtime::OutputPredictor<Backend, 64>;
 using History = formal_eskf::runtime::ImuHistory<Backend, 64>;
 using Vector = Predictor::vector3_type;
 using Quaternion = Predictor::quaternion_type;
 using State = Predictor::state_type;
 using Fault = Predictor::Fault;
-namespace profile = formal_eskf::px4::profile;
+
+constexpr formal_eskf::runtime::TimingParameters parameters_250hz{4000, 200, 0, 0, 0};
+constexpr formal_eskf::runtime::OutputParameters output_parameters{
+    {4000, 3800, 4200, 50000, 200, 100000, 300000, 150000, 100000, 100000},
+    9.80665,
+    1e-6,
+    1e-10,
+    1e-6,
+    0.05,
+    0.004,
+    0.25,
+    0.25,
+    0.8,
+    0.2,
+    0.5,
+    0.1};
 
 Vector vector(double x, double y, double z) { return Vector::from_row_major({x, y, z}); }
 
 Quaternion rotation(Vector const & angle)
 {
     Quaternion result;
-    if (!formal_eskf::succeeded(formal_eskf::so3::exp(angle, profile::minimum_quaternion_norm, result)))
+    if (!formal_eskf::succeeded(formal_eskf::so3::exp(angle, output_parameters.minimum_quaternion_norm, result)))
     {
         std::abort();
     }
     return result;
 }
 
-History::input_type sample(std::uint64_t time, Vector const & force = vector(0, 0, -profile::gravity_m_s2),
+History::input_type sample(std::uint64_t time, Vector const & force = vector(0, 0, -output_parameters.gravity_m_s2),
                            Vector const & rate = {})
 {
     History::input_type result;
@@ -83,18 +98,19 @@ bool same_sample(Predictor::Sample const & a, Predictor::Sample const & b)
 struct Session
 {
     History imu;
-    Predictor output;
+    Predictor output{output_parameters};
     std::uint64_t time = 1000000;
 
     void seed(Context & test, State const & state = {},
-              formal_eskf::runtime::TimingParameters const & parameters = profile::history::parameters)
+              formal_eskf::runtime::TimingParameters const & parameters = parameters_250hz)
     {
-        test.expect(imu.configure(parameters, profile::history::timing) && output.configure(parameters) &&
+        test.expect(imu.configure(parameters, output_parameters.timing) && output.configure(parameters) &&
                         imu.seed(sample(time), time) && output.seed(state, time),
                     "setup", "matched configuration and seed");
     }
 
-    void push(Context & test, Vector const & force = vector(0, 0, -profile::gravity_m_s2), Vector const & rate = {})
+    void push(Context & test, Vector const & force = vector(0, 0, -output_parameters.gravity_m_s2),
+              Vector const & rate = {})
     {
         time += 4000;
         test.expect(imu.push(sample(time, force, rate), time), "input", "admit real interval");
@@ -113,16 +129,16 @@ struct Session
 
 void startup_and_configuration(Context & test)
 {
-    Predictor output;
+    Predictor output{output_parameters};
     test.expect(!output.seed({}, 1000000) && !output.predict({}) && !output.correct(1000000, {}) && !output.ready(),
                 "startup", "no use before configuration and seed");
     test.expect(!output.configure({10000, 200, 0, 0, 0}) && !output.configure({4000, 240, 0, 0, 0}), "startup",
                 "reject unsupported interval and excessive length");
-    test.expect(output.configure(profile::history::parameters) && !output.seed({}, 0), "startup", "zero seed rejected");
+    test.expect(output.configure(parameters_250hz) && !output.seed({}, 0), "startup", "zero seed rejected");
     State bad;
     bad.b_a(1) = std::numeric_limits<double>::quiet_NaN();
     test.expect(!output.seed(bad, 1000000) && output.seed({}, 1000000), "startup", "bad seed preserves empty state");
-    test.expect(!output.seed({}, 1000000) && !output.configure(profile::history::parameters) && output.entries() == 0 &&
+    test.expect(!output.seed({}, 1000000) && !output.configure(parameters_250hz) && output.entries() == 0 &&
                     !output.ready(),
                 "startup", "seed does not fabricate history or permit live reconfiguration");
     auto const before = output.current();
@@ -146,7 +162,7 @@ void analytic_translation(Context & test, formal_eskf::runtime::TimingParameters
     initial.b_a = vector(0.1, -0.2, 0.3);
     initial.b_g = vector(0.01, 0.02, -0.03);
     session.seed(test, initial, parameters);
-    auto const force = vector(1.1, 1.8, 0.3 - profile::gravity_m_s2);
+    auto const force = vector(1.1, 1.8, 0.3 - output_parameters.gravity_m_s2);
     auto const acceleration = vector(1, 2, 0);
     auto const length = session.imu.configuration().imu_length;
     for (std::size_t tick = 1; tick <= 4 * length; ++tick)
@@ -198,7 +214,7 @@ void rotating_force(Context & test)
     Vector v;
     for (std::size_t tick = 0; tick < 20; ++tick)
     {
-        session.push(test, vector(1, 0, -profile::gravity_m_s2), vector(0, 0, 1));
+        session.push(test, vector(1, 0, -output_parameters.gravity_m_s2), vector(0, 0, 1));
         auto const a = vector(std::cos(yaw), std::sin(yaw), 0);
         p = p + v * 0.004 + a * (0.5 * 0.004 * 0.004);
         v = v + a * 0.004;
@@ -214,14 +230,15 @@ void rotating_force(Context & test)
 void gap_and_periods(Context & test)
 {
     Session session;
-    test.expect(session.imu.configure(profile::history::parameters, profile::history::timing) &&
-                    session.output.configure(profile::history::parameters) &&
-                    session.imu.seed(sample(session.time, vector(2, 0, -profile::gravity_m_s2)), session.time) &&
-                    session.output.seed({}, session.time),
-                "gap", "seed held rate");
-    auto input = sample(session.time + 14000, vector(3, 0, -profile::gravity_m_s2));
+    test.expect(
+        session.imu.configure(parameters_250hz, output_parameters.timing) &&
+            session.output.configure(parameters_250hz) &&
+            session.imu.seed(sample(session.time, vector(2, 0, -output_parameters.gravity_m_s2)), session.time) &&
+            session.output.seed({}, session.time),
+        "gap", "seed held rate");
+    auto input = sample(session.time + 14000, vector(3, 0, -output_parameters.gravity_m_s2));
     input.acceleration_period_us = 4200;
-    input.delta_velocity_b = vector(3, 0, -profile::gravity_m_s2) * 0.0042;
+    input.delta_velocity_b = vector(3, 0, -output_parameters.gravity_m_s2) * 0.0042;
     test.expect(session.imu.push(input, input.time_us) && session.imu.latest() != nullptr, "gap", "admit gap");
     auto const interval = *session.imu.latest();
     test.expect(interval.hold_period_us == 10000 && session.output.predict(interval), "gap", "hold then real step");
@@ -243,7 +260,8 @@ void variable_periods(Context & test)
         auto input = sample(session.time);
         input.angular_period_us = period_us;
         input.acceleration_period_us = period_us;
-        input.delta_velocity_b = vector(1, 0, -profile::gravity_m_s2) * (static_cast<double>(period_us) * 1e-6);
+        input.delta_velocity_b =
+            vector(1, 0, -output_parameters.gravity_m_s2) * (static_cast<double>(period_us) * 1e-6);
         test.expect(session.imu.push(input, session.time) && session.imu.latest() != nullptr &&
                         session.output.predict(*session.imu.latest()),
                     "jitter", "admit and predict alternating integration-period bounds");
@@ -400,8 +418,8 @@ void numerical_rollback(Context & test)
     initial.b_a(0) = -std::numeric_limits<double>::max();
     session.seed(test, initial);
     auto const before = session.output.current();
-    auto input =
-        sample(session.time + 14000, vector(std::numeric_limits<double>::max() * 0.5, 0, -profile::gravity_m_s2));
+    auto input = sample(session.time + 14000,
+                        vector(std::numeric_limits<double>::max() * 0.5, 0, -output_parameters.gravity_m_s2));
     test.expect(session.imu.push(input, input.time_us) && session.imu.latest() != nullptr, "atomicity",
                 "finite rates accepted before bias subtraction");
     test.expect(!session.output.predict(*session.imu.latest()) && session.output.fault() == Fault::numerical_failure &&
@@ -544,7 +562,7 @@ void failures(Context & test)
                         same_sample(before, session.output.current()) && session.output.fusion_time_us() == fusion &&
                         session.output.entries() == count && session.output.delayed() == nullptr,
                     "failure", "fault preserves output, retained count and cursor");
-        test.expect(!session.output.correct(time, {}) && !session.output.configure(profile::history::parameters) &&
+        test.expect(!session.output.correct(time, {}) && !session.output.configure(parameters_250hz) &&
                         !session.output.apply_reset({}, {}, {}) && session.output.fault() == expected,
                     "failure", "later calls cannot clear the first fault");
         session.output.reset();
@@ -575,7 +593,7 @@ void frame_rebasing(Context & test)
                near_vector(expected.v_n, after.v_n) &&
                formal_eskf::so3::same_rotation(expected.q_nb, after.q_nb, 1e-12);
     };
-    for (auto const timing : {profile::history::parameters, formal_eskf::runtime::TimingParameters{4000, 239, 0, 0, 0}})
+    for (auto const timing : {parameters_250hz, formal_eskf::runtime::TimingParameters{4000, 239, 0, 0, 0}})
     {
         Session session, control;
         State initial;
@@ -709,21 +727,57 @@ void frame_feedback(Context & test)
                     near_vector(session.output.current().v_n, A * control.output.current().v_n),
                 "rebase feedback", "next feedback uses rotated private integral sums");
 }
-} // namespace
-
-int main()
+void explicit_parameters(Context & test)
 {
-    formal_eskf::test::configure_backend_test();
-    static_assert(sizeof(History) + sizeof(Predictor) <= profile::history::storage_budget_bytes);
-    Context test;
+    auto parameters = output_parameters;
+    Predictor copied{parameters};
+    parameters.velocity_time_constant_s = 0.;
+    test.expect(copied.configure(parameters_250hz), "parameters", "constructor copies feedback settings");
+    Predictor zero_tau{parameters};
+    test.expect(!zero_tau.configure(parameters_250hz), "parameters", "zero feedback denominator rejected");
+    parameters = output_parameters;
+    parameters.nominal_interval_s = std::numeric_limits<double>::infinity();
+    Predictor infinite_period{parameters};
+    test.expect(!infinite_period.configure(parameters_250hz), "parameters", "nonfinite period rejected");
+    parameters = output_parameters;
+    parameters.interval_history_weight = 0.9;
+    Predictor wrong_weights{parameters};
+    test.expect(!wrong_weights.configure(parameters_250hz), "parameters", "weights must sum to one");
+    parameters = output_parameters;
+    parameters.quaternion_squared_norm_tolerance = -1.;
+    Predictor negative_tolerance{parameters};
+    test.expect(!negative_tolerance.configure(parameters_250hz), "parameters", "negative residual tolerance rejected");
+    parameters = output_parameters;
+    parameters.minimum_interval_s = parameters.nominal_interval_s * 2.;
+    Predictor unordered_period{parameters};
+    test.expect(!unordered_period.configure(parameters_250hz), "parameters",
+                "nominal period must fit prediction bounds");
+    parameters = output_parameters;
+    parameters.integral_tracking_gain = std::numeric_limits<double>::quiet_NaN();
+    Predictor invalid_gain{parameters};
+    test.expect(!invalid_gain.configure(parameters_250hz), "parameters", "NaN gain rejected");
+    formal_eskf::runtime::OutputPredictor<Backend, 53> too_short{output_parameters};
+    formal_eskf::runtime::OutputPredictor<Backend, 54> exact{output_parameters};
+    test.expect(!too_short.configure(parameters_250hz) && exact.configure(parameters_250hz), "capacity",
+                "predictor validates its own backing capacity");
+    parameters = output_parameters;
+    parameters.nominal_interval_s = std::numeric_limits<double>::max();
+    formal_eskf::runtime::OutputPredictor<formal_eskf::test::Backend<float>, 64> float_overflow{parameters};
+    float_overflow.reset();
+    test.expect(!float_overflow.configure(parameters_250hz), "parameters",
+                "reject value outside scalar format before narrowing");
+}
+
+void output_scenarios(Context & test, std::string_view)
+{
     frame_rebasing(test);
     frame_feedback(test);
     frame_rollback(test);
     startup_and_configuration(test);
-    analytic_translation(test, profile::history::parameters, 1000000);
+    analytic_translation(test, parameters_250hz, 1000000);
     analytic_translation(test, {4000, 153, 0, 0, 0}, 1000000);
     analytic_translation(test, {4000, 239, 0, 0, 0}, 1000000);
-    analytic_translation(test, profile::history::parameters, std::numeric_limits<std::uint64_t>::max() - 4 * 54 * 4000);
+    analytic_translation(test, parameters_250hz, std::numeric_limits<std::uint64_t>::max() - 4 * 54 * 4000);
     rotating_force(test);
     gap_and_periods(test);
     variable_periods(test);
@@ -734,6 +788,15 @@ int main()
     numerical_rollback(test);
     reset_feedback_invariance(test);
     failures(test);
-    std::cout << "IMU history + output predictor bytes: " << sizeof(History) + sizeof(Predictor) << '\n';
-    return test.failures() == 0 ? 0 : 1;
+    explicit_parameters(test);
+}
+} // namespace
+
+int main(int argc, char ** argv)
+{
+    formal_eskf::test::configure_backend_test();
+    formal_eskf::test::Case const cases[] = {
+        {"TC-R-OUTPUT-PREDICTOR-01", "double", output_scenarios},
+    };
+    return formal_eskf::test::run_cases(cases, argc, argv);
 }

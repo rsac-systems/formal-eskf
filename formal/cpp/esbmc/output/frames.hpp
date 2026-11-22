@@ -75,8 +75,64 @@ Scalar values[38];
 std::uint64_t integers[13];
 bool tracking;
 Output::Fault fault;
+Parameters parameter_snapshot;
+Scalar rebase_values[25];
+std::uint64_t rebase_integers[3];
+bool rebase_prepared;
+void capture_rebase()
+{
+    rebase_prepared = owner->m_rebase.prepared;
+    rebase_integers[0] = owner->m_rebase.current.time_us;
+    rebase_integers[1] = owner->m_rebase.current.start_time_us;
+    rebase_integers[2] = owner->m_rebase.current.angular_period_us;
+    rebase_values[0] = owner->m_rebase.current.q_nb.q0();
+    rebase_values[1] = owner->m_rebase.current.q_nb.q1();
+    rebase_values[2] = owner->m_rebase.current.q_nb.q2();
+    rebase_values[3] = owner->m_rebase.current.q_nb.q3();
+    for (std::size_t axis = 0; axis < 3; ++axis)
+    {
+        rebase_values[4 + axis] = owner->m_rebase.current.v_n(axis);
+        rebase_values[7 + axis] = owner->m_rebase.current.p_n(axis);
+        rebase_values[10 + axis] = owner->m_rebase.error.attitude_b(axis);
+        rebase_values[13 + axis] = owner->m_rebase.error.velocity_n(axis);
+        rebase_values[16 + axis] = owner->m_rebase.error.position_n(axis);
+        rebase_values[19 + axis] = owner->m_rebase.velocity_sum(axis);
+        rebase_values[22 + axis] = owner->m_rebase.position_sum(axis);
+    }
+}
+void check_rebase()
+{
+    __ESBMC_assert(owner->m_rebase.prepared == rebase_prepared &&
+                       owner->m_rebase.current.time_us == rebase_integers[0] &&
+                       owner->m_rebase.current.start_time_us == rebase_integers[1] &&
+                       owner->m_rebase.current.angular_period_us == rebase_integers[2],
+                   "Output rebase staging flag and epoch frame");
+    __ESBMC_assert(same(owner->m_rebase.current.q_nb.q0(), rebase_values[0]), "Output rebase quaternion frame q0");
+    __ESBMC_assert(same(owner->m_rebase.current.q_nb.q1(), rebase_values[1]), "Output rebase quaternion frame q1");
+    __ESBMC_assert(same(owner->m_rebase.current.q_nb.q2(), rebase_values[2]), "Output rebase quaternion frame q2");
+    __ESBMC_assert(same(owner->m_rebase.current.q_nb.q3(), rebase_values[3]), "Output rebase quaternion frame q3");
+    for (std::size_t axis = 0; axis < 3; ++axis)
+    {
+        __ESBMC_assert(same(owner->m_rebase.current.v_n(axis), rebase_values[4 + axis]),
+                       "Output rebase vector frame current.v_n");
+        __ESBMC_assert(same(owner->m_rebase.current.p_n(axis), rebase_values[7 + axis]),
+                       "Output rebase vector frame current.p_n");
+        __ESBMC_assert(same(owner->m_rebase.error.attitude_b(axis), rebase_values[10 + axis]),
+                       "Output rebase vector frame error.attitude_b");
+        __ESBMC_assert(same(owner->m_rebase.error.velocity_n(axis), rebase_values[13 + axis]),
+                       "Output rebase vector frame error.velocity_n");
+        __ESBMC_assert(same(owner->m_rebase.error.position_n(axis), rebase_values[16 + axis]),
+                       "Output rebase vector frame error.position_n");
+        __ESBMC_assert(same(owner->m_rebase.velocity_sum(axis), rebase_values[19 + axis]),
+                       "Output rebase vector frame velocity_sum");
+        __ESBMC_assert(same(owner->m_rebase.position_sum(axis), rebase_values[22 + axis]),
+                       "Output rebase vector frame position_sum");
+    }
+}
 void capture()
 {
+    parameter_snapshot = owner->m_parameters;
+    capture_rebase();
     integers[field::time] = owner->m_current.time_us;
     integers[field::start_time] = owner->m_current.start_time_us;
     integers[field::period] = owner->m_current.angular_period_us;
@@ -162,6 +218,8 @@ void capture()
 }
 void check()
 {
+    __ESBMC_assert(same_parameters(owner->m_parameters, parameter_snapshot), "Output complete parameter frame");
+    check_rebase();
     __ESBMC_assert(owner->m_current.time_us == integers[field::time], "Output complete owner frame: m_current.time_us");
     __ESBMC_assert(owner->m_current.start_time_us == integers[field::start_time],
                    "Output complete owner frame: m_current.start_time_us");

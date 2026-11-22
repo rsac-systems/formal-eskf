@@ -16,7 +16,7 @@ REPO_DIR = Path(__file__).resolve().parents[3]
 # Changes to source structure, record/storage types or the complete field oracle
 # require correspondence review. Do not update these solely to make a run pass.
 PINS = {
-    "integrations/px4/module/DeploymentProfile.hpp": "bf26c6accea871fe90ed8c06e7ad9fac9fd09d26d7e3834a6e1a29fb8679ea90",
+    "integrations/px4/module/DeploymentProfile.hpp": "2d9a4dff78996d82440e6f7dcc8feb5840a9266d88bafecbcc7c97903ffe1ae1",
     "include/formal_eskf/runtime/history/imu_history.hpp": "4516f6d8d890625acbcdb58ed493b8c4064286212d0159d12b84241412c7bd93",
     "include/formal_eskf/runtime/history/timing.hpp": "1a707281bab0b8dde664c1a1aed32a149c647c7620582604bb19322e0dabee6a",
     "include/formal_eskf/runtime/history/ring_buffer.hpp": "4e14776bcf6f1d4ba499c93a289a9ec6ceab1dc2b24173c7920f988bba9a0ac5",
@@ -24,7 +24,7 @@ PINS = {
     "include/formal_eskf/linalg/matrix.hpp": "09ad7208f3d44d6686a41eb8eabc3e4963562f3f5c2d175493db1a38c402cddc",
     "formal/cpp/esbmc/support.hpp": "067c556f362de8f5ad21e8672b8711ce00311fe85f9898c8091e8ca6dbc8962e",
     "formal/cpp/esbmc/contracts.hpp": "6c5ba84e914ccb08b98acf02b204bbb07e455b166ad754f2634e6c3c65f0180c",
-    "formal/cpp/esbmc/imu_owner_support.hpp": "7672473ad7b054e66a66e5b815170a2579da04c3350d1d7fa131d3436e6cb4f4",
+    "formal/cpp/esbmc/imu_owner_support.hpp": "a1a844da838694b3c6e88232e735faec690ebaf0983567dad49209905a26da3b",
     "formal/cpp/esbmc/observation_support.hpp": "8d463aa732cde085845d068f3341ccd419db6d09c9e6785548ba1372b895f4d3",
     "formal/cpp/esbmc/observation_ring.cpp": "0fab79c33184065f7641079be50d5102d8bd5de0f246c2f933fa79c3b70ea8f0",
 }

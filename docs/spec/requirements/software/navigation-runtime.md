@@ -62,6 +62,7 @@ remain at the declared C++ boundaries.
 | Child | Allocated obligation |
 |---|---|
 | [R-OBSERVATION-HISTORY](../runtime/history/observation-history.md) | Delayed raw source/context retention, admission, generation and once-only selection. |
+| [R-OUTPUT-PREDICTOR](../runtime/output-predictor.md) | Current nominal propagation, delayed feedback and output-history transactions. |
 | [R-IMU-HISTORY](../runtime/history/imu-history.md) | Retained IMU intervals, configured timing, source admission and completion cursor. |
 
 ## Acceptance and verification

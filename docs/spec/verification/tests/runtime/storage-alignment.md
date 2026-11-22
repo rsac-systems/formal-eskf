@@ -3,8 +3,9 @@
 **Status:** Draft
 
 **Scope:** Portable fixed-capacity `RingBuffer`, retained IMU history and the
-delayed observation/context queues and exposed `TiltAlignment` operation. Output
-predictors, height owners and module/replay wiring are outside this design.
+delayed observation/context queues, INS output prediction and exposed
+`TiltAlignment` operation. Height owners and module/replay wiring are outside
+this design.
 
 **Level and purpose:** Storage/alignment unit and sequence tests, compile-time API
 checks and bounded-resource inspection. Existing tests are not used as design input.
@@ -36,6 +37,7 @@ the case tables identify executable bindings and remaining acceptance gaps.
 | Production header / public group | Cases / disposition |
 |---|---|
 | `history/observation_history.hpp`: configuration, source/context admission, selection, reset | `TC-R-OBSERVATION-HISTORY-01` |
+| `session/output_predictor.hpp`: configure, seed, prediction/feedback, reset/rebase, views | `TC-R-OUTPUT-PREDICTOR-01` |
 | `history/imu_history.hpp`: configure, seed, push, views, complete, reset | `TC-R-IMU-HISTORY-01` |
 | `ring_buffer.hpp`: explicit construction, deleted default/copy/move operations, allocate/valid | `TC-R-RING-BUFFER-01`, `02` |
 | `ring_buffer.hpp`: push, pop_first_older_than | `TC-R-RING-BUFFER-03` through `07`, `10` |
@@ -57,6 +59,15 @@ retention-capacity boundary fixtures. This does not qualify other rate profiles.
 | Case ID | Name | Requirement / clause | Conditions, inputs and action | Expected result and independent oracle | Executable test |
 |---|---|---|---|---|---|
 | TC-R-OBSERVATION-HISTORY-01 | Observation history: admission, generations and historical context | [R-OBSERVATION-HISTORY](../../../requirements/runtime/history/observation-history.md) | Invalid settings/capacity, seed, temporal limits, source changes including rejected arrivals, frozen offsets, repeated selection, retirement, wraps, future/late/stale context and restart. | Exact independently calculated epochs, payloads and counters; missing/rejected outputs preserve sentinels. Detects future context, generation reuse, time underflow, implicit defaults and double consumption. | Native: [test_observation_history.cpp](../../../../../tests/runtime/history/test_observation_history.cpp) |
+
+## Current-time output tracking
+
+The current case binds binary64, the 250 Hz profile and fixed 64-slot history;
+53/54-slot and invalid binary32 narrowing fixtures check configuration boundaries.
+
+| Case ID | Name | Requirement / clause | Conditions, inputs and action | Expected result and independent oracle | Executable test |
+|---|---|---|---|---|---|
+| TC-R-OUTPUT-PREDICTOR-01 | Output prediction: propagation, feedback and history transactions | [R-OUTPUT-PREDICTOR](../../../requirements/runtime/output-predictor.md) | Invalid/copied parameters, timing/capacity bounds, analytic translation, rotation, unequal periods, gaps, feedback/bias, quaternion signs, resets, wrapped rebase and rollback. | Independent motion/PI/rigid-transform expectations, exact epochs and preserved failure outputs; detects wrong attitude/period ordering, changed gains, partial history writes or lost feedback integrals. | Native: [test_output_predictor.cpp](../../../../../tests/runtime/session/test_output_predictor.cpp) |
 
 ## Fixed-capacity ring buffer
 

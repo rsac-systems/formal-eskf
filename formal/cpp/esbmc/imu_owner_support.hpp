@@ -6,7 +6,9 @@
 #undef private
 #include "contracts.hpp"
 #include <formal_eskf/runtime/sensors/imu/imu.hpp>
+#define private public
 #include "../../../integrations/px4/module/DeploymentProfile.hpp"
+#undef private
 #define private public
 #include <formal_eskf/runtime/history/imu_history.hpp>
 #undef private

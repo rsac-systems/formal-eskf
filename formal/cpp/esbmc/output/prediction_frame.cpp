@@ -17,11 +17,11 @@ namespace formal_eskf::runtime
 {
 template <> ImuSample<output_proof::Backend> ImuInput<output_proof::Backend>::mean_rates() const { return mean; }
 } // namespace formal_eskf::runtime
-namespace formal_eskf::px4
+namespace formal_eskf::runtime
 {
 template <>
-bool OutputPredictor<output_proof::Backend>::advance(Sample & candidate, ImuSample<output_proof::Backend> imu,
-                                                     value_type dt) const
+bool OutputPredictor<output_proof::Backend, 64>::advance(Sample & candidate, ImuSample<output_proof::Backend> imu,
+                                                         value_type dt) const
 {
     bool const held = holding && advances == 0;
     bool const ok = held ? held_ok : real_ok;
@@ -44,7 +44,7 @@ bool OutputPredictor<output_proof::Backend>::advance(Sample & candidate, ImuSamp
     ++advances;
     return ok;
 }
-} // namespace formal_eskf::px4
+} // namespace formal_eskf::runtime
 template <> void formal_eskf::runtime::RingBuffer<output_proof::Sample, 64>::push(Sample const & sample)
 {
     check_selected();
@@ -63,6 +63,7 @@ template <> void formal_eskf::runtime::RingBuffer<output_proof::Sample, 64>::pus
 void verify_output_prediction_frame(Output object, Interval interval, Sample hold, Sample real, Rates rates,
                                     bool hold_success, bool real_success)
 {
+    output_proof::bind_parameters(object);
     owner = &object;
     metadata(object);
     __ESBMC_assume(interval.sample.angular_period_us >= 3800 && interval.sample.angular_period_us <= 4200 &&
@@ -78,6 +79,8 @@ void verify_output_prediction_frame(Output object, Interval interval, Sample hol
     holding = interval.hold_period_us != 0;
     advances = means = stores = 0;
     capture_selected();
+    rebase_prepared = false;
     (void)object.predict(interval);
     check_selected();
+    output_proof::check_parameters(object);
 }

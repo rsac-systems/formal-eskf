@@ -23,9 +23,10 @@ void restore_selected_history()
     owner->m_history.m_samples[selected_slot].p_n.m_storage.values.tail.tail.head = selected_history_values[9];
 }
 } // namespace
-namespace formal_eskf::px4
+namespace formal_eskf::runtime
 {
-template <> bool OutputPredictor<output_proof::Backend>::stage_translation(vector3_type const &, vector3_type const &)
+template <>
+bool OutputPredictor<output_proof::Backend, 64>::stage_translation(vector3_type const &, vector3_type const &)
 {
     check_selected();
     __ESBMC_init_object(owner);
@@ -34,7 +35,7 @@ template <> bool OutputPredictor<output_proof::Backend>::stage_translation(vecto
     restore_selected_history();
     return translation_ok;
 }
-template <> void OutputPredictor<output_proof::Backend>::commit_history()
+template <> void OutputPredictor<output_proof::Backend, 64>::commit_history()
 {
     check_selected();
     __ESBMC_init_object(owner);
@@ -43,11 +44,12 @@ template <> void OutputPredictor<output_proof::Backend>::commit_history()
     m_current = committed;
     capture_selected_history();
 }
-} // namespace formal_eskf::px4
+} // namespace formal_eskf::runtime
 #include <feedback_steps.hpp>
 void verify_output_feedback_frame(Output object, State state, std::uint64_t time, output_steps::FeedbackValues feedback,
                                   bool staged, Sample newest)
 {
+    output_proof::bind_parameters(object);
     owner = &object;
     metadata(object);
     __ESBMC_assume(object.m_history.m_count > 0);
@@ -57,4 +59,5 @@ void verify_output_feedback_frame(Output object, State state, std::uint64_t time
     committed = newest;
     (void)output_steps::correction_finish(object, state, time, feedback);
     check_selected();
+    output_proof::check_parameters(object);
 }

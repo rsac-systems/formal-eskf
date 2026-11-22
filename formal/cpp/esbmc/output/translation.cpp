@@ -5,6 +5,7 @@
 using namespace output_boundary;
 void verify_output_translation_step(Output object, Vector velocity, Vector position)
 {
+    output_proof::bind_parameters(object);
     constexpr std::size_t slot = FORMAL_ESKF_PROOF_SLOT;
     static_assert(slot < 64);
     owner = &object;
@@ -36,9 +37,11 @@ void verify_output_translation_step(Output object, Vector velocity, Vector posit
         __ESBMC_assert(same(velocity(i), velocity_before(i)) && same(position(i), position_before(i)),
                        "Output translation preserves both external deltas");
     }
+    output_proof::check_parameters(object);
 }
 void verify_output_commit_step(Output object)
 {
+    output_proof::bind_parameters(object);
     constexpr std::size_t slot = FORMAL_ESKF_PROOF_SLOT;
     static_assert(slot < 64);
     owner = &object;
@@ -58,9 +61,11 @@ void verify_output_commit_step(Output object)
     __ESBMC_assert(index == (slot + 1 == integers[field::length] ? 0 : slot + 1),
                    "Output commit step advances the physical cursor exactly");
     check();
+    output_proof::check_parameters(object);
 }
 void verify_output_commit_finish(Output object)
 {
+    output_proof::bind_parameters(object);
     constexpr std::size_t slot = FORMAL_ESKF_PROOF_SLOT;
     static_assert(slot < 64);
     owner = &object;
@@ -72,4 +77,5 @@ void verify_output_commit_finish(Output object)
     expect_current(object.m_history.m_samples[slot]);
     output_steps::finish(object);
     check();
+    output_proof::check_parameters(object);
 }

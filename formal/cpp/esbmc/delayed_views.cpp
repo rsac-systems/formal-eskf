@@ -2,16 +2,18 @@
 
 #include "contracts.hpp"
 #include <formal_eskf/runtime/sensors/imu/imu.hpp>
+#define private public
 #include "../../../integrations/px4/module/DeploymentProfile.hpp"
+#undef private
 // Expose metadata to state the view precondition; retain every production body.
 #define private public
 #include <formal_eskf/runtime/history/imu_history.hpp>
-#include "../../../integrations/px4/module/OutputPredictor.hpp"
+#include <formal_eskf/runtime/session/output_predictor.hpp>
 #undef private
 
 using Backend = contract_proof::Linalg;
 using Imu = formal_eskf::runtime::ImuHistory<Backend, 64>;
-using Output = formal_eskf::px4::OutputPredictor<Backend>;
+using Output = formal_eskf::runtime::OutputPredictor<Backend, 64>;
 namespace profile = formal_eskf::px4::profile;
 static_assert(profile::history::imu_capacity == 64);
 extern unsigned char nondet_index();

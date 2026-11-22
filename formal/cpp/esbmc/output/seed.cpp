@@ -46,7 +46,8 @@ void check_input(output_proof::State const & state)
         "Seed preserves/forwards input: b_g.m_storage.values.tail.tail.head");
 }
 } // namespace
-template <> bool formal_eskf::px4::OutputPredictor<output_proof::Backend>::valid_state(state_type const & state)
+template <>
+bool formal_eskf::runtime::OutputPredictor<output_proof::Backend, 64>::valid_state(state_type const & state) const
 {
     check_input(state);
     output_frames::check();
@@ -55,6 +56,7 @@ template <> bool formal_eskf::px4::OutputPredictor<output_proof::Backend>::valid
 }
 void verify_output_seed(output_proof::Output input_owner, output_proof::State state, std::uint64_t time, bool valid)
 {
+    output_proof::bind_parameters(input_owner);
     using namespace output_frames;
     owner = &input_owner;
     expected_state = state;
@@ -64,6 +66,7 @@ void verify_output_seed(output_proof::Output input_owner, output_proof::State st
     bool const checked = input_owner.m_history.m_length != 0 && input_owner.m_current.time_us == 0 &&
                          input_owner.m_fault == Output::Fault::none && time != 0;
     bool const expected = checked && valid;
+    rebase_prepared = false;
     bool const accepted = input_owner.seed(state, time);
     __ESBMC_assert(accepted == expected && validation_calls == static_cast<unsigned>(checked),
                    "Seed exact startup/state guard and validation call count");
@@ -92,4 +95,5 @@ void verify_output_seed(output_proof::Output input_owner, output_proof::State st
     }
     check();
     check_input(state);
+    output_proof::check_parameters(input_owner);
 }

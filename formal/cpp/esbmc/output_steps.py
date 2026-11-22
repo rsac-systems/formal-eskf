@@ -15,17 +15,17 @@ import sys
 
 REPO_DIR = Path(__file__).resolve().parents[3]
 PINS = {
-    "integrations/px4/module/OutputPredictor.hpp": "484a7256490a545f22ea4eab133991f47fa39e149a6a5b72844c9614c22839d2",
+    "include/formal_eskf/runtime/session/output_predictor.hpp": "f52b4b8ab184aa5380f2e57da17319630109730b1a6dc4f61368e316cab244b7",
     "include/formal_eskf/runtime/history/ring_buffer.hpp": "4e14776bcf6f1d4ba499c93a289a9ec6ceab1dc2b24173c7920f988bba9a0ac5",
     "include/formal_eskf/linalg/matrix.hpp": "09ad7208f3d44d6686a41eb8eabc3e4963562f3f5c2d175493db1a38c402cddc",
     "formal/cpp/esbmc/support.hpp": "067c556f362de8f5ad21e8672b8711ce00311fe85f9898c8091e8ca6dbc8962e",
     "formal/cpp/esbmc/contracts.hpp": "6c5ba84e914ccb08b98acf02b204bbb07e455b166ad754f2634e6c3c65f0180c",
-    "formal/cpp/esbmc/imu_owner_support.hpp": "7e33850d8ffa7c24f2cd182995804dabbd3def5cbf0429d9174a833b183f6d18",
-    "integrations/px4/module/DeploymentProfile.hpp": "d665bc65cf9c6e8f2c3d1af0642ef8852e5e0d39455b047ef4b2e2165c030664",
+    "formal/cpp/esbmc/imu_owner_support.hpp": "a1a844da838694b3c6e88232e735faec690ebaf0983567dad49209905a26da3b",
+    "integrations/px4/module/DeploymentProfile.hpp": "2d9a4dff78996d82440e6f7dcc8feb5840a9266d88bafecbcc7c97903ffe1ae1",
     "integrations/px4/module/DeploymentConfig.hpp": "015b515863ec85cbc1ebd4994ea6c2b6a1a8191fea825a63f48fc7a72935a8dd",
-    "formal/cpp/esbmc/output/support.hpp": "b0cb7a6ebad3729f4f49396d2ba4c7a753a89da65b6a739061c8bbbf16f4e57e",
-    "formal/cpp/esbmc/output/frames.hpp": "774787b8c1f76730fd1b11531be998763e6eac815f5db022ca2b681c05cdeef5",
-    "formal/cpp/esbmc/output/boundary.hpp": "6b57e88d2a17acd5ce3b7048b3f21ed3461b9e6d4e096dd6083e20c39dd4fd76",
+    "formal/cpp/esbmc/output/support.hpp": "60c7e1465cec23c42abc52ae4f556a8c3960783b0348fdbf18bd795ab447aa60",
+    "formal/cpp/esbmc/output/frames.hpp": "8cd78b4983a56567c5fec18a1adaa6ba24036dad6c74b2475c499d83033d8502",
+    "formal/cpp/esbmc/output/boundary.hpp": "7031163e15200a73c6bba7bdec7f8d211209303923f1c31e88f39e7796c48781",
     "formal/cpp/esbmc/output/selected_frame.hpp": "dacd7d31b93ee2b39eeeb1dd01d3f991cd7729a8818d8e25b9cce823ed0a24ec",
 }
 HEADER = '''// Verification-only extracted source; production methods are unchanged.
@@ -40,7 +40,7 @@ using formal_eskf::succeeded;
 FOOTER = '} // namespace output_steps\n'
 ALIASES = {'value_type': 'Scalar', 'vector3_type': 'Vector', 'quaternion_type': 'Quaternion',
            'TrackingError': 'Output::TrackingError', 'Fault': 'Output::Fault'}
-MEMBERS = ('m_history', 'm_staged', 'm_current', 'm_fault', 'm_fusion_time_us', 'm_filter_interval_s',
+MEMBERS = ('m_parameters', 'm_rebase', 'm_history', 'm_staged', 'm_current', 'm_fault', 'm_fusion_time_us', 'm_filter_interval_s',
            'm_accel_bias', 'm_gyro_bias', 'm_angular_rate_correction', 'm_velocity_error_sum',
            'm_position_error_sum', 'm_error', 'm_tracking')
 
@@ -90,9 +90,9 @@ def function(SIGNATURE, BODY, LOCAL_BINDINGS=''):
 
 
 def generate_history(TEXT):
-    TRANSLATION = body(TEXT, 'bool OutputPredictor<Linalg>::stage_translation(')
-    COMMIT = body(TEXT, 'void OutputPredictor<Linalg>::commit_history()')
-    RESET = body(TEXT, 'bool OutputPredictor<Linalg>::apply_reset(')
+    TRANSLATION = body(TEXT, 'bool OutputPredictor<Linalg, Capacity>::stage_translation(')
+    COMMIT = body(TEXT, 'void OutputPredictor<Linalg, Capacity>::commit_history()')
+    RESET = body(TEXT, 'bool OutputPredictor<Linalg, Capacity>::apply_reset(')
     LOOP = 'for (std::size_t record = 0; record < count; ++record)'
     STAGE = body(TRANSLATION, 'for (std::size_t count = 0; count < m_history.entries(); ++count)')
     COPY = body(COMMIT, 'for (std::size_t count = 0; count < m_history.entries(); ++count)')
@@ -137,7 +137,7 @@ def generate_history(TEXT):
 
 
 def generate_feedback(TEXT):
-    BODY = body(TEXT, 'bool OutputPredictor<Linalg>::correct(')
+    BODY = body(TEXT, 'bool OutputPredictor<Linalg, Capacity>::correct(')
     NORMALIZE = BODY.index('    quaternion_type q_error;')
     NUMERICS = BODY.index('    value_type const sign_scale')
     FINISH = BODY.index('    if (!linalg::all_finite(angular_rate_correction)')
@@ -185,7 +185,8 @@ def generate_feedback(TEXT):
     INTERVAL_START = PARTS['numerics'].index('    auto const interval_s =')
     INTERVAL_END = PARTS['numerics'].index(';', INTERVAL_START) + 1
     INTERVAL = PARTS['numerics'][INTERVAL_START:INTERVAL_END]
-    INTERVAL_OUTPUT = '''inline Scalar interval_average(Scalar m_filter_interval_s, Sample const * sample)
+    INTERVAL_OUTPUT = '''inline Scalar interval_average(formal_eskf::runtime::OutputParameters const & m_parameters,
+                               Scalar m_filter_interval_s, Sample const * sample)
 {
     using value_type = Scalar;
 ''' + INTERVAL + '\n    return interval_s;\n}\n'
@@ -198,7 +199,7 @@ def generate(OUTPUT_DIR):
     for DIRECTORY in ('include', 'integrations', 'formal', 'tests', 'scripts', 'configs'):
         if OUTPUT_DIR.resolve().is_relative_to((REPO_DIR / DIRECTORY).resolve()):
             raise ValueError('verification output must not replace production or proof sources')
-    TEXT = (REPO_DIR / 'integrations/px4/module/OutputPredictor.hpp').read_text()
+    TEXT = (REPO_DIR / 'include/formal_eskf/runtime/session/output_predictor.hpp').read_text()
     HISTORY, HISTORY_PARTS = generate_history(TEXT)
     FEEDBACK, INTERVAL, FEEDBACK_PARTS = generate_feedback(TEXT)
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

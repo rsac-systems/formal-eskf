@@ -26,11 +26,11 @@ template <> ImuSample<output_proof::Backend> ImuInput<output_proof::Backend>::me
     return mean;
 }
 } // namespace formal_eskf::runtime
-namespace formal_eskf::px4
+namespace formal_eskf::runtime
 {
 template <>
-bool OutputPredictor<output_proof::Backend>::advance(Sample & candidate, ImuSample<output_proof::Backend> imu,
-                                                     value_type dt) const
+bool OutputPredictor<output_proof::Backend, 64>::advance(Sample & candidate, ImuSample<output_proof::Backend> imu,
+                                                         value_type dt) const
 {
     check();
     __ESBMC_assert(this == owner && advances < 2 && same_sample(candidate, pending),
@@ -69,7 +69,7 @@ bool OutputPredictor<output_proof::Backend>::advance(Sample & candidate, ImuSamp
     ++advances;
     return ok;
 }
-} // namespace formal_eskf::px4
+} // namespace formal_eskf::runtime
 template <> void formal_eskf::runtime::RingBuffer<output_proof::Sample, 64>::push(Sample const & sample)
 {
     check();
@@ -94,6 +94,7 @@ template <> void formal_eskf::runtime::RingBuffer<output_proof::Sample, 64>::pus
 void verify_output_prediction(Output object, Interval interval, Sample hold, Sample real, Rates rates,
                               bool hold_success, bool real_success)
 {
+    output_proof::bind_parameters(object);
     owner = &object;
     metadata(object);
     __ESBMC_assume(interval.sample.angular_period_us >= 3800 && interval.sample.angular_period_us <= 4200 &&
@@ -140,6 +141,7 @@ void verify_output_prediction(Output object, Interval interval, Sample hold, Sam
     {
         expected_fault = Output::Fault::numerical_failure;
     }
+    rebase_prepared = false;
     bool const accepted = object.predict(interval);
     __ESBMC_assert(accepted == expected &&
                        advances == static_cast<unsigned>(eligible && holding) + static_cast<unsigned>(run_real) &&
@@ -168,4 +170,5 @@ void verify_output_prediction(Output object, Interval interval, Sample hold, Sam
                            same(interval.held_rate.angular_rate_b(i), expected_interval.held_rate.angular_rate_b(i)),
                        "Output prediction preserves held input rates");
     }
+    output_proof::check_parameters(object);
 }
