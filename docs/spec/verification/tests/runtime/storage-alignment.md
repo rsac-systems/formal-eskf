@@ -3,7 +3,7 @@
 **Status:** Draft
 
 **Scope:** Portable fixed-capacity `RingBuffer`, retained IMU history and the
-exposed `TiltAlignment` operation. Delayed observation/context queues, output
+delayed observation/context queues and exposed `TiltAlignment` operation. Output
 predictors, height owners and module/replay wiring are outside this design.
 
 **Level and purpose:** Storage/alignment unit and sequence tests, compile-time API
@@ -35,6 +35,7 @@ the case tables identify executable bindings and remaining acceptance gaps.
 
 | Production header / public group | Cases / disposition |
 |---|---|
+| `history/observation_history.hpp`: configuration, source/context admission, selection, reset | `TC-R-OBSERVATION-HISTORY-01` |
 | `history/imu_history.hpp`: configure, seed, push, views, complete, reset | `TC-R-IMU-HISTORY-01` |
 | `ring_buffer.hpp`: explicit construction, deleted default/copy/move operations, allocate/valid | `TC-R-RING-BUFFER-01`, `02` |
 | `ring_buffer.hpp`: push, pop_first_older_than | `TC-R-RING-BUFFER-03` through `07`, `10` |
@@ -47,6 +48,15 @@ the case tables identify executable bindings and remaining acceptance gaps.
 | Case ID | Name | Requirement / clause | Conditions, inputs and action | Expected result and independent oracle | Executable test |
 |---|---|---|---|---|---|
 | TC-R-IMU-HISTORY-01 | IMU history: timing, storage and completion | [R-IMU-HISTORY](../../../requirements/runtime/history/imu-history.md) | Explicit/invalid profiles, capacity/age/period/lag boundaries, unequal periods, clipping/source changes, multiple wraps, gaps, loss, completion and restart. | Independent chronological queue, exact retained coefficients and watermarks, failure frames and inclusive/exclusive bounds; detects hidden defaults, skipped intervals and stale configuration. | Native: [test_history.cpp](../../../../../tests/runtime/imu/test_history.cpp) |
+
+## Delayed observation/context history
+
+The current case uses binary64 and the 250 Hz profile, with independent exact
+retention-capacity boundary fixtures. This does not qualify other rate profiles.
+
+| Case ID | Name | Requirement / clause | Conditions, inputs and action | Expected result and independent oracle | Executable test |
+|---|---|---|---|---|---|
+| TC-R-OBSERVATION-HISTORY-01 | Observation history: admission, generations and historical context | [R-OBSERVATION-HISTORY](../../../requirements/runtime/history/observation-history.md) | Invalid settings/capacity, seed, temporal limits, source changes including rejected arrivals, frozen offsets, repeated selection, retirement, wraps, future/late/stale context and restart. | Exact independently calculated epochs, payloads and counters; missing/rejected outputs preserve sentinels. Detects future context, generation reuse, time underflow, implicit defaults and double consumption. | Native: [test_observation_history.cpp](../../../../../tests/runtime/history/test_observation_history.cpp) |
 
 ## Fixed-capacity ring buffer
 

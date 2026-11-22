@@ -5,37 +5,24 @@
 #include <cstdint>
 
 #include <formal_eskf/runtime/history/imu_history.hpp>
-#include "DeploymentProfile.hpp"
 
-namespace formal_eskf::px4
+namespace formal_eskf::runtime
 {
 
 /**
- * Single-owner observation/context histories for PX4-TIME-OBSERVATIONS.
- * Inputs have PX4 monotonic sample timestamps; stored observation time_us is
- * the effective fusion epoch. No uORB, clock, projection or quality policy is
+ * Single-owner observation/context histories.
+ * Inputs have caller-supplied monotonic sample timestamps; stored observation time_us is
+ * the effective fusion epoch. No clock, projection or quality policy is
  * owned here. A queued event is not a quality pass or permission to fuse.
  */
-template <typename Linalg> class ObservationHistory
+template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacity, std::size_t BarometerCapacity,
+          std::size_t ContextCapacity>
+class ObservationHistory
 {
-    static constexpr auto retention_us = profile::history::maximum_lag_us +
-                                         profile::history::observation_maximum_age_us + profile::output::maximum_age_us;
-    static_assert(profile::history::gnss_capacity >=
-                  (retention_us + profile::history::gnss_spacing_us - 1) / profile::history::gnss_spacing_us + 2);
-    static_assert(profile::history::magnetic_capacity >=
-                  (retention_us + profile::history::magnetic_spacing_us - 1) / profile::history::magnetic_spacing_us +
-                      2);
-    static_assert(profile::history::barometer_capacity >=
-                  (retention_us + profile::history::barometer_spacing_us - 1) / profile::history::barometer_spacing_us +
-                      2);
-    static_assert((profile::history::context_capacity - 1) * profile::history::minimum_period_us >=
-                  profile::history::maximum_lag_us + profile::history::observation_maximum_age_us +
-                      profile::imu::maximum_interval_us);
-
 public:
     using value_type = typename Linalg::value_type;
     using vector3_type = linalg::Vector<Linalg, 3>;
-    using interval_type = runtime::ImuInterval<Linalg>;
+    using interval_type = ImuInterval<Linalg>;
 
     struct Source
     {
@@ -161,7 +148,12 @@ public:
         std::size_t retired{};
     };
 
-    [[nodiscard]] bool configure(runtime::TimingParameters const & parameters);
+    explicit ObservationHistory(ObservationTiming const & timing)
+        : m_timing(timing), m_average_period_us(timing.imu.filter_interval_us)
+    {
+    }
+
+    [[nodiscard]] bool configure(TimingParameters const & parameters, std::size_t imu_capacity);
     [[nodiscard]] bool seed(Seed const & initial);
     /** Exactly once per newly admitted real IMU interval; no synthetic context samples. */
     [[nodiscard]] bool record_imu(interval_type const & interval, LandState const & land, VehicleState const & vehicle);
@@ -201,6 +193,7 @@ private:
         std::uint64_t delay_us{}, arrival_age_us{}, spacing_us{};
     };
 
+    bool valid_timing() const;
     Context lookup_context(std::uint64_t time_us, std::uint64_t maximum_age_us) const;
     bool next_fusion(interval_type const & interval) const;
     static bool valid_seed_source(SourceStamp const & source, std::uint64_t epoch);
@@ -210,24 +203,50 @@ private:
                      std::uint64_t & effective_time_us);
     PopResult select(Timeline & timeline);
 
-    runtime::RingBuffer<GnssObservation, profile::history::gnss_capacity> m_gnss{profile::history::gnss_capacity};
-    runtime::RingBuffer<MagneticObservation, profile::history::magnetic_capacity> m_magnetic{
-        profile::history::magnetic_capacity};
-    runtime::RingBuffer<BarometerObservation, profile::history::barometer_capacity> m_barometer{
-        profile::history::barometer_capacity};
-    runtime::RingBuffer<Context, profile::history::context_capacity> m_context{profile::history::context_capacity};
+    RingBuffer<GnssObservation, GnssCapacity> m_gnss{GnssCapacity};
+    RingBuffer<MagneticObservation, MagneticCapacity> m_magnetic{MagneticCapacity};
+    RingBuffer<BarometerObservation, BarometerCapacity> m_barometer{BarometerCapacity};
+    RingBuffer<Context, ContextCapacity> m_context{ContextCapacity};
+    ObservationTiming m_timing{};
     Timeline m_gnss_time{}, m_magnetic_time{}, m_barometer_time{};
-    runtime::TimingConfiguration m_configuration{};
+    TimingConfiguration m_configuration{};
     std::uint64_t m_seed_time_us{}, m_latest_time_us{}, m_fusion_time_us{}, m_advanced_at_us{};
-    double m_average_period_us = profile::history::filter_interval_us;
+    double m_average_period_us{};
     bool m_configured{};
 }; /* end class ObservationHistory */
 
-template <typename Linalg> bool ObservationHistory<Linalg>::configure(runtime::TimingParameters const & parameters)
+template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacity, std::size_t BarometerCapacity,
+          std::size_t ContextCapacity>
+bool ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::valid_timing()
+    const
 {
-    runtime::TimingConfiguration candidate;
-    if (m_seed_time_us != 0 ||
-        !runtime::configure_timing(parameters, profile::history::timing, profile::history::imu_capacity, candidate))
+    if (!valid_imu_timing(m_timing.imu) || m_timing.maximum_age_us == 0 || m_timing.gnss_spacing_us == 0 ||
+        m_timing.magnetic_spacing_us == 0 || m_timing.barometer_spacing_us == 0 ||
+        !(m_timing.interval_history_weight >= 0. && m_timing.interval_history_weight <= 1.) ||
+        !(m_timing.interval_sample_weight >= 0. && m_timing.interval_sample_weight <= 1.) ||
+        m_timing.interval_history_weight + m_timing.interval_sample_weight != 1.)
+    {
+        return false;
+    }
+    std::uint64_t const retention_us =
+        static_cast<std::uint64_t>(m_timing.imu.maximum_lag_us) + m_timing.maximum_age_us + m_timing.imu.maximum_age_us;
+    std::uint64_t const context_retention_us = static_cast<std::uint64_t>(m_timing.imu.maximum_lag_us) +
+                                               m_timing.maximum_age_us + m_timing.imu.maximum_interval_us;
+    return GnssCapacity >= (retention_us + m_timing.gnss_spacing_us - 1) / m_timing.gnss_spacing_us + 2 &&
+           MagneticCapacity >= (retention_us + m_timing.magnetic_spacing_us - 1) / m_timing.magnetic_spacing_us + 2 &&
+           BarometerCapacity >=
+               (retention_us + m_timing.barometer_spacing_us - 1) / m_timing.barometer_spacing_us + 2 &&
+           ContextCapacity - 1 >=
+               (context_retention_us + m_timing.imu.minimum_period_us - 1) / m_timing.imu.minimum_period_us;
+}
+
+template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacity, std::size_t BarometerCapacity,
+          std::size_t ContextCapacity>
+bool ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::configure(
+    TimingParameters const & parameters, std::size_t imu_capacity)
+{
+    TimingConfiguration candidate;
+    if (m_seed_time_us != 0 || !valid_timing() || !configure_timing(parameters, m_timing.imu, imu_capacity, candidate))
     {
         return false;
     }
@@ -236,16 +255,19 @@ template <typename Linalg> bool ObservationHistory<Linalg>::configure(runtime::T
     return true;
 }
 
-template <typename Linalg>
-bool ObservationHistory<Linalg>::valid_seed_source(SourceStamp const & source, std::uint64_t epoch)
+template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacity, std::size_t BarometerCapacity,
+          std::size_t ContextCapacity>
+bool ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::valid_seed_source(
+    SourceStamp const & source, std::uint64_t epoch)
 {
     return source.time_us <= epoch && (source.source.device_id == 0 || source.time_us != 0);
 }
 
-template <typename Linalg>
-typename ObservationHistory<Linalg>::Context
-ObservationHistory<Linalg>::snapshot(Context const & previous, std::uint64_t time_us, LandState const & land,
-                                     VehicleState const & vehicle)
+template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacity, std::size_t BarometerCapacity,
+          std::size_t ContextCapacity>
+typename ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::Context
+ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::snapshot(
+    Context const & previous, std::uint64_t time_us, LandState const & land, VehicleState const & vehicle)
 {
     auto result = previous;
     result.time_us = time_us;
@@ -260,7 +282,10 @@ ObservationHistory<Linalg>::snapshot(Context const & previous, std::uint64_t tim
     return result;
 }
 
-template <typename Linalg> bool ObservationHistory<Linalg>::seed(Seed const & initial)
+template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacity, std::size_t BarometerCapacity,
+          std::size_t ContextCapacity>
+bool ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::seed(
+    Seed const & initial)
 {
     auto const epoch = initial.context.time_us;
     if (!m_configured || m_seed_time_us != 0 || epoch == 0 || !valid_seed_source(initial.gnss, epoch) ||
@@ -278,9 +303,10 @@ template <typename Linalg> bool ObservationHistory<Linalg>::seed(Seed const & in
     return true;
 }
 
-template <typename Linalg>
-bool ObservationHistory<Linalg>::record_imu(interval_type const & interval, LandState const & land,
-                                            VehicleState const & vehicle)
+template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacity, std::size_t BarometerCapacity,
+          std::size_t ContextCapacity>
+bool ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::record_imu(
+    interval_type const & interval, LandState const & land, VehicleState const & vehicle)
 {
     if (m_seed_time_us == 0 || interval.start_time_us != m_latest_time_us ||
         interval.time_us != interval.sample.time_us || interval.time_us <= m_latest_time_us)
@@ -288,7 +314,7 @@ bool ObservationHistory<Linalg>::record_imu(interval_type const & interval, Land
         return false;
     }
     auto const elapsed = interval.time_us - m_latest_time_us;
-    if (elapsed < profile::history::minimum_period_us || elapsed > profile::imu::maximum_interval_us)
+    if (elapsed < m_timing.imu.minimum_period_us || elapsed > m_timing.imu.maximum_interval_us)
     {
         return false;
     }
@@ -297,27 +323,33 @@ bool ObservationHistory<Linalg>::record_imu(interval_type const & interval, Land
     return true;
 }
 
-template <typename Linalg> bool ObservationHistory<Linalg>::next_fusion(interval_type const & interval) const
+template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacity, std::size_t BarometerCapacity,
+          std::size_t ContextCapacity>
+bool ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::next_fusion(
+    interval_type const & interval) const
 {
     auto const & sample = interval.sample;
     if (m_seed_time_us == 0 || m_advanced_at_us == m_latest_time_us || interval.start_time_us != m_fusion_time_us ||
         interval.time_us != sample.time_us || interval.time_us <= m_fusion_time_us ||
-        interval.time_us > m_latest_time_us || sample.angular_period_us < profile::history::minimum_period_us ||
-        sample.angular_period_us > profile::history::maximum_period_us ||
-        sample.acceleration_period_us < profile::history::minimum_period_us ||
-        sample.acceleration_period_us > profile::history::maximum_period_us)
+        interval.time_us > m_latest_time_us || sample.angular_period_us < m_timing.imu.minimum_period_us ||
+        sample.angular_period_us > m_timing.imu.maximum_period_us ||
+        sample.acceleration_period_us < m_timing.imu.minimum_period_us ||
+        sample.acceleration_period_us > m_timing.imu.maximum_period_us)
     {
         return false;
     }
     auto const lag = m_latest_time_us - interval.time_us;
-    if (lag < m_configuration.minimum_lag_us || lag > profile::history::maximum_lag_us)
+    if (lag < m_configuration.minimum_lag_us || lag > m_timing.imu.maximum_lag_us)
     {
         return false;
     }
     return true;
 }
 
-template <typename Linalg> bool ObservationHistory<Linalg>::begin_fusion(interval_type const & interval)
+template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacity, std::size_t BarometerCapacity,
+          std::size_t ContextCapacity>
+bool ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::begin_fusion(
+    interval_type const & interval)
 {
     if (!next_fusion(interval))
     {
@@ -327,16 +359,18 @@ template <typename Linalg> bool ObservationHistory<Linalg>::begin_fusion(interva
     // Match the main-filter period reference: mean of the two REAL integration periods, never the held gap.
     double const period_us = 0.5 * (static_cast<double>(sample.angular_period_us) + sample.acceleration_period_us);
     m_average_period_us =
-        profile::imu::interval_history_weight * m_average_period_us + profile::imu::interval_sample_weight * period_us;
+        m_timing.interval_history_weight * m_average_period_us + m_timing.interval_sample_weight * period_us;
     m_fusion_time_us = interval.time_us;
     m_advanced_at_us = m_latest_time_us;
     return true;
 }
 
-template <typename Linalg>
-typename ObservationHistory<Linalg>::PushResult
-ObservationHistory<Linalg>::admit(Timeline & timeline, SourceStamp const & stamp, std::uint64_t now_us,
-                                  Limits const & limits, std::uint64_t & effective_time_us)
+template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacity, std::size_t BarometerCapacity,
+          std::size_t ContextCapacity>
+typename ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::PushResult
+ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::admit(
+    Timeline & timeline, SourceStamp const & stamp, std::uint64_t now_us, Limits const & limits,
+    std::uint64_t & effective_time_us)
 {
     PushResult result;
     if (m_seed_time_us == 0)
@@ -367,7 +401,7 @@ ObservationHistory<Linalg>::admit(Timeline & timeline, SourceStamp const & stamp
     {
         result.decision = Admission::stale;
     }
-    else if (now_us - m_latest_time_us >= profile::output::maximum_age_us)
+    else if (now_us - m_latest_time_us >= m_timing.imu.maximum_age_us)
     {
         result.decision = Admission::imu_stale;
     }
@@ -396,14 +430,16 @@ ObservationHistory<Linalg>::admit(Timeline & timeline, SourceStamp const & stamp
     return result;
 }
 
-template <typename Linalg>
-typename ObservationHistory<Linalg>::PushResult ObservationHistory<Linalg>::push_gnss(GnssSample const & sample,
-                                                                                      std::uint64_t now_us)
+template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacity, std::size_t BarometerCapacity,
+          std::size_t ContextCapacity>
+typename ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::PushResult
+ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::push_gnss(
+    GnssSample const & sample, std::uint64_t now_us)
 {
     std::uint64_t time{};
     auto const delay = m_configuration.gnss_delay_us;
     auto result = admit(m_gnss_time, sample.stamp, now_us,
-                        {delay, profile::history::gnss_arrival_age_us, profile::history::gnss_spacing_us}, time);
+                        {delay, m_timing.imu.gnss_arrival_age_us, m_timing.gnss_spacing_us}, time);
     if (result.source_changed)
     {
         result.source_discarded = m_gnss.entries();
@@ -417,15 +453,16 @@ typename ObservationHistory<Linalg>::PushResult ObservationHistory<Linalg>::push
     return result;
 }
 
-template <typename Linalg>
-typename ObservationHistory<Linalg>::PushResult ObservationHistory<Linalg>::push_magnetic(MagneticSample const & sample,
-                                                                                          std::uint64_t now_us)
+template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacity, std::size_t BarometerCapacity,
+          std::size_t ContextCapacity>
+typename ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::PushResult
+ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::push_magnetic(
+    MagneticSample const & sample, std::uint64_t now_us)
 {
     std::uint64_t time{};
     auto const delay = m_configuration.magnetic_delay_us;
-    auto result =
-        admit(m_magnetic_time, sample.stamp, now_us,
-              {delay, profile::history::magnetic_arrival_age_us, profile::history::magnetic_spacing_us}, time);
+    auto result = admit(m_magnetic_time, sample.stamp, now_us,
+                        {delay, m_timing.imu.magnetic_arrival_age_us, m_timing.magnetic_spacing_us}, time);
     if (result.source_changed)
     {
         result.source_discarded = m_magnetic.entries();
@@ -439,15 +476,16 @@ typename ObservationHistory<Linalg>::PushResult ObservationHistory<Linalg>::push
     return result;
 }
 
-template <typename Linalg>
-typename ObservationHistory<Linalg>::PushResult
-ObservationHistory<Linalg>::push_barometer(BarometerSample const & sample, std::uint64_t now_us)
+template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacity, std::size_t BarometerCapacity,
+          std::size_t ContextCapacity>
+typename ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::PushResult
+ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::push_barometer(
+    BarometerSample const & sample, std::uint64_t now_us)
 {
     std::uint64_t time{};
     auto const delay = m_configuration.barometer_delay_us;
-    auto result =
-        admit(m_barometer_time, sample.stamp, now_us,
-              {delay, profile::history::barometer_arrival_age_us, profile::history::barometer_spacing_us}, time);
+    auto result = admit(m_barometer_time, sample.stamp, now_us,
+                        {delay, m_timing.imu.barometer_arrival_age_us, m_timing.barometer_spacing_us}, time);
     if (result.source_changed)
     {
         result.source_discarded = m_barometer.entries();
@@ -461,8 +499,11 @@ ObservationHistory<Linalg>::push_barometer(BarometerSample const & sample, std::
     return result;
 }
 
-template <typename Linalg>
-typename ObservationHistory<Linalg>::PopResult ObservationHistory<Linalg>::select(Timeline & timeline)
+template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacity, std::size_t BarometerCapacity,
+          std::size_t ContextCapacity>
+typename ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::PopResult
+ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::select(
+    Timeline & timeline)
 {
     if (m_advanced_at_us == 0)
     {
@@ -476,54 +517,62 @@ typename ObservationHistory<Linalg>::PopResult ObservationHistory<Linalg>::selec
     return {Selection::empty};
 }
 
-template <typename Linalg>
-typename ObservationHistory<Linalg>::PopResult ObservationHistory<Linalg>::pop_gnss(GnssObservation & output)
+template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacity, std::size_t BarometerCapacity,
+          std::size_t ContextCapacity>
+typename ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::PopResult
+ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::pop_gnss(
+    GnssObservation & output)
 {
     auto result = select(m_gnss_time);
     if (result.decision == Selection::empty)
     {
         auto const count = m_gnss.entries();
-        bool const selected =
-            m_gnss.pop_first_older_than(m_fusion_time_us, &output, profile::history::observation_maximum_age_us);
+        bool const selected = m_gnss.pop_first_older_than(m_fusion_time_us, &output, m_timing.maximum_age_us);
         result.decision = selected ? Selection::selected : Selection::empty;
         result.retired = count - m_gnss.entries() - static_cast<std::size_t>(selected);
     }
     return result;
 }
 
-template <typename Linalg>
-typename ObservationHistory<Linalg>::PopResult ObservationHistory<Linalg>::pop_magnetic(MagneticObservation & output)
+template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacity, std::size_t BarometerCapacity,
+          std::size_t ContextCapacity>
+typename ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::PopResult
+ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::pop_magnetic(
+    MagneticObservation & output)
 {
     auto result = select(m_magnetic_time);
     if (result.decision == Selection::empty)
     {
         auto const count = m_magnetic.entries();
-        bool const selected =
-            m_magnetic.pop_first_older_than(m_fusion_time_us, &output, profile::history::observation_maximum_age_us);
+        bool const selected = m_magnetic.pop_first_older_than(m_fusion_time_us, &output, m_timing.maximum_age_us);
         result.decision = selected ? Selection::selected : Selection::empty;
         result.retired = count - m_magnetic.entries() - static_cast<std::size_t>(selected);
     }
     return result;
 }
 
-template <typename Linalg>
-typename ObservationHistory<Linalg>::PopResult ObservationHistory<Linalg>::pop_barometer(BarometerObservation & output)
+template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacity, std::size_t BarometerCapacity,
+          std::size_t ContextCapacity>
+typename ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::PopResult
+ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::pop_barometer(
+    BarometerObservation & output)
 {
     auto result = select(m_barometer_time);
     if (result.decision == Selection::empty)
     {
         auto const count = m_barometer.entries();
-        bool const selected =
-            m_barometer.pop_first_older_than(m_fusion_time_us, &output, profile::history::observation_maximum_age_us);
+        bool const selected = m_barometer.pop_first_older_than(m_fusion_time_us, &output, m_timing.maximum_age_us);
         result.decision = selected ? Selection::selected : Selection::empty;
         result.retired = count - m_barometer.entries() - static_cast<std::size_t>(selected);
     }
     return result;
 }
 
-template <typename Linalg>
-typename ObservationHistory<Linalg>::Context ObservationHistory<Linalg>::context(std::uint64_t time_us,
-                                                                                 std::uint64_t maximum_age_us) const
+template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacity, std::size_t BarometerCapacity,
+          std::size_t ContextCapacity>
+typename ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::Context
+ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::context(
+    std::uint64_t time_us, std::uint64_t maximum_age_us) const
 {
     if (m_seed_time_us == 0 || time_us < m_seed_time_us || time_us > m_fusion_time_us)
     {
@@ -532,16 +581,20 @@ typename ObservationHistory<Linalg>::Context ObservationHistory<Linalg>::context
     return lookup_context(time_us, maximum_age_us);
 }
 
-template <typename Linalg>
-typename ObservationHistory<Linalg>::Context
-ObservationHistory<Linalg>::prediction_context(interval_type const & interval, std::uint64_t maximum_age_us) const
+template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacity, std::size_t BarometerCapacity,
+          std::size_t ContextCapacity>
+typename ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::Context
+ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::prediction_context(
+    interval_type const & interval, std::uint64_t maximum_age_us) const
 {
     return next_fusion(interval) ? lookup_context(interval.time_us, maximum_age_us) : Context{};
 }
 
-template <typename Linalg>
-typename ObservationHistory<Linalg>::Context
-ObservationHistory<Linalg>::lookup_context(std::uint64_t time_us, std::uint64_t maximum_age_us) const
+template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacity, std::size_t BarometerCapacity,
+          std::size_t ContextCapacity>
+typename ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::Context
+ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::lookup_context(
+    std::uint64_t time_us, std::uint64_t maximum_age_us) const
 {
     auto index = (m_context.get_oldest_index() + m_context.entries()) % m_context.get_length();
     for (std::size_t count = 0; count < m_context.entries(); ++count)
@@ -552,7 +605,7 @@ ObservationHistory<Linalg>::lookup_context(std::uint64_t time_us, std::uint64_t 
         {
             continue;
         }
-        if (time_us - sample.time_us >= profile::imu::maximum_interval_us)
+        if (time_us - sample.time_us >= m_timing.imu.maximum_interval_us)
         {
             return {};
         }
@@ -564,7 +617,9 @@ ObservationHistory<Linalg>::lookup_context(std::uint64_t time_us, std::uint64_t 
     return {};
 }
 
-template <typename Linalg> void ObservationHistory<Linalg>::reset()
+template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacity, std::size_t BarometerCapacity,
+          std::size_t ContextCapacity>
+void ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::reset()
 {
     m_gnss.reset();
     m_magnetic.reset();
@@ -577,7 +632,7 @@ template <typename Linalg> void ObservationHistory<Linalg>::reset()
     m_latest_time_us = 0;
     m_fusion_time_us = 0;
     m_advanced_at_us = 0;
-    m_average_period_us = profile::history::filter_interval_us;
+    m_average_period_us = m_timing.imu.filter_interval_us;
 }
 
-} /* end namespace formal_eskf::px4 */
+} /* end namespace formal_eskf::runtime */

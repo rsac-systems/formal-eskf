@@ -51,6 +51,7 @@ void formal_eskf::runtime::RingBuffer<Observations::Context, 128>::push(Observat
 
 void verify_observation_seed(Observations owner, Observations::Seed initial)
 {
+    observation_proof::assume_timing(owner);
     auto const count = imu_proof::nondet_index();
     auto const oldest = imu_proof::nondet_index();
     __ESBMC_assume(count <= 128 && oldest < 128);
@@ -105,4 +106,5 @@ void verify_observation_seed(Observations owner, Observations::Seed initial)
                        initial.barometer.source.device_id == input.barometer.source.device_id &&
                        initial.barometer.source.calibration_count == input.barometer.source.calibration_count,
                    "Seed preserves complete external input");
+    observation_proof::check_timing(owner);
 }

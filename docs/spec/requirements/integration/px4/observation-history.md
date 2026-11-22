@@ -8,84 +8,36 @@
 
 **Parent:** [SW-PX4](../../software/px4-estimation.md).
 
+**Uses:** [R-OBSERVATION-HISTORY](../../runtime/history/observation-history.md).
+
 ## Required behavior
 
-`px4::ObservationHistory` owns source time admission and retained observations /
-context under [the deployment profile](../../../profiles/px4-sih-250hz.md).
-It does not own numerical validation, source qualification, lifecycle or fusion.
+The adapter shall bind the portable observation/context history to the
+[deployment profile](../../../profiles/px4-sih-250hz.md), with the actual IMU backing
+capacity and common timing request. Keep source arrival/spacing bounds, queue
+capacities and `0.99`/`0.01` period weights unchanged.
 
-- Validate startup timing settings. Seed at a nonzero alignment epoch with
-  timestamped context, explicit known/unknown flags and existing source watermarks.
-  Reject invalid/repeated seeds and live reconfiguration without mutation. Never
-  replay pre-seed events as new corrections.
-- Record one context snapshot per admitted real IMU endpoint. Preserve original
-  message times and explicit known flags; reject IMU sequence errors. Future or
-  late-arriving messages cannot rewrite past snapshots. Held gaps are not evidence.
-- Admit source observations in monotonic raw-time order using explicit arrival
-  clocks, per-source age bounds, effective-time spacing and current IMU freshness.
-  Check offset subtraction before use. Retain raw/effective/arrival epochs, source
-  identity, calibration and frozen offsets; keep watermarks across empty buffers.
-- Apply source/calibration invalidation before rate/age rejection: clear only
-  that source's pending generation and report the change/loss. Retain a generation
-  counter through switch-away/back so identity equality cannot preserve obsolete
-  qualification. Keep raw numerical
-  and quality metadata for delayed validation; queued does not mean usable.
-- Begin fusion only at the next admitted delayed interval, within lag bounds and
-  once per latest IMU endpoint. Update the half-period reference from delayed real
-  integration periods. Main numerical success remains a caller premise.
-- Select each source at most once per fusion step: newest unconsumed event at or
-  before the horizon, strictly within the age window. Retire older superseded or
-  expired records with counts, preserve future entries, and preserve output on
-  a miss. Share the selected GNSS event across all GNSS consumers.
-- Resolve context at/before the requested effective epoch using original message
-  age. Missing/stale/explicit unknown context cannot grant fusion permission.
-  Before prediction, permit a read-only context lookup for exactly the next
-  admissible delayed interval, with the same sequence/lag checks as begin-fusion.
-  This grants neither observation selection nor a second advance.
-- Use fixed bounded storage/work; report aiding overwrites without claiming a
-  successful fusion or moving the horizon. Reset clears temporal state while
-  retaining configuration. Rejected IMU record/fusion sequence operations must
-  not partially advance it; source admission follows the watermark rules below.
+Convert GNSS, magnetic and barometer messages to the portable raw sample records,
+retaining original sample/arrival times, source identity/calibration and quality
+metadata. Queueing shall not establish quality or fusion success. Transport
+loss remains a separate adapter diagnostic.
 
-Verification must cover the concrete payloads, owner frames, source provenance
-and temporal protocol in addition to the reusable ring contract. The
-[verification guide](../../../../guides/verification.md#delayed-observations-and-context)
-defines producer/caller composition and evidence limits. Live policy/time binding
-belongs to [R-PX4-DELAYED-FUSION](delayed-fusion.md); target storage, stack and
-WCET need separate evidence.
+Transfer strict-startup source watermarks and land/vehicle context at the common
+seed epoch. Record context once per admitted real IMU endpoint with original
+message times and known flags; held gaps are not new evidence. This endpoint
+snapshot design differs from PX4's system-flag event buffer.
 
-### Admission and context details
+Invoke the portable selection and historical-context operations according to
+[R-PX4-DELAYED-FUSION](delayed-fusion.md). Share one selected GNSS event among its
+consumers. Handle rejection, overwrite, generation change and missing context
+without refreshing fusion/qualification timestamps. Stop on IMU sequence failure.
 
-Use [the deployment profile](../../../profiles/px4-sih-250hz.md) for timestamp
-bindings, offsets, ages, capacities and bounded-work limits.
+## Acceptance and verification
 
-Repeated context timestamps shall not overwrite values or refresh age. Late
-messages cannot backfill older snapshots. Reject inconsistent/future seed
-watermarks without mutation; transfer qualification separately at the seed epoch.
-
-Valid newer source timestamps advance the raw watermark even when a later
-admission check rejects them. Duplicate/older raw timestamps retain raw, source,
-generation and admitted-time watermarks; a valid arrival clock can still advance.
-Impossible times or arrival/IMU clock regression preserve the timeline.
-A nonzero source/calibration change, or device ID zero
-at a valid newer timestamp, clears that source's pending history even if the
-payload fails age/rate/IMU-freshness checks. Preserve rate watermarks across the
-switch and report the discarded count, source change, rejection reason and any
-oldest-record overwrite. Source generations advance even for rejected payloads.
-
-At begin_fusion, update the mean period in microseconds as
-`0.99 * previous + 0.01 * (angular_period + acceleration_period) / 2` using only
-real delayed intervals. Admission freezes `floor(mean_period / 2)` in each event;
-queued timestamps never change. Context snapshots use actual IMU endpoints and
-original message times, without this half-period offset. This differs from PX4's
-system-flag event buffer. Ordinary `context()` lookup cannot exceed the begun
-fusion epoch; `prediction_context()` separately permits only the next admissible
-delayed interval before prediction. Neither lookup advances selection/history.
-Rejected IMU record/fusion sequence operations preserve state; callers stop
-rather than skip work. Source admission follows the watermark mutation rules above.
-
-Queueing preserves raw numerical/quality data, including invalid velocity,
-spoofing indicators and non-finite payloads, for delayed validators. It never
-advances qualification, alignment, fusion or reset counters. Current failures may
-veto use without rewriting past qualification. uORB generation loss is a separate
-adapter diagnostic.
+Portable admission, selection, retention, frame and generation obligations belong
+to R-OBSERVATION-HISTORY. Verify adapter conversions, seed/caller ordering and
+context provenance against that contract. Compare delayed epochs and decisions
+under the deployed profile, including source changes and no-IMU arrivals.
+The [verification guide](../../../../guides/verification.md#delayed-observations-and-context)
+records source-proof composition limits. Component evidence does not establish
+live caller correctness, target stack or WCET.

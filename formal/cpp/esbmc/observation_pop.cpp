@@ -148,6 +148,7 @@ bool formal_eskf::runtime::RingBuffer<Record, capacity>::pop_first_older_than(st
 
 void verify_observation_pop(Observations owner, Record output)
 {
+    observation_proof::assume_timing(owner);
     auto const count = imu_proof::nondet_index();
     auto const oldest = imu_proof::nondet_index();
     __ESBMC_assume(count <= capacity && oldest < capacity);
@@ -427,4 +428,5 @@ void verify_observation_pop(Observations owner, Record output)
             (eligible && published ? published_output.sample.stamp.source.calibration_count : output_tags[0]),
         "Pop output publication or failure frame sample.stamp.source.calibration_count");
 #endif
+    observation_proof::check_timing(owner);
 }

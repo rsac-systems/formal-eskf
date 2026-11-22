@@ -2,11 +2,11 @@
 #pragma once
 #include "imu_owner_support.hpp"
 #define private public
-#include "../../../integrations/px4/module/ObservationHistory.hpp"
+#include <formal_eskf/runtime/history/observation_history.hpp>
 #undef private
 namespace observation_proof
 {
-using Observations = formal_eskf::px4::ObservationHistory<imu_proof::Backend>;
+using Observations = formal_eskf::runtime::ObservationHistory<imu_proof::Backend, 16, 64, 128, 128>;
 using Timeline = Observations::Timeline;
 using Stamp = Observations::SourceStamp;
 using Limits = Observations::Limits;
@@ -51,6 +51,27 @@ inline bool same_double(double a, double b)
 {
     return (__builtin_bit_cast(std::uint64_t, a) == __builtin_bit_cast(std::uint64_t, b)) |
            (std::isnan(a) & std::isnan(b));
+}
+inline bool same_timing(formal_eskf::runtime::ObservationTiming const & a,
+                        formal_eskf::runtime::ObservationTiming const & b)
+{
+    return imu_proof::same_timing(a.imu, b.imu) && a.maximum_age_us == b.maximum_age_us &&
+           a.gnss_spacing_us == b.gnss_spacing_us && a.magnetic_spacing_us == b.magnetic_spacing_us &&
+           a.barometer_spacing_us == b.barometer_spacing_us &&
+           same_double(a.interval_history_weight, b.interval_history_weight) &&
+           same_double(a.interval_sample_weight, b.interval_sample_weight);
+}
+
+// These profiles bind the original deployment settings, formerly compile-time constants.
+// The constructor copies them; every owner operation must preserve the copy.
+inline void assume_timing(Observations const & owner)
+{
+    __ESBMC_assume(same_timing(owner.m_timing, profile::history::observation_timing));
+}
+inline void check_timing(Observations const & owner)
+{
+    __ESBMC_assert(same_timing(owner.m_timing, profile::history::observation_timing),
+                   "Owner preserves every observation timing field");
 }
 inline bool same_interval(imu_proof::Interval const & a, imu_proof::Interval const & b)
 {

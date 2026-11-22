@@ -141,8 +141,9 @@ void check_empty(Observations const & owner)
 
 void verify_observation_constructor()
 {
-    Observations owner;
+    Observations owner{observation_proof::profile::history::observation_timing};
     check_empty(owner);
+    observation_proof::check_timing(owner);
     __ESBMC_assert(owner.m_gnss.m_length == 16 && owner.m_magnetic.m_length == 64 &&
                        owner.m_barometer.m_length == 128 && owner.m_context.m_length == 128,
                    "Constructor allocates exact profile capacities");
@@ -153,6 +154,7 @@ void verify_observation_constructor()
 
 void verify_observation_reset(Observations owner)
 {
+    observation_proof::assume_timing(owner);
     auto const configuration = owner.m_configuration;
     auto const configured = owner.m_configured;
     auto const gnss_length = owner.m_gnss.m_length;
@@ -167,4 +169,5 @@ void verify_observation_reset(Observations owner)
     __ESBMC_assert(owner.m_configured == configured &&
                        imu_proof::same_configuration(owner.m_configuration, configuration),
                    "Owner reset retains complete configuration");
+    observation_proof::check_timing(owner);
 }

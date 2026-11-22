@@ -30,6 +30,7 @@ void verify_observation_storage_frame(Observations owner, Stamp stamp, std::uint
                                       std::uint64_t effective, unsigned char action, imu_proof::Interval interval,
                                       formal_eskf::runtime::TimingParameters parameters)
 {
+    observation_proof::assume_timing(owner);
     __ESBMC_assume(owner.m_average_period_us >= 3800. && owner.m_average_period_us <= 4200.);
 #if FORMAL_ESKF_PROOF_FRAME == 0
     auto const gnss_length = owner.m_gnss.m_length;
@@ -162,7 +163,7 @@ void verify_observation_storage_frame(Observations owner, Stamp stamp, std::uint
         (void)owner.begin_fusion(interval);
         break;
     case FrameAction::configure:
-        (void)owner.configure(parameters);
+        (void)owner.configure(parameters, 64);
         break;
     case FrameAction::next_fusion:
         (void)owner.next_fusion(interval);
@@ -327,4 +328,5 @@ void verify_observation_storage_frame(Observations owner, Stamp stamp, std::uint
                        "Complete storage frame context.vehicle.fixed_wing");
     }
 #endif
+    observation_proof::check_timing(owner);
 }

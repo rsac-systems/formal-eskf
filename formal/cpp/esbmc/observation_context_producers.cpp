@@ -6,6 +6,7 @@ static_assert(FORMAL_ESKF_PROOF_FRAME == 4);
 void verify_context_step(observation_proof::Observations owner, std::uint64_t query, std::uint64_t age,
                          observation_proof::Observations::Context result)
 {
+    observation_proof::assume_timing(owner);
     constexpr std::size_t chosen = FORMAL_ESKF_PROOF_SLOT;
     static_assert(chosen < 128);
     std::size_t cursor = chosen == 127 ? 0 : chosen + 1;
@@ -36,7 +37,8 @@ void verify_context_step(observation_proof::Observations owner, std::uint64_t qu
                                        : old_output.vehicle.known;
     bool const expected_flags_5 = stop ? fresh && context_flags[chosen][5] : old_output.vehicle.armed;
     bool const expected_flags_6 = stop ? fresh && context_flags[chosen][6] : old_output.vehicle.fixed_wing;
-    auto const stopped = context_step(owner, cursor, query, age, result);
+    auto const stopped = observation_steps::context_step(owner, cursor, query, age, result);
+    observation_proof::check_timing(owner);
     __ESBMC_assert(stopped == stop && cursor == chosen, "Context step exact match and reverse cursor");
     __ESBMC_assert(result.time_us == expected_integers_0, "Context exact lookup/publication time_us");
     __ESBMC_assert(result.land.time_us == expected_integers_1, "Context exact lookup/publication land.time_us");

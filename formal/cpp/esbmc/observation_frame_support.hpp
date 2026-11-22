@@ -21,6 +21,7 @@ static_assert(FORMAL_ESKF_PROOF_FRAME == 4 ? FORMAL_ESKF_PROOF_CHUNK == 0
 static_assert(FORMAL_ESKF_PROOF_FRAME == 4 || frame_end <= frame_capacity);
 Observations::Timeline expected_gnss_time, expected_magnetic_time, expected_barometer_time;
 formal_eskf::runtime::TimingConfiguration expected_configuration;
+formal_eskf::runtime::ObservationTiming expected_timing;
 std::uint64_t expected_seed, expected_latest, expected_fusion, expected_advanced;
 double expected_average;
 bool expected_configured;
@@ -31,6 +32,7 @@ void capture_metadata()
     expected_magnetic_time = expected_owner->m_magnetic_time;
     expected_barometer_time = expected_owner->m_barometer_time;
     expected_configuration = expected_owner->m_configuration;
+    expected_timing = expected_owner->m_timing;
     expected_seed = expected_owner->m_seed_time_us;
     expected_latest = expected_owner->m_latest_time_us;
     expected_fusion = expected_owner->m_fusion_time_us;
@@ -60,6 +62,7 @@ void check_metadata()
                        same_timeline(expected_owner->m_magnetic_time, expected_magnetic_time) &&
                        same_timeline(expected_owner->m_barometer_time, expected_barometer_time) &&
                        imu_proof::same_configuration(expected_owner->m_configuration, expected_configuration) &&
+                       observation_proof::same_timing(expected_owner->m_timing, expected_timing) &&
                        expected_owner->m_seed_time_us == expected_seed &&
                        expected_owner->m_latest_time_us == expected_latest &&
                        expected_owner->m_fusion_time_us == expected_fusion &&
@@ -107,6 +110,7 @@ void assume_metadata()
         same_timeline(expected_owner->m_magnetic_time, expected_magnetic_time) &&
         same_timeline(expected_owner->m_barometer_time, expected_barometer_time) &&
         imu_proof::same_configuration(expected_owner->m_configuration, expected_configuration) &&
+        observation_proof::same_timing(expected_owner->m_timing, expected_timing) &&
         expected_owner->m_seed_time_us == expected_seed && expected_owner->m_latest_time_us == expected_latest &&
         expected_owner->m_fusion_time_us == expected_fusion && expected_owner->m_advanced_at_us == expected_advanced &&
         expected_owner->m_configured == expected_configured &&

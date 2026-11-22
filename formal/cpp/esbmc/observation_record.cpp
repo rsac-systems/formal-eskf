@@ -27,9 +27,8 @@ std::size_t expected_previous_index;
 // Snapshot itself returns an arbitrary value under its separately proved pure
 // contract; no timestamp/content formula is assumed by this caller proof.
 template <>
-Context
-formal_eskf::px4::ObservationHistory<imu_proof::Backend>::snapshot(Context const & previous, std::uint64_t time_us,
-                                                                   LandState const & land, VehicleState const & vehicle)
+Context formal_eskf::runtime::ObservationHistory<imu_proof::Backend, 16, 64, 128, 128>::snapshot(
+    Context const & previous, std::uint64_t time_us, LandState const & land, VehicleState const & vehicle)
 {
     check_metadata();
     check_storage();
@@ -73,6 +72,7 @@ template <> void formal_eskf::runtime::RingBuffer<Context, 128>::push(Context co
 void verify_context_record(Observations owner, imu_proof::Interval interval, Observations::LandState land,
                            Observations::VehicleState vehicle)
 {
+    observation_proof::assume_timing(owner);
     auto const count = imu_proof::nondet_index();
     auto const oldest = imu_proof::nondet_index();
     __ESBMC_assume(count <= 128 && oldest < 128);
@@ -107,4 +107,5 @@ void verify_context_record(Observations owner, imu_proof::Interval interval, Obs
     expected_latest = expected ? interval.time_us : latest;
     check_metadata();
     check_storage();
+    observation_proof::check_timing(owner);
 }

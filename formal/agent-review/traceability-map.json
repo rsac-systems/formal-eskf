@@ -6919,6 +6919,10 @@
           {
             "file": "docs/spec/requirements/integration/px4/observation-history.md",
             "symbol": "# R-PX4-OBSERVATION-HISTORY: delayed observations and context"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/history/observation-history.md",
+            "symbol": "# R-OBSERVATION-HISTORY: delayed observations and context"
           }
         ],
         "lean": [
@@ -7137,72 +7141,72 @@
         ],
         "cpp": [
           {
-            "file": "integrations/px4/module/ObservationHistory.hpp",
+            "file": "include/formal_eskf/runtime/history/observation_history.hpp",
             "symbol": "class ObservationHistory"
           },
           {
-            "file": "integrations/px4/module/ObservationHistory.hpp",
-            "symbol": "ObservationHistory<Linalg>::configure("
+            "file": "include/formal_eskf/runtime/history/observation_history.hpp",
+            "symbol": "ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::configure("
           },
           {
-            "file": "integrations/px4/module/ObservationHistory.hpp",
-            "symbol": "ObservationHistory<Linalg>::seed("
+            "file": "include/formal_eskf/runtime/history/observation_history.hpp",
+            "symbol": "ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::seed("
           },
           {
-            "file": "integrations/px4/module/ObservationHistory.hpp",
-            "symbol": "ObservationHistory<Linalg>::record_imu("
+            "file": "include/formal_eskf/runtime/history/observation_history.hpp",
+            "symbol": "ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::record_imu("
           },
           {
-            "file": "integrations/px4/module/ObservationHistory.hpp",
-            "symbol": "ObservationHistory<Linalg>::begin_fusion("
+            "file": "include/formal_eskf/runtime/history/observation_history.hpp",
+            "symbol": "ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::begin_fusion("
           },
           {
-            "file": "integrations/px4/module/ObservationHistory.hpp",
-            "symbol": "ObservationHistory<Linalg>::admit("
+            "file": "include/formal_eskf/runtime/history/observation_history.hpp",
+            "symbol": "ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::admit("
           },
           {
-            "file": "integrations/px4/module/ObservationHistory.hpp",
-            "symbol": "ObservationHistory<Linalg>::push_gnss("
+            "file": "include/formal_eskf/runtime/history/observation_history.hpp",
+            "symbol": "ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::push_gnss("
           },
           {
-            "file": "integrations/px4/module/ObservationHistory.hpp",
-            "symbol": "ObservationHistory<Linalg>::push_magnetic("
+            "file": "include/formal_eskf/runtime/history/observation_history.hpp",
+            "symbol": "ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::push_magnetic("
           },
           {
-            "file": "integrations/px4/module/ObservationHistory.hpp",
-            "symbol": "ObservationHistory<Linalg>::push_barometer("
+            "file": "include/formal_eskf/runtime/history/observation_history.hpp",
+            "symbol": "ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::push_barometer("
           },
           {
-            "file": "integrations/px4/module/ObservationHistory.hpp",
-            "symbol": "ObservationHistory<Linalg>::pop_gnss("
+            "file": "include/formal_eskf/runtime/history/observation_history.hpp",
+            "symbol": "ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::pop_gnss("
           },
           {
-            "file": "integrations/px4/module/ObservationHistory.hpp",
-            "symbol": "ObservationHistory<Linalg>::pop_magnetic("
+            "file": "include/formal_eskf/runtime/history/observation_history.hpp",
+            "symbol": "ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::pop_magnetic("
           },
           {
-            "file": "integrations/px4/module/ObservationHistory.hpp",
-            "symbol": "ObservationHistory<Linalg>::pop_barometer("
+            "file": "include/formal_eskf/runtime/history/observation_history.hpp",
+            "symbol": "ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::pop_barometer("
           },
           {
-            "file": "integrations/px4/module/ObservationHistory.hpp",
-            "symbol": "ObservationHistory<Linalg>::context("
+            "file": "include/formal_eskf/runtime/history/observation_history.hpp",
+            "symbol": "ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::context("
           },
           {
-            "file": "integrations/px4/module/ObservationHistory.hpp",
-            "symbol": "ObservationHistory<Linalg>::reset()"
+            "file": "include/formal_eskf/runtime/history/observation_history.hpp",
+            "symbol": "ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::reset()"
           },
           {
-            "file": "integrations/px4/module/ObservationHistory.hpp",
-            "symbol": "ObservationHistory<Linalg>::prediction_context("
+            "file": "include/formal_eskf/runtime/history/observation_history.hpp",
+            "symbol": "ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::prediction_context("
           },
           {
-            "file": "integrations/px4/module/ObservationHistory.hpp",
-            "symbol": "ObservationHistory<Linalg>::next_fusion("
+            "file": "include/formal_eskf/runtime/history/observation_history.hpp",
+            "symbol": "ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::next_fusion("
           },
           {
-            "file": "integrations/px4/module/ObservationHistory.hpp",
-            "symbol": "ObservationHistory<Linalg>::lookup_context("
+            "file": "include/formal_eskf/runtime/history/observation_history.hpp",
+            "symbol": "ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::lookup_context("
           }
         ],
         "esbmc": [

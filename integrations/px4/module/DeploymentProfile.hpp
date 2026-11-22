@@ -235,6 +235,13 @@ inline constexpr runtime::TimingParameters parameters{filter_interval_us, fusion
 inline constexpr runtime::ImuTiming timing{
     filter_interval_us,     minimum_period_us, maximum_period_us,   imu::maximum_interval_us, imu::gap_tolerance_us,
     output::maximum_age_us, maximum_lag_us,    gnss_arrival_age_us, magnetic_arrival_age_us,  barometer_arrival_age_us};
+inline constexpr runtime::ObservationTiming observation_timing{timing,
+                                                               observation_maximum_age_us,
+                                                               gnss_spacing_us,
+                                                               magnetic_spacing_us,
+                                                               barometer_spacing_us,
+                                                               imu::interval_history_weight,
+                                                               imu::interval_sample_weight};
 } // namespace history
 
 // SITL scheduling profile; target resource acceptance is separate.

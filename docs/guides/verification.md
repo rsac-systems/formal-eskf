@@ -517,6 +517,13 @@ floating-point error and target resource bounds remain separate.
 
 ### Delayed observations and context
 
+Observation histories now take copied timing settings and explicit fixed capacities.
+Existing source profiles bind the PX4 250 Hz settings and original queue sizes;
+constructor and operation frames check those copied settings. These profiles do
+not establish arbitrary-setting/rate correctness. PX4 caller binding remains
+separate from the portable owner contract.
+
+
 The observation contracts concern the single-owner `ObservationHistory` and its
 actual fixed profile: GNSS 16, magnetic 64, barometer 128 and context 128 slots.
 Both scalar formats use the 64-bit word model and qualified reference/IEEE-frame

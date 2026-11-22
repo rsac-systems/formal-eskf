@@ -61,6 +61,12 @@ struct Owner
                        "IMU startup receives the deployment timing bounds");
         return configure(timing);
     }
+    bool configure(Timing const & timing, std::size_t capacity)
+    {
+        __ESBMC_assert(identity == 1 && capacity == profile::history::imu_capacity,
+                       "Observation startup receives the actual IMU capacity");
+        return configure(timing);
+    }
     bool configure(Timing const & timing)
     {
         __ESBMC_assert(services.parameter_reads == 5 && services.configuration_calls == identity,

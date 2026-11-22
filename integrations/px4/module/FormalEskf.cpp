@@ -65,8 +65,8 @@ bool FormalEskf::load_timing_parameters()
         param_get(param_find("FESKF_GPS_DLY"), &timing.gnss_delay_ms) != 0 ||
         param_get(param_find("FESKF_MAG_DLY"), &timing.magnetic_delay_ms) != 0 ||
         param_get(param_find("FESKF_BARO_DLY"), &timing.barometer_delay_ms) != 0 ||
-        !m_imu_history.configure(timing, profile::history::timing) || !m_observations.configure(timing) ||
-        !m_output.configure(timing))
+        !m_imu_history.configure(timing, profile::history::timing) ||
+        !m_observations.configure(timing, profile::history::imu_capacity) || !m_output.configure(timing))
     {
         PX4_ERR("unsupported delayed-fusion timing settings");
         return false;

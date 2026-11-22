@@ -33,6 +33,18 @@ inline bool valid_imu_timing(ImuTiming const & timing)
            timing.gap_tolerance_us <= timing.maximum_interval_us && timing.maximum_lag_us > 0;
 }
 
+/** Fixed admission/retention settings, copied at construction; units are microseconds. */
+struct ObservationTiming
+{
+    ImuTiming imu{};
+    std::uint32_t maximum_age_us{};
+    std::uint32_t gnss_spacing_us{};
+    std::uint32_t magnetic_spacing_us{};
+    std::uint32_t barometer_spacing_us{};
+    double interval_history_weight{};
+    double interval_sample_weight{};
+};
+
 /** Requested timing in signed startup units; the deployment supplies defaults. */
 struct TimingParameters
 {

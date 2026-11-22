@@ -228,6 +228,7 @@ template <> void formal_eskf::runtime::RingBuffer<Record, capacity>::push(Record
 
 void verify_observation_enqueue(Observations owner, Sample sample, std::uint64_t now)
 {
+    observation_proof::assume_timing(owner);
     auto const count = imu_proof::nondet_index();
     auto const oldest = imu_proof::nondet_index();
     __ESBMC_assume(count <= capacity && oldest < capacity);
@@ -363,4 +364,5 @@ void verify_observation_enqueue(Observations owner, Sample sample, std::uint64_t
     __ESBMC_assert(sample.stamp.source.calibration_count == expected_sample.stamp.source.calibration_count,
                    "Push external input frame sample.stamp.source.calibration_count");
 #endif
+    observation_proof::check_timing(owner);
 }

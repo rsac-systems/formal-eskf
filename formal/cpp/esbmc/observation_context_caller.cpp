@@ -12,8 +12,8 @@ std::uint64_t expected_query, expected_age;
 unsigned calls;
 } // namespace
 template <>
-Context formal_eskf::px4::ObservationHistory<imu_proof::Backend>::lookup_context(std::uint64_t time_us,
-                                                                                 std::uint64_t maximum_age_us) const
+Context formal_eskf::runtime::ObservationHistory<imu_proof::Backend, 16, 64, 128, 128>::lookup_context(
+    std::uint64_t time_us, std::uint64_t maximum_age_us) const
 {
     __ESBMC_assert(this == expected_owner && time_us == expected_query && maximum_age_us == expected_age && calls == 0,
                    "Context caller forwards the original receiver, query and age once");
@@ -28,6 +28,7 @@ Context formal_eskf::px4::ObservationHistory<imu_proof::Backend>::lookup_context
 
 void verify_context_caller(Observations owner, std::uint64_t query, std::uint64_t age, imu_proof::Interval interval)
 {
+    observation_proof::assume_timing(owner);
     static_assert(FORMAL_ESKF_PROOF_PREDICTION == 0 || FORMAL_ESKF_PROOF_PREDICTION == 1);
     auto const count = imu_proof::nondet_index();
     auto const oldest = imu_proof::nondet_index();
@@ -71,4 +72,5 @@ void verify_context_caller(Observations owner, std::uint64_t query, std::uint64_
     check_metadata();
     check_storage();
     __ESBMC_assert(same_interval(interval, old_interval), "Context caller preserves complete IMU interval");
+    observation_proof::check_timing(owner);
 }

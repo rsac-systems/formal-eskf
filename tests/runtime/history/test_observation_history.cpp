@@ -4,21 +4,23 @@
 #include <cstdlib>
 #include <limits>
 
-#include "../module/ObservationHistory.hpp"
-#include "../module/OutputPredictor.hpp"
+#include <formal_eskf/runtime/history/observation_history.hpp>
 #include "test_backend.hpp"
 #include "test_support.hpp"
+#include "test_cases.hpp"
 
 namespace
 {
-namespace profile = formal_eskf::px4::profile;
 using formal_eskf::test::Context;
 using Backend = formal_eskf::test::Backend<double>;
-using History = formal_eskf::px4::ObservationHistory<Backend>;
+using History = formal_eskf::runtime::ObservationHistory<Backend, 16, 64, 128, 128>;
 using Imu = formal_eskf::runtime::ImuHistory<Backend, 64>;
 using Admission = History::Admission;
 using Selection = History::Selection;
-namespace profile = formal_eskf::px4::profile;
+
+constexpr formal_eskf::runtime::TimingParameters parameters_250hz{4000, 200, 0, 0, 0};
+constexpr formal_eskf::runtime::ObservationTiming timing_250hz{
+    {4000, 3800, 4200, 50000, 200, 100000, 300000, 150000, 100000, 100000}, 100000, 50000, 10000, 5000, 0.99, 0.01};
 
 History::GnssSample gnss(std::uint64_t time)
 {
@@ -53,7 +55,7 @@ Imu::input_type imu_input(std::uint64_t time, std::uint32_t angular = 4000, std:
     sample.time_us = time;
     sample.angular_period_us = angular;
     sample.acceleration_period_us = acceleration;
-    sample.delta_velocity_b(2) = -profile::gravity_m_s2 * (static_cast<double>(acceleration) * 1e-6);
+    sample.delta_velocity_b(2) = -9.80665 * (static_cast<double>(acceleration) * 1e-6);
     sample.source = {41, 43, 0, 0};
     return sample;
 }
@@ -71,18 +73,18 @@ void require(bool condition)
 struct Session
 {
     Imu imu;
-    History history;
+    History history{timing_250hz};
     std::uint64_t epoch = 1000000;
     std::uint64_t time = epoch;
     History::LandState land{epoch, true, true, true};
     History::VehicleState vehicle{epoch, true, false};
 
-    void seed(formal_eskf::runtime::TimingParameters const & parameters = profile::history::parameters)
+    void seed(formal_eskf::runtime::TimingParameters const & parameters = parameters_250hz)
     {
         time = epoch;
         land = {epoch, true, true, true};
         vehicle = {epoch, true, false};
-        require(imu.configure(parameters, profile::history::timing) && history.configure(parameters) &&
+        require(imu.configure(parameters, timing_250hz.imu) && history.configure(parameters, 64) &&
                 imu.seed(imu_input(time), time));
         require(history.seed({{epoch, land, vehicle}, {epoch, {17, 0}}, {epoch, {29, 3}}, {epoch, {31, 4}}}));
     }
@@ -119,17 +121,17 @@ struct Session
 
 void configuration_and_seed(Context & test)
 {
-    History history;
+    History history{timing_250hz};
     History::Seed seed{{1000000, {999000, true, true, true}, {999500, true, false}}};
     test.expect(!history.seed(seed) && history.push_gnss(gnss(1006000), 1006000).decision == Admission::not_ready,
                 "startup", "configuration and alignment epoch are required");
-    test.expect(!history.configure({10000, 200, 0, 0, 0}) && history.configure({4000, 200, 12, 23, 34}), "startup",
-                "only supported mode with valid delay coverage");
+    test.expect(!history.configure({10000, 200, 0, 0, 0}, 64) && history.configure({4000, 200, 12, 23, 34}, 64),
+                "startup", "only supported mode with valid delay coverage");
     auto bad = seed;
     bad.gnss = {1000001, {17, 0}};
     test.expect(!history.seed(bad) && history.fusion_time_us() == 0, "seed",
                 "future source watermark rejected atomically");
-    test.expect(history.seed(seed) && !history.seed(seed) && !history.configure(profile::history::parameters), "seed",
+    test.expect(history.seed(seed) && !history.seed(seed) && !history.configure(parameters_250hz, 64), "seed",
                 "no reseed or live reconfiguration");
     auto const context = history.context(1000000, 3000000);
     test.expect(context.land.known && context.land.at_rest && context.vehicle.known && !context.vehicle.armed, "seed",
@@ -144,7 +146,7 @@ void configuration_and_seed(Context & test)
 }
 
 void selection_and_payload(Context & test, std::uint64_t epoch,
-                           formal_eskf::runtime::TimingParameters const & parameters = profile::history::parameters)
+                           formal_eskf::runtime::TimingParameters const & parameters = parameters_250hz)
 {
     Session session;
     session.epoch = epoch;
@@ -565,10 +567,8 @@ void bounded_overflow(Context & test)
             baro_loss += result.overwritten;
         }
     }
-    test.expect(gnss_loss == gnss_count - profile::history::gnss_capacity &&
-                    mag_loss == mag_count - profile::history::magnetic_capacity &&
-                    baro_loss == baro_count - profile::history::barometer_capacity,
-                "capacity", "each full-ring overwrite is reported independently across wraps");
+    test.expect(gnss_loss == gnss_count - 16 && mag_loss == mag_count - 64 && baro_loss == baro_count - 128, "capacity",
+                "each full-ring overwrite is reported independently across wraps");
     History::GnssObservation g;
     History::MagneticObservation m;
     History::BarometerObservation b;
@@ -581,17 +581,42 @@ void bounded_overflow(Context & test)
                     b.time_us == session.epoch + ((epoch - session.epoch + 2000) / 8000) * 8000 - 2000,
                 "wrap", "select correct newest eligible event after multiple wraps");
 }
-} // namespace
-
-int main()
+void explicit_settings(Context & test)
 {
-    formal_eskf::test::configure_backend_test();
-    constexpr auto storage = sizeof(History) + sizeof(Imu) + sizeof(formal_eskf::px4::OutputPredictor<Backend>);
-    static_assert(storage <= profile::history::storage_budget_bytes);
-    static_assert((profile::history::context_capacity - 1) * profile::history::minimum_period_us >=
-                  profile::history::maximum_lag_us + profile::history::observation_maximum_age_us +
-                      profile::imu::maximum_interval_us);
-    Context test;
+    auto timing = timing_250hz;
+    History copied{timing};
+    timing.imu.maximum_age_us = 0;
+    timing.gnss_spacing_us = 0;
+    test.expect(copied.configure(parameters_250hz, 64), "settings", "constructor copies caller timing");
+    History invalid{timing};
+    test.expect(!invalid.configure(parameters_250hz, 64), "settings", "zero cadence rejected before division");
+    timing = timing_250hz;
+    timing.interval_sample_weight = std::numeric_limits<double>::quiet_NaN();
+    History invalid_weight{timing};
+    test.expect(!invalid_weight.configure(parameters_250hz, 64), "settings", "nonfinite average weights rejected");
+    timing.interval_sample_weight = 0.02;
+    History unnormalized_weight{timing};
+    test.expect(!unnormalized_weight.configure(parameters_250hz, 64), "settings", "average weights must sum to one");
+    timing = timing_250hz;
+    timing.imu.minimum_period_us = 0;
+    History invalid_period{timing};
+    test.expect(!invalid_period.configure(parameters_250hz, 64), "settings",
+                "zero period rejected before capacity division");
+    formal_eskf::runtime::ObservationHistory<Backend, 12, 52, 102, 120> exact{timing_250hz};
+    formal_eskf::runtime::ObservationHistory<Backend, 11, 52, 102, 120> short_gnss{timing_250hz};
+    formal_eskf::runtime::ObservationHistory<Backend, 12, 51, 102, 120> short_mag{timing_250hz};
+    formal_eskf::runtime::ObservationHistory<Backend, 12, 52, 101, 120> short_baro{timing_250hz};
+    formal_eskf::runtime::ObservationHistory<Backend, 12, 52, 102, 119> short_context{timing_250hz};
+    test.expect(exact.configure(parameters_250hz, 64) && !short_gnss.configure(parameters_250hz, 64) &&
+                    !short_mag.configure(parameters_250hz, 64) && !short_baro.configure(parameters_250hz, 64) &&
+                    !short_context.configure(parameters_250hz, 64),
+                "capacity", "every queue independently covers its retention bound");
+    test.expect(!copied.configure(parameters_250hz, 53) && copied.configure(parameters_250hz, 54), "capacity",
+                "timing uses the actual IMU capacity");
+}
+
+void observation_scenarios(Context & test, std::string_view)
+{
     configuration_and_seed(test);
     selection_and_payload(test, 1000000);
     selection_and_payload(test, 1000000, {4000, 153, 0, 0, 0});
@@ -607,6 +632,15 @@ int main()
     historical_context(test);
     gap_context_and_unknown(test);
     bounded_overflow(test);
-    std::cout << "IMU + output + observation/context history bytes: " << storage << '\n';
-    return test.failures() == 0 ? 0 : 1;
+    explicit_settings(test);
+}
+} // namespace
+
+int main(int argc, char ** argv)
+{
+    formal_eskf::test::configure_backend_test();
+    formal_eskf::test::Case const cases[] = {
+        {"TC-R-OBSERVATION-HISTORY-01", "double", observation_scenarios},
+    };
+    return formal_eskf::test::run_cases(cases, argc, argv);
 }

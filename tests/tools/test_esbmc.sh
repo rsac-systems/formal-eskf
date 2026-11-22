@@ -1070,6 +1070,7 @@ with tempfile.TemporaryDirectory(prefix='formal-eskf-ring-steps-') as TEMP:
     assert CONTEXT_MANIFEST['generator_sha256'] == hashlib.sha256((FIXTURE / RELATIVE).read_bytes()).hexdigest()
     assert CONTEXT_MANIFEST['extracted_sha256'] == hashlib.sha256(CONTEXT.read_bytes()).hexdigest()
     assert 'auto const & m_context = owner.m_context;' in CONTEXT.read_text()
+    assert 'auto const & m_timing = owner.m_timing;' in CONTEXT.read_text()
     assert 'return false;' in CONTEXT.read_text()
     assert 'output = result;' in CONTEXT.read_text()
     assert not (OUTPUT / 'context/formal_eskf/runtime/history/ring_buffer.hpp').exists()

@@ -16,13 +16,16 @@ REPO_DIR = Path(__file__).resolve().parents[3]
 # Changes to source structure, record/storage types or the complete field oracle
 # require correspondence review. Do not update these solely to make a run pass.
 PINS = {
+    "integrations/px4/module/DeploymentProfile.hpp": "bf26c6accea871fe90ed8c06e7ad9fac9fd09d26d7e3834a6e1a29fb8679ea90",
+    "include/formal_eskf/runtime/history/imu_history.hpp": "4516f6d8d890625acbcdb58ed493b8c4064286212d0159d12b84241412c7bd93",
+    "include/formal_eskf/runtime/history/timing.hpp": "1a707281bab0b8dde664c1a1aed32a149c647c7620582604bb19322e0dabee6a",
     "include/formal_eskf/runtime/history/ring_buffer.hpp": "4e14776bcf6f1d4ba499c93a289a9ec6ceab1dc2b24173c7920f988bba9a0ac5",
-    "integrations/px4/module/ObservationHistory.hpp": "324dc9679657f628c0a859b201cb5dca3f5e2f6721b35ce835b39f494f744534",
+    "include/formal_eskf/runtime/history/observation_history.hpp": "c4ced2f72cd1176fd3bc08655b3040c25ea41a8572ac61a47af077b86c8700d2",
     "include/formal_eskf/linalg/matrix.hpp": "09ad7208f3d44d6686a41eb8eabc3e4963562f3f5c2d175493db1a38c402cddc",
     "formal/cpp/esbmc/support.hpp": "067c556f362de8f5ad21e8672b8711ce00311fe85f9898c8091e8ca6dbc8962e",
     "formal/cpp/esbmc/contracts.hpp": "6c5ba84e914ccb08b98acf02b204bbb07e455b166ad754f2634e6c3c65f0180c",
-    "formal/cpp/esbmc/imu_owner_support.hpp": "7e33850d8ffa7c24f2cd182995804dabbd3def5cbf0429d9174a833b183f6d18",
-    "formal/cpp/esbmc/observation_support.hpp": "087280558f9dface1399378630070c7a37811a0cea72d4afe719b39f14412504",
+    "formal/cpp/esbmc/imu_owner_support.hpp": "7672473ad7b054e66a66e5b815170a2579da04c3350d1d7fa131d3436e6cb4f4",
+    "formal/cpp/esbmc/observation_support.hpp": "8d463aa732cde085845d068f3341ccd419db6d09c9e6785548ba1372b895f4d3",
     "formal/cpp/esbmc/observation_ring.cpp": "0fab79c33184065f7641079be50d5102d8bd5de0f246c2f933fa79c3b70ea8f0",
 }
 
@@ -119,10 +122,10 @@ bool RingBuffer<Sample, Capacity>::proof_finish(std::size_t removed, bool select
 
 
 def generate_context(OUTPUT_DIR):
-    SOURCE = (REPO_DIR / "integrations/px4/module/ObservationHistory.hpp").read_text()
+    SOURCE = (REPO_DIR / "include/formal_eskf/runtime/history/observation_history.hpp").read_text()
     LOOKUP = extract_body(
         SOURCE,
-        "ObservationHistory<Linalg>::lookup_context(std::uint64_t time_us, std::uint64_t maximum_age_us) const",
+        "::lookup_context(",
     )
     BODY = extract_body(LOOKUP, "for (std::size_t count = 0; count < m_context.entries(); ++count)")
     if BODY.count("continue;") != 1 or BODY.count("return {};") != 1 or BODY.count("return result;") != 1:
@@ -133,14 +136,15 @@ def generate_context(OUTPUT_DIR):
     TEXT = """// Verification-only source step, not an independent implementation.
 #pragma once
 #include "observation_support.hpp"
-namespace formal_eskf::px4
+namespace observation_steps
 {
 inline bool context_step(observation_proof::Observations const & owner, std::size_t & index,
                          std::uint64_t time_us, std::uint64_t maximum_age_us,
                          observation_proof::Observations::Context & output)
 {
     auto const & m_context = owner.m_context;
-""" + STEP + "\n}\n} // namespace formal_eskf::px4\n"
+    auto const & m_timing = owner.m_timing;
+""" + STEP + "\n}\n} // namespace observation_steps\n"
     # Separate include directory: context profiles execute the original ring,
     # without accidentally importing the augmented ring-step class.
     OUTPUT = OUTPUT_DIR / "context/context_step.hpp"
