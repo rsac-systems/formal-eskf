@@ -8,9 +8,9 @@
 #include <cmath>
 #include <limits>
 
-#include <formal_eskf/runtime/frame_observations.hpp>
-#include <formal_eskf/runtime/measurement_fusion.hpp>
-#include <formal_eskf/runtime/origin_rebase.hpp>
+#include <formal_eskf/runtime/fusion/frame_observations.hpp>
+#include <formal_eskf/runtime/fusion/measurement_fusion.hpp>
+#include <formal_eskf/runtime/frames/origin_rebase.hpp>
 
 #include "test_backend.hpp"
 #include "test_cases.hpp"

@@ -10,7 +10,7 @@
 #include <limits>
 
 #include <formal_eskf/geodesy/local_ned.hpp>
-#include <formal_eskf/runtime/height_datum.hpp>
+#include <formal_eskf/runtime/frames/height_datum.hpp>
 
 #include "test_backend.hpp"
 #include "test_cases.hpp"

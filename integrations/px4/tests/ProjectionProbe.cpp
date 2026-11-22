@@ -4,7 +4,7 @@
 #include <cstring>
 #include <lib/geo/geo.h>
 #include <formal_eskf/linalg/backend/px4_matrix.hpp>
-#include <formal_eskf/runtime/navigation_frame.hpp>
+#include <formal_eskf/runtime/frames/navigation_frame.hpp>
 
 int main(int argc, char ** argv)
 {

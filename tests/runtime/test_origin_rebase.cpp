@@ -9,9 +9,9 @@
 #include <cmath>
 #include <limits>
 
-#include <formal_eskf/runtime/origin_rebase.hpp>
-#include <formal_eskf/runtime/navigation_frame.hpp>
-#include <formal_eskf/runtime/frame_navigation.hpp>
+#include <formal_eskf/runtime/frames/origin_rebase.hpp>
+#include <formal_eskf/runtime/frames/navigation_frame.hpp>
+#include <formal_eskf/runtime/fusion/frame_navigation.hpp>
 #include <formal_eskf/eskf/covariance_prediction.hpp>
 #include <formal_eskf/eskf/correction.hpp>
 

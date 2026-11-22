@@ -10,8 +10,8 @@
 #include "test_cases.hpp"
 #include "correction_reference.hpp"
 #include <formal_eskf/eskf/eskf.hpp>
-#include <formal_eskf/runtime/navigation.hpp>
-#include <formal_eskf/runtime/magnetometer.hpp>
+#include <formal_eskf/runtime/fusion/navigation.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetometer.hpp>
 #include <cmath>
 #include <string_view>
 #include <limits>

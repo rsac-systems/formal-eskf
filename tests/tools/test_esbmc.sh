@@ -1062,7 +1062,7 @@ with tempfile.TemporaryDirectory(prefix='formal-eskf-ring-steps-') as TEMP:
     OUTPUT = FIXTURE / 'output'
     subprocess.run([*COMMAND, str(OUTPUT)], check=True, capture_output=True)
     MANIFEST = json.loads((OUTPUT / 'ring-steps.json').read_text())
-    OVERLAY = OUTPUT / 'formal_eskf/runtime/ring_buffer.hpp'
+    OVERLAY = OUTPUT / 'formal_eskf/runtime/history/ring_buffer.hpp'
     assert MANIFEST['source_sha256'] == MODULE.PINS
     assert MANIFEST['overlay_sha256'] == hashlib.sha256(OVERLAY.read_bytes()).hexdigest()
     assert 'proof_search_step' in OVERLAY.read_text()
@@ -1074,7 +1074,7 @@ with tempfile.TemporaryDirectory(prefix='formal-eskf-ring-steps-') as TEMP:
     assert 'auto const & m_context = owner.m_context;' in CONTEXT.read_text()
     assert 'return false;' in CONTEXT.read_text()
     assert 'output = result;' in CONTEXT.read_text()
-    assert not (OUTPUT / 'context/formal_eskf/runtime/ring_buffer.hpp').exists()
+    assert not (OUTPUT / 'context/formal_eskf/runtime/history/ring_buffer.hpp').exists()
     for NAME in MODULE.PINS:
         SOURCE = FIXTURE / NAME
         ORIGINAL = SOURCE.read_bytes()
@@ -1082,10 +1082,10 @@ with tempfile.TemporaryDirectory(prefix='formal-eskf-ring-steps-') as TEMP:
         RESULT = subprocess.run([*COMMAND, str(OUTPUT)], capture_output=True, text=True)
         assert RESULT.returncode == 1 and 'requires review' in RESULT.stderr and NAME in RESULT.stderr
         SOURCE.write_bytes(ORIGINAL)
-    ORIGINAL = (FIXTURE / 'include/formal_eskf/runtime/ring_buffer.hpp').read_bytes()
+    ORIGINAL = (FIXTURE / 'include/formal_eskf/runtime/history/ring_buffer.hpp').read_bytes()
     RESULT = subprocess.run([*COMMAND, str(FIXTURE / 'include')], capture_output=True, text=True)
     assert RESULT.returncode == 1 and 'must not replace production' in RESULT.stderr
-    assert (FIXTURE / 'include/formal_eskf/runtime/ring_buffer.hpp').read_bytes() == ORIGINAL
+    assert (FIXTURE / 'include/formal_eskf/runtime/history/ring_buffer.hpp').read_bytes() == ORIGINAL
 PYTHON
 }
 
@@ -2545,7 +2545,7 @@ check_ring_buffer_regressions()
     python3 - "${REPO_DIR}" "${TEST_WORK_DIR}" <<'PY_MUTATIONS'
 import pathlib
 import sys
-SOURCE = pathlib.Path(sys.argv[1], "include/formal_eskf/runtime/ring_buffer.hpp").read_text()
+SOURCE = pathlib.Path(sys.argv[1], "include/formal_eskf/runtime/history/ring_buffer.hpp").read_text()
 MUTATIONS = {
     "age": ("timestamp - time_us < max_age_us", "timestamp - time_us <= max_age_us"),
     "wrap": ("m_oldest = next(m_oldest);", "m_oldest = m_oldest;"),
@@ -2553,7 +2553,7 @@ MUTATIONS = {
 }
 for CASE, (OLD, NEW) in MUTATIONS.items():
     assert OLD in SOURCE
-    OUTPUT = pathlib.Path(sys.argv[2], CASE, "formal_eskf/runtime/ring_buffer.hpp")
+    OUTPUT = pathlib.Path(sys.argv[2], CASE, "formal_eskf/runtime/history/ring_buffer.hpp")
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(SOURCE.replace(OLD, NEW, 1))
 PY_MUTATIONS

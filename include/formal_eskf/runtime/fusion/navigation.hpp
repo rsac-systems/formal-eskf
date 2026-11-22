@@ -14,7 +14,7 @@
 #include <formal_eskf/eskf/position.hpp>
 #include <formal_eskf/eskf/velocity.hpp>
 #include <formal_eskf/linalg/linalg.hpp>
-#include <formal_eskf/runtime/measurement_fusion.hpp>
+#include <formal_eskf/runtime/fusion/measurement_fusion.hpp>
 
 namespace formal_eskf::runtime
 {

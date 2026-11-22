@@ -11,7 +11,7 @@
 #include <cmath>
 #include <limits>
 #include <numbers>
-#include <formal_eskf/runtime/magnetic_reference.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetic_reference.hpp>
 #include "test_backend.hpp"
 #include "test_cases.hpp"
 

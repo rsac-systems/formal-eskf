@@ -6,7 +6,7 @@
 #include <cstdint>
 
 #include <formal_eskf/eskf/types.hpp>
-#include <formal_eskf/runtime/ring_buffer.hpp>
+#include <formal_eskf/runtime/history/ring_buffer.hpp>
 
 #include "DeploymentProfile.hpp"
 #include "ImuPrediction.hpp"

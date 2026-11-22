@@ -12,7 +12,7 @@
 #include <array>
 #include <optional>
 #define private public
-#include <formal_eskf/runtime/magnetic_reference.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetic_reference.hpp>
 #undef private
 namespace model_proof
 {

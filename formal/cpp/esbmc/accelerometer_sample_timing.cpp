@@ -10,7 +10,7 @@
 #include "algorithm_support.hpp"
 #include <formal_eskf/eskf/accelerometer.hpp>
 #include <formal_eskf/eskf/types.hpp>
-#include <formal_eskf/runtime/measurement_fusion.hpp>
+#include <formal_eskf/runtime/fusion/measurement_fusion.hpp>
 // Only std::round is summarized. The producer below checks the actual library
 // model's nearest-integer rule; the clear body also proves its input domain.
 namespace timing_proof
@@ -30,7 +30,7 @@ inline double formal_eskf_proof_round(double value)
 #define private public
 #define max formal_eskf_proof_max
 #define round formal_eskf_proof_round
-#include <formal_eskf/runtime/accelerometer.hpp>
+#include <formal_eskf/runtime/sensors/gravity/accelerometer.hpp>
 #undef round
 #undef max
 #undef private

@@ -7,7 +7,7 @@
 #pragma once
 
 #include <cstdint>
-#include <formal_eskf/runtime/origin_rebase.hpp>
+#include <formal_eskf/runtime/frames/origin_rebase.hpp>
 
 namespace formal_eskf::runtime
 {

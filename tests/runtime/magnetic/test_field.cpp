@@ -7,7 +7,7 @@
  */
 
 // Include standalone quality API first to check its own dependencies.
-#include <formal_eskf/runtime/magnetic_field.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetic_field.hpp>
 
 #include <array>
 #include <bit>

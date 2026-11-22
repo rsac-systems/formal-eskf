@@ -7,7 +7,7 @@
  */
 #include "bias_support.hpp"
 #include "step_correction_support.hpp"
-#include <formal_eskf/runtime/magnetometer.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetometer.hpp>
 
 namespace magnetic_fusion_proof
 {

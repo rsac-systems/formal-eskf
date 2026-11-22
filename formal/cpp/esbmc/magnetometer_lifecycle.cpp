@@ -8,9 +8,9 @@
 #include <limits>
 extern void __ESBMC_assume(bool condition);
 extern void __ESBMC_assert(bool condition, char const * description);
-#include <formal_eskf/runtime/measurement_fusion.hpp>
+#include <formal_eskf/runtime/fusion/measurement_fusion.hpp>
 #define private public
-#include <formal_eskf/runtime/magnetometer_lifecycle.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetometer_lifecycle.hpp>
 #undef private
 namespace mag_lifecycle_proof
 {

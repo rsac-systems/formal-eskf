@@ -64,7 +64,7 @@ Separate these coordinate checks from the gravity-refresh relations in
 R-ORIGIN-REBASE and the directional health requirements. Independent native cases
 are required; no new Lean/ESBMC evidence is implied by this specification.
 
-Implementation: [frame observations](../../../../include/formal_eskf/runtime/frame_observations.hpp).
+Implementation: [frame observations](../../../../include/formal_eskf/runtime/fusion/frame_observations.hpp).
 Native cases: [frame observation tests](../../verification/tests/runtime/frame-observations.md).
 Rows of the rotation/translation are explicit inputs for linear models; rigid
 basis, sensor-point and epoch compatibility remain caller premises. Live
@@ -76,4 +76,4 @@ exception and barometric deadzone in the observation axes. Recovery resets
 transport the complete state/P to that basis, apply the existing named reset
 and transport back atomically. Reset variances, floors and cross-covariance
 clearing remain those of R-GNSS-RESET; a frame event alone performs no reset.
-Implementation: [frame navigation](../../../../include/formal_eskf/runtime/frame_navigation.hpp).
+Implementation: [frame navigation](../../../../include/formal_eskf/runtime/fusion/frame_navigation.hpp).

@@ -16,7 +16,7 @@ import sys
 REPO_DIR = Path(__file__).resolve().parents[3]
 PINS = {
     "integrations/px4/module/OutputPredictor.hpp": "484a7256490a545f22ea4eab133991f47fa39e149a6a5b72844c9614c22839d2",
-    "include/formal_eskf/runtime/ring_buffer.hpp": "4e14776bcf6f1d4ba499c93a289a9ec6ceab1dc2b24173c7920f988bba9a0ac5",
+    "include/formal_eskf/runtime/history/ring_buffer.hpp": "4e14776bcf6f1d4ba499c93a289a9ec6ceab1dc2b24173c7920f988bba9a0ac5",
     "include/formal_eskf/linalg/matrix.hpp": "09ad7208f3d44d6686a41eb8eabc3e4963562f3f5c2d175493db1a38c402cddc",
     "formal/cpp/esbmc/support.hpp": "067c556f362de8f5ad21e8672b8711ce00311fe85f9898c8091e8ca6dbc8962e",
     "formal/cpp/esbmc/contracts.hpp": "6c5ba84e914ccb08b98acf02b204bbb07e455b166ad754f2634e6c3c65f0180c",

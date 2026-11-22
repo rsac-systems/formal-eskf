@@ -10,7 +10,7 @@
 #define FORMAL_ESKF_PROOF_ARITHMETIC_CONTRACT 1
 #include "step_correction_support.hpp"
 #include "bias_support.hpp"
-#include <formal_eskf/runtime/navigation.hpp>
+#include <formal_eskf/runtime/fusion/navigation.hpp>
 
 #ifndef FORMAL_ESKF_PROOF_RECOVERY_BOUNDARY
 #define FORMAL_ESKF_PROOF_RECOVERY_BOUNDARY 0

@@ -12,7 +12,7 @@
 #include <limits>
 #include <string_view>
 
-#include <formal_eskf/runtime/imu.hpp>
+#include <formal_eskf/runtime/sensors/imu/imu.hpp>
 #include "test_backend.hpp"
 #include "test_cases.hpp"
 

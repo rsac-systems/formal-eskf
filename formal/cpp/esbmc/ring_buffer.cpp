@@ -7,7 +7,7 @@
 // Expose state for induction only. Production buffer bodies execute with
 // ESBMC's standard-library array model; no buffer operation is summarized.
 #define private public
-#include <formal_eskf/runtime/ring_buffer.hpp>
+#include <formal_eskf/runtime/history/ring_buffer.hpp>
 #undef private
 
 extern void __ESBMC_assume(bool condition);

@@ -9,7 +9,7 @@
 #if defined(FORMAL_ESKF_PROOF_NAVIGATION_SOLVE_BACKEND) && FORMAL_ESKF_PROOF_NAVIGATION_SOLVE_BACKEND
 #include "step_correction_support.hpp"
 #endif
-#include <formal_eskf/runtime/navigation.hpp>
+#include <formal_eskf/runtime/fusion/navigation.hpp>
 
 #ifndef FORMAL_ESKF_PROOF_NAVIGATION_CALLER
 #define FORMAL_ESKF_PROOF_NAVIGATION_CALLER 0

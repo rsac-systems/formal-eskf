@@ -7,7 +7,7 @@
  */
 
 #include "step_correction_support.hpp"
-#include <formal_eskf/runtime/imu.hpp>
+#include <formal_eskf/runtime/sensors/imu/imu.hpp>
 
 using namespace step_correction_proof;
 using ProcessNoise = formal_eskf::configuration::Ins::ProcessNoise<Backend>;

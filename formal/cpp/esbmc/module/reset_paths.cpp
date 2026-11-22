@@ -5,7 +5,7 @@
 // the lifecycle/height contracts; these checks do not rewrite those policies.
 #include "../contracts.hpp"
 #include <array>
-#include <formal_eskf/runtime/gnss_lifecycle.hpp>
+#include <formal_eskf/runtime/sensors/gnss/gnss_lifecycle.hpp>
 
 extern bool nondet_bool();
 extern double nondet_double();

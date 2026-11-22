@@ -6,9 +6,9 @@
 
 #pragma once
 
-#include <formal_eskf/runtime/frame_observations.hpp>
-#include <formal_eskf/runtime/navigation.hpp>
-#include <formal_eskf/runtime/origin_rebase.hpp>
+#include <formal_eskf/runtime/fusion/frame_observations.hpp>
+#include <formal_eskf/runtime/fusion/navigation.hpp>
+#include <formal_eskf/runtime/frames/origin_rebase.hpp>
 
 namespace formal_eskf::runtime
 {

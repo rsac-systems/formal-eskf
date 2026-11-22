@@ -13,7 +13,7 @@
 #include <limits>
 
 #include <formal_eskf/eskf/velocity.hpp>
-#include <formal_eskf/runtime/imu.hpp>
+#include <formal_eskf/runtime/sensors/imu/imu.hpp>
 #include "test_backend.hpp"
 #include "test_cases.hpp"
 

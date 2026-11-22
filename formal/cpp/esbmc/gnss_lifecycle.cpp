@@ -6,10 +6,10 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 #include "contracts.hpp"
-#include <formal_eskf/runtime/gnss_quality.hpp>
-#include <formal_eskf/runtime/measurement_fusion.hpp>
+#include <formal_eskf/runtime/sensors/gnss/gnss_quality.hpp>
+#include <formal_eskf/runtime/fusion/measurement_fusion.hpp>
 #define private public
-#include <formal_eskf/runtime/gnss_lifecycle.hpp>
+#include <formal_eskf/runtime/sensors/gnss/gnss_lifecycle.hpp>
 #undef private
 using Controller = formal_eskf::runtime::GnssFusion;
 using Group = Controller::Group;

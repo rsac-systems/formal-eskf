@@ -110,4 +110,4 @@ Exact symmetry/PSD and physical invariance proofs, bounded source verification,
 uniform floating-point bounds and target stack/WCET acceptance remain separate
 obligations. No Lean/ESBMC proof of this new operation is claimed.
 
-Implementation: [origin_rebase.hpp](../../../../include/formal_eskf/runtime/origin_rebase.hpp).
+Implementation: [origin_rebase.hpp](../../../../include/formal_eskf/runtime/frames/origin_rebase.hpp).

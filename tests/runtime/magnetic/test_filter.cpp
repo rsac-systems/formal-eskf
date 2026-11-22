@@ -9,8 +9,8 @@
 #include <bit>
 #include <cmath>
 #include <limits>
-#include <formal_eskf/runtime/magnetometer.hpp>
-#include <formal_eskf/runtime/magnetic_reference.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetometer.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetic_reference.hpp>
 #include "test_backend.hpp"
 #include "test_cases.hpp"
 

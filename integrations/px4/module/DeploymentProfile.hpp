@@ -6,13 +6,13 @@
 #include <cstdint>
 #include <numbers>
 
-#include <formal_eskf/runtime/imu.hpp>
-#include <formal_eskf/runtime/gnss_lifecycle.hpp>
-#include <formal_eskf/runtime/gnss_quality.hpp>
+#include <formal_eskf/runtime/sensors/imu/imu.hpp>
+#include <formal_eskf/runtime/sensors/gnss/gnss_lifecycle.hpp>
+#include <formal_eskf/runtime/sensors/gnss/gnss_quality.hpp>
 
 #include "DeploymentConfig.hpp"
-#include <formal_eskf/runtime/magnetic_field.hpp>
-#include <formal_eskf/runtime/magnetometer_lifecycle.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetic_field.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetometer_lifecycle.hpp>
 
 namespace formal_eskf::px4::profile
 {

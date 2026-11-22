@@ -158,7 +158,7 @@ continuous-odometry feature is part of this extraction.
 | Task | Status | Completion boundary |
 |---|---|---|
 | A-01.1 — Ownership contracts | Completed | Runtime composition and adapter invocation/publication boundaries; requirements retain Draft status. |
-| A-01.2 — Runtime directories | Planned | Move existing headers by responsibility; update all consumers and source references without numerical changes. |
+| A-01.2 — Runtime directories | Completed | Move existing headers by responsibility; update all consumers and source references without numerical changes. |
 | A-01.3 — IMU prediction policy | Planned | Portable noise/bias composition with explicit settings; retain deployment clipping/default bindings. |
 | A-01.4 — IMU history | Planned | Portable records, timing and fixed storage with the existing profile and failure rules. |
 | A-01.5 — Observation history | Planned | Portable delayed source/context admission, selection and generation handling. |

@@ -5,8 +5,8 @@
 // passing data. Invalid metadata, repeated samples and all decisions remain live.
 #include "../contracts.hpp"
 #include <array>
-#include <formal_eskf/runtime/gnss_quality.hpp>
-#include <formal_eskf/runtime/gnss_lifecycle.hpp>
+#include <formal_eskf/runtime/sensors/gnss/gnss_quality.hpp>
+#include <formal_eskf/runtime/sensors/gnss/gnss_lifecycle.hpp>
 
 extern bool nondet_bool();
 extern double nondet_double();

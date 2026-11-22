@@ -11,7 +11,7 @@
 #include <type_traits>
 
 #include <formal_eskf/eskf/prediction.hpp>
-#include <formal_eskf/runtime/accelerometer.hpp>
+#include <formal_eskf/runtime/sensors/gravity/accelerometer.hpp>
 #include <formal_eskf/status.hpp>
 #include "test_backend.hpp"
 #include "test_cases.hpp"

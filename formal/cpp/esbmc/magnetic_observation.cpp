@@ -12,7 +12,7 @@
 #if FORMAL_ESKF_PROOF_MAG_SOLVE_BACKEND
 #include "step_correction_support.hpp"
 #endif
-#include <formal_eskf/runtime/magnetometer.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetometer.hpp>
 #ifndef FORMAL_ESKF_PROOF_MAG_OBSERVATION_CONTRACT
 #define FORMAL_ESKF_PROOF_MAG_OBSERVATION_CONTRACT 0
 #endif

@@ -19,7 +19,7 @@ PX4 may retain them. No PX4 source is vendored.
 
 ## Required behavior
 
-`include/formal_eskf/runtime/ring_buffer.hpp` provides the portable
+`include/formal_eskf/runtime/history/ring_buffer.hpp` provides the portable
 `formal_eskf::runtime::RingBuffer` with the PX4-style history API and fixed backing
 storage. `RingBuffer<Sample, Capacity>(length)` reserves `Capacity`
 slots inside the object and selects an active length in `1..Capacity`. It is a

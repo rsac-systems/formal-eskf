@@ -12,7 +12,7 @@
 #include <cstdint>
 #include <type_traits>
 #include "covariance_oracle.hpp"
-#include <formal_eskf/runtime/magnetometer.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetometer.hpp>
 namespace reset_composition
 {
 using contract_proof::Linalg;

@@ -9,10 +9,10 @@
 #include "algorithm_support.hpp"
 #include <formal_eskf/eskf/accelerometer.hpp>
 #include <formal_eskf/eskf/types.hpp>
-#include <formal_eskf/runtime/measurement_fusion.hpp>
+#include <formal_eskf/runtime/fusion/measurement_fusion.hpp>
 #define private public
 #define max formal_eskf_proof_max
-#include <formal_eskf/runtime/accelerometer.hpp>
+#include <formal_eskf/runtime/sensors/gravity/accelerometer.hpp>
 #undef max
 #undef private
 #ifndef FORMAL_ESKF_PROOF_SAMPLE_CONTRACT

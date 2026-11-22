@@ -15,7 +15,7 @@
 #include <string_view>
 
 // Exercise the standalone public header on each configured backend.
-#include <formal_eskf/runtime/navigation.hpp>
+#include <formal_eskf/runtime/fusion/navigation.hpp>
 #include "test_backend.hpp"
 #include "test_cases.hpp"
 #include "test_support.hpp"

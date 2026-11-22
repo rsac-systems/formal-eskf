@@ -28,15 +28,15 @@
 
 #include <formal_eskf/eskf/eskf.hpp>
 #include <formal_eskf/geodesy/local_ned.hpp>
-#include <formal_eskf/runtime/accelerometer.hpp>
-#include <formal_eskf/runtime/imu.hpp>
-#include <formal_eskf/runtime/navigation.hpp>
-#include <formal_eskf/runtime/frame_navigation.hpp>
-#include <formal_eskf/runtime/navigation_frame.hpp>
-#include <formal_eskf/runtime/magnetometer.hpp>
-#include <formal_eskf/runtime/magnetometer_lifecycle.hpp>
-#include <formal_eskf/runtime/magnetic_reference.hpp>
-#include <formal_eskf/runtime/vertical_acceleration_health.hpp>
+#include <formal_eskf/runtime/sensors/gravity/accelerometer.hpp>
+#include <formal_eskf/runtime/sensors/imu/imu.hpp>
+#include <formal_eskf/runtime/fusion/navigation.hpp>
+#include <formal_eskf/runtime/fusion/frame_navigation.hpp>
+#include <formal_eskf/runtime/frames/navigation_frame.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetometer.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetometer_lifecycle.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetic_reference.hpp>
+#include <formal_eskf/runtime/sensors/imu/vertical_acceleration_health.hpp>
 #include "replay_conditions.hpp"
 #include "replay_gnss.hpp"
 #if defined(FORMAL_ESKF_REPLAY_PX4_MATRIX)

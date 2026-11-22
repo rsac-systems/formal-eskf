@@ -13,7 +13,7 @@
 #include "step_correction_support.hpp"
 #endif
 #include <limits>
-#include <formal_eskf/runtime/magnetic_field.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetic_field.hpp>
 #ifndef FORMAL_ESKF_PROOF_MAG_CHECK_CONTRACT
 #define FORMAL_ESKF_PROOF_MAG_CHECK_CONTRACT 0
 #endif

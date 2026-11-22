@@ -8,7 +8,7 @@
 #include "correction_support.hpp"
 #include <formal_eskf/so3/operations.hpp>
 #define private public
-#include <formal_eskf/runtime/tilt_alignment.hpp>
+#include <formal_eskf/runtime/session/tilt_alignment.hpp>
 #undef private
 namespace tilt_proof
 {

@@ -9,9 +9,9 @@
 #include "contracts.hpp"
 #include "height_support.hpp"
 #include "step_correction_support.hpp"
-#include <formal_eskf/runtime/gnss_lifecycle.hpp>
-#include <formal_eskf/runtime/navigation.hpp>
-#include <formal_eskf/runtime/vertical_acceleration_health.hpp>
+#include <formal_eskf/runtime/sensors/gnss/gnss_lifecycle.hpp>
+#include <formal_eskf/runtime/fusion/navigation.hpp>
+#include <formal_eskf/runtime/sensors/imu/vertical_acceleration_health.hpp>
 #include "../../../integrations/px4/module/DeploymentProfile.hpp"
 // Expose private producer state only after dependencies are loaded. ESBMC
 // mistakes a member named finite for its C intrinsic; alpha-renaming retains

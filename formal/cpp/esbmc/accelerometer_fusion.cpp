@@ -7,7 +7,7 @@
  */
 #include "bias_support.hpp"
 #include "step_correction_support.hpp"
-#include <formal_eskf/runtime/accelerometer.hpp>
+#include <formal_eskf/runtime/sensors/gravity/accelerometer.hpp>
 
 namespace accel_fusion_proof
 {

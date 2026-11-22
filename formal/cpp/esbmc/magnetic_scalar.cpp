@@ -6,7 +6,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 #include "step_correction_support.hpp"
-#include <formal_eskf/runtime/magnetic_field.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetic_field.hpp>
 using Math = solve_proof::Math;
 using Scalar = solve_proof::Scalar;
 using Backend = solve_proof::Backend;

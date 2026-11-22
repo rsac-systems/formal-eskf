@@ -8,7 +8,7 @@
 
 #include "bias_support.hpp"
 #include "observations_support.hpp"
-#include <formal_eskf/runtime/navigation.hpp>
+#include <formal_eskf/runtime/fusion/navigation.hpp>
 
 namespace navigation_proof
 {

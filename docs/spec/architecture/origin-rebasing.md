@@ -24,7 +24,7 @@ generic estimator framework or new platform dependency enters the numerical core
 | PX4 module/helpers | Working frame, fixed publication reference, admitted sensor provenance, delayed/current histories and transaction/publication ordering. | Bind reusable operations to real epochs, capacities, deployment settings and PX4 outputs. |
 | Replay | Stable dataset basis, explicit/automatic event driving and comparison output. | Reuse geometry/runtime operations; no second Python implementation of frame mathematics. |
 
-[NavigationFrame](../../../include/formal_eskf/runtime/navigation_frame.hpp) owns
+[NavigationFrame](../../../include/formal_eskf/runtime/frames/navigation_frame.hpp) owns
 the working/fixed geometric frames, cached transform and persistent state/P
 candidate. It does not own sensor history, datum, scheduling or publication;
 the adapter coordinates those owners before committing.
@@ -52,9 +52,9 @@ to the requirement and profile, rather than inferred from this inventory.
 | [GNSS coordination](../../../integrations/px4/module/FormalEskfNavigation.cpp) | Quality uses adjacent fixes/receiver NED; fusion diagnostics use declared observation axes. | Preserve source/lifecycle/quality/ratios and cached diagnostics whose basis is unchanged. Recompute newly consumed h/H; bind real recovery resets to the observation axes. |
 | [HeightAiding](../../../integrations/px4/module/HeightAiding.hpp) | Scalar MSL reference, barometer bias, source history and Down-positive observation diagnostics. | Preserve physical datum/bias and timers. Supply the geographic height prediction/Jacobian instead of assuming internal p_z is MSL-relative altitude. |
 | [MagneticModel](../../../integrations/px4/module/MagneticModel.hpp) | Model/observation vectors in their fixed reference basis; model revision/source identity. | Keep references in that basis and transform vectors on use. Do not trigger a WMM adoption, reference revision or heading reset merely for rebasing. |
-| [MagneticHeading](../../../include/formal_eskf/runtime/magnetometer.hpp) | Filtered navigation force vector, scalar heading-error history and consistency latch. | Rotate complete force history; invalidate/reseed scalar history from a real new-frame sample; preserve the latch until normal evidence updates it. |
+| [MagneticHeading](../../../include/formal_eskf/runtime/sensors/magnetic/magnetometer.hpp) | Filtered navigation force vector, scalar heading-error history and consistency latch. | Rotate complete force history; invalidate/reseed scalar history from a real new-frame sample; preserve the latch until normal evidence updates it. |
 | Magnetic body filter / lifecycle | Body field and source qualification, rejection/recovery times. | Preserve; recompute directional field checks for new observations in the current frame. |
-| [TiltAlignment](../../../include/formal_eskf/runtime/tilt_alignment.hpp) | Delayed q/P-derived tilt variance and established-alignment latch. | Recompute variance in the new basis while preserving the existing latch at the event. |
+| [TiltAlignment](../../../include/formal_eskf/runtime/session/tilt_alignment.hpp) | Delayed q/P-derived tilt variance and established-alignment latch. | Recompute variance in the new basis while preserving the existing latch at the event. |
 | Vertical health / bias learning / gravity sampling | Observation-basis residuals, body clipping/rate/force history and time holds. | Preserve. Use coherent new Down-aligned gravity for subsequent prediction/aiding; no source reset, new successful sample or artificial healthy interval. |
 | Reset reports / validity / output covariances | PX4 publication convention; current state and separately declared delayed proxies. | Preserve reset records on coordinate-only events. Transform proxies at their own epoch; do not reinterpret delayed P as current covariance. |
 | [Replay](../../../examples/replay_ins.cpp) prepared navigation/magnetic inputs | Fixed seed NED and their original sample times. | Keep input/reference values; model observations in their basis and map state/P back for output. |

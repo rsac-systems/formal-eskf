@@ -14,7 +14,7 @@
 // and state for inductive checks, without altering any production body/layout.
 #define private public
 #define max formal_eskf_proof_max
-#include <formal_eskf/runtime/imu.hpp>
+#include <formal_eskf/runtime/sensors/imu/imu.hpp>
 #undef max
 #undef private
 #ifndef FORMAL_ESKF_PROOF_IMU_CALLER

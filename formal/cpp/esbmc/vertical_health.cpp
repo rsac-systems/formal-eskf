@@ -10,7 +10,7 @@
 // Widen access only for this already dependency-loaded header. This exposes
 // the actual private producer to a separate proof; no body/layout is rewritten.
 #define private public
-#include <formal_eskf/runtime/vertical_acceleration_health.hpp>
+#include <formal_eskf/runtime/sensors/imu/vertical_acceleration_health.hpp>
 #undef private
 #ifndef FORMAL_ESKF_PROOF_HEALTH_CALLER
 #define FORMAL_ESKF_PROOF_HEALTH_CALLER 0

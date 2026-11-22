@@ -6,8 +6,8 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include <formal_eskf/runtime/measurement_fusion.hpp>
-#include <formal_eskf/runtime/navigation.hpp>
+#include <formal_eskf/runtime/fusion/measurement_fusion.hpp>
+#include <formal_eskf/runtime/fusion/navigation.hpp>
 
 #include <array>
 #include <bit>

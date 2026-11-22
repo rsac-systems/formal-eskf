@@ -21,8 +21,8 @@ PREAMBLE = """
 #include <formal_eskf/linalg/backend/eigen.hpp>
 #include <formal_eskf/linalg/linalg.hpp>
 #include <formal_eskf/eskf/eskf.hpp>
-#include <formal_eskf/runtime/ring_buffer.hpp>
-#include <formal_eskf/runtime/accelerometer.hpp>
+#include <formal_eskf/runtime/history/ring_buffer.hpp>
+#include <formal_eskf/runtime/sensors/gravity/accelerometer.hpp>
 #include <limits>
 using Backend = formal_eskf::linalg::EigenBackend<double>;
 template <std::size_t R, std::size_t C> using Matrix = formal_eskf::linalg::Matrix<Backend, R, C>;

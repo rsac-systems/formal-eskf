@@ -6,10 +6,10 @@
 #include <cmath>
 #include <cstdint>
 
-#include <formal_eskf/runtime/gnss_lifecycle.hpp>
-#include <formal_eskf/runtime/navigation.hpp>
-#include <formal_eskf/runtime/frame_navigation.hpp>
-#include <formal_eskf/runtime/vertical_acceleration_health.hpp>
+#include <formal_eskf/runtime/sensors/gnss/gnss_lifecycle.hpp>
+#include <formal_eskf/runtime/fusion/navigation.hpp>
+#include <formal_eskf/runtime/fusion/frame_navigation.hpp>
+#include <formal_eskf/runtime/sensors/imu/vertical_acceleration_health.hpp>
 
 #include "DeploymentProfile.hpp"
 #include "InnovationRatio.hpp"

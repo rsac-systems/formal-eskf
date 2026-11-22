@@ -13,8 +13,8 @@
 #include <limits>
 #include <string_view>
 
-#include <formal_eskf/runtime/navigation.hpp>
-#include <formal_eskf/runtime/vertical_acceleration_health.hpp>
+#include <formal_eskf/runtime/fusion/navigation.hpp>
+#include <formal_eskf/runtime/sensors/imu/vertical_acceleration_health.hpp>
 #include "test_backend.hpp"
 #include "test_cases.hpp"
 

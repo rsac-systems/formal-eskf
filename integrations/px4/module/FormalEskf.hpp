@@ -30,16 +30,16 @@
 #include <uORB/topics/estimator_sensor_bias.h>
 #include <formal_eskf/eskf/eskf.hpp>
 #include <formal_eskf/linalg/backend/px4_matrix.hpp>
-#include <formal_eskf/runtime/gnss_lifecycle.hpp>
-#include <formal_eskf/runtime/navigation.hpp>
-#include <formal_eskf/runtime/imu.hpp>
-#include <formal_eskf/runtime/accelerometer.hpp>
-#include <formal_eskf/runtime/tilt_alignment.hpp>
-#include <formal_eskf/runtime/magnetometer.hpp>
-#include <formal_eskf/runtime/magnetometer_lifecycle.hpp>
+#include <formal_eskf/runtime/sensors/gnss/gnss_lifecycle.hpp>
+#include <formal_eskf/runtime/fusion/navigation.hpp>
+#include <formal_eskf/runtime/sensors/imu/imu.hpp>
+#include <formal_eskf/runtime/sensors/gravity/accelerometer.hpp>
+#include <formal_eskf/runtime/session/tilt_alignment.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetometer.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetometer_lifecycle.hpp>
 
-#include <formal_eskf/runtime/navigation_frame.hpp>
-#include <formal_eskf/runtime/frame_navigation.hpp>
+#include <formal_eskf/runtime/frames/navigation_frame.hpp>
+#include <formal_eskf/runtime/fusion/frame_navigation.hpp>
 
 #include "DeploymentProfile.hpp"
 #include "HeightAiding.hpp"

@@ -6,7 +6,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 #include "covariance_oracle.hpp"
-#include <formal_eskf/runtime/magnetometer.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetometer.hpp>
 #ifndef FORMAL_ESKF_PROOF_MAG_RESET_SIZE
 #define FORMAL_ESKF_PROOF_MAG_RESET_SIZE 3
 #endif

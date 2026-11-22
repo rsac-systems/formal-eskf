@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <limits>
 #define private public
-#include <formal_eskf/runtime/magnetic_reference.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetic_reference.hpp>
 #undef private
 #ifndef FORMAL_ESKF_PROOF_MAG_REFERENCE_CONTRACT
 #define FORMAL_ESKF_PROOF_MAG_REFERENCE_CONTRACT 0

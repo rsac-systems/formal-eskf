@@ -15,8 +15,8 @@
 #include <formal_eskf/eskf/configuration/ins.hpp>
 #include <formal_eskf/eskf/magnetometer.hpp>
 #include <formal_eskf/linalg/operations.hpp>
-#include <formal_eskf/runtime/magnetic_field.hpp>
-#include <formal_eskf/runtime/measurement_fusion.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetic_field.hpp>
+#include <formal_eskf/runtime/fusion/measurement_fusion.hpp>
 #include <formal_eskf/so3/rotation_vector.hpp>
 #include <formal_eskf/status.hpp>
 

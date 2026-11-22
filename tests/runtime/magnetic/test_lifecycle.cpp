@@ -6,9 +6,9 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include <formal_eskf/runtime/magnetometer_lifecycle.hpp>
-#include <formal_eskf/runtime/magnetometer.hpp>
-#include <formal_eskf/runtime/magnetic_reference.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetometer_lifecycle.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetometer.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetic_reference.hpp>
 #include <formal_eskf/eskf/types.hpp>
 
 #include <array>

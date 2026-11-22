@@ -16,7 +16,7 @@ REPO_DIR = Path(__file__).resolve().parents[3]
 # Changes to source structure, record/storage types or the complete field oracle
 # require correspondence review. Do not update these solely to make a run pass.
 PINS = {
-    "include/formal_eskf/runtime/ring_buffer.hpp": "4e14776bcf6f1d4ba499c93a289a9ec6ceab1dc2b24173c7920f988bba9a0ac5",
+    "include/formal_eskf/runtime/history/ring_buffer.hpp": "4e14776bcf6f1d4ba499c93a289a9ec6ceab1dc2b24173c7920f988bba9a0ac5",
     "integrations/px4/module/ObservationHistory.hpp": "324dc9679657f628c0a859b201cb5dca3f5e2f6721b35ce835b39f494f744534",
     "include/formal_eskf/linalg/matrix.hpp": "09ad7208f3d44d6686a41eb8eabc3e4963562f3f5c2d175493db1a38c402cddc",
     "formal/cpp/esbmc/support.hpp": "067c556f362de8f5ad21e8672b8711ce00311fe85f9898c8091e8ca6dbc8962e",
@@ -52,8 +52,8 @@ def extract_body(SOURCE, MARKER):
 
 def generate(OUTPUT_DIR):
     check_sources()
-    ORIGINAL = REPO_DIR / "include/formal_eskf/runtime/ring_buffer.hpp"
-    OUTPUT = OUTPUT_DIR / "formal_eskf/runtime/ring_buffer.hpp"
+    ORIGINAL = REPO_DIR / "include/formal_eskf/runtime/history/ring_buffer.hpp"
+    OUTPUT = OUTPUT_DIR / "formal_eskf/runtime/history/ring_buffer.hpp"
     if OUTPUT.resolve() == ORIGINAL.resolve():
         raise ValueError("verification output must not replace production source")
     SOURCE = ORIGINAL.read_text()

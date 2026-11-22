@@ -9,7 +9,7 @@
 #include <algorithm>
 #include <formal_eskf/linalg/operations.hpp>
 #define private public
-#include <formal_eskf/runtime/gnss_quality.hpp>
+#include <formal_eskf/runtime/sensors/gnss/gnss_quality.hpp>
 #undef private
 
 #ifndef FORMAL_ESKF_PROOF_GNSS_BOUNDARY

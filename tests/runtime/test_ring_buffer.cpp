@@ -4,7 +4,7 @@
 #include <type_traits>
 #include <vector>
 
-#include <formal_eskf/runtime/ring_buffer.hpp>
+#include <formal_eskf/runtime/history/ring_buffer.hpp>
 #include "test_cases.hpp"
 
 namespace

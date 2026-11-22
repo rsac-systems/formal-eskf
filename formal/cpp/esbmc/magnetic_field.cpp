@@ -7,7 +7,7 @@
  */
 #include "contracts.hpp"
 #include <limits>
-#include <formal_eskf/runtime/magnetic_field.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetic_field.hpp>
 #ifndef FORMAL_ESKF_PROOF_MAG_GEOMETRY_MODE
 #define FORMAL_ESKF_PROOF_MAG_GEOMETRY_MODE 0
 #endif

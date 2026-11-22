@@ -4,7 +4,7 @@
 #include <cmath>
 #include <optional>
 
-#include <formal_eskf/runtime/magnetic_reference.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetic_reference.hpp>
 
 #include "DeploymentProfile.hpp"
 

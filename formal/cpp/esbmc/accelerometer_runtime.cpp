@@ -12,10 +12,10 @@
 #include <cstdint>
 #include <formal_eskf/eskf/accelerometer.hpp>
 #include <formal_eskf/eskf/types.hpp>
-#include <formal_eskf/runtime/measurement_fusion.hpp>
+#include <formal_eskf/runtime/fusion/measurement_fusion.hpp>
 #include <formal_eskf/so3/rotation_vector.hpp>
 #define private public
-#include <formal_eskf/runtime/accelerometer.hpp>
+#include <formal_eskf/runtime/sensors/gravity/accelerometer.hpp>
 #undef private
 namespace accel_proof
 {

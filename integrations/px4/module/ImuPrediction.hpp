@@ -6,7 +6,7 @@
 #include "DeploymentProfile.hpp"
 
 #include <formal_eskf/eskf/eskf.hpp>
-#include <formal_eskf/runtime/imu.hpp>
+#include <formal_eskf/runtime/sensors/imu/imu.hpp>
 
 namespace formal_eskf::px4
 {

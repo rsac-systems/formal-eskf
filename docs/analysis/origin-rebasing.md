@@ -207,9 +207,9 @@ There are concrete dependencies beyond state and covariance:
 | Current owner | What an integrated rebase must handle |
 |---|---|
 | [Prediction](../../include/formal_eskf/eskf/prediction.hpp) and [gravity observation](../../include/formal_eskf/eskf/accelerometer.hpp) | Use the same new `[0,0,+g]` in both paths. Keep g's configured magnitude initially. This retains E-STATE's Down-aligned convention; the event contract must specify its refresh boundary. Check the predicted change above rather than requiring the old observation/trajectory to remain identical. |
-| [Magnetic tilt protection](../../include/formal_eskf/eskf/magnetometer.hpp), [heading/field checks](../../include/formal_eskf/runtime/magnetic_field.hpp), [heading recovery](../../include/formal_eskf/runtime/magnetometer.hpp) and [tilt alignment](../../include/formal_eskf/runtime/tilt_alignment.hpp) | These use navigation z or horizontal components. In the selected frame they refer to the new local Down/horizon. Body-field prediction can remain invariant under reference rotation while heading-only gain projection and directional checks change. Audit their histories and thresholds; do not promise invariant fusion decisions. |
+| [Magnetic tilt protection](../../include/formal_eskf/eskf/magnetometer.hpp), [heading/field checks](../../include/formal_eskf/runtime/sensors/magnetic/magnetic_field.hpp), [heading recovery](../../include/formal_eskf/runtime/sensors/magnetic/magnetometer.hpp) and [tilt alignment](../../include/formal_eskf/runtime/session/tilt_alignment.hpp) | These use navigation z or horizontal components. In the selected frame they refer to the new local Down/horizon. Body-field prediction can remain invariant under reference rotation while heading-only gain projection and directional checks change. Audit their histories and thresholds; do not promise invariant fusion decisions. |
 | [HeightAiding](../../integrations/px4/module/HeightAiding.hpp) | Its scalar MSL altitude offset is not an ECEF/NED origin. A tilted tangent-frame height model needs geodetic/datum semantics; changing one offset cannot handle it. |
-| [Vertical health](../../include/formal_eskf/runtime/vertical_acceleration_health.hpp), GNSS group diagnostics and filtered ratios | Derived directional scalars cannot generally be rotated into a different axis. Keep their evaluation basis stable, or define a conservative reset/requalification policy without clearing a real fault merely because the frame changed. |
+| [Vertical health](../../include/formal_eskf/runtime/sensors/imu/vertical_acceleration_health.hpp), GNSS group diagnostics and filtered ratios | Derived directional scalars cannot generally be rotated into a different axis. Keep their evaluation basis stable, or define a conservative reset/requalification policy without clearing a real fault merely because the frame changed. |
 
 The selected V1 semantics are **Cartesian state rebasing plus local gravity
 direction refresh**. Do not bundle a new gravity magnitude, new magnetic field,
@@ -314,7 +314,7 @@ explicit; finite arithmetic alone does not establish eligibility.
 
 The component boundary is implemented by
 [`LocalNed::transform_to`](../../include/formal_eskf/geodesy/local_ned.hpp) and
-[`runtime::rebase_origin`](../../include/formal_eskf/runtime/origin_rebase.hpp).
+[`runtime::rebase_origin`](../../include/formal_eskf/runtime/frames/origin_rebase.hpp).
 [R-ORIGIN-REBASE](../spec/requirements/runtime/origin-rebasing.md) and its
 [native test plan](../spec/verification/tests/runtime/origin-rebasing.md) define
 that scope. No active origin, gravity parameter, history or controller state is

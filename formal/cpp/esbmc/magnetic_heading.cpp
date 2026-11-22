@@ -9,11 +9,11 @@
 #include <formal_eskf/eskf/configuration/ahrs.hpp>
 #include <formal_eskf/eskf/configuration/ins.hpp>
 #include <formal_eskf/eskf/magnetometer.hpp>
-#include <formal_eskf/runtime/magnetic_field.hpp>
-#include <formal_eskf/runtime/measurement_fusion.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetic_field.hpp>
+#include <formal_eskf/runtime/fusion/measurement_fusion.hpp>
 #include <formal_eskf/so3/rotation_vector.hpp>
 #define private public
-#include <formal_eskf/runtime/magnetometer.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetometer.hpp>
 #undef private
 #ifndef FORMAL_ESKF_PROOF_HEADING_CALLER
 #define FORMAL_ESKF_PROOF_HEADING_CALLER 0

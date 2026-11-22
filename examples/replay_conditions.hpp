@@ -12,8 +12,8 @@
 #include <cstdint>
 #include <optional>
 
-#include <formal_eskf/runtime/accelerometer.hpp>
-#include <formal_eskf/runtime/tilt_alignment.hpp>
+#include <formal_eskf/runtime/sensors/gravity/accelerometer.hpp>
+#include <formal_eskf/runtime/session/tilt_alignment.hpp>
 
 namespace formal_eskf::example
 {

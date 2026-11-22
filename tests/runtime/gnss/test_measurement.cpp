@@ -11,7 +11,7 @@
 #include <cmath>
 #include <limits>
 
-#include <formal_eskf/runtime/navigation.hpp>
+#include <formal_eskf/runtime/fusion/navigation.hpp>
 #include "test_backend.hpp"
 #include "test_cases.hpp"
 #include "correction_reference.hpp"

@@ -12,7 +12,7 @@
 #include <limits>
 #include <numbers>
 
-#include <formal_eskf/runtime/accelerometer.hpp>
+#include <formal_eskf/runtime/sensors/gravity/accelerometer.hpp>
 #include "test_backend.hpp"
 #include "test_cases.hpp"
 

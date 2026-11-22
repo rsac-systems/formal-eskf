@@ -11,8 +11,8 @@
 #include <cstdint>
 #include <limits>
 
-#include <formal_eskf/runtime/gnss_quality.hpp>
-#include <formal_eskf/runtime/measurement_fusion.hpp>
+#include <formal_eskf/runtime/sensors/gnss/gnss_quality.hpp>
+#include <formal_eskf/runtime/fusion/measurement_fusion.hpp>
 
 namespace formal_eskf::runtime
 {

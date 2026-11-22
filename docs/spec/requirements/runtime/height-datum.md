@@ -61,6 +61,6 @@ model accuracy, receiver integrity or validity during an unbounded GNSS outage.
 Reference: pinned PX4 [datum update and conversion](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF2.cpp#L2453),
 [time constant](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF2.hpp#L449).
 
-Implementation: [HeightDatum](../../../../include/formal_eskf/runtime/height_datum.hpp).
+Implementation: [HeightDatum](../../../../include/formal_eskf/runtime/frames/height_datum.hpp).
 Native cases: [height datum tests](../../verification/tests/runtime/height-datum.md).
 Formal evidence and adapter source/validity integration are separate obligations.

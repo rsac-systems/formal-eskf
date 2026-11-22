@@ -7,10 +7,10 @@
  */
 #include "solve_support.hpp"
 #include <formal_eskf/eskf/magnetometer.hpp>
-#include <formal_eskf/runtime/magnetic_field.hpp>
-#include <formal_eskf/runtime/measurement_fusion.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetic_field.hpp>
+#include <formal_eskf/runtime/fusion/measurement_fusion.hpp>
 #define private public
-#include <formal_eskf/runtime/magnetometer.hpp>
+#include <formal_eskf/runtime/sensors/magnetic/magnetometer.hpp>
 #undef private
 namespace magnetic_filter_proof
 {

@@ -8,7 +8,7 @@
 
 #include "bias_support.hpp"
 #include "step_correction_support.hpp"
-#include <formal_eskf/runtime/measurement_fusion.hpp>
+#include <formal_eskf/runtime/fusion/measurement_fusion.hpp>
 
 namespace fusion_proof
 {

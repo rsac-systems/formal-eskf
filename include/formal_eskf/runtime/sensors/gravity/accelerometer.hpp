@@ -16,7 +16,7 @@
 #include <formal_eskf/eskf/accelerometer.hpp>
 #include <formal_eskf/eskf/types.hpp>
 #include <formal_eskf/linalg/operations.hpp>
-#include <formal_eskf/runtime/measurement_fusion.hpp>
+#include <formal_eskf/runtime/fusion/measurement_fusion.hpp>
 #include <formal_eskf/scalar/math.hpp>
 #include <formal_eskf/so3/operations.hpp>
 #include <formal_eskf/so3/rotation_vector.hpp>
