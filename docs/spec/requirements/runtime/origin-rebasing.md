@@ -63,7 +63,10 @@ acceptance permits roundoff; it is not permission to use a nonrigid transform.
   than `64*epsilon` in any coefficient, with `domain_error`. The boundary is
   inclusive; epsilon is the core scalar's machine epsilon. Reflection, scaling,
   shear and degenerate matrices outside that residual budget shall be rejected.
-  Checked square root/normalization statuses shall propagate.
+  Checked square root/normalization statuses shall propagate. The shared
+  `frame_rotation` operation exposes this same finite-matrix admission for
+  geographic publication; its caller establishes finiteness, and failure preserves
+  its quaternion output. It is not a general projection of approximate matrices.
 - Nonfinite position, velocity or covariance arithmetic shall return
   `non_finite_result`. Quaternion composition uses the existing checked
   normalization contract. Only affected covariance pairs receive symmetry

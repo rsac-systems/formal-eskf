@@ -24,7 +24,7 @@ public:
                   "Height datum requires IEEE-754 binary64");
 
     /** Caller admits one paired GNSS fix in a compatible datum, exactly once. */
-    [[nodiscard]] Status update(std::uint64_t time_us, value_type ellipsoid_m, value_type msl_m);
+    [[nodiscard]] Status update(std::uint64_t sample_time_us, value_type ellipsoid_m, value_type msl_m);
     [[nodiscard]] Status to_msl(value_type ellipsoid_m, value_type & msl_m) const;
     [[nodiscard]] Status to_ellipsoid(value_type msl_m, value_type & ellipsoid_m) const;
     void reset() { *this = HeightDatum{}; }
@@ -40,20 +40,20 @@ private:
 }; /* end class HeightDatum */
 
 template <typename Linalg>
-Status HeightDatum<Linalg>::update(std::uint64_t time_us, value_type ellipsoid_m, value_type msl_m)
+Status HeightDatum<Linalg>::update(std::uint64_t sample_time_us, value_type ellipsoid_m, value_type msl_m)
 {
     if (!scalar::is_finite<math_type>(ellipsoid_m) || !scalar::is_finite<math_type>(msl_m))
     {
         return Status::non_finite_input;
     }
-    if (time_us == 0 || time_us <= m_time_us)
+    if (sample_time_us == 0 || sample_time_us <= m_time_us)
     {
         return Status::out_of_range;
     }
     value_type candidate = ellipsoid_m - msl_m;
     if (initialized())
     {
-        value_type const dt = static_cast<value_type>(time_us - m_time_us) * 1e-6;
+        value_type const dt = static_cast<value_type>(sample_time_us - m_time_us) * 1e-6;
         candidate = m_separation + dt / (time_constant_s + dt) * (candidate - m_separation);
     }
     if (!scalar::is_finite<math_type>(candidate))
@@ -61,7 +61,7 @@ Status HeightDatum<Linalg>::update(std::uint64_t time_us, value_type ellipsoid_m
         return Status::non_finite_result;
     }
     m_separation = candidate;
-    m_time_us = time_us;
+    m_time_us = sample_time_us;
     return Status::success;
 }
 

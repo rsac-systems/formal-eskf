@@ -1792,9 +1792,9 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                          (gnss_lifecycle.state().horizontal_position.action == GnssLifecycle::Action::fuse))
                 {
                     ++position_xy_attempts;
-                    auto const observation = horizontal_observation(frame, state, position);
+                    auto const horizontal = horizontal_observation(frame, state, position);
                     auto const result = formal_eskf::runtime::fuse_measurement(
-                        state, covariance, observation.innovation, observation.H, position_V, QUAT_MIN_NORM,
+                        state, covariance, horizontal.innovation, horizontal.H, position_V, QUAT_MIN_NORM,
                         gnss->position_gate, state, covariance, bias_update);
                     if (quality_parameters)
                     {

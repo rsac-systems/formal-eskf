@@ -288,7 +288,6 @@ bool FormalEskf::initialize_navigation(imu_type const & imu)
     m_origin.projection.initReference(m_gps.latitude_deg, m_gps.longitude_deg, m_origin.time_us);
     m_mag_model_origin_time = m_origin.time_us;
     m_origin.altitude_msl_m = m_gps.altitude_msl_m;
-    m_origin.altitude_ellipsoid_m = m_gps.altitude_ellipsoid_m;
     return true;
 }
 
@@ -537,7 +536,7 @@ void FormalEskf::process_imu(ImuInput const & sample)
     {
         return;
     }
-    if (output_validity(hrt_absolute_time()).healthy)
+    if (output_healthy(hrt_absolute_time()))
     {
         publish_attitude(hrt_absolute_time());
     }
@@ -653,23 +652,28 @@ bool FormalEskf::reset_output(quaternion_type const & delta_q, vector3_type cons
     bool const rotated_point = seeded && formal_eskf::linalg::max_abs(delta_q.coefficients().segment<1, 3>()) > 0. &&
                                formal_eskf::linalg::squared_norm(m_sensor_positions.imu_b) > 0.;
     // Ignore representation noise in unrelated axes, not an estimator innovation.
-    if (request.horizontal_position || rotated_point || (seeded && std::hypot(position(0), position(1)) > 1e-7))
+    if (request.horizontal_position || rotated_point ||
+        (seeded && std::hypot(position(0), position(1)) > profile::output::position_reset_resolution_m))
     {
         m_resets.record_position(m_time_us, vector2_type::from_row_major({position(0), position(1)}));
     }
-    if (request.height_count != 0 || rotated_point || (seeded && std::abs(position(2)) > 1e-7))
+    if (request.height_count != 0 || rotated_point ||
+        (seeded && std::abs(position(2)) > profile::output::position_reset_resolution_m))
     {
         m_resets.record_height(m_time_us, position(2), std::max<std::uint8_t>(request.height_count, 1));
     }
-    if (request.velocity || rotated_point || (seeded && std::hypot(velocity(0), velocity(1)) > 1e-10))
+    if (request.velocity || rotated_point ||
+        (seeded && std::hypot(velocity(0), velocity(1)) > profile::output::velocity_reset_resolution_m_s))
     {
         m_resets.record_velocity(m_time_us, velocity);
     }
-    if (request.vertical_velocity || rotated_point || (seeded && std::abs(velocity(2)) > 1e-10))
+    if (request.vertical_velocity || rotated_point ||
+        (seeded && std::abs(velocity(2)) > profile::output::velocity_reset_resolution_m_s))
     {
         m_resets.record_vertical_velocity(m_time_us, velocity(2));
     }
-    if (request.attitude || (seeded && formal_eskf::linalg::max_abs(attitude.coefficients().segment<1, 3>()) > 1e-12))
+    if (request.attitude || (seeded && formal_eskf::linalg::max_abs(attitude.coefficients().segment<1, 3>()) >
+                                           profile::output::attitude_reset_resolution))
     {
         m_resets.record_attitude(m_time_us, attitude);
     }

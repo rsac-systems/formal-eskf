@@ -114,7 +114,7 @@ its controlled clock does not test concurrent scheduler execution.
 | Scenario | Executable coverage |
 |---|---|
 | Coordinate transaction with nonzero body offset and unequal epochs | `origin_transaction`: frozen output p/v/q, setpoint error, full P, reference/reset preservation, history counts and owner latches. |
-| Delayed callback and post-event aiding | `origin_transaction`: one explicit event after feedback/completion, then real GNSS recovery and geographic height. |
+| Delayed callback and post-event aiding | `origin_transaction`: coordinated event at a completed epoch, then real GNSS recovery and geographic height; `automatic_origin` binds requests to `Run()`. |
 | Candidate failures | `origin_failure`: invalid main P, rotated heading overflow, tilt variance overflow and output-feedback overflow; no visible owner commit or fault-latch change. |
 | Output geometry and covariance | `body_reference_output`, `navigation_covariance_frame`, `dateline_output`: independent forward ECEF/basis oracles, body-point rate derivative, correlated delayed P and both longitude crossings. |
 | Real reset reports | `delayed_resets_and_failure`, `body_reference_output`: observable deltas, same-tick accumulation and geographic basis changes. |

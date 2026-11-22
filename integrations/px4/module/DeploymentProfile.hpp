@@ -209,6 +209,10 @@ inline constexpr double ratio_filter_time_s = 10.;
 
 namespace output
 {
+// Suppress only representation noise on axes not explicitly requested by a real reset.
+inline constexpr double position_reset_resolution_m = 1e-7;
+inline constexpr double velocity_reset_resolution_m_s = 1e-10;
+inline constexpr double attitude_reset_resolution = 1e-12;
 // PX4 v1.16.2 reporting thresholds; bias variance-vector norm, not per-axis sigma.
 inline constexpr float maximum_bias_variance_norm = 0.1f;
 inline constexpr float preflight_innovation_ratio = 0.5f;

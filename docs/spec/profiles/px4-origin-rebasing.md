@@ -21,8 +21,9 @@ the values below are project decisions.
 | Estimated speed | At most **100 m/s** at both positions. This supplies the trigger-to-limit scheduling margin. |
 | Held datum | Last accepted paired GNSS separation at most **30 s** old and at most **1,000 m** ECEF chord distance from both estimates. No assumed zero separation. |
 
-Either trigger at the delayed IMU estimate requests an event; both hard frame limits must hold for usable
-navigation. A trigger is inclusive, a hard limit is inclusive, and time eligibility
+Either trigger at the delayed IMU estimate requests an event; both hard frame
+limits must hold for usable navigation. A trigger is inclusive, a hard limit is
+inclusive, and time eligibility
 uses elapsed time greater than or equal to its interval. Non-finite or unavailable
 geometry fails admission. Ordinary IMU body offsets and the maximum 300 ms history
 lag remain part of the timing/installation profile.
@@ -85,9 +86,12 @@ Acceptance bounds are 1e-7 m for forward NED against PROJ and 2e-7 m for recover
 geographic point, frame round-trip and new-origin residual. The assessed maxima
 were below 4e-9 m, except that this comparison does not bound every binary64
 input. Frozen production-module publication tests allow 2e-6 m position,
-1e-10 m/s velocity and 1e-12 quaternion coefficient change. Full P transport is
-checked against an independently assembled `J P Jᵀ`; model refresh is tested
-separately from coordinate invariance.
+1e-10 m/s velocity and 1e-12 quaternion coefficient change. At a binary32 map
+rounding boundary, a publication comparison must additionally allow one ULP of
+the coordinate: tiny binary64 reconstruction errors can select adjacent rounded
+values. This is output quantization, not an estimator-reset notification. Full P
+transport is checked against an independently assembled `J P Jᵀ`; model refresh
+is tested separately from coordinate invariance.
 
 PX4's spherical horizontal map is deliberately different from ellipsoidal local
 NED. The tested projection agrees with its spherical oracle within binary32
@@ -103,14 +107,15 @@ valid without changing controller setpoints.
 
 Use the production fixture's `--origin-benchmark` mode with 64 retained output
 entries. On a Ryzen 7 3700X host, GCC 11 `-O2`, strict floating point, 512 successful
-transactions took approximately 4.31 µs median, 4.53 µs p99 and 7.16 µs maximum;
-publication geometry took 0.74/0.80/1.01 µs. These are observed host samples,
+transactions took approximately 5.63 µs median, 5.67 µs p99 and 6.83 µs maximum;
+publication geometry took 0.75/0.78/0.96 µs. These are observed host samples,
 not WCET, scheduling response or flight-target performance.
 
-The module occupied 54,040 bytes; its history owners occupied 45,208 bytes under
+The module occupied 54,168 bytes; its history owners occupied 45,208 bytes under
 the existing 64 KiB history budget. GCC `-fcallgraph-info=su` on the actual five
-module translation units reported 3,760 bytes along the longest project-owned
-rebase chain and 24,480 bytes along the longest project-owned `Run()` chain.
+module translation units reported 4,176 bytes along the longest project-owned
+origin-policy/transaction chain (3,856 bytes below the transaction entry) and
+24,480 bytes along the longest project-owned `Run()` chain.
 External library calls, indirect dispatch, interrupt/scheduler stack and compiler
 changes are excluded. The existing 60 KiB work-queue stack reservation is not
 therefore a proved full-chain bound.

@@ -38,7 +38,13 @@ struct Fixture
     using value_type = double;
     using state_type = State;
     using covariance_type = Covariance;
-    static constexpr std::size_t size = 15, measurement_size = 2, attitude_offset = 6;
+    static constexpr std::size_t size = 15;
+    // Used by the dependent fixture interface in reference_correction().
+    // cppcheck-suppress unusedStructMember
+    static constexpr std::size_t measurement_size = 2;
+    // cppcheck-suppress unusedStructMember
+    static constexpr std::size_t attitude_offset = 6;
+    // cppcheck-suppress unusedStructMember
     static constexpr bool is_ins = true;
     State state{};
     Covariance P = Covariance::identity();

@@ -94,18 +94,19 @@ FormalEskf::BodyOutput FormalEskf::body_output(vector3_type const & position, ve
     auto const velocity_offset_n =
         formal_eskf::so3::rotate(attitude, formal_eskf::linalg::cross(angular_rate, m_sensor_positions.imu_b));
     BodyOutput body;
-    formal_eskf::geodesy::NedTransform<backend_type> transform;
-    body.status = geographic_frame(position - position_offset_n, body.geographic, transform);
+    auto const frame = geographic_frame(position - position_offset_n);
+    body.status = frame.status;
     if (!formal_eskf::succeeded(body.status))
     {
         return body;
     }
-    body.rotation = transform.rotation;
+    body.rotation = frame.rotation;
+    body.geographic = frame.point;
     body.status = m_height_datum.to_msl(body.geographic.height_ellipsoid_m, body.altitude_msl_m);
     quaternion_type rotation;
     if (formal_eskf::succeeded(body.status))
     {
-        body.status = formal_eskf::runtime::detail::rebase_rotation(transform.rotation, rotation);
+        body.status = formal_eskf::runtime::frame_rotation(frame.rotation, rotation);
     }
     if (formal_eskf::succeeded(body.status))
     {
@@ -118,7 +119,7 @@ FormalEskf::BodyOutput FormalEskf::body_output(vector3_type const & position, ve
     float north{}, east{};
     m_origin.projection.project(body.geographic.latitude_deg, body.geographic.longitude_deg, north, east);
     body.position_n = vector3(north, east, m_origin.altitude_msl_m - body.altitude_msl_m);
-    body.velocity_n = transform.rotation * (velocity - velocity_offset_n);
+    body.velocity_n = frame.rotation * (velocity - velocity_offset_n);
     if (!formal_eskf::linalg::all_finite(body.position_n) || !formal_eskf::linalg::all_finite(body.velocity_n))
     {
         body.status = status_type::non_finite_result;
@@ -141,9 +142,12 @@ void FormalEskf::publish(imu_type const & imu)
         return;
     }
     m_last_output = time;
-    auto const local = publish_local_position(now, imu, body, validity);
+    auto const frame = delayed_body_frame();
+    NavigationVariance const variance{navigation_variance(0, frame), navigation_variance(3, frame),
+                                      navigation_variance(6, frame)};
+    auto const local = publish_local_position(now, imu, body, validity, variance);
     publish_global_position(now, local, body, validity);
-    publish_odometry(now, imu, body, validity);
+    publish_odometry(now, imu, body, validity, variance);
 }
 
 void FormalEskf::publish_attitude(std::uint64_t now)
@@ -166,7 +170,8 @@ void FormalEskf::publish_attitude(std::uint64_t now)
 }
 
 vehicle_local_position_s FormalEskf::publish_local_position(std::uint64_t now, imu_type const & imu,
-                                                            BodyOutput const & body, OutputValidity const & validity)
+                                                            BodyOutput const & body, OutputValidity const & validity,
+                                                            NavigationVariance const & variance)
 {
     vehicle_local_position_s local{};
     local.timestamp_sample = m_output.current().time_us;
@@ -201,7 +206,7 @@ vehicle_local_position_s FormalEskf::publish_local_position(std::uint64_t now, i
     auto const & q = body.q_nb.coefficients();
     local.heading = matrix::Eulerf(matrix::Quatf(float(q(0)), float(q(1)), float(q(2)), float(q(3)))).psi();
     local.unaided_heading = NAN; // No separate gyro-only heading estimator.
-    auto const rotation_variance = rotation_variance_n();
+    auto const & rotation_variance = variance.attitude;
     local.heading_var = rotation_variance(2);
     local.tilt_var = rotation_variance(0) + rotation_variance(1);
     local.heading_good_for_control = validity.magnetic;
@@ -213,8 +218,8 @@ vehicle_local_position_s FormalEskf::publish_local_position(std::uint64_t now, i
     local.ref_lat = m_origin.projection.getProjectionReferenceLat();
     local.ref_lon = m_origin.projection.getProjectionReferenceLon();
     local.ref_alt = m_origin.altitude_msl_m;
-    auto const position_variance = navigation_variance(0);
-    auto const velocity_variance = navigation_variance(3);
+    auto const & position_variance = variance.position;
+    auto const & velocity_variance = variance.velocity;
     local.eph = std::sqrt(position_variance(0) + position_variance(1));
     local.epv = std::sqrt(position_variance(2));
     local.evh = std::sqrt(velocity_variance(0) + velocity_variance(1));
@@ -250,10 +255,10 @@ void FormalEskf::publish_global_position(std::uint64_t now, vehicle_local_positi
 }
 
 void FormalEskf::publish_odometry(std::uint64_t now, imu_type const & imu, BodyOutput const & body,
-                                  OutputValidity const & validity)
+                                  OutputValidity const & validity, NavigationVariance const & variance)
 {
-    auto const position_variance = navigation_variance(0);
-    auto const velocity_variance = navigation_variance(3);
+    auto const & position_variance = variance.position;
+    auto const & velocity_variance = variance.velocity;
     vehicle_odometry_s odometry{};
     odometry.timestamp_sample = m_output.current().time_us;
     odometry.timestamp = now;
@@ -277,12 +282,17 @@ void FormalEskf::publish_odometry(std::uint64_t now, imu_type const & imu, BodyO
     record_publication(m_odometry_pub.publish(odometry));
 }
 
+bool FormalEskf::output_healthy(std::uint64_t now) const
+{
+    auto const time = m_output.current().time_us;
+    return m_initialized && !m_fault && m_output.ready() && now >= time && now - time < profile::output::maximum_age_us;
+}
+
 FormalEskf::OutputValidity FormalEskf::output_validity(std::uint64_t now) const
 {
     OutputValidity result;
     auto const time = m_output.current().time_us;
-    result.healthy =
-        m_initialized && !m_fault && m_output.ready() && now >= time && now - time < profile::output::maximum_age_us;
+    result.healthy = output_healthy(now);
     if (result.healthy)
     {
         auto const main = frame_admission(m_state.p_n, m_state.v_n, time);

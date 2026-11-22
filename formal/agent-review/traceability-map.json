@@ -7982,7 +7982,7 @@
           },
           {
             "file": "include/formal_eskf/runtime/origin_rebase.hpp",
-            "symbol": "Status rebase_rotation("
+            "symbol": "Status frame_rotation("
           },
           {
             "file": "include/formal_eskf/runtime/navigation_frame.hpp",
@@ -8074,7 +8074,7 @@
         "cpp": [
           {
             "file": "integrations/px4/module/FormalEskfFrames.cpp",
-            "symbol": "FormalEskf::rebase_navigation()"
+            "symbol": "FormalEskf::rebase_navigation("
           },
           {
             "file": "integrations/px4/module/FormalEskfFrames.cpp",

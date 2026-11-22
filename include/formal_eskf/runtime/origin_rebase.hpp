@@ -15,12 +15,14 @@
 
 namespace formal_eskf::runtime
 {
-namespace detail
-{
-
-/** Extract a proper frame rotation, including half turns; no projection of an invalid matrix. */
+/**
+ * R-ORIGIN-REBASE frame admission, also used by geographic publication.
+ * The caller supplies a finite matrix. Extract a proper rotation, including half
+ * turns; reject reconstruction errors beyond 64*epsilon instead of projecting an
+ * invalid matrix. Failure preserves output; the tolerance is not a tuning input.
+ */
 template <typename Linalg>
-[[nodiscard]] Status rebase_rotation(linalg::Matrix<Linalg, 3U, 3U> const & A, so3::UnitQuaternion<Linalg> & output)
+[[nodiscard]] Status frame_rotation(linalg::Matrix<Linalg, 3U, 3U> const & A, so3::UnitQuaternion<Linalg> & output)
 {
     using value_type = typename Linalg::value_type;
     using math_type = typename Linalg::scalar_math_type;
@@ -91,8 +93,6 @@ template <typename Linalg>
     return Status::success;
 }
 
-} /* end namespace detail */
-
 /**
  * R-ORIGIN-REBASE: p'=A*p+t, v'=A*v, q'=q_A*q, P'=J*P*J^T,
  * J=diag(A,A,I3,I3,I3). Body biases and the body-local attitude error are unchanged.
@@ -141,7 +141,7 @@ rebase_origin(configuration::Ins::NominalState<Linalg> const & state,
         }
     }
     so3::UnitQuaternion<Linalg> q_new_old;
-    Status const rotation_status = detail::rebase_rotation(transform.rotation, q_new_old);
+    Status const rotation_status = frame_rotation(transform.rotation, q_new_old);
     if (!succeeded(rotation_status))
     {
         return rotation_status;
@@ -232,7 +232,7 @@ template <typename Linalg> struct OriginRebaseCandidate
         {
             return status;
         }
-        return detail::rebase_rotation(transform.rotation, rotation);
+        return frame_rotation(transform.rotation, rotation);
     }
 }; /* end struct OriginRebaseCandidate */
 

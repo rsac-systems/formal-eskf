@@ -36,8 +36,9 @@ bindings, not a generic callback or policy-dispatch mechanism.
 
 ## State and reference inventory
 
-The source links locate current owners. The event treatment is the target
-allocation, not a claim that every operation is already implemented.
+The source links locate the owners of each frame-dependent value. The event
+treatment defines their responsibilities; verification evidence remains scoped
+to the requirement and profile, rather than inferred from this inventory.
 
 | Owner / data | Basis and epoch | Treatment at an internal rebase |
 |---|---|---|
@@ -107,9 +108,9 @@ optional rebase does not roll back the already completed fusion cycle. The
 reference/output contract makes earlier attitude publication remain meaningful;
 uORB messages are not claimed to be an atomic multi-topic transaction.
 
-An explicit replay/module test entry first exercises this path. Automatic
-selection later supplies the same request, using the measured envelope and
-configured dwell/retry limits. It does not create a second implementation.
+Replay and module tests can explicitly request this path. Automatic module
+selection uses the same transaction with the assessed envelope and configured
+dwell/retry limits. It does not create a second implementation.
 
 ## Verification boundary
 
@@ -130,3 +131,26 @@ Existing predictor/history helpers remain in the integration directory because
 their contracts include its timing profile. The final refactor reviews actual
 coupling and duplication, not a prescribed file count. No C++ declaration is
 duplicated here; canonical headers own concrete signatures when implemented.
+
+## Geometry and publication ownership
+
+The adapter builds local geographic snapshots from each unchanged estimate.
+Each snapshot contains its checked geographic point, ECEF point and working-to-
+geographic rotation. Admission reuses that ECEF point for the datum-distance
+check; the transaction consumes the same main/current snapshots before any
+owner commits. These are call-local values, not caches that can survive a frame,
+state or epoch change. Only the single writer constructs and consumes them.
+
+One delayed body-point basis supplies the position, velocity and attitude
+variance proxies for each navigation publication. Local position and odometry
+share those results; current output attitude never replaces the delayed basis.
+Standalone heading/status queries still obtain their own matching delayed basis.
+The fast attitude phase checks numerical output freshness directly and does not
+run unused navigation admission or aiding diagnostics.
+
+The existing `FormalEskfFrames.cpp` groups datum, geometry, admission and the
+origin transaction. `FormalEskfOutput.cpp` owns message mapping and reset
+notifications; predictor and height owners retain their transactional scratch.
+No persistent derived-geometry cache, second covariance, generic policy dispatch
+or additional frame backend is required. Portable rotation extraction remains
+one shared operation used by rebasing and geographic publication.

@@ -198,8 +198,7 @@ private:
     [[nodiscard]] Status height_observation(state_type const & state, Geometry const * geometry,
                                             observation_type & output) const;
     [[nodiscard]] Status height_frame(state_type const & state, Geometry const & geometry,
-                                      geodesy::NedTransform<Linalg> & transform,
-                                      geodesy::GeodeticPosition & geographic) const;
+                                      geodesy::NedTransform<Linalg> & transform) const;
     void stop(Source source, StopReason reason);
     bool admit(Source source, std::uint64_t now_us, Sample const & sample, Result & result);
     bool prepare_barometer(Sample const & sample, value_type altitude, Result & result);
@@ -240,10 +239,10 @@ Status HeightAiding<Linalg>::height_observation(state_type const & state, Geomet
 
 template <typename Linalg>
 Status HeightAiding<Linalg>::height_frame(state_type const & state, Geometry const & geometry,
-                                          geodesy::NedTransform<Linalg> & transform,
-                                          geodesy::GeodeticPosition & geographic) const
+                                          geodesy::NedTransform<Linalg> & transform) const
 {
     vector_type ecef;
+    geodesy::GeodeticPosition geographic;
     auto status = geometry.frame.ned_to_ecef(state.p_n, ecef);
     if (succeeded(status))
     {
@@ -286,10 +285,9 @@ void HeightAiding<Linalg>::reset_height(Source source, std::uint64_t now_us, val
         observation_type prediction;
         result.status = height_observation(state, geometry, prediction);
         geodesy::NedTransform<Linalg> transform;
-        geodesy::GeodeticPosition geographic;
         if (succeeded(result.status))
         {
-            result.status = height_frame(state, *geometry, transform, geographic);
+            result.status = height_frame(state, *geometry, transform);
         }
         if (!succeeded(result.status))
         {
@@ -441,8 +439,7 @@ void HeightAiding<Linalg>::recover(Source source, std::uint64_t now_us, Sample c
             else if constexpr (std::numeric_limits<value_type>::digits == 53)
             {
                 geodesy::NedTransform<Linalg> transform;
-                geodesy::GeodeticPosition geographic;
-                result.status = height_frame(state, *geometry, transform, geographic);
+                result.status = height_frame(state, *geometry, transform);
                 if (!succeeded(result.status))
                 {
                     return;

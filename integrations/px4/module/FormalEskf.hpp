@@ -116,7 +116,6 @@ private:
         MapProjection projection{};
         std::uint64_t time_us{};
         double altitude_msl_m{};
-        double altitude_ellipsoid_m{};
     };
 
     struct Gnss
@@ -161,6 +160,19 @@ private:
     struct SensorPositions
     {
         vector3_type imu_b{}, gnss_b{}; // Body FRD metres from the output/body origin.
+    };
+
+    struct GeographicFrame
+    {
+        status_type status = status_type::domain_error;
+        formal_eskf::geodesy::GeodeticPosition point{};
+        vector3_type ecef{};
+        matrix3_type rotation{};
+    };
+
+    struct NavigationVariance
+    {
+        vector3_type position{}, velocity{}, attitude{};
     };
 
     struct BodyOutput
@@ -225,6 +237,7 @@ private:
 
     struct FrameAdmission
     {
+        GeographicFrame frame{};
         bool within_domain{}, datum_usable{}, within_frame{}, request{};
     };
 
@@ -332,18 +345,20 @@ private:
     bool initialization_ready() const;
     bool initialize_attitude(double & yaw);
     bool initialize_navigation(imu_type const & imu);
-    status_type rebase_navigation();
+    // Admission snapshots belong to the unchanged main/current estimates of this single-writer transaction.
+    status_type rebase_navigation(FrameAdmission const & main, FrameAdmission const & current);
     bool update_height_datum(std::uint64_t time_us, formal_eskf::geodesy::GeodeticPosition const & position,
                              double altitude_msl_m);
     static double frame_angle(matrix3_type const & rotation);
     FrameAdmission frame_admission(vector3_type const & position, vector3_type const & velocity,
                                    std::uint64_t output_time_us) const;
     void update_origin();
-    status_type geographic_frame(vector3_type const & position, formal_eskf::geodesy::GeodeticPosition & geographic,
-                                 formal_eskf::geodesy::NedTransform<backend_type> & transform) const;
+    GeographicFrame geographic_frame(vector3_type const & position) const;
     status_type gnss_frame(formal_eskf::geodesy::NedTransform<backend_type> & transform) const;
     vector3_type magnetic_reference(vector3_type const & fixed) const;
+    GeographicFrame delayed_body_frame() const;
     vector3_type navigation_variance(std::size_t start) const;
+    vector3_type navigation_variance(std::size_t start, GeographicFrame const & frame) const;
     static types_type::parameter_type estimator_parameters();
     static bias_learning_type::Parameters bias_learning_parameters();
     bool load_startup_parameters();
@@ -383,11 +398,13 @@ private:
     void publish(imu_type const & imu);
     void publish_attitude(std::uint64_t now);
     vehicle_local_position_s publish_local_position(std::uint64_t now, imu_type const & imu, BodyOutput const & body,
-                                                    OutputValidity const & validity);
+                                                    OutputValidity const & validity,
+                                                    NavigationVariance const & variance);
     void publish_global_position(std::uint64_t now, vehicle_local_position_s const & local, BodyOutput const & body,
                                  OutputValidity const & validity);
     void publish_odometry(std::uint64_t now, imu_type const & imu, BodyOutput const & body,
-                          OutputValidity const & validity);
+                          OutputValidity const & validity, NavigationVariance const & variance);
+    bool output_healthy(std::uint64_t now) const;
     OutputValidity output_validity(std::uint64_t now) const;
     void publish_status(uint64_t now);
     estimator_status_s publish_estimator_status(std::uint64_t now, OutputValidity const & validity,
@@ -443,7 +460,6 @@ private:
     formal_eskf::runtime::NavigationFrame<backend_type> m_navigation_frame{};
     formal_eskf::runtime::HeightDatum<backend_type> m_height_datum{};
     OriginControl m_origin_control{};
-    bool m_rebase_requested{};
     SensorPositions m_sensor_positions{};
     std::uint64_t m_time_us{}; // Completed prediction horizon; alignment IMU epoch before seeding.
     bool m_initialized{};

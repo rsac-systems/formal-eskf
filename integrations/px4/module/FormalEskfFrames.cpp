@@ -12,21 +12,26 @@ double FormalEskf::frame_angle(matrix3_type const & A)
     return std::atan2(std::sqrt(x * x + y * y + z * z), A(0, 0) + A(1, 1) + A(2, 2) - 1.);
 }
 
-FormalEskf::status_type FormalEskf::geographic_frame(vector3_type const & position,
-                                                     formal_eskf::geodesy::GeodeticPosition & geographic,
-                                                     formal_eskf::geodesy::NedTransform<backend_type> & transform) const
+FormalEskf::GeographicFrame FormalEskf::geographic_frame(vector3_type const & position) const
 {
-    auto status = m_navigation_frame.geographic(position, geographic);
+    GeographicFrame result;
+    result.status = m_navigation_frame.working().ned_to_ecef(position, result.ecef);
+    if (formal_eskf::succeeded(result.status))
+    {
+        result.status = formal_eskf::geodesy::ecef_to_geodetic<backend_type>(result.ecef, result.point);
+    }
     formal_eskf::geodesy::LocalNed<backend_type> frame;
-    if (formal_eskf::succeeded(status))
+    if (formal_eskf::succeeded(result.status))
     {
-        status = frame.set_origin(geographic);
+        result.status = frame.set_origin(result.point);
     }
-    if (formal_eskf::succeeded(status))
+    if (formal_eskf::succeeded(result.status))
     {
-        status = m_navigation_frame.working().transform_to(frame, transform);
+        formal_eskf::geodesy::NedTransform<backend_type> transform;
+        result.status = m_navigation_frame.working().transform_to(frame, transform);
+        result.rotation = transform.rotation;
     }
-    return status;
+    return result;
 }
 
 FormalEskf::status_type FormalEskf::gnss_frame(formal_eskf::geodesy::NedTransform<backend_type> & transform) const
@@ -65,29 +70,29 @@ FormalEskf::FrameAdmission FormalEskf::frame_admission(vector3_type const & posi
                                                        std::uint64_t output_time_us) const
 {
     FrameAdmission result;
-    formal_eskf::geodesy::GeodeticPosition geographic;
-    formal_eskf::geodesy::NedTransform<backend_type> transform;
-    if (!formal_eskf::succeeded(geographic_frame(position, geographic, transform)))
+    result.frame = geographic_frame(position);
+    if (!formal_eskf::succeeded(result.frame.status))
     {
         return result;
     }
+    auto const & geographic = result.frame.point;
     auto const speed = formal_eskf::linalg::norm(velocity);
     result.within_domain = std::abs(geographic.latitude_deg) <= profile::origin::maximum_latitude_deg &&
                            geographic.height_ellipsoid_m >= profile::origin::minimum_height_m &&
                            geographic.height_ellipsoid_m <= profile::origin::maximum_height_m && std::isfinite(speed) &&
                            speed <= profile::origin::maximum_speed_m_s;
-    auto const angle = frame_angle(transform.rotation);
+    auto const angle = frame_angle(result.frame.rotation);
     auto const distance = std::hypot(position(0), position(1));
     result.within_frame =
         distance <= profile::origin::maximum_distance_m && angle <= profile::origin::maximum_angle_rad;
     result.request = distance >= profile::origin::trigger_distance_m || angle >= profile::origin::trigger_angle_rad;
-    vector3_type ecef, datum_offset;
+    vector3_type datum_offset;
     auto const datum_time = m_height_datum.time_us();
-    result.datum_usable = m_height_datum.initialized() && output_time_us >= datum_time &&
-                          output_time_us - datum_time <= profile::origin::datum_maximum_age_us &&
-                          formal_eskf::succeeded(m_navigation_frame.working().ned_to_ecef(position, ecef)) &&
-                          formal_eskf::succeeded(m_origin_control.datum_frame.ecef_to_ned(ecef, datum_offset)) &&
-                          formal_eskf::linalg::norm(datum_offset) <= profile::origin::datum_maximum_distance_m;
+    result.datum_usable =
+        m_height_datum.initialized() && output_time_us >= datum_time &&
+        output_time_us - datum_time <= profile::origin::datum_maximum_age_us &&
+        formal_eskf::succeeded(m_origin_control.datum_frame.ecef_to_ned(result.frame.ecef, datum_offset)) &&
+        formal_eskf::linalg::norm(datum_offset) <= profile::origin::datum_maximum_distance_m;
     return result;
 }
 
@@ -96,18 +101,16 @@ void FormalEskf::update_origin()
     auto const & output = m_output.current();
     auto const main = frame_admission(m_state.p_n, m_state.v_n, output.time_us);
     auto const current = frame_admission(output.p_n, output.v_n, output.time_us);
-    bool const requested = m_rebase_requested || main.request;
-    m_rebase_requested = false;
     auto const elapsed = [this](std::uint64_t prior, std::uint64_t interval)
     { return prior == 0 || (m_time_us >= prior && m_time_us - prior >= interval); };
-    if (!requested || !main.within_domain || !current.within_domain || !main.datum_usable || !current.datum_usable ||
+    if (!main.request || !main.within_domain || !current.within_domain || !main.datum_usable || !current.datum_usable ||
         !elapsed(m_origin_control.success_time_us, profile::origin::minimum_interval_us) ||
         !elapsed(m_origin_control.attempt_time_us, profile::origin::retry_interval_us))
     {
         return;
     }
     m_origin_control.attempt_time_us = m_time_us;
-    if (formal_eskf::succeeded(rebase_navigation()))
+    if (formal_eskf::succeeded(rebase_navigation(main, current)))
     {
         m_origin_control.success_time_us = m_time_us;
     }
@@ -117,7 +120,7 @@ void FormalEskf::update_origin()
     }
 }
 
-FormalEskf::status_type FormalEskf::rebase_navigation()
+FormalEskf::status_type FormalEskf::rebase_navigation(FrameAdmission const & main, FrameAdmission const & current)
 {
     if (!m_initialized || m_fault || !m_output.ready() || !m_height_datum.initialized() ||
         m_output.fusion_time_us() != m_time_us || m_imu_history.fusion_time_us() != m_time_us)
@@ -125,8 +128,6 @@ FormalEskf::status_type FormalEskf::rebase_navigation()
         return status_type::domain_error;
     }
     auto const & output = m_output.current();
-    auto const main = frame_admission(m_state.p_n, m_state.v_n, output.time_us);
-    auto const current = frame_admission(output.p_n, output.v_n, output.time_us);
     if (!main.within_domain || !current.within_domain || !main.datum_usable || !current.datum_usable)
     {
         return status_type::domain_error;
@@ -138,14 +139,7 @@ FormalEskf::status_type FormalEskf::rebase_navigation()
     }
     auto const & candidate = m_navigation_frame.candidate();
     auto const new_position = candidate.transform.rotation * output.p_n + candidate.transform.translation;
-    formal_eskf::geodesy::GeodeticPosition output_geographic;
-    formal_eskf::geodesy::NedTransform<backend_type> output_transform;
-    status = geographic_frame(output.p_n, output_geographic, output_transform);
-    if (!formal_eskf::succeeded(status))
-    {
-        return status;
-    }
-    auto const new_axes = output_transform.rotation * formal_eskf::linalg::transpose(candidate.transform.rotation);
+    auto const new_axes = current.frame.rotation * formal_eskf::linalg::transpose(candidate.transform.rotation);
     if (std::hypot(new_position(0), new_position(1)) > profile::origin::maximum_distance_m ||
         frame_angle(new_axes) > profile::origin::maximum_angle_rad)
     {
@@ -174,13 +168,20 @@ FormalEskf::status_type FormalEskf::rebase_navigation()
     return status_type::success;
 }
 
+FormalEskf::GeographicFrame FormalEskf::delayed_body_frame() const
+{
+    // Covariance proxies use the delayed body point, never the current output attitude.
+    return geographic_frame(m_state.p_n - formal_eskf::so3::rotate(m_state.q_nb, m_sensor_positions.imu_b));
+}
+
 FormalEskf::vector3_type FormalEskf::navigation_variance(std::size_t start) const
 {
-    formal_eskf::geodesy::GeodeticPosition geographic;
-    formal_eskf::geodesy::NedTransform<backend_type> transform;
-    // A delayed proxy must use the delayed body point, never the current output attitude.
-    auto const position = m_state.p_n - formal_eskf::so3::rotate(m_state.q_nb, m_sensor_positions.imu_b);
-    if (!formal_eskf::succeeded(geographic_frame(position, geographic, transform)))
+    return navigation_variance(start, delayed_body_frame());
+}
+
+FormalEskf::vector3_type FormalEskf::navigation_variance(std::size_t start, GeographicFrame const & frame) const
+{
+    if (!formal_eskf::succeeded(frame.status))
     {
         return vector3(NAN, NAN, NAN);
     }
@@ -192,8 +193,7 @@ FormalEskf::vector3_type FormalEskf::navigation_variance(std::size_t start) cons
             P(i, j) = m_covariance(start + i, start + j);
         }
     }
-    auto const A =
-        start == 6 ? transform.rotation * formal_eskf::so3::to_rotation_matrix(m_state.q_nb) : transform.rotation;
+    auto const A = start == 6 ? frame.rotation * formal_eskf::so3::to_rotation_matrix(m_state.q_nb) : frame.rotation;
     auto const rotated = formal_eskf::linalg::sandwich(A, P);
     return vector3(rotated(0, 0), rotated(1, 1), rotated(2, 2));
 }

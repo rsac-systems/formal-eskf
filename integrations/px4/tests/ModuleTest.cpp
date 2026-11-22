@@ -405,7 +405,6 @@ public:
         f.m_origin.projection.initReference(47.397742, 8.545594, clock_us);
         f.m_origin.time_us = clock_us;
         f.m_origin.altitude_msl_m = 488.;
-        f.m_origin.altitude_ellipsoid_m = 535.;
         expect(formal_eskf::succeeded(f.m_navigation_frame.initialize({47.397742, 8.545594, 535.})) &&
                    f.update_height_datum(clock_us, {47.397742, 8.545594, 535.}, 488.),
                "prepare geometric frame and paired height datum");
@@ -2693,6 +2692,14 @@ public:
         }
     }
 
+    static FormalEskf::status_type request_origin(FormalEskf & filter)
+    {
+        auto const & output = filter.m_output.current();
+        auto const main = filter.frame_admission(filter.m_state.p_n, filter.m_state.v_n, output.time_us);
+        auto const current = filter.frame_admission(output.p_n, output.v_n, output.time_us);
+        return filter.rebase_navigation(main, current);
+    }
+
     static void origin_transaction()
     {
         FormalEskfModuleTest test;
@@ -2720,7 +2727,7 @@ public:
         auto const datum_epoch = f.m_height_datum.time_us();
         auto const corrections = f.m_gnss.corrections;
         auto const reference = f.m_magnetic_model.reference_id();
-        expect(f.rebase_navigation() == formal_eskf::Status::success, "prepare and commit live owner transaction");
+        expect(request_origin(f) == formal_eskf::Status::success, "prepare and commit live owner transaction");
         auto const after = f.body_output();
         expect(before.status == formal_eskf::Status::success && after.status == formal_eskf::Status::success &&
                    formal_eskf::linalg::max_abs(after.position_n - before.position_n) < 2e-6 &&
@@ -2761,14 +2768,12 @@ public:
         J.set_block<3, 3>(transform.rotation);
         expect(formal_eskf::linalg::max_abs(f.m_covariance - J * old_P * formal_eskf::linalg::transpose(J)) < 1e-10,
                "live transaction transports all covariance cross-blocks");
-        f.m_rebase_requested = true;
         auto const predictions = f.m_predictions;
         test.m_sample.timestamp_sample += 4000;
         test.tick();
-        expect(!f.m_fault && f.m_predictions == predictions + 1 && f.m_navigation_frame.generation() == 2 &&
-                   !f.m_rebase_requested && f.m_imu_history.fusion_time_us() == f.m_time_us &&
-                   f.m_output.fusion_time_us() == f.m_time_us,
-               "actual Run executes one request after matching feedback and IMU completion");
+        expect(!f.m_fault && f.m_predictions == predictions + 1 && f.m_navigation_frame.generation() == 1 &&
+                   f.m_imu_history.fusion_time_us() == f.m_time_us && f.m_output.fusion_time_us() == f.m_time_us,
+               "actual Run continues after the event without requesting a redundant migration");
         // A new estimator tick permits new height/source feedback; no same-tick replay.
         f.m_time_us += 4000;
         // Return the receiver to the moved frame's physical estimate, then force normal recovery.
@@ -2831,7 +2836,7 @@ public:
         auto const reference = f.m_origin;
         auto const generation = f.m_navigation_frame.generation();
         auto const gps = f.m_gnss.sample_time_us;
-        expect(f.rebase_navigation() != formal_eskf::Status::success && !f.m_fault &&
+        expect(request_origin(f) != formal_eskf::Status::success && !f.m_fault &&
                    f.m_navigation_frame.generation() == generation && same_bits(f.m_state.p_n, prior.p_n) &&
                    same_bits(f.m_state.q_nb.coefficients(), prior.q_nb.coefficients()) &&
                    same_bits(f.m_covariance, P) && same_bits(f.m_output.current().p_n, output.p_n) &&
@@ -3024,7 +3029,6 @@ public:
         f.m_height_datum.reset();
         expect(f.update_height_datum(epoch - 30000001U, geographic, geographic.height_ellipsoid_m - 47.),
                "install an expired held pair");
-        f.m_rebase_requested = true;
         f.m_origin_control = {f.m_origin_control.datum_frame, 0, 0};
         auto const generation = f.m_navigation_frame.generation();
         f.update_origin();
@@ -3035,7 +3039,7 @@ public:
                    f.output_validity(clock_us).navigation,
                "a real admitted pair restores datum availability independently of frame generation");
         expect(f.m_output.apply_reset({}, {}, FormalEskf::vector3(3000., 0., 0.)), "newer output outside hard frame");
-        expect(!f.output_validity(clock_us).navigation && f.rebase_navigation() != formal_eskf::Status::success &&
+        expect(!f.output_validity(clock_us).navigation && request_origin(f) != formal_eskf::Status::success &&
                    f.m_navigation_frame.generation() == generation,
                "zero delayed position cannot conceal an out-of-envelope current output");
     }
@@ -3054,7 +3058,7 @@ public:
         auto const current = f.frame_admission(output.p_n, output.v_n, output.time_us);
         expect(main.within_frame && current.within_frame && main.datum_usable && current.datum_usable,
                "both endpoints are individually admitted in the old frame");
-        expect(f.rebase_navigation() == formal_eskf::Status::domain_error && f.m_navigation_frame.generation() == 0 &&
+        expect(request_origin(f) == formal_eskf::Status::domain_error && f.m_navigation_frame.generation() == 0 &&
                    same_bits(before.p_n, f.m_state.p_n) && same_bits(output.p_n, f.m_output.current().p_n) &&
                    !f.m_fault,
                "candidate is rejected if the new delayed origin leaves current output beyond the angular limit");
@@ -3077,7 +3081,7 @@ public:
             f.m_state.p_n = f.m_state.p_n + shift;
             expect(f.m_output.apply_reset({}, {}, shift), "benchmark physical displacement");
             auto const start = std::chrono::steady_clock::now();
-            auto const status = f.rebase_navigation();
+            auto const status = request_origin(f);
             auto const changed = std::chrono::steady_clock::now();
             auto const output = f.body_output();
             auto const end = std::chrono::steady_clock::now();
