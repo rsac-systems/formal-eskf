@@ -161,6 +161,7 @@ formal_eskf_add_backend_test(test_geodetic_ecef math/test_geodetic_ecef formal_e
 formal_eskf_add_backend_test(test_local_ned math/test_local_ned formal_eskf.local_ned.eigen formal_eskf::geodesy)
 formal_eskf_add_backend_test(test_origin_rebase runtime/test_origin_rebase formal_eskf.origin_rebase.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_height_datum runtime/test_height_datum formal_eskf.height_datum.eigen formal_eskf::runtime)
+formal_eskf_add_backend_test(test_frame_observations runtime/test_frame_observations formal_eskf.frame_observations.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_eskf_types core/test_types formal_eskf.types.eigen formal_eskf::core)
 formal_eskf_add_backend_test(test_eskf_sequence core/test_sequence formal_eskf.sequence.eigen formal_eskf::core)
 formal_eskf_add_backend_test(test_eskf_prediction core/test_prediction formal_eskf.prediction.eigen formal_eskf::core)

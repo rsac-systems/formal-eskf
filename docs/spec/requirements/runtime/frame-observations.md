@@ -63,3 +63,10 @@ Test geometry/conversion failure without a partially published observation.
 Separate these coordinate checks from the gravity-refresh relations in
 R-ORIGIN-REBASE and the directional health requirements. Independent native cases
 are required; no new Lean/ESBMC evidence is implied by this specification.
+
+Implementation: [frame observations](../../../../include/formal_eskf/runtime/frame_observations.hpp).
+Native cases: [frame observation tests](../../verification/tests/runtime/frame-observations.md).
+Rows of the rotation/translation are explicit inputs for linear models; rigid
+basis, sensor-point and epoch compatibility remain caller premises. Live
+observation admission, recovery resets and publication binding remain in the
+PX4 integration work.
