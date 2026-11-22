@@ -29,7 +29,9 @@ of the scheduler, backend, sensor producers or complete flight system.
   changes prevent reuse of obsolete qualification, filter and height-bias history.
 - Preserve fusion order and checked reset operations. Transform current/output
   history on each main reset, preserving epochs and reporting deltas/counters.
-  Ordinary feedback is not a reset.
+  Ordinary feedback is not a reset. Internal-only origin changes follow
+  [R-PX4-ORIGIN-REBASE](origin-rebasing.md) after completed feedback; they transform
+  all affected histories without reporting a fictitious estimator reset.
 - Match exact main/output epochs before feedback/acknowledgment. Faults stop
   subsequent valid publication; an earlier fast attitude is not undone.
 - Publish attitude/navigation at latest output time; status/bias/covariance

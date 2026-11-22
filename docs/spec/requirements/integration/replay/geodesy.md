@@ -9,13 +9,16 @@
 **Parent:** [SW-REPLAY](../../software/replay-aiding.md).
 
 **Uses:** [F-GEO-ECEF](../../math/geodesy/geodetic-ecef.md),
-[F-GEO-NED](../../math/geodesy/local-ned.md).
+[F-GEO-NED](../../math/geodesy/local-ned.md),
+[R-FRAME-OBSERVATIONS](../../runtime/frame-observations.md),
+[R-ORIGIN-REBASE](../../runtime/origin-rebasing.md).
 
 ## Required behavior
 
 Replay preparation shall use the shared C++ geodesy component, in binary64, for
-geodetic positions and local-frame bases. One origin is selected by the existing
-seed policy and retained for the whole replay; no automatic rebasing is added.
+geodetic positions and local-frame bases. One input/output reference is selected
+by the existing seed policy and retained for the whole replay. An explicitly
+enabled working-frame migration shall not reinterpret those prepared coordinates.
 Python shall not maintain a second implementation of the ellipsoid/basis maps.
 
 - PX4-log positions use `alt_ellipsoid`, converted from millimetres to metres.
@@ -42,6 +45,12 @@ Python shall not maintain a second implementation of the ellipsoid/basis maps.
   subprocess is host preparation, not an embedded API or a real-time execution claim.
 
 ## Acceptance and verification
+
+Explicit working-frame events shall use the state/P transaction, consistent
+gravity/reference refresh and observation-frame models. Publish trajectories in
+the fixed seed frame, preserve event ordering and compare against independent
+geographic expectations. An automatic policy additionally requires its declared
+operating limits; a replay-only switch is not live-PX4 acceptance.
 
 [test_replay_geodesy.py](../../../../../tests/replay/test_replay_geodesy.py) invokes
 the actual C++ bridge; it does not substitute the geodesy computation.

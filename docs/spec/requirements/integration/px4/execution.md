@@ -53,8 +53,12 @@ For each callback:
    Each numerical operation uses the latest committed prior. This order is our
    integration contract, not a claim of identical PX4 sensor ordering.
 5. Feed successful filter corrections, bias estimates and resets into the output
-   predictor. Publish navigation estimates from its current-time state and
-   update diagnostics. Navigation publication may be rate-limited separately.
+   predictor. For an admitted origin-migration profile, evaluate at most one
+   [origin transaction](origin-rebasing.md) after completed fusion/feedback and
+   before navigation publication. Its failure preserves the pre-event bundle;
+   eligibility/operating-limit handling is separate from sensor fusion failure.
+   Publish navigation estimates from the current-time output and update
+   diagnostics. Navigation publication may be rate-limited separately.
 
 When selected by the profile, IMU downsampling must compose rotations, account
 for changing body frames when accumulating delta velocity, preserve actual

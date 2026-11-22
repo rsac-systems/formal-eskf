@@ -148,6 +148,8 @@ remain empty: these two additional review units are proof gaps, not verified cla
 | `R-RING-BUFFER` | [Fixed-capacity timestamped history](requirements/runtime/ring-buffer.md) |
 | `R-TILT-ALIGNMENT` | [Covariance-based tilt alignment latch](requirements/runtime/tilt-alignment.md) |
 | `R-ORIGIN-REBASE` | [Cartesian INS state and covariance rebasing](requirements/runtime/origin-rebasing.md) |
+| `R-HEIGHT-DATUM` | [Ellipsoid and MSL height separation](requirements/runtime/height-datum.md) |
+| `R-FRAME-OBSERVATIONS` | [Observations across Cartesian navigation frames](requirements/runtime/frame-observations.md) |
 
 ## Integration requirements
 
@@ -168,6 +170,7 @@ remain empty: these two additional review units are proof gaps, not verified cla
 | `R-PX4-MAGNETIC-MODEL` | [PX4 module geographic magnetic reference](requirements/integration/px4/magnetic-model.md) |
 | `R-PX4-OBSERVATION-HISTORY` | [delayed observations and context](requirements/integration/px4/observation-history.md) |
 | `R-PX4-FRAME-OUTPUT` | [geographic and rotation-variance output frames](requirements/integration/px4/output-frames.md) |
+| `R-PX4-ORIGIN-REBASE` | [Coordinated internal origin migration](requirements/integration/px4/origin-rebasing.md) |
 | `R-PX4-OUTPUT-PREDICTOR` | [current-time output tracking](requirements/integration/px4/output-predictor.md) |
 | `PX4-OWN` | [ownership and interfaces](requirements/integration/px4/ownership.md) |
 | `PX4-OUT` | [output prediction and publication](requirements/integration/px4/publication.md) |

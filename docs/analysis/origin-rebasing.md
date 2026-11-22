@@ -1,6 +1,7 @@
 # Local NED origin rebasing
 
-**Status:** Draft analysis for F-05.4; requirement approval and live integration remain separate.
+**Status:** Reviewed design direction for F-05.4. Normative requirement revisions,
+numerical limits and live implementation/verification remain separate.
 
 ## Recommendation
 
@@ -15,8 +16,32 @@ every predict/correct operation.
 Geodesy constructs the frame transform; runtime/application owns the transaction
 and trigger. Implement and verify the geometric and INS state/covariance
 operations first. Replay must then bind observations and the gravity refresh;
-live PX4 adoption remains separate. This selection is an architectural direction,
-not approval of every integration contract or an implemented flight capability.
+live PX4 adoption follows those integrations. The design decisions below have
+been reviewed with the project owner; they do not approve unwritten requirement
+revisions or establish an implemented flight capability.
+
+## Reviewed decisions
+
+These decision numbers identify the design review, not implementation tasks.
+The [roadmap](../roadmap.md#f-054-implementation-order) owns the execution order.
+
+| Decision | Selected behavior |
+|---|---|
+| 1 | Keep one Cartesian INS core. Separate its movable working origin from the stable PX4 publication reference. |
+| 2 | Preserve the state/error convention and motion equations. Refresh destination gravity to `[0,0,+g]` with unchanged magnitude; no Earth-rate or geodetic-state extension. |
+| 3 | Select the new origin at the estimated IMU position after a completed delayed fusion cycle. It may be airborne. Zero local position does not mean ground contact or zero uncertainty. |
+| 4 | Use ellipsoidal height for ECEF geometry and MSL altitude for PX4 publication. Obtain geoid separation from valid paired GNSS ellipsoid/MSL fields; distinguish datum filtering from ESKF height estimation. |
+| 5 | Keep observations in their declared measurement basis. Predict observations and transform error Jacobians into that basis, preserving measurement covariance and gate interpretation. |
+| 6 | Preserve body measurements, biases and health/fault history. Re-express complete navigation vectors; recompute directional quantities and rebuild nontransportable statistics without inventing health or alignment evidence. |
+| 7 | Publish the active frame, state/P, references and affected predictor/history data as one bounded transaction after fusion. Failure preserves the old bundle; timestamps and observation consumption do not change. |
+| 8 | Publish PX4 projected horizontal position and MSL-relative height with a stable reference. Convert velocity/attitude to the geographic NED output convention; an internal-only rebase does not issue an estimator-reset notification. |
+| 9 | Require independent geometry/covariance oracles, observation consistency, history/rollback checks, cross-topic/controller continuity and numerical/resource acceptance. Separate coordinate invariance from the selected gravity-model refresh. |
+| 10 | Request a rebase from estimated displacement or frame-axis change, with dwell/retry limits and an explicit operating-limit failure response. Derive numerical values from accepted error/resource budgets and report the final conditions. |
+
+Implementation details should follow the pinned PX4 interfaces, execution and
+failure-reporting conventions where applicable. PX4 has no equivalent automatic
+Cartesian rebase threshold to copy. Distance/angle/time defaults are project
+decisions justified by the assessment, not claimed upstream parameter values.
 
 | Layer | Minimal operation and ownership |
 |---|---|
@@ -27,8 +52,8 @@ not approval of every integration contract or an implemented flight capability.
 Prefer direct operations and a small transform value; no new backend, virtual
 dispatch or frame-tag template hierarchy is needed.
 
-Automatic distance-based switching is premature. F-05.2 has no accepted operating
-envelope. Each interval still uses the current fixed-frame Cartesian model; a
+Enabling automatic switching requires the F-05.2 operating-envelope assessment.
+Each interval still uses the current fixed-frame Cartesian model; a
 discrete rebase changes its basis and local gravity direction. This does not add
 Earth-rotation/Coriolis terms, a continuous moving-NED formulation, a gravity
 field or a long-range accuracy guarantee. Latitude and axis changes matter as
@@ -113,7 +138,29 @@ No process noise or elapsed integration time is introduced by this event. For
 rotation-only AHRS, only the attitude representation changes; its body-local
 3x3 covariance remains unchanged. AHRS has no origin-selection policy.
 
-## Required integration decisions
+## Integration design
+
+### Height datum and origin selection
+
+Retain the working origin's binary64 ECEF position and basis. Convert the
+estimated local position back through ECEF to geodetic latitude, longitude and
+ellipsoidal height. MSL altitude is that height minus the local geoid separation.
+The latter comes from the difference between the two height fields in one valid
+GNSS sample, not from subtracting a GNSS height from an ESKF estimate.
+
+Pinned PX4 [filters this separation](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF2.cpp#L2453)
+with a [10-second time constant](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF2.hpp#L449).
+Its estimate uses MSL altitude and adds the separation for ellipsoidal output;
+our geometric path uses the reverse conversion. Define datum initialization,
+validity, source changes and stale-data handling in the adapter contract. Missing
+datum information is not permission to assume zero separation. A geoid model is
+not ground elevation or terrain clearance.
+
+The selected new origin is the delayed post-fusion estimated IMU position.
+Current-time output is generally newer and therefore need not become zero.
+Origin selection does not require a new GNSS observation at that instant, but
+requires an admitted global reference and usable estimator state. Landing and
+touchdown detection do not depend on local position becoming zero.
 
 ### Gravity refresh and preserved geometry
 
@@ -169,6 +216,22 @@ direction refresh**. Do not bundle a new gravity magnitude, new magnetic field,
 new gate or geodetic-state formulation. Until these callers are adapted, a
 state/covariance helper alone is not permission to enable live rebasing.
 
+For heading observability, the current `MagneticHeading` retains only a filtered
+N/E vector. Store/filter the complete navigation-frame specific-force vector so
+its history can be rotated at an event; retain the existing horizontal decision,
+time constant and threshold. A scalar filtered heading error cannot generally
+be transported to a different horizontal plane. Seed its new history from an
+actual valid new-frame error, not an artificial zero, and keep consistency
+requalification separate from filter initialization. Do not reuse `reset_heading`
+for rebasing: it declares consistency after an actual heading alignment/reset.
+
+Preserve body-field filtering, clipping counts, source identity, consumed-sample
+times and fault/recovery timers. Preserve statistics whose observation basis is
+unchanged under decision 5. Recompute tilt/heading diagnostics with the matching
+attitude/covariance basis; the frame event is neither a new measurement nor a
+successful sensor alignment. Do not clear a latched fault or restart its hold
+timer merely because a directional statistic is rebuilt.
+
 ### Measurements and gates
 
 Prefer retaining measurements in their acquisition/reference frame, with an
@@ -202,11 +265,19 @@ generated identity/axis-specific kernels for a rotated H without a new derivatio
 | [IMU history](../../integrations/px4/module/ImuHistory.hpp) and gravity sampling | Preserve body measurements, time intervals and body-relative rotations. Audit any derived navigation-frame values separately; no global buffer flush is needed for body data. |
 | [ObservationHistory](../../integrations/px4/module/ObservationHistory.hpp) | Preserve raw geodetic GNSS, receiver-local velocity, body magnetometer, pressure altitude and flight context. Resolve their frames at consumption. Sensor/calibration generation is not an origin/frame generation. |
 | [Replay](../../examples/replay_common.py) and prepared measurements | Prepared seed-NED positions, velocities, covariances and magnetic references need an explicit fixed input-frame identity and transport/model at consumption, or retained global inputs. They cannot silently become new-frame numbers. |
-| Outputs, setpoints and reset reports | For initial replay comparison, retain a stable external output frame and convert the internal estimate back. Live control needs a separate choice: keep a fixed control frame within its accepted local-vertical envelope, or transform setpoints, vector/attitude references and controller memories into the new frame. Output continuity alone does not establish long-range controller correctness. Current PX4 additive reset fields do not implement a general 3D frame transition. |
+| Outputs, setpoints and reset reports | Keep replay comparison coordinates stable. For PX4, convert the estimated geographic position through the fixed PX4 map projection and publish `z = ref_alt_msl - estimated_alt_msl`; keep reference fields/timestamp unchanged. Express velocity/attitude in geographic NED at the output location. Retain the body output reference point and declared covariance basis/epoch across topics. Internal-only rebasing changes neither reset counters nor the previous reset records; actual estimator resets still report deltas in the publication convention. Controller setpoints are not rebased. |
 
 These are representation changes, not new sensor evidence: do not advance aiding
 timestamps, consume an observation twice, mark a source healthy or silently
 reinitialize fusion because an origin was selected.
+
+Pinned PX4 [constructs local position from geographic output](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/estimator_interface.cpp#L571).
+The fixed map reference does not make every published vector an exact derivative
+in one rigid ECEF tangent frame. Validate the projection/velocity/attitude
+conventions together over the accepted domain; output continuity alone does not
+establish long-range controller correctness. Its [controller reset handling](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/mc_pos_control/MulticopterPositionControl.cpp#L684)
+adjusts setpoints when reset counters change, so an internal frame change cannot
+be reported as a fictitious estimation reset.
 
 ## Ownership and execution
 
@@ -227,11 +298,17 @@ history traversal; it is not free. Measure worst-case capacity, stack and execut
 time before admitting it into the scheduled callback. Avoid copying the entire
 module onto the callback stack.
 
-An initial explicit-request policy makes the operation independently testable.
-A later automatic policy needs an accepted F-05.2 error budget, hysteresis,
-minimum dwell time, eligible initialization/health conditions and an explicit
-failure response. No arbitrary kilometre threshold is proposed here. Altitude
-datum, polar longitude convention and source-vs-frame identity remain explicit.
+An initial explicit-request path makes the operation independently testable.
+The automatic policy requests a transition when estimated horizontal displacement
+or frame-axis change reaches its configured trigger. Use a minimum dwell time and
+bounded retry rate; success recenters the distance without clearing sensor faults.
+Trigger before the accepted operating limit, allowing time for a transaction or
+retry. Failure preserves the old bundle while within its admitted domain. Reaching
+the operating limit without a usable transition reports the affected navigation
+capability unavailable through the PX4 contract; it does not introduce a new
+flight-mode command. Parameter values require F-05.2 and resource evidence. Keep
+pole/domain conventions, stale-datum eligibility and source-vs-frame identity
+explicit; finite arithmetic alone does not establish eligibility.
 
 ## Implementation and verification order
 
@@ -242,16 +319,14 @@ The component boundary is implemented by
 [native test plan](../spec/verification/tests/runtime/origin-rebasing.md) define
 that scope. No active origin, gravity parameter, history or controller state is
 published by these primitives. New Lean/ESBMC evidence and the owner integrations
-below remain outstanding; the existing fixed-frame proofs are not rebase proofs.
+listed in the roadmap remain outstanding; fixed-frame proofs are not rebase proofs.
 
-These are review units within F-05.4, not new unrelated roadmap priorities.
-
-| Order | Work | Acceptance boundary |
-|---|---|---|
-| 1 | Specify/build a binary64 old-to-new rigid transform using the existing geodesy objects; define the nominal-state/P operation. | Exact geometric identities, right-error Jacobian, complete cross-covariance transport, finite results and unchanged outputs on failure. No trigger or live adoption yet. |
-| 2 | Bind replay observation models, gravity refresh, other physical references, input-frame metadata and stable output frame. | Separate pure-coordinate invariance checks from the selected gravity refresh. For the latter verify the one-step Delta_g relations, coherent models and reference frames; later assess physical accuracy with independent truth. Do not use equality with the old trajectory or identical gate decisions as acceptance. |
-| 3 | Extend delayed-owner transactions and predictor/history transport; later bind the PX4 module. | Every owner has a defined action, all-or-nothing failure, no mixed-frame sample, unchanged time/source ordering and coherent consumer outputs. The current PX4 projection/datum requires a separate adoption decision. |
-| 4 | Add an automatic trigger only after envelope and resource acceptance. | Thresholds come from model/precision error budgets, with hysteresis, failure handling and target timing evidence. |
+The [F-05.4 implementation order](../roadmap.md#f-054-implementation-order)
+starts with normative specifications, then contract/layer allocation, before
+implementation. Each implementation unit includes its own tests and self-review;
+system acceptance does not defer component validation. This functional round uses
+native/replay and numerical/resource assessment. New Lean/ESBMC execution is
+deferred; the following proof directions remain future obligations.
 
 The requirement decomposition should follow these semantic boundaries: a frame
 transform contract using F-GEO-ECEF/F-GEO-NED; an INS state/P contract using

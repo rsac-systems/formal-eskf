@@ -10,8 +10,11 @@
 
 ## Required behavior
 
-The module retains a fixed local origin and its current small-area Cartesian
-model. Projection accuracy, model fidelity and estimator accuracy are distinct;
+The module retains a fixed publication reference. An admitted internal migration
+profile follows [R-PX4-ORIGIN-REBASE](origin-rebasing.md); the legacy fixed-origin
+profile does not gain live migration merely from a conversion helper. Both retain
+the Cartesian motion model. Projection accuracy, model fidelity and estimator
+accuracy are distinct;
 F-05.2 in the [functional backlog](../../../../roadmap.md#f-05--sensor-location-and-frames)
 tracks geographic-domain validation and the remaining operating-envelope decisions.
 
@@ -27,20 +30,21 @@ tracks geographic-domain validation and the remaining operating-envelope decisio
   body-local covariance diagonals, as in PX4's `getRotVarBody()` mapping.
 - Normalize computed global longitude and the estimated longitude used for WMM
   lookup to `[-180,180)`. This changes the representation only: retain the local
-  origin, state, covariance, reference timestamp and reset history. Raw malformed
+  origin, state, covariance, reference timestamp and reset history during longitude
+  normalization. Raw malformed
   receiver coordinates still follow the existing rejection policy.
 - The module's horizontal coordinates use PX4 spherical azimuthal-equidistant
   projection, its Down coordinate uses MSL altitude difference, and receiver
   velocity remains local geographic NED. Replay uses WGS84 ECEF projected to
-  fixed-origin NED, with ellipsoidal height and transported velocity. These are
+  fixed input/output NED, with ellipsoidal height and transported velocity. These are
   different approximations; do not claim identical coordinates or reuse one
   path's validation as proof of the other.
-- No distance-based invalidation, automatic rebasing, ECEF core, gravity model
-  or navigation-frame transport dynamics is introduced. Existing freshness,
-  health and fault conditions continue to govern output validity outside the
-  assessment grid. Those flags do not certify geographic model fidelity. A
-  flight-qualified range/latitude/height envelope requires an accepted error
-  budget and validation; it is not inferred from a successful map round trip.
+- Automatic migration and operating-limit validity changes require the admitted
+  R-PX4-ORIGIN-REBASE profile. No ECEF/geodetic core or Earth-rate dynamics is
+  introduced. Existing freshness, health and fault conditions remain necessary;
+  those flags alone do not certify geographic model fidelity. A flight-qualified
+  range/latitude/height envelope requires an accepted error budget and validation,
+  not merely a successful map round trip.
 
 Native evidence must cover tilted and correlated body covariance, a separate
 current output attitude, heading permission, unchanged body odometry variances,

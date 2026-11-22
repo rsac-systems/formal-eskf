@@ -7967,6 +7967,51 @@
         ],
         "esbmc": []
       }
+    },
+    {
+      "id": "R-HEIGHT-DATUM",
+      "title": "Ellipsoid and MSL height separation; specification only, implementation and evidence pending",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/runtime/height-datum.md",
+            "symbol": "# R-HEIGHT-DATUM: Ellipsoid and MSL height separation"
+          }
+        ],
+        "lean": [],
+        "cpp": [],
+        "esbmc": []
+      }
+    },
+    {
+      "id": "R-FRAME-OBSERVATIONS",
+      "title": "Observations across Cartesian navigation frames; specification only, implementation and evidence pending",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/runtime/frame-observations.md",
+            "symbol": "# R-FRAME-OBSERVATIONS: Observations across Cartesian navigation frames"
+          }
+        ],
+        "lean": [],
+        "cpp": [],
+        "esbmc": []
+      }
+    },
+    {
+      "id": "R-PX4-ORIGIN-REBASE",
+      "title": "Coordinated internal origin migration; specification only, implementation and evidence pending",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/integration/px4/origin-rebasing.md",
+            "symbol": "# R-PX4-ORIGIN-REBASE: Coordinated internal origin migration"
+          }
+        ],
+        "lean": [],
+        "cpp": [],
+        "esbmc": []
+      }
     }
   ]
 }

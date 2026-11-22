@@ -17,10 +17,11 @@ plausibility, startup health and the three-axis innovation gate. It consumes a
 unit `q_nb`, calibrated body field, trustworthy NED reference, explicit thresholds
 and caller-established heading alignment/horizontal aiding.
 
-- Filter the **N/E vector** of bias-corrected specific force rotated with the
-  predicted attitude. Update each actual prediction interval with
-  `alpha = dt / (1 s + dt)`, starting at zero. Take the norm after filtering;
-  opposing accelerations must cancel. Vertical force does not contribute.
+- Filter the complete navigation-frame vector of bias-corrected specific force
+  rotated with the predicted attitude. Update each actual prediction interval with
+  `alpha = dt / (1 s + dt)`, starting at zero. Take the norm of N/E after filtering;
+  opposing accelerations must cancel. The retained Down component permits a
+  later frame rotation but does not directly contribute to the horizontal decision.
 - On each consumed magnetic sample, form
   `innovation = wrap_pi(arg((R(q_nb) m_b)_NE) - arg((m_n)_NE))`.
   This equals predicted yaw minus tilt-compensated magnetic heading; it is not
@@ -39,6 +40,13 @@ and caller-established heading alignment/horizontal aiding.
   while retaining the filtered residual. IMU gaps clear acceleration history and
   current observability, retaining heading history and the consistency latch.
   Source switches do not automatically assert consistency.
+- A navigation-frame migration shall rotate the complete filtered force vector
+  and recompute its horizontal magnitude. Mark the current heading innovation
+  unavailable and seed the next scalar heading filter from the first actual valid
+  error in the new frame. Preserve the preceding consistency latch until normal
+  update evidence changes it; migration is not a successful heading reset.
+  Invalid transformation shall preserve all history. A migration shall not
+  simulate an IMU gap or consume a magnetic sample.
 - Inputs/parameters must be finite; `dt` and minimum horizontal field are positive
   normal values, `0 < heading_noise <= pi`, acceleration limit is nonnegative.
   Invalid inputs/parameters or unrepresentable geometry/filter arithmetic fail
@@ -51,7 +59,8 @@ Our explicit weak-field/failure handling and absence of learned magnetic states
 are scoped differences. Native float/double backend tests are supporting
 evidence. The shared wrapped-heading helper has real wrap/range theorems
 and scoped ESBMC scalar, failure-frame, IEEE-value and conditional range checks.
-The actual stateful controller has complementary unconditional failure/call
+Existing evidence targets the pre-migration stateful controller. It has
+complementary unconditional failure/call
 frames and successful IEEE history/latch profiles, plus validation, actual N/E
 norm and acceleration-filter producers. Construction and all reset/update
 transitions establish finite acceleration history. Bounded heading history is
@@ -61,4 +70,6 @@ The IEEE proof uses a conservative 2*pi filter bound, not a deployment threshold
 or rounding-error claim. Lean proves convex acceleration weight, exact-real
 filter bounds and latch rejection/hold/acquisition. External reset eligibility,
 caller horizon/aiding truth, adapter integration and deployment tuning remain
-separate.
+separate. Full-vector history transport and post-migration scalar seeding require
+new native evidence and a later formal evidence update; the preceding proof
+description does not establish those new transitions.

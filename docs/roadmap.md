@@ -82,12 +82,42 @@ latency/memory budgets.
 | F-05.1 — Lever arms and output reference point | Completed | Nominal fixed-geometry compensation, delayed GNSS inputs, current body-point output and reset deltas; independent rotating-point cases check signs and points. [Sensor positions](spec/requirements/integration/px4/sensor-positions.md) excludes installation uncertainty and covariance transport. Extending those limits needs a separate reviewed scope. |
 | F-05.2 — Fixed-frame operating envelope | Partial | [Output-frame fixes](spec/requirements/integration/px4/output-frames.md) are implemented; geographic assessment awaits systematic review. Compare projection/frame/curvature error with independent geodesy and accept a distance/latitude/height envelope, datum, exclusions and out-of-envelope behavior. Review heading-variance assumptions. No accepted flight envelope or silent origin reset. |
 | F-05.3 — Geodetic / ECEF / local NED conversion | Review | Portable binary64 conversions and fixed-origin NED are implemented with registered native tests. Review the [architecture and Draft contracts](spec/architecture/geodesy.md); [exact/source formal profiles](guides/verification.md#geodesy) are registered; inverse-convergence proof, uniform numerical bounds and target qualification remain open. PX4-log/KITTI replay use the shared component; live PX4 adoption and origin-switch decisions stay separate. |
-| F-05.4 — Local NED origin rebasing | Partial | Two-frame geometry and the [portable state/P transaction](spec/requirements/runtime/origin-rebasing.md) are implemented with native cases; new Lean/ESBMC proofs remain open. The [design](analysis/origin-rebasing.md) retains Cartesian ESKF and refreshes new-frame gravity to `[0,0,+g]`. Next bind replay references/observations, then delayed histories, output predictor and consumer frames; automatic switching requires F-05.2 acceptance. Gravity-owner coordination, Down-dependent policies and the module's different projection/datum remain integration work. A successful component call is not a complete live origin switch. |
+| F-05.4 — Local NED origin rebasing | Partial | Two-frame geometry and the [portable state/P transaction](spec/requirements/runtime/origin-rebasing.md) are implemented with native cases; new Lean/ESBMC proofs remain open. The [reviewed design](analysis/origin-rebasing.md#reviewed-decisions) retains Cartesian ESKF, refreshes local gravity and preserves the PX4 output contract. Execute the specification-first sequence below; live integration, numerical limits and resource acceptance remain outstanding. A successful component call is not a complete live origin switch. |
 
 The coordinate-frame extension proceeds from F-05.3 to F-05.4. F-05.2 supplies
 the operating limits needed to justify an automatic rebase policy. A geodetic
 nominal-state extension remains D-07; conversion and rebasing do not require
 storing latitude/longitude in the ESKF nominal state or approve new dynamics.
+
+#### F-05.4 implementation order
+
+The ten reviewed design decisions are not ten completed implementation items.
+Preserve the existing geometry/state-P components. The following action items
+define the remaining order; each implementation item includes targeted tests,
+contract/traceability updates and self-review before proceeding. New Lean/ESBMC
+runs are deferred for this functional round.
+
+| Order / ID | Status | Work and completion boundary |
+|---|---|---|
+| 1 / F-05.4.1 | Completed | **Specify the selected behavior.** Draft contracts bind [height datum](spec/requirements/runtime/height-datum.md), [frame observations](spec/requirements/runtime/frame-observations.md) and the [PX4 origin transaction](spec/requirements/integration/px4/origin-rebasing.md), with linked existing contracts and explicit numerical-profile obligations. Requirement approval and implementation evidence remain separate. |
+| 2 / F-05.4.2 | Planned | **Allocate contracts and ownership.** Map geodesy, numerical core, portable runtime, PX4 adapter and replay responsibilities, dependencies and calls. Inventory each affected state/history/reference with its frame, epoch, owner and transform/preserve/rebuild action. Define bounded candidate/commit interfaces without redundant wrappers or forcing one file/class per contract. Complete this boundary review before production changes. |
+| 3 / F-05.4.3 | Planned | **Bind height datum and origins.** Keep the movable binary64 working frame separate from the PX4 publication reference. Bind paired GNSS ellipsoid/MSL fields, datum filtering/validity and the local-to-ECEF-to-geodetic output path; define source changes and missing/stale datum behavior. Verify round trips and failure preservation. |
+| 4 / F-05.4.4 | Planned | **Adapt observations and physical references.** Preserve declared measurement bases, partial-axis information and gate meaning; bind prediction, H and full measurement covariance to the active frame. Coordinate gravity refresh and magnetic reference transport. Use generic correction for transformed H rather than unsupported generated identity-axis kernels. Preserve state and motion formulation. |
+| 5 / F-05.4.5 | Planned | **Transport directional statistics and health history.** Retain complete heading-observability vectors, transform transportable history and seed nontransportable heading statistics from actual data. Preserve body filters, clipping, faults and time-based recovery; verify that rebasing grants neither alignment nor sensor-health evidence. |
+| 6 / F-05.4.6 | Planned | **Extend predictor/history owners.** Transform current and retained position/velocity/attitude plus navigation-frame feedback history with the same event transform. Preserve body data, timestamps, ordering and capacities. Cover delayed/current epoch differences and owner failure behavior without assuming an additive reset performs a rotation. |
+| 7 / F-05.4.7 | Planned | **Compose the event and replay integration.** Select the delayed post-fusion origin and commit the active frame, state/P, references, diagnostics and histories together. Add an explicit-request replay path with stable comparison output and independent failure injection. No mixed-frame publication or duplicate measurement consumption. |
+| 8 / F-05.4.8 | Planned | **Bind PX4 publication and live transactions.** Keep the fixed projection/MSL reference and convert current body-point outputs into the PX4 conventions. Preserve cross-topic coherence and reset history on internal-only events; retain real reset notifications. Validate the actual delayed callback and controller setpoint behavior using explicit events before enabling an automatic trigger. |
+| 9 / F-05.4.9 | Planned | **Establish the operating and resource limits.** Complete independent geographic/covariance and repeated-rebase checks, observation consistency and gravity-refresh checks, rollback and publication scenarios. Quantify numerical/projection/model errors, maximum-capacity execution time, stack and memory for identified profiles. Derive trigger/operating limits and timing defaults with explicit evidence; host measurements do not qualify an unmeasured flight target. |
+| 10 / F-05.4.10 | Planned | **Enable bounded automatic selection and close acceptance.** Bind displacement/axis-change triggers, eligibility, dwell/retry controls and operating-limit failure reporting to the established limits and existing configuration conventions. Test boundary/retry/recovery cases end to end. Report final conditions, numerical defaults, PX4-aligned behavior, project-specific differences and remaining evidence limits. |
+| 11 / F-05.4.11 | Planned | **Analyze and complete refactoring.** Review the integrated call paths, state ownership, duplicated validation/transforms, interfaces and file organization against the C++ subset and style. Remove unnecessary abstractions and duplicate work while preserving approved behavior, numerical contracts and transaction boundaries. Re-run affected tests and integration acceptance before the final handoff. |
+
+Responsibilities must follow the reusable operation, not the caller's directory:
+geodesy owns geometry; the core owns Cartesian estimator equations; runtime owns
+portable state transitions/policies; the PX4 module owns sensor provenance,
+scheduling and uORB contracts; replay owns dataset/test driving. Existing predictor
+and history owners remain where justified by their contract; the allocation does
+not itself authorize a broad file relocation. Numerical thresholds come from item
+9: pinned PX4 has no equivalent automatic Cartesian rebase thresholds to inherit.
 
 ### F-06 — Diagnostics and configuration
 

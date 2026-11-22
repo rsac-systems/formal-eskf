@@ -57,6 +57,7 @@ startup disablement may have different effects, as specified for gravity aiding.
 | [R-PX4-OUTPUT-PREDICTOR](../integration/px4/output-predictor.md) | Propagate current output and apply matching delayed feedback/resets. |
 | [R-PX4-SENSOR-POSITIONS](../integration/px4/sensor-positions.md) | Convert sensor observations and output between physical reference points. |
 | [R-PX4-FRAME-OUTPUT](../integration/px4/output-frames.md) | Convert geographic and attitude-variance output frames. |
+| [R-PX4-ORIGIN-REBASE](../integration/px4/origin-rebasing.md) | In an admitted rebase profile, coordinate working-frame migration while preserving the publication reference and consumer meaning. |
 | [R-PX4-STATUS](../integration/px4/status.md) | Report confidence, progress, uncertainty and failures with their actual meaning. |
 | [PX4-OUT](../integration/px4/publication.md) | Publish coherent estimates, sample epochs and reset notifications. |
 | [PX4-RT](../integration/px4/real-time.md) | Bound allocation, synchronization, memory and execution for the target profile. |
