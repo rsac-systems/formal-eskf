@@ -64,11 +64,11 @@ qualification keep their own runners.
 | Common | 6 | 1 | Failure/domain/numerical/language/layer contracts; Status. |
 | Math | 18 | 17 | Scalar, fixed-size linalg/adapters, quaternion, SO(3) and geodesy. |
 | ESKF core | 21 | 21 | State, prediction, correction, observations and transactions, including generated kernels. |
-| Portable runtime | 24 | 14 | Admission, health, lifecycle, alignment, reset/fusion orchestration, frame rebasing and fixed-capacity storage. |
+| Portable runtime | 26 | 15 | Admission, health, lifecycle, alignment, reset/fusion orchestration, frame rebasing and fixed-capacity storage. |
 | Software capabilities | 5 | Shared above | SW-CORE, SW-GNSS, SW-GRAVITY, SW-IMU and SW-MAGNETIC compositions. |
-| **Total** | **74** | **53** | Inventory denominator, not proof/test completion. |
+| **Total** | **76** | **54** | Inventory denominator, not proof/test completion. |
 
-The 74 IDs include parent and child requirement documents. They are not 74
+The 76 IDs include parent and child requirement documents. They are not 76
 independent passing claims, and parent/child evidence must not be added together
 to manufacture a completion percentage.
 
@@ -103,7 +103,8 @@ the canonical equations.
 | [Correction, injection and reset](core/update.md) | E-CORRECT, E-BIAS-UPDATE, E-INJECT, E-RESET, E-STEP-INJECT-RESET, E-STEP-CORRECT, E-STEP; SW-CORE. |
 | [Observations and innovation](core/observations.md) | E-OBS, E-OBS-POSITION, E-OBS-VELOCITY, E-OBS-ACCEL, E-OBS-MAGNETIC, E-MAG-TILT, E-INNOV. |
 | [GNSS and navigation](runtime/gnss-navigation.md) | R-MEASUREMENT-FUSION, R-GNSS-QUALITY, R-GNSS-FUSION, R-GNSS-RESET, R-GNSS-VERTICAL-RECOVERY; SW-GNSS. |
-| [Origin rebasing](runtime/origin-rebasing.md) | R-ORIGIN-REBASE. |
+| [Origin rebasing](runtime/origin-rebasing.md) | R-ORIGIN-REBASE; R-FRAME-OBSERVATIONS allocation follows its implementation. |
+| [Height datum](runtime/height-datum.md) | R-HEIGHT-DATUM. |
 | [Gravity and IMU](runtime/gravity-imu.md) | R-ACCELEROMETER-MAGNITUDE, R-ACCELEROMETER-SAMPLING, R-ACCELEROMETER-CONDITIONS, R-ACCELEROMETER-FUSION, R-IMU-BIAS-INHIBITION, R-IMU-PROCESS-NOISE, R-BIAS-PROCESS-NOISE, R-BIAS-LIMITS, R-VERTICAL-ACCELERATION; SW-GRAVITY, SW-IMU. |
 | [Magnetic aiding](runtime/magnetic.md) | R-MAGNETIC-REFERENCE, R-MAGNETIC-FIELD, R-MAGNETIC-HEADING, R-MAGNETOMETER-FILTER, R-MAGNETOMETER-FUSION, R-MAGNETOMETER-RESET, R-MAGNETOMETER-LIFECYCLE; SW-MAGNETIC. |
 | [Storage and alignment](runtime/storage-alignment.md) | R-RING-BUFFER, R-TILT-ALIGNMENT; existing alignment test IDs retain their R-ACCELEROMETER-CONDITIONS prefix. |

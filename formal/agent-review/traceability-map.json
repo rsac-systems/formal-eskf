@@ -7970,7 +7970,7 @@
     },
     {
       "id": "R-HEIGHT-DATUM",
-      "title": "Ellipsoid and MSL height separation; specification only, implementation and evidence pending",
+      "title": "Ellipsoid and MSL height separation; native coverage, formal evidence pending",
       "references": {
         "spec": [
           {
@@ -7979,7 +7979,12 @@
           }
         ],
         "lean": [],
-        "cpp": [],
+        "cpp": [
+          {
+            "file": "include/formal_eskf/runtime/height_datum.hpp",
+            "symbol": "class HeightDatum"
+          }
+        ],
         "esbmc": []
       }
     },
