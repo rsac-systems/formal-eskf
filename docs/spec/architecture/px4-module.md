@@ -53,6 +53,11 @@ than copies of the full filter; diagnostic readers receive a coherent snapshot.
 The output predictor has its own nominal history, not another covariance or sensor
 fusion authority. The requirement allocation does not mandate one class per row.
 
+The [origin-rebasing architecture](origin-rebasing.md) allocates the movable working
+frame, fixed publication reference and affected histories. It extends the owner
+transaction at the completed fusion boundary, without adding a second estimator
+or changing the core motion formulation. Implementation status remains in F-05.4.
+
 The execution contract owns the data-flow diagram and callback ordering. The
 SIH profile binds values and source epochs; component requirements own admission,
 selection, tracking, reset and failure behavior. The portable ring-buffer contract

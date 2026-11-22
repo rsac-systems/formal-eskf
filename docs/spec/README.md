@@ -196,6 +196,7 @@ remain empty: these two additional review units are proof gaps, not verified cla
 - [Software Architecture and Verification Boundaries](architecture/overview.md).
 - [PX4 Module Architecture](architecture/px4-module.md).
 - [Geodesy Architecture and Minimal API](architecture/geodesy.md) (Draft).
+- [Origin Rebasing Architecture](architecture/origin-rebasing.md).
 
 ## Deployment profiles
 

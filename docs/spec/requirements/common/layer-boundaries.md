@@ -14,6 +14,7 @@ Separate numerical behavior from policy and platform effects so each boundary ca
 
 | Layer | Responsibility | Must not own |
 |---|---|---|
+| Geodesy utilities | Geographic/Cartesian geometry and frame transforms | Estimator state, sensor policy, clocks or publication |
 | Numerical core | Prediction, correction, injection/reset and covariance | Clocks, queues, sensor policy or OS effects |
 | Portable runtime | Qualification, history, lifecycle and fusion decisions | Device access, scheduling or publication |
 | Platform adapter | Message/time conversion, session ordering and output | Undocumented changes to core equations |
@@ -22,6 +23,12 @@ Keep numerical APIs independently callable and backend/platform effects behind
 their declared boundaries. These are responsibilities, not a required class
 hierarchy or a generic dispatch framework. Portable runtime has no single object
 that owns and schedules an entire estimator for every platform.
+
+Geodesy depends on scalar/linalg utilities, not the ESKF. Runtime and adapters may
+compose geodesy with core operations. Geographic frame/datum ownership shall not
+be pushed into the numerical prediction/correction APIs. The
+[origin allocation](../../architecture/origin-rebasing.md) identifies the concrete
+state and history owners for that composition.
 
 ## Acceptance and verification
 
