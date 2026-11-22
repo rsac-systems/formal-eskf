@@ -201,6 +201,7 @@ remain empty: these two additional review units are proof gaps, not verified cla
 ## Deployment profiles
 
 - [PX4 SIH 250 Hz Deployment Profile](profiles/px4-sih-250hz.md).
+- [PX4 Cartesian Origin-Migration Profile](profiles/px4-origin-rebasing.md).
 
 ## Verification policy
 

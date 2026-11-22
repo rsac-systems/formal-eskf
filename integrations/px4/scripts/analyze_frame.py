@@ -8,7 +8,6 @@ import math
 from pathlib import Path
 import shlex
 import subprocess
-import sys
 
 import geographiclib
 from geographiclib.geodesic import Geodesic
@@ -17,11 +16,9 @@ import pyproj
 from pyproj import Transformer
 
 REPO = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO / "examples"))
-import replay_common
 
 GEOD = Geodesic.WGS84
-LATITUDES = [-80., -60., -45., -25., 0., 25., 45., 60., 80., 89.9]
+LATITUDES = [-85., -80., -60., -45., -25., 0., 25., 45., 60., 80., 85., 89.9]
 LONGITUDES = [0., 120., 179.999]
 DISTANCES = [0., 100., 500., 1000., 2000., 5000., 10000., 20000., 50000., 100000.]
 
@@ -37,14 +34,23 @@ def compile_probe(PX4, OUT):
     FLAGS = [V for V in shlex.split(ENTRY["command"]) if V.startswith(("-I", "-D"))]
     SOURCE = OUT / "projection_probe.cpp"
     SOURCE.write_bytes((REPO / "integrations/px4/tests/ProjectionProbe.cpp").read_bytes())
-    COMMAND = ["c++", "-std=c++20", "-O2", "-ffunction-sections", "-fdata-sections",
-               *FLAGS, str(SOURCE), str(BUILD / "src/lib/geo/libgeo.a"),
+    COMMAND = ["c++", "-std=c++20", "-O2", "-fno-fast-math", "-ffp-contract=off", "-ffunction-sections", "-fdata-sections",
+               *FLAGS, f"-I{REPO / 'include'}", f"-I{PX4 / 'src/lib/matrix'}", str(SOURCE), str(BUILD / "src/lib/geo/libgeo.a"),
                "-Wl,--gc-sections", "-o", str(OUT / "projection_probe")]
     (OUT / "compile-command.json").write_text(json.dumps(COMMAND, indent=2) + "\n")
     RESULT = subprocess.run(COMMAND, text=True, capture_output=True)
     (OUT / "compile.log").write_text(RESULT.stdout + RESULT.stderr)
     RESULT.check_returncode()
     return OUT / "projection_probe"
+
+
+HEIGHTS = [-1000., 0., 500., 3000., 10000.]
+
+
+def ned_basis(LATITUDE, LONGITUDE):
+    LAT, LON = math.radians(LATITUDE), math.radians(LONGITUDE)
+    S, C, SL, CL = math.sin(LAT), math.cos(LAT), math.sin(LON), math.cos(LON)
+    return np.array([[-S*CL, -S*SL, C], [-SL, CL, 0.], [-C*CL, -C*SL, -S]])
 
 
 def geographic_cases():
@@ -64,11 +70,12 @@ def geographic_cases():
     return CASES, ORACLES
 
 
-def compare(CASES, ORACLES, VALUES):
+def compare(CASES, ORACLES, VALUES, GEOMETRY):
     ROWS = []
-    REPLAY_MAX = 0.
+    PRODUCTION_MAX = 0.
     HEIGHT_COMPARISONS = 0
-    for CASE, ACTUAL in zip(CASES, VALUES):
+    GEO_MAX = dict(horizontal_m=0., height_m=0., rebase_back_m=0., new_origin_m=0.)
+    for CASE_INDEX, (CASE, ACTUAL) in enumerate(zip(CASES, VALUES)):
         LAT0, LON0, DISTANCE, AZIMUTH, LAT, LON = CASE
         AEQD, TOPO = ORACLES[LAT0, LON0]
         EAST, NORTH = AEQD.transform(LON, LAT)
@@ -79,18 +86,22 @@ def compare(CASES, ORACLES, VALUES):
         if ERROR > QUANTIZATION + 2e-6:
             raise RuntimeError(f"Projection disagrees with oracle: {CASE}, {ERROR}, {QUANTIZATION}")
         ROUNDTRIP = GEOD.Inverse(LAT, LON, ACTUAL[2], ACTUAL[3])['s12']
-        BASIS0 = np.array(replay_common.ned_basis(math.radians(LAT0), math.radians(LON0)))
-        ORIGIN = np.array(replay_common.ecef(math.radians(LAT0), math.radians(LON0), 0.))
-        for HEIGHT in [-100., 0., 500., 3000.]:
+        BASIS0 = ned_basis(LAT0, LON0)
+        for HEIGHT_INDEX, HEIGHT in enumerate(HEIGHTS):
             ENU = TOPO.transform(LON, LAT, HEIGHT)
             ORACLE_NED = np.array([ENU[1], ENU[0], -ENU[2]])
-            DELTA = np.array(replay_common.ecef(math.radians(LAT), math.radians(LON), HEIGHT)) - ORIGIN
-            REPLAY = BASIS0 @ DELTA
-            REPLAY_MAX = max(REPLAY_MAX, float(np.linalg.norm(REPLAY-ORACLE_NED)))
+            PRODUCTION = GEOMETRY[CASE_INDEX * len(HEIGHTS) + HEIGHT_INDEX]
+            POSITION = PRODUCTION[:3]
+            GEO_ERROR = GEOD.Inverse(LAT, LON, PRODUCTION[3], PRODUCTION[4])['s12']
+            for KEY, VALUE in zip(GEO_MAX, [GEO_ERROR, abs(PRODUCTION[5] - HEIGHT), *PRODUCTION[6:]]):
+                GEO_MAX[KEY] = max(GEO_MAX[KEY], float(VALUE))
+            if GEO_ERROR > 2e-7 or abs(PRODUCTION[5] - HEIGHT) > 2e-7 or max(PRODUCTION[6:]) > 2e-7:
+                raise RuntimeError(f"Production origin transaction disagrees with physical point: {CASE}, {PRODUCTION}")
+            PRODUCTION_MAX = max(PRODUCTION_MAX, float(np.linalg.norm(POSITION-ORACLE_NED)))
             HEIGHT_COMPARISONS += 1
             if HEIGHT == 0:
                 TANGENT = ORACLE_NED
-        BASIS1 = np.array(replay_common.ned_basis(math.radians(LAT), math.radians(LON)))
+        BASIS1 = ned_basis(LAT, LON)
         T = BASIS0 @ BASIS1.T
         TILT = math.degrees(math.atan2(np.linalg.norm(T[:2, 2]), T[2, 2]))
         FULL_ANGLE = math.degrees(2 * math.asin(min(1., np.linalg.norm(T-np.eye(3), 2)/2)))
@@ -114,9 +125,9 @@ def compare(CASES, ORACLES, VALUES):
                          fixed_gravity_direction_difference_m_s2=float(np.linalg.norm(
                              T@np.array([0., 0., 9.80665])-np.array([0., 0., 9.80665]))),
                          projection_jacobian=J.tolist()))
-    if REPLAY_MAX >= 1e-7:
-        raise RuntimeError(f"Replay ECEF/NED disagrees with WGS84 oracle: {REPLAY_MAX}")
-    return ROWS, HEIGHT_COMPARISONS, REPLAY_MAX
+    if PRODUCTION_MAX >= 1e-7:
+        raise RuntimeError(f"Production ECEF/NED disagrees with WGS84 oracle: {PRODUCTION_MAX}")
+    return ROWS, HEIGHT_COMPARISONS, PRODUCTION_MAX, GEO_MAX
 
 
 def rotation(VECTOR):
@@ -154,7 +165,7 @@ def heading_variances():
     return HEADING
 
 
-def summarize(OUT, CASES, ROWS, HEIGHT_COMPARISONS, REPLAY_MAX, HEADING):
+def summarize(OUT, CASES, ROWS, HEIGHT_COMPARISONS, PRODUCTION_MAX, HEADING):
     IDENTIFIERS = {'latitude0', 'longitude0', 'distance_m', 'azimuth_deg', 'latitude', 'longitude',
                    'projection_jacobian', 'raw_reproject_longitude_deg'}
     NUMERICAL_FIELDS = [K for K in ROWS[0] if K not in IDENTIFIERS]
@@ -170,26 +181,26 @@ def summarize(OUT, CASES, ROWS, HEIGHT_COMPARISONS, REPLAY_MAX, HEADING):
     RESULT = dict(scope='Finite geographic grid, not a global error proof or flight accuracy validation',
                   dependencies={'geographiclib': geographiclib.__version__, 'pyproj': pyproj.__version__,
                                 'proj': pyproj.proj_version_str, 'numpy': np.__version__},
-                  projection_cases=len(CASES), replay_height_comparisons=HEIGHT_COMPARISONS, replay_max_error_m=REPLAY_MAX,
+                  projection_cases=len(CASES), production_height_comparisons=HEIGHT_COMPARISONS, production_max_ned_error_m=PRODUCTION_MAX,
                   raw_reproject_longitude_out_of_range=sum(
                       abs(R['raw_reproject_longitude_deg']) > 180 for R in ROWS),
                   max_projection_oracle_error_m=max(R['px4_vs_spherical_oracle_m'] for R in ROWS),
                   max_roundtrip_error_m=max(R['roundtrip_m'] for R in ROWS),
                   summary_latitude_at_most_60=SUMMARY, heading_variance=HEADING,
                   extreme_latitude_examples=[R for R in ROWS if R['latitude0'] in [
-                      80., 89.9] and R['longitude0'] == 0 and R['azimuth_deg'] == 90 and R['distance_m'] in [1000., 10000., 100000.]],
+                      80., 85., 89.9] and R['longitude0'] == 0 and R['azimuth_deg'] == 90 and R['distance_m'] in [1000., 10000., 100000.]],
                   taiwan_examples=[R for R in ROWS if R['latitude0'] == 25 and R['longitude0'] == 120 and R['distance_m'] in [1000., 10000.] and R['azimuth_deg'] in [0, 90]])
-    (OUT/'analysis.json').write_text(json.dumps(RESULT, indent=2)+'\n')
     return RESULT
 
 
 def write_manifest(PX4, OUT, RESULT):
-    SOURCES = [Path(__file__).resolve(), REPO / "integrations/px4/tests/ProjectionProbe.cpp", REPO / "examples/replay_common.py",
+    SOURCES = [Path(__file__).resolve(), REPO / "integrations/px4/tests/ProjectionProbe.cpp",
                REPO / "integrations/px4/requirements.txt",
                PX4 / "src/lib/geo/geo.cpp", PX4 / "src/lib/geo/geo.h",
                PX4 / "src/modules/ekf2/EKF/ekf.cpp", PX4 / "src/modules/ekf2/EKF/ekf_helper.cpp",
                PX4 / "build/px4_sitl_formal_eskf/compile_commands.json",
                PX4 / "build/px4_sitl_formal_eskf/src/lib/geo/libgeo.a"]
+    SOURCES += sorted((REPO / "include/formal_eskf").rglob("*.hpp"))
     SOURCES += sorted((REPO / "integrations/px4/module").glob("FormalEskf*.cpp"))
     SOURCES += [REPO / "integrations/px4/module" / NAME for NAME in
                 ("FormalEskf.hpp", "MagneticModel.hpp", "DeploymentProfile.hpp")]
@@ -202,7 +213,8 @@ def write_manifest(PX4, OUT, RESULT):
                 "source_sha256": {str(P): sha256(P) for P in SOURCES},
                 "artifact_sha256": {P.name: sha256(P) for P in sorted(OUT.iterdir()) if P.is_file() and P.name in
                                     ("analysis.json", "samples.csv", "probe-input.txt", "probe-output.txt",
-                                     "projection_probe.cpp", "projection_probe", "compile-command.json", "compile.log")},
+                                     "projection_probe.cpp", "projection_probe", "compile-command.json", "compile.log",
+                                     "geodesy-input.txt", "geodesy-output.txt")},
                 "dependencies": RESULT["dependencies"],
                 "scope": RESULT["scope"]}
     (OUT / "manifest.json").write_text(json.dumps(MANIFEST, indent=2)+"\n")
@@ -224,12 +236,22 @@ def main():
     VALUES = np.array([[float(V) for V in LINE.split()] for LINE in RUN.stdout.splitlines()])
     if VALUES.shape != (len(CASES), 4) or not np.isfinite(VALUES).all():
         raise RuntimeError("PX4 probe returned incomplete or non-finite results")
-    ROWS, HEIGHT_COMPARISONS, REPLAY_MAX = compare(CASES, ORACLES, VALUES)
-    RESULT = summarize(OUT, CASES, ROWS, HEIGHT_COMPARISONS, REPLAY_MAX, heading_variances())
+    GEOMETRY_INPUT = "".join(f"{C[0]:.17g} {C[1]:.17g} 0 {C[4]:.17g} {C[5]:.17g} {H:.17g}\n"
+                             for C in CASES for H in HEIGHTS)
+    (OUT / "geodesy-input.txt").write_text(GEOMETRY_INPUT)
+    RUN = subprocess.run([str(PROBE), "--geodesy"], input=GEOMETRY_INPUT, text=True, capture_output=True, check=True)
+    (OUT / "geodesy-output.txt").write_text(RUN.stdout)
+    GEOMETRY = np.array([[float(V) for V in LINE.split()] for LINE in RUN.stdout.splitlines()])
+    if GEOMETRY.shape != (len(CASES) * len(HEIGHTS), 8) or not np.isfinite(GEOMETRY).all():
+        raise RuntimeError("Production geometry probe returned incomplete or non-finite results")
+    ROWS, HEIGHT_COMPARISONS, PRODUCTION_MAX, GEO_MAX = compare(CASES, ORACLES, VALUES, GEOMETRY)
+    RESULT = summarize(OUT, CASES, ROWS, HEIGHT_COMPARISONS, PRODUCTION_MAX, heading_variances())
+    RESULT["production_origin_transaction_maxima"] = GEO_MAX
+    (OUT / "analysis.json").write_text(json.dumps(RESULT, indent=2)+"\n")
     write_manifest(PX4, OUT, RESULT)
     print(
         f"Projection: {len(CASES)} points checked against spherical PROJ; round-trip max {RESULT['max_roundtrip_error_m']:.6f} m")
-    print(f"Replay ECEF/NED: {HEIGHT_COMPARISONS} WGS84 comparisons; max {REPLAY_MAX:.3g} m")
+    print(f"Production ECEF/NED: {HEIGHT_COMPARISONS} WGS84 comparisons; max {PRODUCTION_MAX:.3g} m")
     print("Frame/model differences recorded; this is not flight accuracy or a global bound.")
     print(f"Report: {OUT / 'analysis.json'}")
 

@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <limits>
 #include <numbers>
+#include <chrono>
 #include <platforms/posix/apps.h>
 #include <uORB/uORBManager.hpp>
 #include <px4_platform_common/param.h>
@@ -2835,6 +2836,43 @@ public:
                "failure at each prepared owner preserves the whole pre-event bundle without faulting completed fusion");
     }
 
+    static void origin_benchmark()
+    {
+        std::int32_t const delay = 239; // Maximum admitted history length for this profile.
+        expect(param_set_no_notification(param_find("FESKF_DELAY_MS"), &delay) == 0, "benchmark maximum delay");
+        FormalEskfModuleTest test;
+        test.warmup();
+        auto & f = test.m_filter;
+        constexpr std::size_t count = 512;
+        std::array<double, count> migration_us{}, publication_us{};
+        auto const translation = FormalEskf::vector3(1000., 100., 0.);
+        auto const length = f.m_output.entries();
+        for (std::size_t i = 0; i < count; ++i)
+        {
+            f.m_state.p_n = f.m_state.p_n + translation;
+            expect(f.m_output.apply_reset({}, {}, translation), "benchmark physical displacement");
+            auto const start = std::chrono::steady_clock::now();
+            auto const status = f.rebase_navigation();
+            auto const changed = std::chrono::steady_clock::now();
+            auto const output = f.body_output();
+            auto const end = std::chrono::steady_clock::now();
+            expect(status == formal_eskf::Status::success && output.status == formal_eskf::Status::success,
+                   "benchmark executes successful production transaction and publication conversion");
+            migration_us[i] = std::chrono::duration<double, std::micro>(changed - start).count();
+            publication_us[i] = std::chrono::duration<double, std::micro>(end - changed).count();
+        }
+        std::sort(migration_us.begin(), migration_us.end());
+        std::sort(publication_us.begin(), publication_us.end());
+        std::printf("Origin benchmark: samples=%zu retained=%zu module_bytes=%zu frame_bytes=%zu predictor_bytes=%zu "
+                    "history_bytes=%zu\n",
+                    count, length, sizeof(FormalEskf), sizeof(f.m_navigation_frame), sizeof(f.m_output),
+                    sizeof(f.m_output) + sizeof(f.m_imu_history) + sizeof(f.m_observations));
+        std::printf("Migration us: median=%.3f p99=%.3f max=%.3f\n", migration_us[count / 2],
+                    migration_us[count * 99 / 100], migration_us.back());
+        std::printf("Publication geometry us: median=%.3f p99=%.3f max=%.3f\n", publication_us[count / 2],
+                    publication_us[count * 99 / 100], publication_us.back());
+    }
+
     static void timing_parameters()
     {
         FormalEskfModuleTest test;
@@ -3326,11 +3364,12 @@ int main(int argc, char ** argv)
 {
     if (argc > 2)
     {
-        std::fprintf(stderr, "Usage: %s [trace-file | --configuration]\n", argv[0]);
+        std::fprintf(stderr, "Usage: %s [trace-file | --configuration | --origin-benchmark]\n", argv[0]);
         return 2;
     }
     bool const configuration_only = argc == 2 && std::strcmp(argv[1], "--configuration") == 0;
-    if (argc == 2 && !configuration_only)
+    bool const origin_benchmark = argc == 2 && std::strcmp(argv[1], "--origin-benchmark") == 0;
+    if (argc == 2 && !configuration_only && !origin_benchmark)
     {
         trace_file = std::fopen(argv[1], "wb");
         if (trace_file == nullptr)
@@ -3340,6 +3379,11 @@ int main(int argc, char ** argv)
     }
     uORB::Manager::initialize();
     param_init();
+    if (origin_benchmark)
+    {
+        FormalEskfModuleTest::origin_benchmark();
+        return failures == 0U ? 0 : 1;
+    }
     if (configuration_only)
     {
         FormalEskfModuleTest::configured_profile();

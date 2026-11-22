@@ -147,6 +147,12 @@ unavailable-queue and injected-failure messages are expected. The final scenario
 summary and exit code determine success. Scheduler/concurrent-access correctness,
 dependency internals and target timing require separate evidence.
 
+`formal_eskf_module_test --origin-benchmark` measures the production origin
+transaction and publication conversion with the maximum retained history. Host
+wall-clock samples do not establish a flight-target execution deadline. See the
+[origin profile](../../docs/spec/profiles/px4-origin-rebasing.md) for scope and
+reproduction dependencies.
+
 The executable optionally takes a trace filename to record state, covariance
 and the seven topic payloads for deterministic before/after comparison. The test
 target is opt-in and is not linked into the flight binary.

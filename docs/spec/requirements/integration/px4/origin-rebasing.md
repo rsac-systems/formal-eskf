@@ -128,11 +128,10 @@ validity limits require the profile below; this table does not establish them.
 
 ## Profile completion
 
-Distance/angle limits, dwell/retry times, stale-datum allowance and numerical/
-resource budgets shall be derived and recorded under F-05.4.9 before automatic
-enablement. The final report shall identify their rationale and distinguish
-PX4-derived conventions from project-specific values. An unqualified target shall
-not inherit another target's timing or flight-envelope claim.
+The [origin profile](../../../profiles/px4-origin-rebasing.md) binds distance/angle,
+dwell/retry, datum and numerical/resource limits for the pinned SITL profile.
+The values are project-specific, not copied PX4 thresholds. An unqualified target
+shall not inherit another target's timing or flight-envelope claim.
 
 References: pinned PX4 [position mapping](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/estimator_interface.cpp#L571),
 [controller reset handling](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/mc_pos_control/MulticopterPositionControl.cpp#L684).
