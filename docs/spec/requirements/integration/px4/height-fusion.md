@@ -125,6 +125,8 @@ and receipt-generation boundaries, retained converted input, no duplicate fusion
 and ordinary lifecycle behavior for upstream QNH-induced altitude changes. Use
 actual producer/caller bindings to distinguish wiring from scalar conversion
 tests; neither synthetic changes nor a parameter name prove physical accuracy.
+The [barometric test specification](../../../verification/barometric-height-tests.md)
+separates planned adapter acceptance from conversion and runtime cases.
 
 Reference: pinned [air-data producer](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/sensors/vehicle_air_data/VehicleAirData.cpp#L287),
 [EKF2 barometer ingress](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF2.cpp#L2143)

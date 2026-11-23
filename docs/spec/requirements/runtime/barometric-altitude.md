@@ -46,8 +46,8 @@ A(p;p_0)=\frac{T_0}{L}
 \left[1-\left(\frac{p}{p_0}\right)^{R_d L/g_0}\right].
 \]
 
-The converter shall check finite inputs and finite valid model settings, positive
-p and p0, the declared model/sensor domain and finite results. It shall use the
+The converter shall check finite inputs and model settings, positive p, p0, T0,
+L, Rd and g0, the declared model/sensor domain and finite results. It shall use the
 same model constants throughout; the gravity constant g0 of this atmosphere model
 shall not be silently replaced by a changing navigation gravity value.
 
@@ -114,3 +114,5 @@ Exact model identities, bounded IEEE evaluation, source/time admission and physi
 accuracy require distinct evidence. Boundary-rounding and numerical-error bounds
 must be qualified before numerical acceptance; the model envelope is not an
 accuracy guarantee. New implementation and Lean/ESBMC evidence remain pending.
+The [barometric test specification](../../verification/barometric-height-tests.md)
+allocates conversion, runtime and adapter acceptance with Pending bindings.

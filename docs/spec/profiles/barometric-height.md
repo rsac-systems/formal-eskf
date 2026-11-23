@@ -127,6 +127,9 @@ the actual receipt/generation handoff. Do not treat an initial reference reused
 across observations as fresh independent evidence or claim a joint-state bias
 covariance proof. Physical accuracy and target costs remain F-07 obligations;
 new mathematical/source proofs remain in V-01. Ground-effect work stays F-03.2.
+The [planned acceptance cases](../verification/barometric-height-tests.md)
+separate converter, owner and actual adapter evidence; none is registered as
+an executed test by this profile.
 
 Reference: pinned PX4 [model constants](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/lib/atmosphere/atmosphere.h#L45),
 [buffer-count derivation](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/estimator_interface.cpp#L539),

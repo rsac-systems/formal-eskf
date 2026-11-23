@@ -204,3 +204,5 @@ derived warmup boundaries, source-generation/receipt timing and raw-versus-conve
 admission. Historical height proofs cover their named settings/geometry only;
 new conversion, helper and composition obligations remain unproved until bound
 to current source and evidence.
+The [barometric test specification](../../verification/barometric-height-tests.md)
+allocates these target cases without replacing the current owner regression.
