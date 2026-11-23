@@ -1,8 +1,10 @@
 # Staged INS Service Profile
 
 **Status:** Draft; target behavior, not the current deployed profile or evidence
-of flight qualification. [R-INS-STARTUP](../requirements/runtime/ins-startup.md)
-and [R-INS-CAPABILITIES](../requirements/runtime/ins-capabilities.md) own behavior.
+of flight qualification. [R-INS-STARTUP](../requirements/runtime/ins-startup.md),
+[R-INS-CAPABILITIES](../requirements/runtime/ins-capabilities.md) and
+[R-INS-CONTINUITY](../requirements/runtime/ins-continuity.md) and
+[R-INS-ATTACHMENT](../requirements/runtime/ins-attachment.md) own behavior.
 
 ## Scope and defaults
 
@@ -46,6 +48,50 @@ Relative height uses the separately specified optional height source; absence
 shall not block tilt/heading. Its pressure model, warmup and reference settings
 belong to the barometer specification, not a duplicated INS parameter table.
 
+## Seed and gravity settings
+
+Consume sensor-calibrated IMU data; the estimated biases are residuals. Initialize
+startup acceleration/rate LPFs from the first admitted sample, then use a **0.09 s**
+time constant with the respective admitted integration intervals and the existing
+PX4-style first-order coefficient `alpha = dt / (0.09 + dt)`. There is no fixed
+collection wait. These filters do not replace the gravity sampler's magnitude LPF.
+
+| Quantity | Initial value | Covariance / interpretation |
+|---|---|---|
+| Local position | Zero | Diagonal (0.25, 0.25, 12.25) m^2, from sigma (0.5, 0.5, 3.5) m; numerical prior, not a received fix. |
+| Velocity without an admitted producer | Zero | Diagonal (0.09, 0.09, 0.2025) (m/s)^2, from sigma (0.3, 0.3, 0.45) m/s; not evidence of rest or usable velocity. |
+| Tilt | Gravity-direction seed | Local-level horizontal rotation variances 0.01 rad^2 each, sigma 0.1 rad (about 5.73 deg). |
+| Relative yaw | Zero local gauge | Local-level Down variance zero, conditional on the chosen initial axes; absolute heading remains unavailable. |
+| Accel bias | Zero residual | 0.04 I (m/s^2)^2; sigma 0.2 m/s^2 per axis. |
+| Gyro bias | Zero residual | 0.01 I (rad/s)^2; sigma 0.1 rad/s per axis. |
+
+Use `P_theta_body = R^T diag(0.01, 0.01, 0) R`; other cross-blocks start at zero.
+PSD gauge covariance is permitted. Do not retain the strict startup's tighter
+gyro-mean-calibrated prior when that calibration was not performed. No saved-bias
+reuse is introduced. Bind position/velocity scales to the existing source-noise
+configuration, not duplicate independent constants. The 3.5 m height scale is
+the project's barometer setting; PX4's default is 2 m. These numerical priors
+cannot qualify unavailable outputs or replace real-source reset uncertainty.
+
+Gravity refinement retains the magnitude-preserving model and effective
+measurement covariance **V = g^2 I**, with no new innovation gate. This is an
+effective weight, not a calibrated 1g sensor-noise claim. It matches PX4's default
+normalized weight only in local tangential information near gravity-dominated
+small errors, not in full model/gating behavior. Keep rotation-aware,
+non-overlapping sampling with a nominal **10 ms** target. Whole-sample timing can
+differ from 100 Hz; timing and information-rate qualification shall use actual
+emitted intervals rather than an assumed rate.
+
+The first development-test target uses no GNSS/magnetometer, known attitude
+truth, static/low-dynamics inputs, initial tilt error <= **10 deg** and unmodeled
+horizontal acceleration including residual accel bias <= **0.03g**. With
+continuously eligible fusion inputs, alignment shall occur within **60 s** and
+actual tilt error shall be <= **3 deg** at that endpoint. This is a project test
+criterion, not a PX4 limit, fixed startup delay or flight-time force-alignment
+timer. Persistent horizontal acceleration is a model-limit case even when the
+magnitude gate and covariance latch pass. Broader dynamics and mission accuracy
+remain separate qualification obligations.
+
 ## Output and PX4 binding
 
 Portable runtime shall preserve separate horizontal/vertical position and
@@ -62,19 +108,89 @@ attitude operation and refusal of unsupported navigation modes require actual
 consumer tests. The strict baseline's blanket missing-heading preflight veto
 shall not be applied to a qualified staged tilt-only service.
 
-## Bounds required before implementation acceptance
+### Application accuracy and heading
 
-These are explicit missing profile allocations, not tunable values the agent may
-invent to pass tests. They do not prevent review of the behavioral Draft, but
-they prevent declaring the staged service implemented/qualified.
+Runtime capability checks retain their own numerical/history, source and age
+rules. Heading retains the project's qualified-source/field/consistency checks,
+real heading progress strictly less than 1 s old and variance proxy below
+0.1 rad^2. These are project conditions, not identical PX4 conditions. No numerical
+heading update satisfies them. Do not add a universal continuous tilt-variance
+cutoff: the existing three-degree latch is an alignment milestone.
 
-| Allocation | Required result |
-|---|---|
-| Seed priors and filtering | Named calibrated/unavailable producers for bias/velocity; positive uncertainty where physically uncertain; conditional local-gauge meaning; filter/window and sample-consumption rules. |
-| Gravity refinement | Measurement covariance for this project's model; permitted dynamics; independent tilt-error and maximum alignment-time acceptance. Do not silently adopt PX4's 0.25-sigma normalized-observation gate. |
-| Loss and uncertainty budgets | Per-capability relevant aiding clock, maximum age and uncertainty, comparison boundary, and recovery; no universal timeout or invented accuracy claim. |
-| Numerical continuity | Selected containment operation, full covariance/bias effects, bounded work, mission duration/input envelope and independent attitude-error acceptance. |
-| First geographic attachment | State/P/reference/history mapping and uncertainty initialization, genuine reset reporting and continuity of already published attitude/local quantities. |
+Mode-specific accuracy acceptance belongs to the application. In PX4, leave
+Commander parameters/hysteresis and mode exceptions with that consumer; do not
+hard-code duplicate position/velocity accuracy limits in the core/runtime.
+Standalone deployments shall identify their own application accuracy policy.
+Current-output age, source freshness and real aiding-loss budgets are distinct.
+
+## Unaided covariance policy
+
+[R-INS-CONTINUITY](../requirements/runtime/ins-continuity.md) owns the operation
+and recovery rules. The following are configuration defaults for the Draft policy, not
+measured accuracy or claimed operating-duration guarantees.
+
+| Setting | Draft value and exact boundary | Basis / adaptation |
+|---|---|---|
+| Current real translation aiding | Enabled/qualified current source generation, fresh under its source contract, and an actual accepted correction/reset less than 1 s old | PX4's 1 s real-aiding freshness concept; receipt alone is insufficient |
+| Horizontal and vertical no-aid grace | Expire the affected capability at age **at least 5 s** since its last actual constraining correction/reset; never-initialized capabilities remain unavailable | PX4 default 5 s no-aid budget, with explicit per-capability clocks and equality; not an accuracy guarantee |
+| Vertical-velocity support | Qualified real vertical velocity or continuing qualified real height/dynamics support after velocity initialization; a single new height sample does not initialize velocity | Preserves separate initialization and aiding facts; synthetic progress is excluded |
+| Position regularization trigger | Candidate `P_ii > 1e6 m^2` in the admitted local-level basis, only for unavailable directions | PX4 scale; finalize in A-02.1, not a navigable-accuracy bound |
+| Velocity regularization trigger | Candidate `P_ii > 1e6 (m/s)^2`, only for unavailable directions | PX4 scale; finalize in A-02.1, not a physical performance bound |
+| Translation artificial variance | Candidate `R = 10 P_ii`; at most one update per permitted axis per delayed horizon | PX4 factor; target-axis reduction is exactly `10/11` in real arithmetic; compare constrained gains in A-02.1 |
+| Heading guard attempt cadence | Elapsed time **strictly greater than 200 ms** since the preceding attempt or actual heading update; seed time initializes the attempt clock | PX4 cadence, with a separate numerical clock |
+| Heading guard trigger / variance | After tilt alignment, no usable/eligible heading aid, `u_b^T P_theta u_b > 0.09 rad^2`; `R_y = 0.25 rad^2` | PX4 default 0.3-rad heading-noise threshold and aligned variance; no tighter pre-alignment guard |
+| Nominal velocity limit | Each admitted local-level component in `[-100,100] m/s`; intervene only outside the interval and withdraw affected translation capabilities | PX4 default velocity-limit scale; no silent valid-output saturation |
+| Accel-bias directional permission | With real vertical but no horizontal aiding, `abs(R_nb(2,i)) > 0.966`; with no real vertical aid inhibit all, except trusted rest under existing fault/dynamics limits | PX4 fake-mode heuristic adapted to actual real-aiding facts; not a new fake-mode flag |
+
+The same real-aiding age shall not be reused as a heading/tilt expiry timer.
+The 1 s and 5 s translation budgets measure age from the applicable actual
+accepted correction/reset; they are not consecutive waiting periods. Uncertainty
+limits or faults may withdraw the affected capability before the no-aid deadline.
+Heading retains its source/field/consistency policy; numerical heading updates
+cannot satisfy it. Source reception freshness, actual fusion age, numerical
+attempt cadence and output age remain separate. At startup no timer makes
+unknown translation/heading usable. Existing strict-profile defaults are unchanged.
+
+Regularized translation stays unavailable until genuine requalification and the
+required observed-subspace reset. If barometric height returns alone, height may
+recover while a regularized vertical velocity remains unavailable; a future
+height/dynamics convergence contract may supply that recovery. Do not equate
+PX4's local-Z compatibility OR with a separate velocity-convergence proof.
+
+Stationary zero-velocity/zero-gyro observations and in-flight fake-position/height
+hold are **not enabled** by this policy. They are different assumptions from a
+zero-innovation numerical operation. No permanent second estimator is introduced.
+
+### Verification cases for the proposed defaults
+
+- Exercise 64 translation masks, rotated/rebased height axes, cross-correlated
+  full P and each threshold immediately below/at/above. Check Joseph against an
+  independent dense calculation; assert untouched nominal state for covariance-
+  only operations and protected-marginal residual within the declared binary64
+  acceptance tolerance. Formal/finite-precision proof is still pending.
+- Run at least **3600 s of estimator time** with no GNSS, separately with magnetic
+  heading, without heading, with relative height and without height. This is a
+  qualification test duration, not a promised one-hour mission envelope. Include
+  initially near-trigger covariance to force numerical intervention, biased IMU,
+  realistic tilted motion and admitted maximum timing/gap boundaries. Require no
+  numerical/history fault under the declared input premises, bounded work, and
+  no false navigation/heading validity.
+- In the attitude-only case with fixed external field and the same real-source/
+  bias-permission schedule, compare translation protection on/off. It shall not
+  change the protected attitude/bias evolution beyond the declared numerical
+  tolerance. Test the Down-axis guard separately for tilt protection and relative
+  yaw propagation; do not compare only covariance diagonals or finite flags.
+- Restore each genuine source before grace expiry, at expiry and after numerical
+  intervention. Verify the applicable reset/normal-fusion distinction, including
+  height recovery without manufactured velocity recovery. Check nominal-limit
+  history transactions and actual PX4 reset/validity consumption.
+- Record attitude errors against independent truth and model violations separately.
+  Physical tilt-error/convergence limits follow the seed/gravity profile
+  above; satisfying these numerical checks alone does not close that acceptance.
+
+At most six translation updates and one Down-axis update occur per delayed
+horizon. Actual stack/WCET, including coordinate transforms and any history reset,
+shall satisfy the existing PX4 timing/resource profile before target acceptance.
 
 ## Reference
 

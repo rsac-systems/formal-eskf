@@ -8218,7 +8218,7 @@
     },
     {
       "id": "R-INS-STARTUP",
-      "title": "Staged INS startup: Draft specification only; implementation, priors and convergence evidence pending",
+      "title": "Staged INS startup: Draft seed/filter/real-gravity contract; production implementation and convergence evidence pending",
       "references": {
         "spec": [
           {
@@ -8237,7 +8237,7 @@
     },
     {
       "id": "R-INS-CAPABILITIES",
-      "title": "Full/partial INS capability contract: Draft only; numerical continuity, first anchoring and PX4 consumer evidence pending",
+      "title": "Full/partial INS support and application acceptance: Draft contract; implementation and PX4 consumer evidence pending",
       "references": {
         "spec": [
           {
@@ -8247,6 +8247,40 @@
           {
             "file": "docs/spec/profiles/staged-ins.md",
             "symbol": "# Staged INS Service Profile"
+          }
+        ],
+        "lean": [],
+        "cpp": [],
+        "esbmc": []
+      }
+    },
+    {
+      "id": "R-INS-CONTINUITY",
+      "title": "Unaided INS numerical continuity and recovery: Draft; PX4 gain comparisons, implementation and formal evidence pending",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/runtime/ins-continuity.md",
+            "symbol": "# R-INS-CONTINUITY:"
+          },
+          {
+            "file": "docs/spec/profiles/staged-ins.md",
+            "symbol": "## Unaided covariance policy"
+          }
+        ],
+        "lean": [],
+        "cpp": [],
+        "esbmc": []
+      }
+    },
+    {
+      "id": "R-INS-ATTACHMENT",
+      "title": "First local-to-geographic INS attachment: Draft transaction contract; implementation, consumer and formal evidence pending",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/runtime/ins-attachment.md",
+            "symbol": "# R-INS-ATTACHMENT:"
           }
         ],
         "lean": [],

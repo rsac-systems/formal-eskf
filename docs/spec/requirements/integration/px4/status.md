@@ -113,11 +113,32 @@ change the deployed profile until implementation/consumer acceptance is complete
 | Reset deltas/counters | Report actual estimate resets once, at the correct frame/epoch. A capability flag change alone is not a reset. |
 
 The existing strict-module implementation does not implement this mapping.
+The runtime owns capability support and its fault/age rules; Commander retains
+mode-specific accuracy thresholds, freshness checks, recovery hysteresis and mode
+exceptions. The adapter shall not duplicate those mode decisions in core/runtime
+or treat covariance proxies as calibrated error guarantees. Standalone callers
+must supply the corresponding application policy. Actual navigation invalidity
+shall not suppress independently valid attitude or heading-status publication.
+
+First attachment follows [R-INS-ATTACHMENT](../../runtime/ins-attachment.md).
+Keep already valid local Z continuous under a pure reference change. Real
+heading/navigation corrections shall use the existing reset deltas/counters
+and their consumer epochs; do not conceal them by adjusting the output reference.
+Startup, attachment and later rebasing shall not share fabricated origin data.
+
 Acceptance shall exercise the pinned
 [Commander checks](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/commander/HealthAndArmingChecks/checks/estimatorCheck.cpp)
 and [manual attitude consumer](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/mc_att_control/mc_att_control_main.cpp),
 not only inspect published booleans. No controller/schema changes, disabled
 arming checks or fabricated healthy fields are permitted by this target.
+
+The staged [covariance policy](../../runtime/ins-continuity.md) shall report
+numerical intervention separately from real source progress. Its covariance
+proxies are regularized values, not recovered absolute-heading/navigation
+accuracy. Do not set fake-position/height flags or refresh fusion clocks for
+zero-innovation covariance protection. Retain unavailable flags until genuine
+requalification and the required reset. A nominal velocity limit is an actual
+estimate intervention with reset bookkeeping, unlike a covariance-only update.
 
 Reference: pinned PX4 [topic publication](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF2.cpp),
 [summary/filter/solution semantics](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/ekf_helper.cpp),

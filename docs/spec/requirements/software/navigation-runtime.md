@@ -54,8 +54,9 @@ source-switch, failure, feedback and reset rules. Failed numerical/history stage
 shall retain their specified frames and latch the required fault. Earlier
 successful stages and platform publications shall not be represented as rolled
 back by a later failure. Coordinate migration shall prepare all affected owners
-before committing a coherent event; it shall not be reported as a real estimate
-reset. Results shall distinguish the delayed state from the current nominal
+before committing a coherent event. Pure representation changes shall not be
+reported as real estimate resets; first attachment shall separately report its
+genuine measurement resets under R-INS-ATTACHMENT. Results shall distinguish the delayed state from the current nominal
 output and shall not claim current-time covariance or strict odometry continuity.
 
 Adapters shall convert messages/settings and invoke these phases without owning
@@ -71,7 +72,9 @@ remain at the declared C++ boundaries.
 | [R-INS-SESSION](../runtime/ins-session.md) | Ordered owner phases, external model boundary, faults and raw reports. |
 | [R-INS-INITIALIZATION](../runtime/ins-initialization.md) | Strict stationary accumulation, tilt/heading preparation and initial state/P values. |
 | [R-INS-STARTUP](../runtime/ins-startup.md) | Staged target: IMU seed, pre-alignment refinement and independent aiding admission. |
-| [R-INS-CAPABILITIES](../runtime/ins-capabilities.md) | Staged target: full/partial output availability, geographic attachment and sustained attitude service. |
+| [R-INS-CAPABILITIES](../runtime/ins-capabilities.md) | Staged target: full/partial output availability and application acceptance boundary. |
+| [R-INS-CONTINUITY](../runtime/ins-continuity.md) | Staged target: source-loss covariance propagation, constrained numerical regularization and qualified recovery. |
+| [R-INS-ATTACHMENT](../runtime/ins-attachment.md) | Staged target: first local-to-geographic transaction, real measurement initialization and coherent history/reference publication. |
 | [R-HEIGHT-AIDING](../runtime/height-aiding.md) | Two-source altitude/bias coordination, recovery and transactional raw outcomes. |
 | [R-OBSERVATION-HISTORY](../runtime/history/observation-history.md) | Delayed raw source/context retention, admission, generation and once-only selection. |
 | [R-OUTPUT-PREDICTOR](../runtime/output-predictor.md) | Current nominal propagation, delayed feedback and output-history transactions. |

@@ -12,6 +12,14 @@
 
 ## Required behavior
 
+The rules below describe the existing strict profile. For the
+[staged target](../../../profiles/staged-ins.md), additionally apply
+[R-INS-CONTINUITY](../../runtime/ins-continuity.md)'s real-aiding restrictions
+and zero bias gain in numerical updates. Do not synthesize PX4 fake-mode flags
+to drive the old predicate. Existing policy evidence does not cover this new
+composition; process-noise units/discretization and genuine IMU fault rules remain
+unchanged.
+
 The PX4 module uses the shared `runtime::ImuBiasInhibition` decaying-peak policy
 specified in `R-IMU-BIAS-INHIBITION`, and the detector in `R-VERTICAL-ACCELERATION`.
 No separate continuous-good recovery timer is used.

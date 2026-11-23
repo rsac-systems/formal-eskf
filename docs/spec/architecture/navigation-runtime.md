@@ -22,6 +22,14 @@ output path uses current quaternion/history without requiring position geometry;
 frame attachment coordinates the affected owners when geographic prerequisites
 become available. This is a Draft target, not implemented extraction behavior.
 
+[R-INS-CONTINUITY](../requirements/runtime/ins-continuity.md) allocates the staged
+source-loss policy to the session: real-aiding clocks and bias permissions precede
+real corrections; constrained numerical covariance updates precede output
+feedback. These operations retain full fixed-size P and separate intervention
+provenance. Their pure covariance algebra belongs below session policy; platform
+status/reset delivery remains in the adapter. The proposed numerical gain
+constraints do not modify the shared real-observation models.
+
 ## Responsibilities and interfaces
 
 | Owner | State and responsibility | External boundary |
@@ -52,6 +60,54 @@ file obligations. Histories depend on sample values/storage, not prediction
 policy. Session composes lower components; lower components do not include it.
 
 ## Execution and state
+
+### Staged service allocation
+
+The staged target keeps the same ownership structure. INS/AHRS-like/tilt-only
+describe available outputs of one full INS, not runtime changes of state type.
+The separate four-coefficient AHRS configuration remains independently usable.
+
+| Layer | Staged responsibility | Retained boundary |
+|---|---|---|
+| Math / ESKF core | Existing Cartesian prediction, real observations, gain/Joseph, injection/reset and frame algebra | No source clocks, capability policy, GNSS prerequisite, flight-mode checks or new nominal states. Numerical guard algebra must have its own contract/evidence even if it reuses products. |
+| Runtime startup | IMU-only seed, conditional priors, real gravity refinement, independent source admission under R-INS-STARTUP | No false rest, heading or velocity certainty; no fixed startup wait. |
+| Runtime session / capabilities | R-INS-CAPABILITIES and R-INS-CONTINUITY: source clocks, bias permissions, support status, numerical intervention and recovery | Retain full state/P and honest intervention provenance; shared fault domain still requires valid numerical/history owners. |
+| Runtime frame / history owners | [R-INS-ATTACHMENT](../requirements/runtime/ins-attachment.md): first geographic transaction; existing R-ORIGIN-REBASE for later moves | No invented old geographic origin; all affected state/history/reference owners prepare before commit. |
+| PX4 adapter | Units, time/context, external magnetic lookup, configuration, uORB mapping and reset delivery | Existing schemas and consumer contracts; no second main state or duplicated policy. |
+| Application / Commander | Mode-specific accuracy/freshness acceptance and fallback selection | Cannot override runtime invalidity; standalone users own their corresponding policy. |
+
+```mermaid
+flowchart LR
+    C[Collecting IMU] --> S[Seeded / tilt pending]
+    S --> T[Running / tilt aligned]
+    T --> Q[Independent heading, height and navigation admission]
+    Q --> T
+    S --> F[Restart-required fault]
+    T --> F
+    Q --> F
+```
+
+The running session has independent capability flags; Q is a set of admissions,
+not another estimator mode or a mandatory all-sensors-ready phase. A source loss
+changes only supported capabilities and policies. A genuine required IMU/history
+or numerical fault follows the shared restart contract. First attachment is an
+atomic operation within running service; ordinary callbacks remain non-atomic.
+
+### Profile and contract change inventory
+
+| Document family | Required allocation |
+|---|---|
+| SW-NAV; R-INS-SESSION | Parent composition and bounded phase ordering; strict/staged scopes remain explicit. |
+| R-INS-STARTUP; staged profile | Seed producers/filtering, priors, pre-alignment refinement and independent admission. |
+| R-INS-CAPABILITIES | Output facts, loss/recovery reasons and application acceptance boundary. |
+| R-INS-CONTINUITY | Numerical-only update semantics, protected marginals, bias rules and real-source recovery; A-02 comparisons remain prerequisites. |
+| R-INS-ATTACHMENT | First geographic mapping, covariance/history transport and publication transaction. |
+| R-PX4-STATUS; R-PX4-GRAVITY; R-PX4-IMU-BIAS | Consumer mapping and staged caller bindings; old evidence retains strict scope. |
+| E-STATE; core observations/correction; math/geodesy | Existing formulation and pure operations retained; no new equations or backend behavior implied. |
+| Gravity conditions/fusion; tilt; source lifecycle/reset; histories/datum | Reused dependencies. Existing post-alignment gravity predicate needs explicit staged admission; component evidence alone cannot close new callers. |
+| Test specifications and traceability | Allocate new cases separately from executed baseline cases; keep new source/proof bindings empty until implemented and verified. |
+
+### Existing execution protocol
 
 The adapter supplies admitted source records with sample and arrival times in a
 common monotonic domain. It supplies historical motion/vehicle context and
@@ -103,3 +159,9 @@ Standalone builds establish dependency separation, not target real-time behavior
 Inspect storage, stack, allocation and maximum phase work under named profiles.
 No host result establishes embedded WCET, full module formal refinement or flight
 qualification. Keep those obligations in the existing verification/resource work.
+
+For the staged target, verify seed, capability decisions, numerical algebra,
+first attachment and actual PX4 consumer behavior separately, then compose their
+evidence. Initial development-test targets do not establish arbitrary-dynamics
+accuracy or an unrestricted attitude-only mission duration. The staged profile
+is a Draft design baseline; existing source/proofs still describe strict startup.

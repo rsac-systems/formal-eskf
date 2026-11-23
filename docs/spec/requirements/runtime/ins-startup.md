@@ -19,7 +19,9 @@ this new behavior.
 PX4 v1.16.2 [initial filter/tilt construction](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/ekf.cpp)
 does not wait for GNSS, barometer or magnetic heading. The staged contract adopts
 independent qualification with this project's Cartesian equations and gravity
-model. It does not copy PX4's initial covariance or add stationary pseudo-updates.
+model. The profile adopts selected PX4 prior scales, expressed in this project's
+body-local error coordinates. Numerical continuity is separately owned by
+[R-INS-CONTINUITY](ins-continuity.md); stationary pseudo-updates remain excluded.
 
 ## Required behavior
 
@@ -38,6 +40,13 @@ GNSS, magnetometer and barometer shall not be prerequisites for this seed.
 The first profile excludes initialization on an unqualified moving platform.
 Acceleration magnitude and low angular rate alone shall not assert true rest.
 
+The first admitted IMU sample shall initialize the startup acceleration/rate
+filters; subsequent samples shall use the profile time constant and their valid
+integration intervals. There shall be no fixed one-second collection wait.
+The seed may occur on the first qualifying sample. Startup filtering and the
+gravity sampler's magnitude filter are separate histories; neither may be
+substituted for the other without satisfying its timing/reset contract.
+
 Construct a unit body-to-local quaternion whose rotation maps the admitted
 gravity-dominated specific-force direction onto local Up. Initial yaw may choose
 the local horizontal gauge; it shall not claim a true-North measurement. For each
@@ -48,13 +57,16 @@ nominal component and covariance block, the profile shall identify its producer:
 | Position | Local zero defines the origin, not a measured global position. |
 | Velocity | Trusted rest or an admitted velocity in known axes may establish a physical prior. Otherwise an internal seed remains unavailable as a navigation output. |
 | Tilt | Gravity-direction seed with explicit motion/noise uncertainty; not a covariance chosen merely to pass alignment. |
-| Heading | Local gauge until an admitted reference exists. Global heading uncertainty shall not be represented by a falsely certain zero or an unjustified local Gaussian prior. |
-| IMU biases | Calibration with declared uncertainty, or an explicit uncalibrated prior. The IMU mean shall not be declared gyro bias merely because the tilt motion gate passed. |
+| Heading | Choose zero relative yaw and zero initial gauge variance, conditional on the chosen local axes. Absolute heading remains unknown/unavailable. First reference admission requires a heading/covariance reset, not ordinary fusion against a falsely certain absolute-heading prior. |
+| IMU biases | Consume sensor-calibrated IMU and seed residual biases at zero with the profile's nonzero uncertainty. Do not apply sensor calibration twice or infer bias from a gyro mean without independent rest evidence. Saved-bias reuse is outside this profile. |
 
 Covariance shall be finite, symmetric/PSD and expressed in the correct tangent
 frame. Gauge choices, unavailable physical quantities and conditional uncertainty
 shall remain distinguishable. All nominal/covariance priors shall be specified
-before implementing a profile; zero bias/velocity seeds do not imply convergence.
+by the [seed table](../../profiles/staged-ins.md#seed-and-gravity-settings);
+zero bias/velocity seeds do not imply convergence. Form the attitude covariance
+in local-level axes and transport it to the body-local tangent basis. Other
+cross-blocks start at zero; the attitude block need not be body-diagonal.
 
 The session shall seed the main state, predictor and required histories at one
 consistent estimator epoch. Track the observations consumed for initialization;
@@ -117,7 +129,7 @@ admission. A newly admitted source shall not erase other qualified capabilities.
 
 ## Open decisions
 
-Initial prior values/producers, startup filtering and gravity convergence/error
-bounds require profile closure. Existing strict-startup tests and the predicate
-that requires completed tilt do not establish staged startup. No N5 stationary
-velocity or zero-gyro update is implicitly brought into scope.
+The selected priors/filtering and first benign-input accuracy/time criteria are
+bound by the staged profile. Broader motion/noise and mission qualification remain
+open. Existing strict-startup tests and the post-alignment predicate do not
+establish staged startup. No stationary velocity or zero-gyro update is implied.

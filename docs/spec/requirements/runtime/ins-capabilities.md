@@ -11,7 +11,8 @@ target contract; the existing strict-startup implementation does not satisfy it.
 
 **Uses:** [E-STATE](../core/state.md), [R-INS-STARTUP](ins-startup.md),
 [R-INS-SESSION](ins-session.md), [R-OUTPUT-PREDICTOR](output-predictor.md),
-[R-HEIGHT-DATUM](height-datum.md), [R-PX4-STATUS](../integration/px4/status.md).
+[R-HEIGHT-DATUM](height-datum.md), [R-PX4-STATUS](../integration/px4/status.md),
+[R-INS-CONTINUITY](ins-continuity.md), [R-INS-ATTACHMENT](ins-attachment.md).
 
 ## Basis
 
@@ -32,9 +33,12 @@ it to the separate four-coefficient, three-error AHRS configuration. Standalone
 AHRS remains rotation-only; it contains neither translation nor IMU bias states.
 
 Partial availability describes outputs, not a reduced covariance or a mask of
-state entries to update. Eligible corrections shall retain the existing full
-gain/cross-covariance effects, bias permissions and magnetic projection. No state
-row shall be discarded or frozen merely because its output is unavailable.
+state entries to update. Eligible real-observation corrections shall retain the
+existing full gain/cross-covariance effects, bias permissions and magnetic
+projection. No state row shall be discarded or frozen in a real correction merely because its output
+is unavailable. The separately identified numerical operations in
+R-INS-CONTINUITY constrain their own gain and use it consistently in Joseph;
+that is not a blanket modification of real measurement gains.
 Missing observations shall not be replaced by fake sensor receipts or artificial
 successful-fusion times.
 
@@ -42,18 +46,19 @@ The runtime shall expose one coherent snapshot containing the session/frame
 identity, initialization and alignment facts, each capability below, active
 sources, last successful aiding epoch, output and covariance epochs, and reasons
 for unavailability. Reasons shall distinguish uninitialized, unreferenced,
-unqualified source, expired aiding, excessive uncertainty, stale output and
+unqualified source, expired aiding, an applicable owner uncertainty limit,
+numerical regularization, stale output and
 numerical/history fault. Multiple reasons may coexist. Observing status shall not
 change state, covariance or source qualification.
 
 | Capability | Required prerequisites beyond common output admission |
 |---|---|
-| Attitude / tilt | Completed tilt alignment and the profile's current attitude uncertainty/dynamics limits. A normalized quaternion includes propagated relative yaw even when heading is unavailable. |
+| Attitude / tilt | Completed tilt alignment and common IMU/numerical/history/freshness admission. A normalized quaternion includes propagated relative yaw even when heading is unavailable. The alignment latch is not a continuous physical-accuracy guarantee. |
 | Referenced heading | Attitude, an established magnetic or true-North reference, and the heading owner's age, consistency, field and uncertainty limits. Report the reference kind separately. |
-| Horizontal position | An initialized position reference, known axes and a qualified position estimate within its own aiding/uncertainty budget. |
-| Horizontal velocity | A justified velocity initialization in known axes and its own aiding/uncertainty budget; a position fix alone is insufficient. |
-| Vertical position | An initialized relative or absolute height reference and its own aiding/uncertainty budget. GNSS and heading are not prerequisites for relative height. |
-| Vertical velocity | A justified initial vertical velocity or demonstrated convergence through height/dynamics, with its own uncertainty and aiding limits. A single height sample is insufficient. |
+| Horizontal position | An initialized position reference, known axes and its own real-aiding/loss rules; unresolved numerical intervention prevents usability. |
+| Horizontal velocity | A justified velocity initialization in known axes and its own real-aiding/loss rules; a position fix alone is insufficient. |
+| Vertical position | An initialized relative or absolute height reference and its own real-aiding/loss rules. GNSS and heading are not prerequisites for relative height. |
+| Vertical velocity | A justified initial vertical velocity and its own support/loss rules. A single height sample is insufficient; a future height/dynamics convergence route requires its own contract and evidence. |
 | Global position | Usable position, an initialized geographic mapping and known true-North orientation. A retained GNSS origin candidate alone is insufficient. |
 | MSL altitude | Usable geometric height and a compatible, valid ellipsoid/MSL datum. Relative barometric altitude is not an MSL datum. |
 
@@ -65,13 +70,26 @@ refresh the sample epoch or source aiding age. Delayed covariance shall identify
 its own epoch rather than claim propagation to the current nominal output.
 
 For each aided capability, its profile shall bind eligible sources, the relevant
-successful-aiding clock, expiry comparison and uncertainty limit. Rejected,
+successful-aiding clock and expiry comparison. Any additional uncertainty limit
+shall identify its owner and meaning. Rejected,
 duplicate, stale or merely received samples shall not refresh that clock.
 Coordinate/datum availability, source activity and small variance alone shall
 not establish usability. The [staged profile](../../profiles/staged-ins.md)
-identifies required bounds and unresolved acceptance limits.
+binds these rules and separates them from application accuracy acceptance.
 Attitude admission shall use its own IMU/tilt-support conditions, not a GNSS
 no-aid timer. The completed-alignment latch alone is not a current accuracy claim.
+
+### Application acceptance boundary
+
+Runtime shall publish support capabilities and uncertainty diagnostics; the
+deployment/application shall decide whether they satisfy a particular control
+mode. Runtime shall still withdraw capabilities on its own source, age, fault
+and numerical-intervention conditions. Application acceptance cannot override a
+runtime failure. Do not insert universal flight-mode accuracy thresholds into
+the numerical core or duplicate PX4 Commander hysteresis inside the session.
+The PX4 adapter shall preserve existing message/consumer semantics under
+R-PX4-STATUS. Standalone applications shall supply their own mode/accuracy policy.
+Small covariance is neither an independent measurement nor a confidence score.
 
 ### Service summaries and transitions
 
@@ -106,19 +124,9 @@ shall be identified as unreferenced, not measured North/East. The initial local
 origin is a coordinate choice; nominal zero velocity without a trusted producer
 is only an internal seed and shall not establish a usable velocity output.
 
-First geographic attachment shall use qualified, epoch-consistent GNSS and a
-known local-to-true-North rotation. Magnetic-only heading needs a declared
-declination before use with NED GNSS axes. A single-antenna GNSS fix/velocity
-shall not be treated as a direct heading measurement.
-
-The session shall prepare state/P, datum/reference, affected source offsets,
-delayed/current histories and output notifications before committing the new
-mapping. Initial attachment has no old ECEF origin; it shall not call a
-geographic-to-geographic rebase with an invented origin. Distinguish covariance
-transport from measurement initialization/correction: changing coordinates does
-not supply measurement uncertainty or improve an estimate. Failure shall leave
-the previously committed mapping and its dependent owners unchanged. Existing
-per-operation transaction boundaries still apply to earlier sensor updates.
+First geographic attachment shall follow R-INS-ATTACHMENT. It establishes a
+mapping for a previously unreferenced frame; later geographic rebasing uses
+R-ORIGIN-REBASE. A frame change alone shall not make an unsupported output valid.
 
 ### Numerical continuity without navigation aiding
 
@@ -137,11 +145,13 @@ affect attitude/bias through cross-covariance even with zero residual; invalid
 position flags do not waive that effect. A smaller covariance shall not be used
 as the sole evidence that containment improved attitude accuracy.
 
-No particular fake-position/height update, covariance clipping, block freezing
-or second AHRS is authorized by this contract. Selecting and validating a
-containment method is an explicit acceptance blocker below. Genuine required
-IMU/history/numerical failures retain the restart-required fault contract;
-silently publishing a stale quaternion is not degraded operation.
+R-INS-CONTINUITY selects a Draft policy: soft zero-innovation regularization of
+unavailable translation and unreferenced Down-axis rotation, with protected
+marginals, bounded nominal velocity and qualified real-source recovery. It does
+not add a second AHRS or assume a moving vehicle holds position/height. Numerical
+protection is not physical observability; implementation and validation remain
+required. Genuine IMU/history/numerical failures retain the restart-required fault
+contract; silently publishing a stale quaternion is not degraded operation.
 
 ## Acceptance and verification
 
@@ -165,8 +175,9 @@ arming/failsafe checks or force validity to pass these scenarios.
 
 ## Open decisions
 
-The containment algorithm and its validated mission/error envelope, per-output
-loss/uncertainty budgets, and first-attachment covariance/history mapping require
-design closure before implementation acceptance. They do not waive the required
-service or allow the existing shared numerical fault to stand in for it. The
-profile records these bounds separately from agreed startup thresholds.
+The selected continuity and attachment policies still need implementation,
+floating-point, mission/error and actual consumer evidence. Application-specific
+accuracy budgets belong to deployment qualification. These gaps do not waive
+required service or permit a shared numerical fault to stand in for degraded
+operation. The profile distinguishes numerical triggers, support/loss timers
+and the first development-test targets from qualified mission limits.

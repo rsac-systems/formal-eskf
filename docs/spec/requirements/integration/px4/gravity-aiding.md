@@ -54,6 +54,14 @@ Known clipping preserves an otherwise active mode while rejecting the sample.
 
 ## Acceptance and verification
 
+Under the [staged profile](../../../profiles/staged-ins.md),
+[R-INS-STARTUP](../../runtime/ins-startup.md) explicitly permits refinement
+before tilt alignment. Replace the strict profile's unaligned-context veto for
+that scope without inventing a completed-alignment flag. Keep sample epochs,
+rest/clipping admission, raw-force model, effective V and actual-success counters.
+The strict-profile evidence below does not establish this new composition or
+the staged profile's physical error/time criteria.
+
 These module history boundaries are checked through production gravity and
 `Run()` paths in `integrations/px4/tests/ModuleTest.cpp`. Sampler cadence,
 unknown metadata and failure preservation remain checked across native backends

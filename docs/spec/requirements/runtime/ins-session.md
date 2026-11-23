@@ -28,9 +28,11 @@ stage graph; the staged target below has its own explicit startup allocation.
 The startup rows below describe the existing strict geographic profile. The
 [staged profile](../../profiles/staged-ins.md) shall instead use
 [R-INS-STARTUP](ins-startup.md) and [R-INS-CAPABILITIES](ins-capabilities.md)
-for seed/admission, partial output and first geographic attachment. The existing
-current/delayed phase order, one-writer ownership and per-operation commits remain
-applicable. A staged session shall not require a magnetic provider or geographic
+for seed/admission and partial output, and [R-INS-ATTACHMENT](ins-attachment.md)
+for first geographic attachment. The existing current/delayed phase order,
+one-writer ownership and per-operation commits remain
+applicable except for the explicitly allocated continuity and attachment phases
+below. A staged session shall not require a magnetic provider or geographic
 height conversion solely to seed or publish qualified attitude.
 
 The caller shall supply valid, mutually consistent component settings and storage
@@ -56,6 +58,14 @@ Read-only views borrow session storage and are not concurrent-reader snapshots.
 | Magnetic boundary | Consume at most one eligible sample, capture its conditions, and request a model only when the reference owner requires it. Accept an explicit optional provider result; perform no lookup or platform callback internally. |
 | Fusion completion | Complete magnetic processing, feed the delayed state to current output, complete the IMU interval, then attempt coordinated origin migration. Navigation publication follows this boundary. |
 
+For the staged profile, real-source eligibility shall precede bias permissions;
+R-INS-CONTINUITY's numerical actions follow the real corrections and precede
+output feedback. R-INS-ATTACHMENT shall prepare its affected delayed/current
+owners at a coherent horizon before exposing the new mapping. Its transaction
+shall not interrupt a pending external-model phase or consume an observation
+twice. Attachment and ordinary rebasing are distinct events; an unattached
+session shall not enter geographic conversion/rebasing paths to publish attitude.
+
 The caller shall finish a pending phase before the next IMU/fusion phase. An
 invalid phase sequence shall latch a history/protocol fault. No ready delayed IMU
 means no fusion or watermark progress. An absent provider result retains the
@@ -65,8 +75,8 @@ conditions after a provider update within the same observation.
 Numerical/history faults shall latch until session replacement. Observation
 rejection alone shall not latch that fault. The whole callback is not atomic:
 earlier state, history, source, configuration or publication effects retain their
-specified commits when a later stage fails. Origin migration alone retains its
-coordinated prepare/commit boundary. Report counters, status and reset deltas from
+specified commits when a later stage fails. Origin migration and staged first
+attachment retain their coordinated prepare/commit boundary. Report counters, status and reset deltas from
 the actual owners; diagnostic formatting and logging remain adapter responsibilities.
 
 Raw innovation events shall retain clear, measurement and reset effects in that

@@ -178,6 +178,13 @@ before/after traces support the refactor but do not establish physical accuracy,
 new source proofs or embedded timing qualification. No development logs belong in
 the specifications or commits.
 
+### A-02 — Staged INS numerical policy review
+
+| Task | Status | Completion boundary |
+|---|---|---|
+| A-02.1 — Recheck PX4 numerical-update gains | Design | Before implementing the provisionally accepted translation gain restriction in [R-INS-CONTINUITY](spec/requirements/runtime/ins-continuity.md), trace the pinned PX4 zero-innovation update callers, gain construction, bias inhibition and covariance update. Compare attitude/bias and cross-covariance effects, including source recovery, with the project proposal. Recommend retaining or revising the restriction from source analysis and targeted comparisons; algebraic PSD preservation alone does not establish better estimation. Schedule this check during implementation preparation, not the ongoing design discussion. |
+| A-02.2 — Recheck PX4 unaided heading update | Design | Before implementing the accepted heading-regularization direction and candidate defaults in [R-INS-CONTINUITY](spec/requirements/runtime/ins-continuity.md), trace pinned PX4 eligibility, pre/post-alignment behavior, cadence, thresholds, heading Jacobian, gain and covariance update. Separate attitude-error convention conversion from the project's deliberate Down-axis gain restriction. Compare tilt/bias/cross-covariance effects, real versus numerical fusion clocks, heading validity and recovery; retain or revise the proposal from that analysis and targeted comparisons. Execute during implementation preparation; acceptance of the direction is not evidence of PX4 equivalence. |
+
 ### V-01 — Remaining proof boundaries
 
 **Status: Partial.** Scoped core/runtime evidence exists. Close the source,

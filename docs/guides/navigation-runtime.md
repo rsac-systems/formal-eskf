@@ -11,6 +11,14 @@ The [architecture](../spec/architecture/navigation-runtime.md) and
 The [PX4 adapter](../../integrations/px4/module/FormalEskf.cpp) uses the same owner.
 Legacy log replay retains its separate scheduling; it has not been migrated.
 
+The [staged INS profile](../spec/profiles/staged-ins.md) specifies future
+IMU-only startup and independent tilt/heading/navigation availability in one
+full INS. It is not a currently selectable configuration. Its
+[contract allocation](../spec/architecture/navigation-runtime.md#staged-service-allocation)
+separates runtime support from application mode acceptance. Existing commands
+below exercise the strict geographic startup; they do not demonstrate indoor
+cold start, numerical continuity or first geographic attachment.
+
 ## Build and run the host example
 
 From the repository root, with Eigen installed:
