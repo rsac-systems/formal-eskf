@@ -160,6 +160,7 @@ remain empty: these two additional review units are proof gaps, not verified cla
 | `R-INS-CAPABILITIES` | [Full and partial INS output availability](requirements/runtime/ins-capabilities.md) (Draft target) |
 | `R-INS-CONTINUITY` | [Covariance management without aiding](requirements/runtime/ins-continuity.md) (Draft target) |
 | `R-INS-ATTACHMENT` | [First geographic attachment](requirements/runtime/ins-attachment.md) (Draft target) |
+| `R-BAROMETRIC-ALTITUDE` | [Barometric altitude input and conversion](requirements/runtime/barometric-altitude.md) (Draft target) |
 | `R-HEIGHT-AIDING` | [Two-source altitude coordination](requirements/runtime/height-aiding.md) |
 | `R-HEIGHT-DATUM` | [Ellipsoid and MSL height separation](requirements/runtime/height-datum.md) |
 | `R-FRAME-OBSERVATIONS` | [Observations across Cartesian navigation frames](requirements/runtime/frame-observations.md) |
@@ -216,12 +217,14 @@ remain empty: these two additional review units are proof gaps, not verified cla
 - [PX4 SIH 250 Hz Deployment Profile](profiles/px4-sih-250hz.md).
 - [PX4 Cartesian Origin-Migration Profile](profiles/px4-origin-rebasing.md).
 - [Staged INS Service Profile](profiles/staged-ins.md) (Draft target; seed/gravity settings and application/numerical qualification boundaries).
+- [Optional Barometric Height Profile](profiles/barometric-height.md) (Draft target; model, source options, qualification and time bases).
 
 ## Verification policy
 
 - [Verification and Traceability Policy](verification/assurance.md).
 - [Test Specification and Coverage Standard](verification/testing.md) (Draft), with the [core/runtime test design](verification/tests/README.md).
 - Planned staged service: [runtime test specification](verification/staged-ins-tests.md) and [PX4 consumer acceptance](verification/px4-staged-ins-tests.md), with Pending executable bindings.
+- Planned barometric height: [conversion, runtime and PX4 test specification](verification/barometric-height-tests.md), with Pending executable bindings.
 - [C++ Function Inventory and Review Boundary](verification/source-inventory.md).
 - [C++ Static Analysis Policy](verification/static-analysis.md).
 

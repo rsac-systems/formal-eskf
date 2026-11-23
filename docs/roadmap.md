@@ -211,8 +211,38 @@ Acceptance uses [runtime cases](spec/verification/staged-ins-tests.md) and
 [PX4 consumer cases](spec/verification/px4-staged-ins-tests.md). Add stable IDs
 to executable registration only with real fixtures/bindings. Preserve unresolved
 numerical/fixture/target limits as gaps; passing case totals are not full coverage.
-Barometer specification and pressure conversion remain separate work; their
-absence shall not block the IMU-only startup design or create fake height inputs.
+The barometer specification is allocated below; its implementation remains
+separate. Absence shall not block IMU-only startup or create fake height inputs.
+
+### A-04 — Optional barometric height
+
+The [barometric profile](spec/profiles/barometric-height.md) and
+[responsibility allocation](spec/architecture/navigation-runtime.md#optional-barometric-height-allocation)
+retain the Cartesian core and GNSS-preferred concurrent height policy. They add
+raw conversion, a common height helper, optional intake and revised qualification/
+receipt timing. These target behaviors are not implemented by the specification.
+
+Implement pure conversion and helper boundaries first. Relative-height composition
+then joins A-03.2/A-03.3 startup/capabilities before A-03.5 attachment acceptance;
+neither feature may fabricate prerequisites to avoid that dependency. Each item
+includes its allocated tests, self-review, evidence-impact check and necessary
+refactoring before commit. Existing height behavior retains regression coverage.
+
+| Task | Status | Completion boundary |
+|---|---|---|
+| A-04.1 — Contract and test baseline | Completed | Draft conversion requirement, height-owner/helper contracts, profile, PX4 binding and planned acceptance cases; traceability distinguishes existing evidence from target gaps. No production or proof completion claim. |
+| A-04.2 — Pressure conversion | Planned | Implement the bounded raw converter and converted-input admission with shared model settings, derived boundaries, checked scalar dependency and output preservation; establish numerical criteria before accepting conversion tests. |
+| A-04.3 — Shared height preparation | Planned | Centralize relative/geographic height, offset, sign and Jacobian preparation; retain prior-offset variance once, coordinate/reference transport and failure boundaries. Remove duplicated caller arithmetic only after independent helper/regression checks. |
+| A-04.4 — Optional source and PX4 composition | Planned | Wire compile-time exclusion, effective-timing warmup derivation, generation-qualified latest receipt and delayed sample/progress clocks; integrate relative startup, concurrent sources and selected-sample GNSS recovery. Preserve supplied PX4 altitude, ordinary QNH behavior and reset/report delivery. |
+| A-04.5 — Acceptance and migration closure | Planned | Bind and execute planned converter/owner/adapter cases, qualify mounting/model/reference uncertainty and target resources under F-07, then review/refactor source ownership and retire only superseded tests. Missing physical limits/data remain explicit gaps. |
+| A-04.6 — Formal evidence | Planned | Deferred to V-01: exact conversion/domain identities, scalar error bounds, helper sign/reference invariants, source-clock/generation/failure behavior and composed caller obligations. Reassess existing proof applicability; no proof run in the specification round. |
+
+The [planned barometric tests](spec/verification/barometric-height-tests.md) own
+case allocation; executable registration follows implementation, not publication
+of the plan. Ground-effect completion remains F-03.2 after the shared timing,
+capability and diagnostic work; it is excluded here. Terrain and dynamic-pressure
+models retain their separate deferred decisions. No QNH-specific control mechanism
+or barometer lever-arm compensation is introduced.
 
 ### V-01 — Remaining proof boundaries
 

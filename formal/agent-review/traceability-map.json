@@ -5854,8 +5854,31 @@
       }
     },
     {
+      "id": "R-BAROMETRIC-ALTITUDE",
+      "title": "Barometric altitude conversion/admission: Draft target; implementation, numerical bounds and formal evidence pending",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/runtime/barometric-altitude.md",
+            "symbol": "# R-BAROMETRIC-ALTITUDE:"
+          },
+          {
+            "file": "docs/spec/profiles/barometric-height.md",
+            "symbol": "# Optional Barometric Height Profile"
+          },
+          {
+            "file": "docs/spec/verification/barometric-height-tests.md",
+            "symbol": "### Conversion and admission"
+          }
+        ],
+        "lean": [],
+        "cpp": [],
+        "esbmc": []
+      }
+    },
+    {
       "id": "R-HEIGHT-FUSION",
-      "title": "Portable height aiding and PX4 binding; process-owner revalidation and geometric proof remain open",
+      "title": "Portable height/PX4: process-owner and geometry proof gaps retained; optional barometer helper, source and timing target pending",
       "references": {
         "spec": [
           {
@@ -5869,6 +5892,18 @@
           {
             "file": "docs/spec/requirements/integration/px4/barometer-ground-effect.md",
             "symbol": "# R-PX4-BARO-GROUND-EFFECT: PX4 module barometer ground effect"
+          },
+          {
+            "file": "docs/spec/profiles/barometric-height.md",
+            "symbol": "# Optional Barometric Height Profile"
+          },
+          {
+            "file": "docs/spec/verification/barometric-height-tests.md",
+            "symbol": "### Runtime composition"
+          },
+          {
+            "file": "docs/spec/verification/barometric-height-tests.md",
+            "symbol": "### PX4 adapter"
           }
         ],
         "lean": [

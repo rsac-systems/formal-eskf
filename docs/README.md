@@ -16,10 +16,11 @@ the [specification index](spec/README.md) locates canonical requirement definiti
 |---|---|
 | Requirements | [Capability hierarchy and canonical layer index](spec/README.md) |
 | Architecture | [Software boundaries](spec/architecture/overview.md), [numerical abstraction](spec/architecture/numerics.md), [portable navigation runtime](spec/architecture/navigation-runtime.md), [PX4 module](spec/architecture/px4-module.md) |
-| Deployment profile | [PX4 SIH 250 Hz](spec/profiles/px4-sih-250hz.md); [staged INS target](spec/profiles/staged-ins.md) (Draft, not deployed) |
+| Deployment profile | [PX4 SIH 250 Hz](spec/profiles/px4-sih-250hz.md); [staged INS](spec/profiles/staged-ins.md) and [optional barometric height](spec/profiles/barometric-height.md) targets (Draft, not deployed) |
 | Verification policy | [Claims and traceability](spec/verification/assurance.md), [test standard and template](spec/verification/testing.md), [source inventory](spec/verification/source-inventory.md), [static analysis](spec/verification/static-analysis.md) |
 | Test design | [Core and portable runtime](spec/verification/tests/README.md): requirement-led cases, independent oracles, profiles and explicit acceptance gaps. |
 | Planned staged acceptance | [Portable INS](spec/verification/staged-ins-tests.md), [PX4 consumers](spec/verification/px4-staged-ins-tests.md): Pending implementations, outside current executable totals. |
+| Planned barometric acceptance | [Conversion, runtime and PX4](spec/verification/barometric-height-tests.md): independent oracles and Pending executable bindings. |
 
 Specifications own required behavior and claim limits. A design proposal or local
 experiment does not silently override them.
