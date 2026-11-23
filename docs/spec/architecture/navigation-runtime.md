@@ -61,6 +61,35 @@ policy. Session composes lower components; lower components do not include it.
 
 ## Execution and state
 
+### Optional barometric height allocation
+
+The [barometric target profile](../profiles/barometric-height.md) extends existing
+height aiding; its implementation is pending. It does not alter core state,
+prediction, Joseph correction or quaternion conventions. Requirements are
+[R-BAROMETRIC-ALTITUDE](../requirements/runtime/barometric-altitude.md) and
+[R-HEIGHT-AIDING](../requirements/runtime/height-aiding.md).
+
+| Boundary | Responsibility |
+|---|---|
+| Driver/adapter | Calibrated Pa or existing model altitude, selected source/calibration identity, effective/receipt times and sensor-domain premises. PX4 retains `baro_alt_meter`; it does not reconvert or fuse pressure from the same sample separately. |
+| Runtime sensor conversion | Bounded pure pressure/model-altitude admission and failure-preserved output under `sensors/height/`; no clocks, bias history, QNH watcher or platform access. |
+| Runtime observation preparation | One common height helper under the existing fusion/frame boundary; relative or geographic prediction, prior offset, Down residual and Jacobian. No duplicated caller sign/reference arithmetic. |
+| Height owner/session | Qualification, derived warmup, source clocks, prior-offset variance, source arbitration, bias update and real recovery/reset. Session coordinates first attachment, histories and output capabilities. |
+| Core | Consume prepared scalar observation/Jacobian/covariance through existing correction, injection and reset. No source-selection or reference-pressure policy. |
+| Application | Select supported sensor/configuration and qualify atmospheric, mounting, reference and accuracy assumptions. Adapter publishes actual source outcomes and real reset metadata. |
+
+Pressure conversion does not establish MSL. Before attachment, relative height
+uses the seeded local gauge; afterward, reference/offset mapping uses the existing
+ECEF/geoid geometry. Coordinate relabeling, actual measurement resets and changing
+which source defines height remain distinct events. Full covariance coupling and
+the current bounded single-writer execution model remain applicable.
+
+The optional build shall remove barometer-specific work without creating a second
+height estimator or requiring dummy observations. Shared session infrastructure
+may remain. Names in this allocation identify responsibilities, not a requirement
+to introduce new classes, wrapper layers or one file per operation. Ground-effect
+contracts and their unfinished acceptance remain a separate workstream.
+
 ### Staged service allocation
 
 The staged target keeps the same ownership structure. INS/AHRS-like/tilt-only

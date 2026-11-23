@@ -76,6 +76,7 @@ remain at the declared C++ boundaries.
 | [R-INS-CONTINUITY](../runtime/ins-continuity.md) | Staged target: source-loss covariance propagation, constrained numerical regularization and qualified recovery. |
 | [R-INS-ATTACHMENT](../runtime/ins-attachment.md) | Staged target: first local-to-geographic transaction, real measurement initialization and coherent history/reference publication. |
 | [R-HEIGHT-AIDING](../runtime/height-aiding.md) | Two-source altitude/bias coordination, recovery and transactional raw outcomes. |
+| [R-BAROMETRIC-ALTITUDE](../runtime/barometric-altitude.md) | Optional barometric input/conversion and model-domain admission; applicable only when that source is enabled. |
 | [R-OBSERVATION-HISTORY](../runtime/history/observation-history.md) | Delayed raw source/context retention, admission, generation and once-only selection. |
 | [R-OUTPUT-PREDICTOR](../runtime/output-predictor.md) | Current nominal propagation, delayed feedback and output-history transactions. |
 | [R-IMU-HISTORY](../runtime/history/imu-history.md) | Retained IMU intervals, configured timing, source admission and completion cursor. |
