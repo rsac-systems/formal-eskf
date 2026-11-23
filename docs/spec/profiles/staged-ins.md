@@ -44,9 +44,11 @@ interpreting magnetic heading as true North. Motion handling and recovery retain
 their respective source contracts; initialization defaults shall not overwrite
 their distinct recovery timers.
 
-Relative height uses the separately specified optional height source; absence
-shall not block tilt/heading. Its pressure model, warmup and reference settings
-belong to the barometer specification, not a duplicated INS parameter table.
+Relative height uses the [optional barometric profile](barometric-height.md);
+absence shall not block tilt/heading. That profile owns pressure/model-altitude
+admission, derived warmup, reference settings and source timing. Its relative
+startup composes with this profile's common seed/capability/attachment behavior;
+neither document implies the target is already implemented.
 
 ## Seed and gravity settings
 

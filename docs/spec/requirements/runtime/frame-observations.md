@@ -39,7 +39,11 @@ the positive-Down model h = -(height_ellipsoid - N), observing -height_msl.
 Its position Jacobian is the estimated-location geodetic Down row expressed
 in the working frame. No other error-state block is introduced. This
 linearization holds N constant; it does not claim a model of geoid gradients.
-Barometer reference/bias adaptation shall supply the same declared height basis.
+Barometer reference/bias adaptation shall supply the same declared height basis
+through [R-HEIGHT-AIDING's common preparation](height-aiding.md#common-height-observation-preparation).
+Its pre-geographic relative path shall not invent ECEF/geoid inputs just to use
+this geographic operation. Geometry failure preserves the prepared observation;
+source lifecycle and offset learning remain outside this pure geometry boundary.
 
 Core correction shall consume the resulting H and covariance through its generic
 path unless a generated kernel explicitly supports that structure. Rotation of H

@@ -15,7 +15,8 @@
 ## Required behavior
 
 The adapter shall bind the portable two-source height owner to the existing
-GNSS-preferred deployment. Supply calibrated MSL altitude, GNSS compensated to
+GNSS-preferred deployment. Supply GNSS MSL altitude and barometric model altitude,
+with their distinct reference semantics; GNSS shall be compensated to
 the IMU under [R-PX4-SENSOR-POSITIONS](sensor-positions.md), qualified source
 identity, historical context, selected delayed epoch, velocity-aiding activity
 and pre-height acceleration health. The live module shall supply geographic
@@ -26,7 +27,11 @@ magnetic aiding, as specified in [PX4-TIME-LIVE](delayed-fusion.md#r-px4-delayed
 boundary's stricter admission/selection limits before the owner's retained age
 checks. Invalid initial altitude delays startup rather than latching a core fault.
 
-The profile shall retain these existing defaults; configurable values remain
+The current geographic profile retains the following baseline defaults. The
+[optional barometric target](../../../profiles/barometric-height.md) explicitly
+overrides barometer domain, warmup derivation, receipt-clock binding and source
+exclusion when implemented; it does not silently change GNSS settings. Other
+configurable values remain
 bound through `DeploymentProfile`/`DeploymentConfig`, not live `EKF2_*` reads:
 
 | Setting | Default |
@@ -49,6 +54,43 @@ reference defaults, but counts selected events rather than arrivals or wall time
 Bias prediction uses the estimator tick; this is not a bit-identical EKF2 bias claim.
 The independent acceleration reset predicate remains owned by
 R-GNSS-VERTICAL-RECOVERY, separately from the held fault duration.
+
+### Optional barometric target binding
+
+The adapter shall retain the selected `vehicle_air_data.baro_alt_meter` input,
+with effective sample time, arrival/admission time and device/calibration identity.
+Do not run the pressure converter again or fuse pressure and altitude from that
+message separately. Apply R-BAROMETRIC-ALTITUDE admission before reference/offset
+mapping; the existing broad sanity limit is not the model-validity envelope.
+
+Derive warmup from the validated effective filter period and nominal fusion delay,
+including supported startup overrides. Do not bind it to a reserved queue's
+capacity or independent 50/51 literals. Publish the generation-qualified admitted
+receipt fact to runtime; its latest-clock freshness, delayed selected-sample age
+and delayed successful-fusion timeout remain separate. A changed source's new
+receipt shall not qualify an older source at the delayed horizon. The implementation
+must establish this bounded handoff before claiming the target timing contract.
+
+With barometer excluded, remove its subscription/intake and startup dependency;
+GNSS height may continue. Staged relative height shall use the common runtime
+helper and existing capability/attachment owners, not adapter-local arithmetic
+or an invented geographic origin. Apply ordinary source metadata changes through
+their source-requalification contract.
+
+The adapter shall not introduce a QNH-specific watcher, fault latch, restart,
+buffer reset or direct height reset. The pinned upstream producer may use a new
+`SENS_BARO_QNH` while device/calibration identity remains unchanged. Such altitude
+changes pass through ordinary validation, bias, gate and recovery logic. A GNSS
+reference may allow bias adaptation; a barometric reference cannot learn its own
+absolute error. No automatic parameter lock, source-epoch identity or jump-free
+response is claimed. The raw converter's explicit reference input does not freeze
+PX4's external parameter. QNH changes are not coordinate-rebase notifications.
+
+This target adds no ground-effect policy or geometric barometer lever-arm term.
+Existing ground-effect behavior and its separate completion boundary are retained.
+Supported mounting/atmosphere uncertainty is an application qualification premise.
+
+### Reporting and reset delivery
 
 PX4 reporting history shall remain in the adapter. After successful height update,
 apply each source's raw events in clear → measurement → reset order using the
@@ -78,3 +120,12 @@ real-reset counters and partial-cycle failures. Compare complete PX4 fixture
 outputs against the same numerical/configuration baseline. Native/SITL evidence
 is empirical; it does not complete the geometric owner's ESBMC gap or establish
 physical sensor validity, target WCET or flight qualification.
+Target acceptance additionally requires enabled/disabled adapter builds, source
+and receipt-generation boundaries, retained converted input, no duplicate fusion,
+and ordinary lifecycle behavior for upstream QNH-induced altitude changes. Use
+actual producer/caller bindings to distinguish wiring from scalar conversion
+tests; neither synthetic changes nor a parameter name prove physical accuracy.
+
+Reference: pinned [air-data producer](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/sensors/vehicle_air_data/VehicleAirData.cpp#L287),
+[EKF2 barometer ingress](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF2.cpp#L2143)
+and [reference-dependent bias](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/bias_estimator/height_bias_estimator.hpp#L57).
