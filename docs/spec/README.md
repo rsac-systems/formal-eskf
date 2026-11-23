@@ -221,6 +221,7 @@ remain empty: these two additional review units are proof gaps, not verified cla
 
 - [Verification and Traceability Policy](verification/assurance.md).
 - [Test Specification and Coverage Standard](verification/testing.md) (Draft), with the [core/runtime test design](verification/tests/README.md).
+- Planned staged service: [runtime test specification](verification/staged-ins-tests.md) and [PX4 consumer acceptance](verification/px4-staged-ins-tests.md), with Pending executable bindings.
 - [C++ Function Inventory and Review Boundary](verification/source-inventory.md).
 - [C++ Static Analysis Policy](verification/static-analysis.md).
 

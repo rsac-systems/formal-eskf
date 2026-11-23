@@ -182,8 +182,37 @@ the specifications or commits.
 
 | Task | Status | Completion boundary |
 |---|---|---|
-| A-02.1 — Recheck PX4 numerical-update gains | Design | Before implementing the provisionally accepted translation gain restriction in [R-INS-CONTINUITY](spec/requirements/runtime/ins-continuity.md), trace the pinned PX4 zero-innovation update callers, gain construction, bias inhibition and covariance update. Compare attitude/bias and cross-covariance effects, including source recovery, with the project proposal. Recommend retaining or revising the restriction from source analysis and targeted comparisons; algebraic PSD preservation alone does not establish better estimation. Schedule this check during implementation preparation, not the ongoing design discussion. |
+| A-02.1 — Recheck PX4 numerical-update gains | Design | Before implementing the provisionally accepted translation gain restriction in [R-INS-CONTINUITY](spec/requirements/runtime/ins-continuity.md), trace the pinned PX4 zero-innovation update callers, gain construction, bias inhibition and covariance update. Compare attitude/bias and cross-covariance effects, including source recovery, with the project proposal. Recommend retaining or revising the restriction from source analysis and targeted comparisons; algebraic PSD preservation alone does not establish better estimation. Complete this check before production policy changes. |
 | A-02.2 — Recheck PX4 unaided heading update | Design | Before implementing the accepted heading-regularization direction and candidate defaults in [R-INS-CONTINUITY](spec/requirements/runtime/ins-continuity.md), trace pinned PX4 eligibility, pre/post-alignment behavior, cadence, thresholds, heading Jacobian, gain and covariance update. Separate attitude-error convention conversion from the project's deliberate Down-axis gain restriction. Compare tilt/bias/cross-covariance effects, real versus numerical fusion clocks, heading validity and recovery; retain or revise the proposal from that analysis and targeted comparisons. Execute during implementation preparation; acceptance of the direction is not evidence of PX4 equivalence. |
+
+### A-03 — Staged INS service
+
+The [staged profile](spec/profiles/staged-ins.md) keeps one full Cartesian INS
+with independent output capabilities. The
+[owner/contract inventory](spec/architecture/navigation-runtime.md#staged-service-allocation)
+separates core algebra, runtime policy, PX4 mapping and application mode decisions.
+The following order applies within this feature; it does not reorder unrelated
+functional tracks or bring optional pressure conversion into this scope.
+Each implementation item includes its allocated tests, evidence-impact review
+and refactoring before commit. No staged feature is currently implemented.
+
+| Task | Status | Completion boundary |
+|---|---|---|
+| A-03.1 — Contract and test baseline | Completed | Draft startup, capability, continuity and attachment requirements, profile, responsibility allocation and planned runtime/PX4 test families. Design selection is separate from requirement approval and execution evidence. |
+| A-03.2 — IMU seed and gravity refinement | Planned | Implement selected filters/priors, atomic history seed and real pre-alignment refinement; first test cases in R-INS-STARTUP. Do not fake alignment or change the core observation model. |
+| A-03.3 — Independent capability lifecycle | Planned | Expose actual source/epoch/fault/reference facts, real-aiding clocks, partial outputs and selected bias permissions. Keep full P/coupling and explicit numerical-domain limitations; flags alone do not close continuity. |
+| A-03.4 — Numerical continuity and recovery | Design | After A-02.1/A-02.2 comparisons and their retained/revised decision, implement bounded covariance-only guards, intervention provenance, nominal-velocity handling and real-source reset recovery. Validate protected marginals and actual attitude effects. |
+| A-03.5 — First geographic attachment | Planned | Implement R-INS-ATTACHMENT across state/P, sources, references and histories; validate independent transforms, uncertainty reset, once-only consumption and full rollback. Optional height cases require their qualified source contract. |
+| A-03.6 — PX4 mapping and actual consumers | Planned | Bind portable capabilities and resets to unchanged PX4 topics; prove behavior through actual Commander/manual/navigation consumers. Resolve incompatibilities explicitly without false validity or disabled checks. |
+| A-03.7 — Qualification and migration closure | Planned | Complete selected physical error/time, endurance, fault/recovery and target resource cases; audit implementation against contracts, refactor remaining ownership/duplication and retire only superseded strict-startup tests/APIs. No host-only flight or WCET claim. |
+| A-03.8 — Formal evidence | Planned | Deferred to V-01: exact numerical-guard identities, source failure/frame/provenance behavior, startup/capability state machines and attachment/caller composition. Existing proofs do not cover the new policy; no proof execution in the documentation round. |
+
+Acceptance uses [runtime cases](spec/verification/staged-ins-tests.md) and
+[PX4 consumer cases](spec/verification/px4-staged-ins-tests.md). Add stable IDs
+to executable registration only with real fixtures/bindings. Preserve unresolved
+numerical/fixture/target limits as gaps; passing case totals are not full coverage.
+Barometer specification and pressure conversion remain separate work; their
+absence shall not block the IMU-only startup design or create fake height inputs.
 
 ### V-01 — Remaining proof boundaries
 

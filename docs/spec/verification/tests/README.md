@@ -84,6 +84,14 @@ External linalg internals and deployment qualification have separate boundaries.
 [Session cases](runtime/ins-session.md) cover the extracted composition; component
 cases alone do not establish it. Full symbolic and target acceptance remain separate.
 
+The [staged INS runtime design](../staged-ins-tests.md) and
+[PX4 staged consumer acceptance](../px4-staged-ins-tests.md) cover future behavior.
+Their executable bindings are Pending and they are not included in this runner's
+registered/executed totals. Move adopted runtime cases into this tree with stable
+IDs and real bindings as implementation lands; do not mark them Delegated or
+reuse strict-startup results to avoid an unresolved binding. PX4 consumer cases
+retain their separate integration scope.
+
 ## Requirement and case allocation
 
 Each listed ID is owned by the linked family for this design. Common contracts

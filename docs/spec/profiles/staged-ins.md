@@ -161,36 +161,23 @@ Stationary zero-velocity/zero-gyro observations and in-flight fake-position/heig
 hold are **not enabled** by this policy. They are different assumptions from a
 zero-innovation numerical operation. No permanent second estimator is introduced.
 
-### Verification cases for the proposed defaults
+## Qualification boundaries
 
-- Exercise 64 translation masks, rotated/rebased height axes, cross-correlated
-  full P and each threshold immediately below/at/above. Check Joseph against an
-  independent dense calculation; assert untouched nominal state for covariance-
-  only operations and protected-marginal residual within the declared binary64
-  acceptance tolerance. Formal/finite-precision proof is still pending.
-- Run at least **3600 s of estimator time** with no GNSS, separately with magnetic
-  heading, without heading, with relative height and without height. This is a
-  qualification test duration, not a promised one-hour mission envelope. Include
-  initially near-trigger covariance to force numerical intervention, biased IMU,
-  realistic tilted motion and admitted maximum timing/gap boundaries. Require no
-  numerical/history fault under the declared input premises, bounded work, and
-  no false navigation/heading validity.
-- In the attitude-only case with fixed external field and the same real-source/
-  bias-permission schedule, compare translation protection on/off. It shall not
-  change the protected attitude/bias evolution beyond the declared numerical
-  tolerance. Test the Down-axis guard separately for tilt protection and relative
-  yaw propagation; do not compare only covariance diagonals or finite flags.
-- Restore each genuine source before grace expiry, at expiry and after numerical
-  intervention. Verify the applicable reset/normal-fusion distinction, including
-  height recovery without manufactured velocity recovery. Check nominal-limit
-  history transactions and actual PX4 reset/validity consumption.
-- Record attitude errors against independent truth and model violations separately.
-  Physical tilt-error/convergence limits follow the seed/gravity profile
-  above; satisfying these numerical checks alone does not close that acceptance.
+The [runtime test specification](../verification/staged-ins-tests.md) owns cases
+and oracles; [PX4 consumer acceptance](../verification/px4-staged-ins-tests.md)
+owns adapter/mode/reset behavior. The numerical endurance fixture spans at least
+**3600 s of estimator time** with heading/height combinations and forced numerical
+intervention. This is a test duration, not a promised one-hour mission envelope.
+The 60 s / 3 deg criterion above remains the first benign-input physical target.
 
+Before implementation acceptance, finalize the A-02 translation trigger/gain and
+heading comparisons, bounded floating-point residual criteria, complete motion/
+noise fixtures and deployment accuracy/resource budgets. All 64 translation masks
+and compatible/unsupported active-observation bases require explicit coverage.
+No elapsed test duration or finite-P result establishes physical observability.
 At most six translation updates and one Down-axis update occur per delayed
-horizon. Actual stack/WCET, including coordinate transforms and any history reset,
-shall satisfy the existing PX4 timing/resource profile before target acceptance.
+horizon. Actual stack/WCET, including frame transforms and history reset, must
+satisfy the existing target timing/resource profile; host timing alone is not WCET.
 
 ## Reference
 

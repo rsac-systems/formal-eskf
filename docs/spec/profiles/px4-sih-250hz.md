@@ -7,6 +7,11 @@ Bind the 250 Hz SIH delayed-fusion profile under
 baseline is implemented by the live SIH module. Native/SIH evidence is configuration-specific;
 source formal proof and target timing/resource acceptance remain separate.
 
+The [staged INS target](staged-ins.md) reuses these timing/storage/resource
+premises but replaces strict all-source startup and output admission through its
+own contracts. It is not yet implemented. Neither this profile's existing native
+results nor its lag/history rules establish staged cold-start or partial service.
+
 Use the same reference as the architecture: **PX4 v1.16.2,
 `54f0455ffcd755534539a7cf33a09a20bf71d29d`**. The first profile targets the existing
 250 Hz SIH setup, INS/binary64 and `Px4MatrixBackend`. Hardware and other sensor

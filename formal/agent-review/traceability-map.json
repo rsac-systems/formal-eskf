@@ -3694,7 +3694,7 @@
     },
     {
       "id": "R-MAGNETIC-REFERENCE",
-      "title": "Reference adoption, module model scheduling and exact NED frame algebra verified; C++ frame conversion, raw libm accuracy and host wiring remain separate",
+      "title": "Reference adoption, module model scheduling and exact NED frame algebra verified; C++ frame conversion, raw libm accuracy and host wiring remain separate; staged candidate-position lookup remains a Draft target without implementation evidence",
       "references": {
         "spec": [
           {
@@ -3712,6 +3712,10 @@
           {
             "file": "docs/spec/requirements/runtime/magnetic/model.md",
             "symbol": "# R-MAGNETIC-MODEL:"
+          },
+          {
+            "file": "docs/spec/verification/px4-staged-ins-tests.md",
+            "symbol": "## Cases"
           }
         ],
         "lean": [
@@ -4732,7 +4736,7 @@
     },
     {
       "id": "R-ACCELEROMETER-FUSION",
-      "title": "Gravity fusion and 10 ms adaptive sampling transactions verified under same-type numerical contracts; adapter correspondence remains open",
+      "title": "Gravity fusion and 10 ms adaptive sampling transactions verified under same-type numerical contracts; adapter correspondence remains open; staged pre-alignment caller remains a Draft target without implementation evidence",
       "references": {
         "spec": [
           {
@@ -4750,6 +4754,10 @@
           {
             "file": "docs/spec/requirements/runtime/gravity/sampling.md",
             "symbol": "# R-ACCELEROMETER-SAMPLING: Rotation-aware gravity observation sampling"
+          },
+          {
+            "file": "docs/spec/verification/px4-staged-ins-tests.md",
+            "symbol": "## Cases"
           }
         ],
         "lean": [
@@ -4949,6 +4957,10 @@
           {
             "file": "docs/spec/requirements/runtime/imu/bias-inhibition.md",
             "symbol": "# R-IMU-BIAS-INHIBITION: Decaying-peak bias-learning permissions"
+          },
+          {
+            "file": "docs/spec/verification/px4-staged-ins-tests.md",
+            "symbol": "## Cases"
           }
         ],
         "lean": [],
@@ -6861,12 +6873,16 @@
     },
     {
       "id": "R-PX4-FRAME-OUTPUT",
-      "title": "PX4 rotation-variance frames and computed longitude: native-tested output mapping; geographic analysis is a sampled assessment, not a flight envelope or formal proof",
+      "title": "PX4 rotation-variance frames and computed longitude: native-tested output mapping; geographic analysis is a sampled assessment, not a flight envelope or formal proof; staged pre-attachment binding is a Draft target without implementation evidence",
       "references": {
         "spec": [
           {
             "file": "docs/spec/requirements/integration/px4/output-frames.md",
             "symbol": "# R-PX4-FRAME-OUTPUT: geographic and rotation-variance output frames"
+          },
+          {
+            "file": "docs/spec/verification/px4-staged-ins-tests.md",
+            "symbol": "## Cases"
           }
         ],
         "lean": [],
@@ -6911,6 +6927,10 @@
           {
             "file": "docs/spec/requirements/integration/px4/status.md",
             "symbol": "# R-PX4-STATUS: confidence and failure reporting"
+          },
+          {
+            "file": "docs/spec/verification/px4-staged-ins-tests.md",
+            "symbol": "## Cases"
           }
         ],
         "lean": [],
@@ -8228,6 +8248,10 @@
           {
             "file": "docs/spec/profiles/staged-ins.md",
             "symbol": "# Staged INS Service Profile"
+          },
+          {
+            "file": "docs/spec/verification/staged-ins-tests.md",
+            "symbol": "## Cases"
           }
         ],
         "lean": [],
@@ -8247,6 +8271,10 @@
           {
             "file": "docs/spec/profiles/staged-ins.md",
             "symbol": "# Staged INS Service Profile"
+          },
+          {
+            "file": "docs/spec/verification/staged-ins-tests.md",
+            "symbol": "## Cases"
           }
         ],
         "lean": [],
@@ -8266,6 +8294,10 @@
           {
             "file": "docs/spec/profiles/staged-ins.md",
             "symbol": "## Unaided covariance policy"
+          },
+          {
+            "file": "docs/spec/verification/staged-ins-tests.md",
+            "symbol": "## Cases"
           }
         ],
         "lean": [],
@@ -8281,6 +8313,10 @@
           {
             "file": "docs/spec/requirements/runtime/ins-attachment.md",
             "symbol": "# R-INS-ATTACHMENT:"
+          },
+          {
+            "file": "docs/spec/verification/staged-ins-tests.md",
+            "symbol": "## Cases"
           }
         ],
         "lean": [],

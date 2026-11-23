@@ -21,6 +21,16 @@ the [verification requirements](../README.md).
 The [timing profile](../profiles/px4-sih-250hz.md) defines the implemented source
 bindings and capacities. Its proposed target execution budgets remain unqualified.
 
+The [staged INS target](../profiles/staged-ins.md) is a separate Draft behavior
+allocation, not the current strict-startup implementation. It retains this
+execution/resource architecture while changing startup and independent output
+admission under the [portable owner inventory](navigation-runtime.md#staged-service-allocation).
+The adapter maps capabilities/resets to existing topics; Commander owns mode
+accuracy acceptance. First geographic attachment follows R-INS-ATTACHMENT;
+later origin migration retains its existing contract. Its
+[consumer test specification](../verification/px4-staged-ins-tests.md) requires
+actual PX4 mode/reset behavior, not only module-produced flags.
+
 The module is one primary INS estimator with one IMU, one GNSS source,
 barometric height, magnetic heading aiding and optional gravity aiding. Keep
 the existing local Cartesian state, body FRD/navigation NED conventions and

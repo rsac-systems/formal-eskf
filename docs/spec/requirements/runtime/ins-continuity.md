@@ -278,6 +278,9 @@ unbounded stage dispatcher is introduced.
 
 ## Acceptance and verification
 
+Executable allocation is specified in the [planned staged INS cases](../../verification/staged-ins-tests.md).
+Bindings and execution evidence remain pending.
+
 - Prove the exact constrained-Joseph PSD and protected-marginal identities; check
   full 15-by-15 floating-point results against an independent dense oracle with
   nonzero cross-covariance, every translation mask and tilted/rebased axes. A

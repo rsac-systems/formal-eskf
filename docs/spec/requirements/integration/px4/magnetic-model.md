@@ -56,6 +56,18 @@ clock remain separate. A successful lookup alone does not imply adoption.
   adoption follows the same real lifecycle/reset permission rules, not an implicit
   quaternion assignment. Reference changes retain the measurement LPF history.
 
+### Staged startup binding
+
+For [R-INS-ATTACHMENT](../../runtime/ins-attachment.md), before any geographic
+origin exists, the adapter shall permit lookup from a qualified, epoch-compatible
+GNSS candidate. Do not require valid INS horizontal output to obtain the initial
+declination needed for that output. The result retains its candidate location,
+epoch and geographic frame until the attachment transaction adopts it; do not
+rotate it through a nonexistent fixed frame. Lookup success alone still cannot
+qualify the magnetic observation, heading or navigation. After attachment, retain
+the normal estimated-position lookup, bounded attempts and adoption rules above.
+This target binding has no implementation/consumer evidence yet.
+
 ## Acceptance and verification
 
 Check the 0..3 parameter-mask mapping to the two portable heading choices and

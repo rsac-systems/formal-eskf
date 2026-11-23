@@ -103,6 +103,7 @@ atomic operation within running service; ordinary callbacks remain non-atomic.
 | R-INS-CONTINUITY | Numerical-only update semantics, protected marginals, bias rules and real-source recovery; A-02 comparisons remain prerequisites. |
 | R-INS-ATTACHMENT | First geographic mapping, covariance/history transport and publication transaction. |
 | R-PX4-STATUS; R-PX4-GRAVITY; R-PX4-IMU-BIAS | Consumer mapping and staged caller bindings; old evidence retains strict scope. |
+| R-PX4-MAGNETIC-MODEL; R-PX4-FRAME-OUTPUT; PX4 timing profile | Candidate-position lookup before attachment, local-only attitude diagnostics and explicit reuse of timing/resource premises. |
 | E-STATE; core observations/correction; math/geodesy | Existing formulation and pure operations retained; no new equations or backend behavior implied. |
 | Gravity conditions/fusion; tilt; source lifecycle/reset; histories/datum | Reused dependencies. Existing post-alignment gravity predicate needs explicit staged admission; component evidence alone cannot close new callers. |
 | Test specifications and traceability | Allocate new cases separately from executed baseline cases; keep new source/proof bindings empty until implemented and verified. |

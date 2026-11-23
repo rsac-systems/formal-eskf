@@ -155,6 +155,9 @@ contract; silently publishing a stale quaternion is not degraded operation.
 
 ## Acceptance and verification
 
+Executable allocation is specified in the [planned staged INS cases](../../verification/staged-ins-tests.md).
+Bindings and execution evidence remain pending.
+
 Use independent attitude/trajectory truth, nonzero cross-covariance, realistic
 bias perturbations and declared uncertainty budgets. Cover indoor cold start
 without GNSS, with and without heading, and optional height independently; then

@@ -10,6 +10,18 @@
 
 ## Required behavior
 
+The geographic conversions below require an attached frame. For the
+[staged target](../../../profiles/staged-ins.md), prior to attachment, compute
+tilt/relative-heading diagnostics from the same-epoch local-level attitude and
+body covariance without requiring ECEF, geographic position or MSL. The
+horizontal-variance sum is invariant to the arbitrary initial horizontal gauge;
+Down variance is conditional relative-yaw uncertainty, not measured absolute
+heading accuracy. Keep heading-control and navigation validity false unless
+their separate reference/support conditions hold. Attitude-only publication
+uses [PX4-OUT](publication.md); attaching the frame follows
+[R-INS-ATTACHMENT](../../runtime/ins-attachment.md). Existing geographic-path
+evidence does not establish this new pre-attachment path.
+
 The module retains a fixed publication reference. An admitted internal migration
 profile follows [R-PX4-ORIGIN-REBASE](origin-rebasing.md); explicit live events use the coordinated delayed callback, independently of
 automatic policy enablement. Retain the Cartesian motion model. Projection accuracy, model fidelity and estimator
