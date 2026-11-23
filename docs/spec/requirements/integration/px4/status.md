@@ -37,8 +37,8 @@ converged are different facts. Reporting must not change fusion decisions.
   installation uncertainty, lever-arm correlations or PX4's extra dead-reckoning
   residual inflation. They are not calibrated accuracy bounds. Odometry quality
   remains zero (no percentage score) when frame/datum navigation is admitted.
-  Under the [origin profile](../../../profiles/px4-origin-rebasing.md), unavailable
-  geometry/datum clears position/velocity/height solution capabilities and local/
+  Under the existing strict [origin profile](../../../profiles/px4-origin-rebasing.md),
+  unavailable geometry/datum clears position/velocity/height solution capabilities and local/
   global validity; odometry position/velocity and their variances become NaN,
   with quality -1. Keep numerical attitude health, sensor activity and numerical
   fault history distinct. Restoring geometric admission cannot refresh aiding.
@@ -65,8 +65,8 @@ converged are different facts. Reporting must not change fusion decisions.
   vetoes missing tilt alignment or unavailable magnetic heading according to
   `OutputValidity::magnetic`, preserving its source/generation, field, consistency,
   age, variance and health checks. Keep `hdg_test_ratio` numeric/NaN independently.
-  This is a conservative module-to-Commander compatibility rule: the pinned
-  consumer does not inspect our tilt/yaw capability flags, while our GNSS policy
+  This is the strict baseline's conservative module-to-Commander compatibility
+  rule: the pinned consumer does not inspect our tilt/yaw capability flags, while our GNSS policy
   lacks EKF2's tilt/yaw admission prerequisite. Do not remove this veto merely
   because NaN is not greater than the threshold. Source/calibration replacement
   must remain blocked until heading readiness actually returns. This change does
@@ -91,6 +91,33 @@ semantics and duplicate publication. SIH must arm normally with the existing
 preflight checks and exercise flight/fault recovery; retain failed runs. Native,
 sanitizer and SIH evidence do not establish target timing, calibration accuracy,
 formal source correctness or hardware-flight qualification.
+
+## Staged INS target mapping
+
+Under [R-INS-CAPABILITIES](../../runtime/ins-capabilities.md), the adapter shall
+derive the following from one runtime snapshot using existing uORB schemas.
+These rules replace the strict baseline's combined geographic-admission and
+blanket missing-heading preflight veto only for the staged target; they do not
+change the deployed profile until implementation/consumer acceptance is complete.
+
+| PX4 output | Staged meaning |
+|---|---|
+| `vehicle_attitude` | Publish only usable tilt/attitude at its actual current sample epoch. Missing absolute heading alone shall not stop relative-yaw propagation. |
+| `cs_tilt_align`, `cs_yaw_align` | Actual alignment facts, withdrawn on invalidated alignment/fault; not aliases for received sensor data or every output's current usability. |
+| `heading_good_for_control` | Referenced heading meets the declared control-use conditions. False during unreferenced relative-yaw service; publish this status even if all position flags are false. |
+| `xy_valid`, `v_xy_valid` | Independently admitted horizontal position and velocity in the published frame. No validity from a candidate origin or bounded covariance alone. |
+| `z_valid`, `v_z_valid` | Retain PX4's compatibility OR of portable vertical-position/vertical-velocity usability. Runtime facts remain separate; this OR does not establish independent physical observability of both quantities. |
+| Global latitude/longitude and altitude validity | Geographic capability and the respective geometry/datum prerequisites; relative barometer height shall not create MSL validity. |
+| Estimator solution flags | Map the actual corresponding portable capability, rather than copying the local-Z compatibility OR into every flag. |
+| `pre_flt_fail_innov_heading` | Preserve actual innovation failures; absence of heading alone shall not veto otherwise qualified tilt-only manual service. Navigation modes shall still require their real position/velocity/heading prerequisites. |
+| Reset deltas/counters | Report actual estimate resets once, at the correct frame/epoch. A capability flag change alone is not a reset. |
+
+The existing strict-module implementation does not implement this mapping.
+Acceptance shall exercise the pinned
+[Commander checks](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/commander/HealthAndArmingChecks/checks/estimatorCheck.cpp)
+and [manual attitude consumer](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/mc_att_control/mc_att_control_main.cpp),
+not only inspect published booleans. No controller/schema changes, disabled
+arming checks or fabricated healthy fields are permitted by this target.
 
 Reference: pinned PX4 [topic publication](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF2.cpp),
 [summary/filter/solution semantics](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/ekf_helper.cpp),

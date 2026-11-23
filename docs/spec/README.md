@@ -156,6 +156,8 @@ remain empty: these two additional review units are proof gaps, not verified cla
 | `R-ORIGIN-REBASE` | [Cartesian INS state and covariance rebasing](requirements/runtime/origin-rebasing.md) |
 | `R-INS-SESSION` | [ordered geographic INS session](requirements/runtime/ins-session.md) |
 | `R-INS-INITIALIZATION` | [strict stationary INS initialization](requirements/runtime/ins-initialization.md) |
+| `R-INS-STARTUP` | [Staged INS initialization and aiding admission](requirements/runtime/ins-startup.md) (Draft target) |
+| `R-INS-CAPABILITIES` | [Full and partial INS output availability](requirements/runtime/ins-capabilities.md) (Draft target) |
 | `R-HEIGHT-AIDING` | [Two-source altitude coordination](requirements/runtime/height-aiding.md) |
 | `R-HEIGHT-DATUM` | [Ellipsoid and MSL height separation](requirements/runtime/height-datum.md) |
 | `R-FRAME-OBSERVATIONS` | [Observations across Cartesian navigation frames](requirements/runtime/frame-observations.md) |
@@ -211,6 +213,7 @@ remain empty: these two additional review units are proof gaps, not verified cla
 
 - [PX4 SIH 250 Hz Deployment Profile](profiles/px4-sih-250hz.md).
 - [PX4 Cartesian Origin-Migration Profile](profiles/px4-origin-rebasing.md).
+- [Staged INS Service Profile](profiles/staged-ins.md) (Draft target; unresolved acceptance bounds are explicit).
 
 ## Verification policy
 

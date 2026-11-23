@@ -16,6 +16,14 @@
 
 ## Required behavior
 
+The startup description below is the existing strict profile. For the
+[staged target](../../../profiles/staged-ins.md), use
+[R-INS-STARTUP](../../runtime/ins-startup.md) instead: missing GNSS, barometer or
+heading shall not block an otherwise qualified IMU seed and attitude service.
+The configured estimator remains one full INS; source qualification and output
+capabilities shall not restart it or switch its state dimension. Fault, shutdown
+and callback transaction boundaries below remain applicable.
+
 Startup validates the complete configuration and prepares storage, subscriptions
 and publications. Alignment qualifies the required sensors, initializes the
 filter and synchronizes the output predictor/history before valid output begins.

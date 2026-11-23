@@ -56,5 +56,11 @@ the supplied flag against covariance.
 
 ## Caller bindings
 
+The staged seed/refinement phase in [R-INS-STARTUP](../ins-startup.md) requires
+explicit pre-alignment admission, unlike this existing post-alignment predicate.
+Its implementation shall provide that admission without falsely setting the
+completed-tilt flag. Existing predicate evidence covers the behavior above, not
+the new startup composition or its convergence.
+
 - Replay condition sources (host demo): [R-REPLAY-GRAVITY-CONDITIONS](../../integration/replay/gravity-conditions.md).
 - Delayed PX4 binding: [R-PX4-GRAVITY](../../integration/px4/gravity-aiding.md).

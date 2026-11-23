@@ -22,6 +22,13 @@ domains and evidence. The PX4 adapter keeps its platform-specific contracts.
 
 ## Required behavior
 
+The [staged INS target](../../profiles/staged-ins.md) shall provide independently
+qualified outputs under R-INS-CAPABILITIES without changing INS state dimension.
+R-INS-STARTUP owns its initialization; R-INS-INITIALIZATION owns only the existing
+strict baseline. These are distinct applicability scopes, not simultaneous
+startup requirements. Existing strict-profile evidence shall not be used to
+claim staged startup or sustained attitude-only service.
+
 The session shall own exactly one main nominal state/covariance and compose the
 bounded input histories, source policies, current output predictor, geographic
 frame/datum, initialization and fault/reset state. Components shall retain their
@@ -42,7 +49,7 @@ the selected observation's context and the configured order. Only successful
 stages shall advance their corresponding committed state/epoch. Missing IMU shall
 not manufacture propagation; wall-time expiry is distinct from state progress.
 
-The current profile shall retain strict initialization, qualification, gap,
+The existing strict profile shall retain its initialization, qualification, gap,
 source-switch, failure, feedback and reset rules. Failed numerical/history stages
 shall retain their specified frames and latch the required fault. Earlier
 successful stages and platform publications shall not be represented as rolled
@@ -63,6 +70,8 @@ remain at the declared C++ boundaries.
 |---|---|
 | [R-INS-SESSION](../runtime/ins-session.md) | Ordered owner phases, external model boundary, faults and raw reports. |
 | [R-INS-INITIALIZATION](../runtime/ins-initialization.md) | Strict stationary accumulation, tilt/heading preparation and initial state/P values. |
+| [R-INS-STARTUP](../runtime/ins-startup.md) | Staged target: IMU seed, pre-alignment refinement and independent aiding admission. |
+| [R-INS-CAPABILITIES](../runtime/ins-capabilities.md) | Staged target: full/partial output availability, geographic attachment and sustained attitude service. |
 | [R-HEIGHT-AIDING](../runtime/height-aiding.md) | Two-source altitude/bias coordination, recovery and transactional raw outcomes. |
 | [R-OBSERVATION-HISTORY](../runtime/history/observation-history.md) | Delayed raw source/context retention, admission, generation and once-only selection. |
 | [R-OUTPUT-PREDICTOR](../runtime/output-predictor.md) | Current nominal propagation, delayed feedback and output-history transactions. |
@@ -79,5 +88,7 @@ same numerical profile and independent component oracles.
 Review ownership, bounded storage/work and absence of platform dependencies.
 Component proofs require their actual producers/callers; they do not establish
 session composition or target timing by aggregation. Register source mappings and
-configuration-specific evidence when implemented. Extraction does not introduce
-new physical models, rate profiles or initialization/degradation capabilities.
+configuration-specific evidence when implemented. Historical extraction evidence
+does not establish the staged initialization/degradation target. Acceptance of
+that target additionally requires its applicable child scenarios and actual PX4
+consumer behavior, including all explicitly unresolved numerical/profile bounds.

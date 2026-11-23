@@ -14,6 +14,13 @@
 
 ## Required behavior
 
+For the [staged target](../../../profiles/staged-ins.md), attitude publication
+shall use its own capability/history admission and shall not depend on geographic
+position, MSL datum or navigation projection. Publish the existing heading-control
+status even with invalid position so unchanged PX4 consumers receive relative-yaw
+operation. Current sample epochs, fault withdrawal and reset bookkeeping below
+remain mandatory; availability of a topic shall not imply all its fields are valid.
+
 Output prediction uses full-rate admitted IMU data and the latest accepted
 bias/feedback. Compare output history and the main estimate at the same delayed
 epoch to construct tracking corrections; apply them to the current output

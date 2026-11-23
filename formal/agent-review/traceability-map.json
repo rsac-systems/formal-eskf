@@ -6905,7 +6905,7 @@
     },
     {
       "id": "R-PX4-STATUS",
-      "title": "PX4 capability, uncertainty, bias, innovation and failure reporting: native/SIH evidence only; formal source proof and target accuracy/timing remain open",
+      "title": "PX4 capability, uncertainty, bias, innovation and failure reporting: native/SIH evidence only; formal source proof and target accuracy/timing remain open; staged capability mapping is a Draft target with no implementation evidence",
       "references": {
         "spec": [
           {
@@ -8213,6 +8213,44 @@
             "symbol": "void stationary("
           }
         ],
+        "esbmc": []
+      }
+    },
+    {
+      "id": "R-INS-STARTUP",
+      "title": "Staged INS startup: Draft specification only; implementation, priors and convergence evidence pending",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/runtime/ins-startup.md",
+            "symbol": "# R-INS-STARTUP:"
+          },
+          {
+            "file": "docs/spec/profiles/staged-ins.md",
+            "symbol": "# Staged INS Service Profile"
+          }
+        ],
+        "lean": [],
+        "cpp": [],
+        "esbmc": []
+      }
+    },
+    {
+      "id": "R-INS-CAPABILITIES",
+      "title": "Full/partial INS capability contract: Draft only; numerical continuity, first anchoring and PX4 consumer evidence pending",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/runtime/ins-capabilities.md",
+            "symbol": "# R-INS-CAPABILITIES:"
+          },
+          {
+            "file": "docs/spec/profiles/staged-ins.md",
+            "symbol": "# Staged INS Service Profile"
+          }
+        ],
+        "lean": [],
+        "cpp": [],
         "esbmc": []
       }
     }

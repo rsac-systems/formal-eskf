@@ -13,6 +13,15 @@ the PX4 250 Hz timing and strict startup. Core equations, numerical choices and
 AHRS APIs remain unchanged. New rate modes, staged startup, stationary updates,
 strict continuous odometry and legacy replay migration require separate work.
 
+The [staged INS target](../profiles/staged-ins.md) allocates that startup and
+degradation work to [R-INS-STARTUP](../requirements/runtime/ins-startup.md) and
+[R-INS-CAPABILITIES](../requirements/runtime/ins-capabilities.md). The target keeps
+one full INS and existing phase ownership. It separates output admission from
+state dimension, geographic admission and source lifecycle. An attitude-only
+output path uses current quaternion/history without requiring position geometry;
+frame attachment coordinates the affected owners when geographic prerequisites
+become available. This is a Draft target, not implemented extraction behavior.
+
 ## Responsibilities and interfaces
 
 | Owner | State and responsibility | External boundary |

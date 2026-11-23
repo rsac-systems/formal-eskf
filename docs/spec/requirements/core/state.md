@@ -63,9 +63,9 @@ The quantities have the following meanings:
 
 | Symbol | Meaning | Frame | Unit |
 |---|---|---|---|
-| `p_n` | Position relative to the local navigation origin | NED | m |
-| `v_n` | Linear velocity | NED | m/s |
-| `q_nb` | Rotation from body to navigation | body -> NED | unit quaternion |
+| `p_n` | Position relative to the local navigation origin | Declared local-level navigation axes | m |
+| `v_n` | Linear velocity | Same navigation axes | m/s |
+| `q_nb` | Rotation from body to navigation | body -> declared navigation axes | unit quaternion |
 | `b_a` | Accelerometer bias | body | m/s² |
 | `b_g` | Gyroscope bias | body | rad/s |
 
@@ -132,13 +132,23 @@ The covariance-reset transformation after injection is specified separately.
 
 ### Frame and sign conventions
 
-The navigation frame is NED:
+The geographically referenced navigation frame is NED:
 
 ~~~text
 x = North
 y = East
 z = Down
 ~~~
+
+The [staged INS service](../runtime/ins-capabilities.md) may first establish a
+local-level frame with an arbitrary horizontal heading and a declared local
+origin. Its horizontal axes shall not be advertised as measured North/East.
+Gravity remains `[0, 0, +g]`; the same Cartesian equations, right perturbation,
+body biases and state/error layouts apply. The session shall identify the frame
+and perform an explicit coherent transform when geographic alignment is admitted.
+Changing output availability alone shall not rotate the state or change axes.
+Geographic APIs that require NED/ECEF remain unavailable until their frame
+premises hold. This extension does not add Earth-rate or transport-rate terms.
 
 Gravity therefore has positive navigation-frame `z`:
 

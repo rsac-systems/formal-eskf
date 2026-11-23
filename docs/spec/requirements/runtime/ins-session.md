@@ -19,10 +19,19 @@ component settings. AHRS and standalone core operations retain their own APIs.
 
 The [runtime architecture](../../architecture/navigation-runtime.md) allocates
 one numerical owner and explicit adapter effects. Preserve the existing geographic
-INS ordering and individual transaction boundaries. This does not introduce a
-new initialization policy, physical model, rate mode or arbitrary stage graph.
+INS ordering and individual transaction boundaries. That extraction did not
+introduce a new initialization policy, physical model, rate mode or arbitrary
+stage graph; the staged target below has its own explicit startup allocation.
 
 ## Required behavior
+
+The startup rows below describe the existing strict geographic profile. The
+[staged profile](../../profiles/staged-ins.md) shall instead use
+[R-INS-STARTUP](ins-startup.md) and [R-INS-CAPABILITIES](ins-capabilities.md)
+for seed/admission, partial output and first geographic attachment. The existing
+current/delayed phase order, one-writer ownership and per-operation commits remain
+applicable. A staged session shall not require a magnetic provider or geographic
+height conversion solely to seed or publish qualified attitude.
 
 The caller shall supply valid, mutually consistent component settings and storage
 capacities before processing IMU samples. Settings are copied into their owners;
