@@ -28,6 +28,10 @@ boundaries of E-STEP; a caller composing separate operations owns any wider
 transaction. Checked failure behavior does not turn unchecked model helpers into
 validated entry points.
 
+The selected INS bias/P reset target is owned by
+[E-BIAS-RESET](../core/bias-reset.md). It is distinct from bias-update inhibition
+and post-injection coordinate reset; its implementation/evidence are pending.
+
 ## Decomposition
 
 | Child requirement | Allocated obligation | Applicability |
@@ -38,6 +42,7 @@ validated entry points.
 | [E-OBS](../core/observations.md) | Define supported sensor residuals, local Jacobians and observation wrappers. | Per model; position/velocity are INS-only. |
 | [E-INNOV](../core/innovation.md) | Evaluate the componentwise innovation decision when requested by a caller. | Explicit gate operation; not implicit in every correction. |
 | [E-CORRECT](../core/correction.md) | Solve for the gain and apply the Joseph covariance update. | INS/AHRS. |
+| [E-BIAS-RESET](../core/bias-reset.md) | Reset selected INS biases and their covariance rows/columns, preserving the complementary state/P. | INS target; implementation and evidence pending. |
 | [E-BIAS-UPDATE](../core/bias-update.md) | Apply the supplied INS bias-learning permissions. | INS only; AHRS has no bias states. |
 | [E-MAG-TILT](../core/magnetic-tilt.md) | Apply the selected magnetic attitude-gain protection. | Magnetic correction; both enabled and disabled build modes have defined behavior. |
 | [E-INJECT](../core/injection.md) | Inject the estimated local error into the nominal state. | INS/AHRS. |

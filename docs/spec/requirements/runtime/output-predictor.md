@@ -96,6 +96,20 @@ unchanged; preserve them. The caller owns reset counters and must stop on failur
 operation is not a coordinate-frame rotation of NED vectors. `reset()` instead clears
 all temporal/tracking state and fault for a new session.
 
+### IMU source-change target
+
+[R-IMU-SOURCE](imu/source-change.md) owns ingress bias resets in the main filter.
+A source change alone shall not clear output history, rewrite stored body rates,
+restart readiness, or apply an attitude/velocity/position reset. Retain the
+existing feedback boundary: current propagation uses the cached feedback biases;
+successful delayed correction copies main biases for subsequent propagation.
+Preserve history epochs, occupancy, tracking corrections and integral sums at the
+source-event boundary. Existing operational fault checks still apply.
+
+This target needs actual session composition tests across old/new-source history,
+warmup and multiple events before feedback. Existing output-owner algebra does
+not establish new source handling or its physical transition error.
+
 ### Internal coordinate event
 
 `prepare_rebase` stages a common left quaternion rotation and affine position

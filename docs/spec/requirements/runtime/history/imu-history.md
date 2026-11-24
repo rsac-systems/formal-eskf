@@ -46,8 +46,20 @@ backing capacity; there are no deployment defaults.
 - Reset clears stored inputs, cursors and fault, retaining configuration. All
   storage/work is bounded, with no dynamic allocation or platform effects.
 
-Source identifiers are opaque values, including zero; history enforces equality
-after seeding. Source availability is an adapter obligation.
+### Source-change target
+
+Source identifiers are opaque values, including zero. Source availability is an
+adapter obligation. The current baseline enforces identity/calibration equality
+after seeding and faults on a mismatch. For the sensor-input target,
+[R-IMU-SOURCE](../imu/source-change.md) replaces only that equality-fault response:
+the session coordinates the validated source event and numerical reset before
+committing the new interval and latest source binding. Retain all queued old-source
+records and complete them in chronological order. Do not trigger a new source
+event when reading those old records. History owns no bias reset or source voter.
+
+Unrelated invalid-input, order, gap, overwrite and lag checks remain mandatory.
+The source-change target requires fresh caller/transition evidence; the current
+proofs of mismatch rejection do not establish source continuation.
 
 All timing bounds are nonnegative microsecond integers. Requested source delays
 and lag are signed milliseconds and shall be widened before conversion. Required

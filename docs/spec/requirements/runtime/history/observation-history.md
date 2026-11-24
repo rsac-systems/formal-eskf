@@ -16,6 +16,10 @@ monotonic timestamps, timing settings and fixed backing capacities.
 `runtime::ObservationHistory` owns source time admission and retained observations
 and context. The caller supplies timing settings and compile-time capacities.
 It does not own numerical validation, source qualification, lifecycle or fusion.
+[R-SENSOR-INPUT](../sensor-input.md) owns producer clock/unit/frame meaning and
+residual-delay assumptions. Retain the existing frozen half-period convention;
+no unshifted input mode is introduced by that contract. Admission and selection
+bounds do not establish physical timing accuracy.
 
 - Validate startup timing settings. Seed at a nonzero alignment epoch with
   timestamped context, explicit known/unknown flags and existing source watermarks.

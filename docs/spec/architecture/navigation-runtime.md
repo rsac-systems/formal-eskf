@@ -61,6 +61,26 @@ policy. Session composes lower components; lower components do not include it.
 
 ## Execution and state
 
+### Sensor-input and IMU source-change allocation
+
+[R-SENSOR-INPUT](../requirements/runtime/sensor-input.md) owns the common input
+contract. [R-IMU-SOURCE](../requirements/runtime/imu/source-change.md) is a target
+replacing identity-only session restart; current production still faults on that
+change. It does not add a sensor voter, general sensor registry or new motion model.
+
+| Owner | Target responsibility |
+|---|---|
+| Driver/adapter | Qualified clock mapping, unit/body-axis conversion, real source/calibration identity and physical reference point. No duplicate source policy. |
+| Deployment profile | Rate-specific timing/storage, noise representation, filter/count settings and physical/resource qualification. |
+| Core | [E-BIAS-RESET](../requirements/core/bias-reset.md): selected bias zeroing and covariance decorrelation/prior, without clocks or source detection. |
+| Runtime session | Detect each admitted source event once, reset the affected bias/learning state before new input, retain queued history and continue ordinary phase order. |
+| Histories/output | Preserve chronological old/new inputs, current/delayed epochs and existing output bias-feedback boundary; no implicit rewind or history clear. |
+
+Aiding sources retain their existing generation/requalification owners. The IMU
+change path requires its own bias/P and caller-sequence evidence, not removal of
+a guard. Reuse one numerical reset and direct session orchestration; the
+allocation does not require a new class or wrapper per responsibility.
+
 ### Optional barometric height allocation
 
 The [barometric target profile](../profiles/barometric-height.md) extends existing
