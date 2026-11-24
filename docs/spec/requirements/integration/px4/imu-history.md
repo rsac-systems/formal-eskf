@@ -32,6 +32,20 @@ explicit restart; neither late arrivals nor missing records authorize skipping
 unprocessed history. Reusable storage/admission transactions are owned by
 R-IMU-HISTORY rather than repeated here.
 
+### Source continuation target
+
+For [R-IMU-SOURCE](../../runtime/imu/source-change.md), pass separate real
+accelerometer/gyro IDs and calibration counters through native decoding. Runtime
+owns detection and reset before the new interval enters current processing; the
+adapter shall not duplicate the policy or clear histories. Preserve the source
+metadata of retained old records and the ordinary current/delayed phase order.
+Invalid input, missing required history and other faults still require their
+existing response. Current mismatch-restart evidence does not cover this target.
+
+The [rate profile](../../../profiles/sensor-input.md#rate-and-storage-qualification)
+defines qualification of additional direct-interval rates. The existing 64-slot
+build shall not claim 400/500 Hz support from a parameter change alone.
+
 ## Acceptance and verification
 
 Compare the module's input, state/P, decisions and publication epochs under the

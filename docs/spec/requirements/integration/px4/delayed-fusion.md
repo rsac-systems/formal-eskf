@@ -48,6 +48,16 @@ checks source-composed ordering under component and external-service contracts.
 Complete deployed-module refinement, nonlinear tracking-error bounds,
 hardware/resource qualification and flight-fault safety remain open.
 
+### IMU source-change target
+
+[R-IMU-SOURCE](../../runtime/imu/source-change.md) places the selected bias/P reset
+before current propagation of an otherwise admissible changed-source input.
+Retain ordinary delayed prediction, feedback and acknowledgment order. Cached
+output biases change at feedback; a bias-only event shall not publish a fictitious
+attitude/position/velocity reset. A later failure retains normal stage-commit and
+publication boundaries. Exercise the actual module/session path with populated
+history; prior caller evidence does not establish this new transition.
+
 ### Caller and context binding
 
 `FormalEskf::Run` separates raw arrival caches from selected internal observations.

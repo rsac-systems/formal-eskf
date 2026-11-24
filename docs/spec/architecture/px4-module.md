@@ -31,6 +31,12 @@ later origin migration retains its existing contract. Its
 [consumer test specification](../verification/px4-staged-ins-tests.md) requires
 actual PX4 mode/reset behavior, not only module-produced flags.
 
+The [sensor-input target](../profiles/sensor-input.md) separately specifies
+producer qualification and bias reset on IMU source/calibration change. Its
+continuation path belongs to the portable runtime; native decoding/publication
+remain adapter responsibilities. Current source-mismatch restart behavior and
+its evidence do not implement this target.
+
 The module is one primary INS estimator with one IMU, one GNSS source,
 barometric height, magnetic heading aiding and optional gravity aiding. Keep
 the existing local Cartesian state, body FRD/navigation NED conventions and

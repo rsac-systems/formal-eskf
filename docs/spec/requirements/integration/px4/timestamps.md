@@ -18,7 +18,7 @@ Keep these meanings distinct, in one monotonic PX4 time domain:
 
 | Time | Meaning and use |
 |---|---|
-| Sample time | Physical measurement epoch, with its integration interval where applicable |
+| Sample time | Producer-defined measurement epoch, with its interval convention and qualified timing uncertainty |
 | Effective observation time | Sample epoch adjusted once for residual sensor delay and the specified interval reference |
 | Latest IMU time | Epoch of the current output state; advances only with admitted IMU intervals |
 | Fusion time | Epoch of the main filter state/covariance, behind the latest IMU by the configured history delay |
@@ -42,7 +42,12 @@ compile-time backing capacities. Validate the supported interval mode and the
 complete timing/storage configuration before estimation starts. Reject a required
 length exceeding capacity; never silently clamp it or resize during operation.
 The [timing profile](../../../profiles/px4-sih-250hz.md#startup-parameters-and-fixed-storage)
-defines defaults and cross-constraints. Parameter changes require restart.
+defines defaults and cross-constraints. Changes to these timing settings require
+restart. Driver source/calibration changes are distinct from configuration
+replacement and follow the [IMU continuation target](../../runtime/imu/source-change.md).
+The [sensor-input profile](../../../profiles/sensor-input.md) binds producer
+meaning, qualification and candidate-rate acceptance without changing current
+SIH timing defaults.
 
 The IMU-history, [output-predictor](output-predictor.md#r-px4-output-predictor-current-time-output-tracking)
 and [observation/context components](observation-history.md#r-px4-observation-history-delayed-observations-and-context)

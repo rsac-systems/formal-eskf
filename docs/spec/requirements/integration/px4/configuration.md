@@ -42,3 +42,10 @@ frame conventions and numerical failure checks remain fixed unless separately
 specified. Replay retains its own settings. The
 [configuration inventory](../../../../guides/configuration.md#px4-deployment-menu)
 owns the menu, units and detailed configuration boundaries.
+
+The [sensor-input qualification profile](../../../profiles/sensor-input.md) owns
+candidate rate/storage/noise acceptance and the source-change prior binding.
+A future rate option shall select a complete validated profile, not just a new
+period constant. Preserve the current default until its replacement is accepted.
+Frozen timing/extrinsic configuration is distinct from a driver's source or
+calibration event; the latter follows R-IMU-SOURCE without reloading the profile.

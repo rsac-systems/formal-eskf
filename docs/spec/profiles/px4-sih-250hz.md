@@ -16,6 +16,11 @@ source/domain/warmup and receipt-clock binding. Those changes are not current
 SIH behavior or evidence, and do not replace this profile's independent
 arrival, selection, capacity and lag constraints.
 
+The [sensor-input target](sensor-input.md) adds producer/rate qualification and
+IMU source continuation. It replaces only the identity/calibration-only restart
+response once implemented; it does not waive independent input/history faults.
+Current source-mismatch evidence still describes the strict baseline.
+
 Use the same reference as the architecture: **PX4 v1.16.2,
 `54f0455ffcd755534539a7cf33a09a20bf71d29d`**. The first profile targets the existing
 250 Hz SIH setup, INS/binary64 and `Px4MatrixBackend`. Hardware and other sensor
@@ -75,8 +80,8 @@ All three owners validate the same settings before callback registration.
 The first integration and its acceptance runs use SIH's nominal **250 Hz (4 ms)**
 IMU input. The main filter processes one real `vehicle_imu` interval per step;
 the output predictor advances on every admitted interval. Support for 400/500 Hz
-profiles is deferred, while startup configuration and derived lengths remain
-part of the design.
+profiles awaits the [rate qualification](sensor-input.md#rate-and-storage-qualification)
+target; the current implementation still admits only this 250 Hz profile.
 Use a separate current-time output state and delayed main state even though their
 nominal update rates are equal. PX4 permits this prediction period; its default
 is 10 ms. Do not introduce IMU downsampling in this first integration.
@@ -261,7 +266,7 @@ establish their numerical correctness.
 | Required IMU/output record lost or timestamp mismatch | Fault before using a mismatched prior/history. Include owner overwrite checks; `push()` itself does not report loss. |
 | Aiding overflow, expiry or ordering rejection | Retire/drop with a reason; preserve other sources. Do not refresh successful-fusion time or reset the whole estimator merely for source loss. |
 | No new IMU | Backup callback maintains wall-time arrival/output expiry and status; no synthetic propagation and no advance of delayed policy time. Evaluate delayed lifecycle at the next real delayed step. |
-| Sensor/calibration switch | Clear that source's pending observations and requalify; retain ordering/provenance rules for the new generation. IMU identity/calibration change remains restart-required. |
+| Sensor/calibration switch | Clear that source's pending observations and requalify; retain ordering/provenance rules for the new generation. IMU mismatch faults in the current baseline; [R-IMU-SOURCE](../requirements/runtime/imu/source-change.md) defines its pending continuation replacement. |
 | Successful state reset | Apply the same reset transform to affected current/output-history payloads, tracking accumulators and any vertical auxiliary state before the next affected publication. Preserve timestamps. Report the actual consumer-visible reset delta/counter exactly once. |
 | Ordinary fusion/tracking correction | Update tracking/bias feedback; do not increment reset counters. |
 | Session restart | Reset histories, processed cursors, timing averages and session policies together; repeat alignment/warmup. No automatic numerical-fault recovery is introduced. |
