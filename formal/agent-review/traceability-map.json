@@ -6201,7 +6201,7 @@
     },
     {
       "id": "R-PX4-IMU-HISTORY",
-      "title": "Delayed IMU source transactions, complete storage frames and contract-derived temporal induction; live binding remains separate",
+      "title": "Delayed IMU source transactions, complete storage frames and contract-derived temporal induction; live binding remains separate; IMU source-continuation target pending",
       "references": {
         "spec": [
           {
@@ -6211,6 +6211,14 @@
           {
             "file": "docs/spec/requirements/runtime/history/imu-history.md",
             "symbol": "# R-IMU-HISTORY: retained IMU timeline"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/imu/source-change.md",
+            "symbol": "# R-IMU-SOURCE:"
+          },
+          {
+            "file": "docs/spec/verification/sensor-input-tests.md",
+            "symbol": "## IMU source sequence cases"
           }
         ],
         "lean": [],
@@ -6366,7 +6374,7 @@
     },
     {
       "id": "R-PX4-OUTPUT-PREDICTOR",
-      "title": "Current-time output tracking and coordinate transport; new owner transitions need formal evidence refresh",
+      "title": "Current-time output tracking and coordinate transport; new owner transitions need formal evidence refresh; IMU source-continuation target pending",
       "references": {
         "spec": [
           {
@@ -6376,6 +6384,14 @@
           {
             "file": "docs/spec/requirements/runtime/output-predictor.md",
             "symbol": "# R-OUTPUT-PREDICTOR: current-time output tracking"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/imu/source-change.md",
+            "symbol": "# R-IMU-SOURCE:"
+          },
+          {
+            "file": "docs/spec/verification/sensor-input-tests.md",
+            "symbol": "## IMU source sequence cases"
           }
         ],
         "lean": [
@@ -7028,7 +7044,7 @@
     },
     {
       "id": "R-PX4-OBSERVATION-HISTORY",
-      "title": "Delayed observations and context: scoped typed source contracts and temporal/physical induction; live callers and target resources remain separate",
+      "title": "Delayed observations and context: scoped typed source contracts and temporal/physical induction; live callers and target resources remain separate; extended input/profile qualification pending",
       "references": {
         "spec": [
           {
@@ -7038,6 +7054,14 @@
           {
             "file": "docs/spec/requirements/runtime/history/observation-history.md",
             "symbol": "# R-OBSERVATION-HISTORY: delayed observations and context"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/sensor-input.md",
+            "symbol": "# R-SENSOR-INPUT:"
+          },
+          {
+            "file": "docs/spec/verification/sensor-input-tests.md",
+            "symbol": "## Input and history cases"
           }
         ],
         "lean": [
@@ -7438,7 +7462,7 @@
     },
     {
       "id": "R-PX4-DELAYED-FUSION",
-      "title": "Live delayed/current timeline: source-composed caller order, reset notification and publication epochs under reviewed contracts; full deployed refinement and target qualification remain open",
+      "title": "Live delayed/current timeline: source-composed caller order, reset notification and publication epochs under reviewed contracts; full deployed refinement and target qualification remain open; IMU source-continuation target pending",
       "references": {
         "spec": [
           {
@@ -7456,6 +7480,14 @@
           {
             "file": "docs/spec/requirements/runtime/ins-initialization.md",
             "symbol": "# R-INS-INITIALIZATION:"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/imu/source-change.md",
+            "symbol": "# R-IMU-SOURCE:"
+          },
+          {
+            "file": "docs/spec/verification/sensor-input-tests.md",
+            "symbol": "## IMU source sequence cases"
           }
         ],
         "lean": [],
@@ -8233,7 +8265,7 @@
     },
     {
       "id": "R-INS-SESSION",
-      "title": "Portable INS session phase composition: native regression and independent fixtures; full symbolic and target evidence remain open",
+      "title": "Portable INS session phase composition: native regression and independent fixtures; full symbolic and target evidence remain open; IMU source-continuation target pending",
       "references": {
         "spec": [
           {
@@ -8243,6 +8275,14 @@
           {
             "file": "docs/spec/verification/tests/runtime/ins-session.md",
             "symbol": "## Cases"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/imu/source-change.md",
+            "symbol": "# R-IMU-SOURCE:"
+          },
+          {
+            "file": "docs/spec/verification/sensor-input-tests.md",
+            "symbol": "## IMU source sequence cases"
           }
         ],
         "lean": [],
@@ -8352,6 +8392,75 @@
           {
             "file": "docs/spec/verification/staged-ins-tests.md",
             "symbol": "## Cases"
+          }
+        ],
+        "lean": [],
+        "cpp": [],
+        "esbmc": []
+      }
+    },
+    {
+      "id": "E-BIAS-RESET",
+      "title": "Selected INS bias/P reset: Draft target; numerical operation and formal evidence pending",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/core/bias-reset.md",
+            "symbol": "# E-BIAS-RESET:"
+          },
+          {
+            "file": "docs/spec/profiles/sensor-input.md",
+            "symbol": "# Sensor Input and Rate Qualification Profile"
+          },
+          {
+            "file": "docs/spec/verification/sensor-input-tests.md",
+            "symbol": "## Core reset cases"
+          }
+        ],
+        "lean": [],
+        "cpp": [],
+        "esbmc": []
+      }
+    },
+    {
+      "id": "R-SENSOR-INPUT",
+      "title": "Sensor clock/unit/frame/provenance contract: Draft target; producer, rate and physical qualification pending",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/runtime/sensor-input.md",
+            "symbol": "# R-SENSOR-INPUT:"
+          },
+          {
+            "file": "docs/spec/profiles/sensor-input.md",
+            "symbol": "# Sensor Input and Rate Qualification Profile"
+          },
+          {
+            "file": "docs/spec/verification/sensor-input-tests.md",
+            "symbol": "## Input and history cases"
+          }
+        ],
+        "lean": [],
+        "cpp": [],
+        "esbmc": []
+      }
+    },
+    {
+      "id": "R-IMU-SOURCE",
+      "title": "IMU source continuation: Draft target; reset, history and caller evidence pending",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/runtime/imu/source-change.md",
+            "symbol": "# R-IMU-SOURCE:"
+          },
+          {
+            "file": "docs/spec/profiles/sensor-input.md",
+            "symbol": "# Sensor Input and Rate Qualification Profile"
+          },
+          {
+            "file": "docs/spec/verification/sensor-input-tests.md",
+            "symbol": "## IMU source sequence cases"
           }
         ],
         "lean": [],

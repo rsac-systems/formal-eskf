@@ -100,6 +100,7 @@ remain empty: these two additional review units are proof gaps, not verified cla
 | ID | Required behavior |
 |---|---|
 | `E-PRED-ATTITUDE` | [Attitude prediction](requirements/core/attitude-prediction.md) |
+| `E-BIAS-RESET` | [Selected INS bias/P reset](requirements/core/bias-reset.md) (Draft target) |
 | `E-BIAS-UPDATE` | [INS bias-update control](requirements/core/bias-update.md) |
 | `E-STEP` | [Atomic composed operations](requirements/core/composed-steps.md) |
 | `E-STEP-CORRECT` | [Complete correction transaction](requirements/core/correction-step.md) |
@@ -138,6 +139,8 @@ remain empty: these two additional review units are proof gaps, not verified cla
 | `R-BIAS-PROCESS-NOISE` | [variance-dependent bias driving noise](requirements/runtime/imu/bias-process-noise.md) |
 | `R-OBSERVATION-HISTORY` | [Delayed observations and context](requirements/runtime/history/observation-history.md) |
 | `R-OUTPUT-PREDICTOR` | [Current-time output tracking](requirements/runtime/output-predictor.md) |
+| `R-SENSOR-INPUT` | [Sensor input meaning and provenance](requirements/runtime/sensor-input.md) (Draft target) |
+| `R-IMU-SOURCE` | [IMU source change without session reinitialization](requirements/runtime/imu/source-change.md) (Draft target) |
 | `R-IMU-HISTORY` | [Retained IMU timeline](requirements/runtime/history/imu-history.md) |
 | `R-IMU-PREDICTION` | [IMU prediction composition](requirements/runtime/imu/prediction.md) |
 | `R-IMU-PROCESS-NOISE` | [fault-dependent sampled IMU variance](requirements/runtime/imu/process-noise.md) |
@@ -218,6 +221,7 @@ remain empty: these two additional review units are proof gaps, not verified cla
 - [PX4 Cartesian Origin-Migration Profile](profiles/px4-origin-rebasing.md).
 - [Staged INS Service Profile](profiles/staged-ins.md) (Draft target; seed/gravity settings and application/numerical qualification boundaries).
 - [Optional Barometric Height Profile](profiles/barometric-height.md) (Draft target; model, source options, qualification and time bases).
+- [Sensor Input and Rate Qualification Profile](profiles/sensor-input.md) (Draft target; producer semantics, candidate rates and IMU source continuation).
 
 ## Verification policy
 
@@ -225,6 +229,7 @@ remain empty: these two additional review units are proof gaps, not verified cla
 - [Test Specification and Coverage Standard](verification/testing.md) (Draft), with the [core/runtime test design](verification/tests/README.md).
 - Planned staged service: [runtime test specification](verification/staged-ins-tests.md) and [PX4 consumer acceptance](verification/px4-staged-ins-tests.md), with Pending executable bindings.
 - Planned barometric height: [conversion, runtime and PX4 test specification](verification/barometric-height-tests.md), with Pending executable bindings.
+- Planned sensor input: [reset, input/history and caller test specification](verification/sensor-input-tests.md), with Pending executable bindings and physical/resource qualification.
 - [C++ Function Inventory and Review Boundary](verification/source-inventory.md).
 - [C++ Static Analysis Policy](verification/static-analysis.md).
 

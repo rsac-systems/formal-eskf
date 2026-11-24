@@ -244,6 +244,33 @@ capability and diagnostic work; it is excluded here. Terrain and dynamic-pressur
 models retain their separate deferred decisions. No QNH-specific control mechanism
 or barometer lever-arm compensation is introduced.
 
+### A-05 — Sensor input and rate qualification
+
+The [input profile](spec/profiles/sensor-input.md) binds the
+[portable input and source-event allocation](spec/architecture/navigation-runtime.md#sensor-input-and-imu-source-change-allocation).
+It preserves the core formulation, current half-period selection and 250 Hz
+default. IMU identity/calibration-only restart has a specified continuation target;
+independent numerical/history faults retain their existing response. This is the
+third portable-navigation survey subject, after staged service and its barometer
+prerequisite. It does not reorder those features or authorize ground-effect work.
+
+| Task | Status | Completion boundary |
+|---|---|---|
+| A-05.1 — Contract and test baseline | Completed | Draft input/source and core bias-reset contracts, profile, PX4 bindings and planned acceptance cases. No implementation, physical qualification or proof claim. |
+| A-05.2 — Complete profile validation | Planned | Validate all rate/timing/capacity/noise inputs together before seeding; account for full payload/staging storage and freeze settings. Test exact capacity, one-short and arithmetic boundaries without new wrappers per setting. |
+| A-05.3 — Direct 400/500 Hz profiles | Planned | After A-05.2 and required A-05.6 criteria, supply explicit fixed-capacity candidates, per-step filter/count/noise bindings and target budgets. Process each admitted real interval once; keep 250 Hz default. No downsampler or support claim from parameter exposure alone. |
+| A-05.4 — Input timing and causal context | Planned | Qualify producer clock fields, residual delays, frozen centering, effective spacing, newest-eligible retirement and context epochs at actual callers. Preserve source-loss/overflow distinctions and shared GNSS consumption; adopt existing tests only after oracle review. |
+| A-05.5 — Frames and source continuation | Planned | Validate adapter unit/frame/provenance bindings. Implement and independently test E-BIAS-RESET first, then runtime admission/learning/history/feedback and PX4 caller integration. Retain old-source history; replace only identity-mismatch restart expectations and preserve other fault tests. |
+| A-05.6 — Noise, timing and resource qualification | Design | Establish producer noise/averaging models, independent truth, motion/error limits and target budgets before acceptance. Quantify residual-delay/centering and IMU-source transient errors. Missing calibration/data/limits block qualification, not necessarily unrelated contract implementation. |
+| A-05.7 — Composition and migration closure | Planned | Adopt and execute the planned case/profile matrix, review unchanged regression/defaults and actual PX4 phase/publication behavior. Refactor ownership/duplication, retire superseded expectations only, and reconcile current evidence. Defer exact bias/P algebra and source/history/caller proof changes to V-01 without crediting historical mismatch-rejection evidence to continuation. |
+
+The [test allocation](spec/verification/sensor-input-tests.md) owns normal,
+boundary, failure, recovery and qualification cases. Implement in dependency
+order: A-05.2 precedes candidate profiles, A-05.6 supplies their acceptance inputs,
+and the core reset precedes its runtime/PX4 callers. Each implementation unit
+includes tests, self-review and necessary refactoring before commit. No Lean/ESBMC
+execution is part of this documentation baseline.
+
 ### V-01 — Remaining proof boundaries
 
 **Status: Partial.** Scoped core/runtime evidence exists. Close the source,
@@ -261,6 +288,11 @@ the entire callback is not assumed atomic. Record accepted profiles and remainin
 gaps in the [traceability map](../formal/agent-review/traceability-map.json) and
 execution evidence. Platform/resource acceptance is shared with F-07.2/F-07.3;
 neither track substitutes for the other's evidence.
+
+The A-05 target adds selected bias/P reset algebra, exactly-once source handoff,
+retained old/new history and output bias-feedback composition obligations.
+Existing source-mismatch rejection proofs do not establish source continuation;
+retain their original scope and register new evidence before closing that target.
 
 ### V-02 — Design and execution-evidence pilot
 
@@ -389,7 +421,7 @@ Promotion requires reviewed scope and dependencies; retain the existing IDs.
 | D-02 | Gravity innovation gate | Explicitly deferred. Quantify effective covariance, cadence, prior uncertainty, valid rejection and tilt/recovery before choosing tuning. Prediction/observation reuse correlation remains a model limitation. |
 | D-03 | Dynamic-pressure compensation / wind-airflow inputs | Supported vehicle/sensor configuration and defensible inputs/model are missing. |
 | D-04 | Emergency yaw recovery | Additional estimator/recovery policy; ordinary magnetic heading resets already exist. |
-| D-05 | Multiple receivers/IMUs and estimator selection | Current scope is single instance/sensor; switching and redundancy need new ownership/lifecycle contracts. |
+| D-05 | Multiple receivers/IMUs and estimator selection | Voting, blending, parallel estimators and redundancy remain outside the single-selected-source scope. A-05 handles changes to that selected IMU; it does not implement selection or redundancy. |
 | D-06 | Rangefinder and terrain | New observation/reference model outside GNSS/barometer closure. |
 | D-07 | Geodetic nominal state / long-range navigation | Depends on F-05.2 results and a separate core-model decision. |
-| D-08 | Automatic recovery after numerical or IMU-identity faults | Current behavior requires restart. New recovery must define reinitialization and downstream continuity, separately from sensor timeouts. |
+| D-08 | Automatic recovery after numerical or required-history faults | These faults retain restart behavior. Recovery must define reinitialization and downstream continuity, separately from sensor timeouts. Admissible IMU identity/calibration-only continuation is A-05, not general fault recovery. |
