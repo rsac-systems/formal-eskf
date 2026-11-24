@@ -1,0 +1,4 @@
+interface:
+  display_name: "Explain Concepts"
+  short_description: "Define symbols and explain one logical step at a time"
+  default_prompt: "Use $explain-concepts to explain this concept with clear definitions, connected logical steps, and a small worked example."
