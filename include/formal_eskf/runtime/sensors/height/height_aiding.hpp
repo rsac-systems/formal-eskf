@@ -147,7 +147,7 @@ public:
         std::uint64_t time_us{};
         std::uint32_t device_id{};
         std::uint8_t calibration_count{};
-        value_type altitude{}; // Up-positive MSL metres; same datum as origin_altitude.
+        value_type altitude{}; // Up-positive metres: GNSS MSL or barometric model altitude before offset correction.
         value_type variance{};
         bool qualified = true;
         std::uint64_t generation{}; // Adapter identity generation; detects switch-away/back before delayed selection.

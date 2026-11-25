@@ -252,12 +252,12 @@ public:
         gps.satellites_used = 12U;
         gps.latitude_deg = m_latitude_deg;
         gps.longitude_deg = m_longitude_deg;
-        gps.altitude_msl_m = 488.f;
-        gps.altitude_ellipsoid_m = 535.f;
+        gps.altitude_msl_m = m_gps_altitude;
+        gps.altitude_ellipsoid_m = m_gps_altitude + 47.;
         gps.hdop = 0.7f;
         gps.vdop = 0.9f;
         gps.eph = 0.7f;
-        gps.epv = 1.f;
+        gps.epv = m_gps_vertical_accuracy;
         gps.s_variance_m_s = 0.2f;
         gps.vel_ned_valid = m_gps_velocity_valid;
         if (m_send_gps)
@@ -2160,6 +2160,126 @@ public:
         test.snapshot("barometric_input");
     }
 
+    static void barometric_reference_change(bool gnss_reference)
+    {
+        InsSessionTest test;
+        test.warmup();
+        auto & session = test.m_filter.m_session;
+        using Source = FormalEskf::height_type::Source;
+        if (!gnss_reference)
+        {
+            test.m_send_gps = false;
+            for (unsigned n = 0; n < 400; ++n)
+            {
+                test.m_sample.timestamp_sample += 4000;
+                test.tick();
+            }
+        }
+        auto const reference = gnss_reference ? Source::gnss : Source::barometer;
+        expect(session.height_aiding().reference() == reference, "actual source loss selects the intended reference");
+        auto const generation = session.m_observations.barometer_generation();
+        auto const resets = session.resets().height_count;
+        auto const offset = session.height_aiding().session(Source::barometer).bias.value;
+        // Supplied air-data altitude changes without a source/calibration event, as after upstream QNH changes.
+        // 320 ms flushes the 212 ms delay and includes several selected barometric measurements.
+        for (float shift : {1.f, 0.f, 100.f, 0.f, -100.f, 0.f, -1.f, 0.f})
+        {
+            test.m_baro_altitude = 488.f + shift;
+            auto const progress = session.statistics().baro_updates;
+            for (unsigned n = 0; n < 80; ++n)
+            {
+                test.m_sample.timestamp_sample += 4000;
+                test.tick();
+            }
+            auto const & barometer = session.height_aiding().session(Source::barometer);
+            bool const inside_gate = std::abs(shift) <= 1.f;
+            expect(!session.fault() && barometer.active && !barometer.fault &&
+                       session.height_aiding().reference() == reference &&
+                       session.m_observations.barometer_generation() == generation &&
+                       session.m_barometer.sample.altitude_m == static_cast<double>(test.m_baro_altitude) &&
+                       session.m_barometer.sample.stamp.source.calibration_count == 0 &&
+                       session.resets().height_count == resets,
+                   "actual Run preserves supplied altitude and identity without a QNH-specific restart/reset");
+            expect(inside_gate ? barometer.fusion.decision == formal_eskf::runtime::FusionDecision::fused &&
+                                     session.statistics().baro_updates > progress
+                               : barometer.fusion.decision == formal_eskf::runtime::FusionDecision::rejected,
+                   "changed and reversed air-data height follows ordinary innovation gates");
+            expect(gnss_reference || barometer.bias.value == offset, "barometer reference keeps its offset frozen");
+        }
+        test.snapshot("barometric_reference_change");
+    }
+
+    static void barometric_gnss_recovery()
+    {
+        InsSessionTest test;
+        auto & session = test.m_filter.m_session;
+        using Source = FormalEskf::height_type::Source;
+        // A one-metre upward antenna lever arm, set through the production startup API.
+        expect(session.configure_sensor_positions({{}, FormalEskf::vector3(0., 0., -1.)}), "configure antenna offset");
+        test.warmup();
+        test.m_send_gps = false;
+        test.m_landed = test.m_at_rest = false;
+        for (unsigned n = 0; n < 400; ++n)
+        {
+            test.m_sample.timestamp_sample += 4000;
+            test.tick();
+        }
+        expect(!session.fault() && session.height_aiding().reference() == Source::barometer &&
+                   !session.height_aiding().session(Source::gnss).active,
+               "actual delayed GNSS loss falls back to barometer");
+        auto const resets = session.resets().height_count;
+        test.m_send_gps = true;
+        test.m_gps_velocity_valid = false;
+        test.m_gps_altitude = 610.;
+        for (unsigned n = 0; n < 100; ++n)
+        {
+            test.m_sample.timestamp_sample += 4000;
+            test.tick();
+        }
+        expect(!session.fault() && session.resets().height_count == resets &&
+                   !session.height_aiding().session(Source::gnss).active,
+               "first returning but unqualified height cannot reset the estimator");
+        test.m_gps_velocity_valid = true;
+        bool recovered = false;
+        for (unsigned n = 0; n < 5000 && !session.fault() && !recovered; ++n)
+        {
+            test.m_gps_altitude = 488. + 0.25 * (n % 7);
+            test.m_gps_vertical_accuracy = 2.f + static_cast<float>(n % 3);
+            test.m_sample.timestamp_sample += 4000;
+            test.tick();
+            recovered = session.resets().height_count != resets;
+        }
+        auto const & selected = session.m_gnss.input.sample;
+        auto const & aid = session.height_aiding().session(Source::gnss);
+        expect(!session.fault() && recovered && session.resets().height_count == std::uint8_t(resets + 1) &&
+                   session.height_aiding().reference() == Source::gnss &&
+                   aid.sample_time == session.m_gnss.input.time_us &&
+                   selected.stamp.time_us < test.m_filter.m_gps.timestamp_sample &&
+                   selected.altitude_msl_m != test.m_filter.m_gps.altitude_msl_m && selected.altitude_msl_m != 610.,
+               "recovery consumes one qualified delayed sample, not the newest or first returning sample");
+        // Independently project the selected antenna fix, then subtract its body lever arm.
+        // The offset is < 2 m: curvature is below 1 micrometre; 10 micrometres covers
+        // that and binary64 ECEF subtraction/inversion, not a physical GNSS accuracy claim.
+        auto const & q = session.m_state.q_nb.coefficients();
+        matrix::Dcm<double> const rotation(matrix::Quaternion<double>(q(0), q(1), q(2), q(3)));
+        matrix::Vector3<double> const expected =
+            oracle_ned(test.m_latitude_deg, test.m_longitude_deg) *
+                (oracle_ecef(test.m_latitude_deg, test.m_longitude_deg, selected.altitude_msl_m + 47.) -
+                 oracle_ecef(test.m_latitude_deg, test.m_longitude_deg, 535.)) -
+            rotation * matrix::Vector3<double>(0., 0., -1.);
+        double const sigma = selected.vertical_accuracy_m;
+        double const variance = sigma * sigma;
+        expect(std::abs(session.m_state.p_n(2) - expected(2)) < 1e-5 &&
+                   std::abs(session.m_covariance(2, 2) - variance) < 1e-5,
+               "selected IMU-point altitude and sample variance reach the actual geographic reset");
+        vehicle_local_position_s local{};
+        orb_copy(ORB_ID(vehicle_local_position), test.m_outputs[1], &local);
+        expect(local.z_reset_counter == session.resets().height_count &&
+                   local.delta_z == static_cast<float>(session.resets().height_delta),
+               "the real height reset reaches the unchanged PX4 consumer report exactly once");
+        test.snapshot("barometric_gnss_recovery");
+    }
+
     static void startup()
     {
         InsSessionTest test;
@@ -3901,6 +4021,8 @@ private:
     bool m_landed = true, m_at_rest = true;
     bool m_in_ground_effect = false, m_fixed_wing = false, m_send_status = true, m_send_land = true;
     float m_baro_altitude = 488.f;
+    double m_gps_altitude = 488.;
+    float m_gps_vertical_accuracy = 1.f;
     double m_latitude_deg = 47.397742, m_longitude_deg = 8.545594;
     bool m_send_gps = true;
     bool m_gps_velocity_valid = true;
@@ -3959,6 +4081,9 @@ int main(int argc, char ** argv)
     InsSessionTest::startup_parameters();
     InsSessionTest::startup();
     InsSessionTest::barometric_input();
+    InsSessionTest::barometric_reference_change(true);
+    InsSessionTest::barometric_reference_change(false);
+    InsSessionTest::barometric_gnss_recovery();
     InsSessionTest::barometric_receipt();
     InsSessionTest::admission();
     InsSessionTest::gaps_and_periods();

@@ -953,6 +953,144 @@ template <typename Linalg> void receipt_generation(Context & test)
                 "receipt", "new source learns its own offset without rewriting unrelated fusion history");
 }
 
+template <typename Linalg> void selected_gnss_recovery(Context & test)
+{
+    using F = HeightFixture<Linalg>;
+    using T = typename F::value_type;
+    using A = typename F::aiding_type;
+    using Source = typename F::Source;
+    F baseline;
+    baseline.start(test);
+    {
+        auto brief = baseline;
+        test.expect(brief.tick(true, false, 500000).status == Status::success &&
+                        brief.aiding.session(Source::gnss).active,
+                    "brief gap", "a gap below the missing-data timeout retains the GNSS session");
+        brief.gnss_altitude += T{0.25};
+        auto const resumed = brief.tick();
+        test.expect(resumed.status == Status::success && resumed.height_resets == 0 && resumed.fused == 2, "brief gap",
+                    "a continued qualified source corrects instead of restarting height");
+    }
+    for (T reported_variance : {T{4}, T{144}})
+    {
+        auto f = baseline;
+        test.expect(f.tick(true, false, 1000000).status == Status::success &&
+                        f.aiding.reference() == Source::barometer && !f.aiding.session(Source::gnss).active,
+                    "recovery", "one-second loss stops GNSS and leaves barometer as reference");
+        f.quality = false;
+        f.gnss_altitude = T{600};
+        test.expect(f.tick().height_resets == 0 && !f.aiding.session(Source::gnss).active, "recovery",
+                    "the first returning unqualified sample cannot set the height");
+        // I + w w^T is PSD with nonzero correlations in every reset row.
+        for (std::size_t i = 0; i < 15; ++i)
+        {
+            for (std::size_t j = 0; j < 15; ++j)
+            {
+                f.P(i, j) = (i == j ? T{1} : T{0}) + T{0.25};
+            }
+        }
+        auto const prior = f.P;
+        auto const position = f.state.p_n;
+        auto const velocity = f.state.v_n;
+        auto const offset = f.aiding.session(Source::barometer).bias.value;
+        auto const now = f.now + 20000;
+        typename A::Sample selected{now - 4000, 2, 0, T{510}, reported_variance, true};
+        auto const reset = f.update(now, {}, selected, true, f.state, f.P);
+        T const effective_variance = reported_variance == T{4} ? T{4} : T{100};
+        test.expect(reset.status == Status::success && reset.height_resets == 1 && reset.velocity_resets == 0 &&
+                        f.aiding.reference() == Source::gnss && f.state.p_n(2) == T{-10} &&
+                        reset.height_delta == T{-10} - position(2) && f.state.p_n(0) == position(0) &&
+                        f.state.p_n(1) == position(1) && formal_eskf::linalg::max_abs(f.state.v_n - velocity) == 0 &&
+                        f.aiding.session(Source::gnss).sample_time == selected.time_us &&
+                        f.aiding.session(Source::gnss).bias.value == 0 &&
+                        f.aiding.session(Source::barometer).bias.value == offset + reset.height_delta,
+                    "recovery", "reset uses the selected qualified altitude and transports the other offset once");
+        for (std::size_t i = 0; i < 15; ++i)
+        {
+            for (std::size_t j = 0; j < 15; ++j)
+            {
+                T const expected = i == 2 && j == 2 ? effective_variance : (i == 2 || j == 2 ? T{0} : prior(i, j));
+                test.expect(f.P(i, j) == expected, "recovery",
+                            "full covariance decorrelates only reset height and uses the effective sample variance");
+            }
+        }
+        auto const duplicate = f.update(now + 1, {}, selected, true, f.state, f.P);
+        test.expect(duplicate.status == Status::success && duplicate.height_resets == 0 && duplicate.fused == 0,
+                    "recovery", "the selected sample cannot be consumed again");
+        selected.time_us = now + 20000;
+        selected.altitude = T{510.25};
+        auto const resumed = f.update(selected.time_us, {}, selected, true, f.state, f.P);
+        test.expect(resumed.status == Status::success && resumed.height_resets == 0 && resumed.fused == 1, "recovery",
+                    "the next qualified sample returns to ordinary correction");
+    }
+}
+
+template <typename Linalg> void reference_pressure_changes(Context & test)
+{
+    using F = HeightFixture<Linalg>;
+    using T = typename F::value_type;
+    using Source = typename F::Source;
+    for (bool gnss_reference : {false, true})
+    {
+        F baseline;
+        test.expect(baseline.aiding.initialize(baseline.now, T{500}) == Status::success, "reference change", "setup");
+        for (unsigned n = 0; n < 22; ++n)
+        {
+            test.expect(baseline.tick(true, gnss_reference).status == Status::success, "reference change", "warmup");
+        }
+        for (T shift : {T{-100}, T{-1}, T{1}, T{100}})
+        {
+            auto f = baseline;
+            auto const prior = f.aiding.session(Source::barometer);
+            auto const resets = f.reset_counter;
+            f.baro_altitude += shift;
+            auto const changed = f.tick(true, false);
+            auto const & aid = f.aiding.session(Source::barometer);
+            bool const inside_gate = std::abs(shift) == T{1};
+            test.expect(changed.status == Status::success && changed.height_resets == 0 &&
+                            changed.fused == unsigned(inside_gate) && changed.rejected == unsigned(!inside_gate) &&
+                            aid.active && !aid.fault && aid.device_id == prior.device_id &&
+                            aid.calibration_count == prior.calibration_count && aid.generation == prior.generation &&
+                            !changed.diagnostics[0].source_changed && changed.diagnostics[0].measurement &&
+                            aid.fusion.innovation(0) == -shift && f.reset_counter == resets,
+                        "reference change",
+                        "unchanged identity follows ordinary gates without a restart or forced reset");
+            test.expect(gnss_reference && inside_gate ? (aid.bias.value - prior.bias.value) * shift > 0
+                                                      : aid.bias.value == prior.bias.value,
+                        "reference change", "only an accepted nonreference offset may learn the changed altitude");
+            f.baro_altitude -= shift;
+            auto const restored = f.tick(true, false);
+            test.expect(restored.status == Status::success && restored.fused == 1 && restored.height_resets == 0 &&
+                            !restored.diagnostics[0].source_changed && f.aiding.session(Source::barometer).active,
+                        "reference change", "reversal resumes ordinary fusion without a QNH-specific latch");
+        }
+    }
+}
+
+void recovery_case(Context & test, std::string_view profile)
+{
+    if (profile == "binary32")
+    {
+        selected_gnss_recovery<formal_eskf::test::Backend<float>>(test);
+    }
+    else
+    {
+        selected_gnss_recovery<formal_eskf::test::Backend<double>>(test);
+    }
+}
+
+void reference_pressure_case(Context & test, std::string_view profile)
+{
+    if (profile == "binary32")
+    {
+        reference_pressure_changes<formal_eskf::test::Backend<float>>(test);
+    }
+    else
+    {
+        reference_pressure_changes<formal_eskf::test::Backend<double>>(test);
+    }
+}
+
 void receipt_case(Context & test, std::string_view profile)
 {
     if (profile == "binary32")
@@ -1007,6 +1145,10 @@ int main(int argc, char ** argv)
         {"TC-R-HEIGHT-AIDING-BARO-06", "binary64", receipt_case},
         {"TC-R-HEIGHT-AIDING-BARO-07", "binary32", generation_case},
         {"TC-R-HEIGHT-AIDING-BARO-07", "binary64", generation_case},
+        {"TC-R-HEIGHT-AIDING-BARO-09", "binary32", recovery_case},
+        {"TC-R-HEIGHT-AIDING-BARO-09", "binary64", recovery_case},
+        {"TC-R-HEIGHT-AIDING-BARO-11", "binary32", reference_pressure_case},
+        {"TC-R-HEIGHT-AIDING-BARO-11", "binary64", reference_pressure_case},
     };
     return formal_eskf::test::run_cases(cases, argc, argv);
 }
