@@ -157,6 +157,32 @@ atomic operation within running service; ordinary callbacks remain non-atomic.
 | Gravity conditions/fusion; tilt; source lifecycle/reset; histories/datum | Reused dependencies. Existing post-alignment gravity predicate needs explicit staged admission; component evidence alone cannot close new callers. |
 | Test specifications and traceability | Allocate new cases separately from executed baseline cases; keep new source/proof bindings empty until implemented and verified. |
 
+### Diagnostic reporting allocation
+
+[R-INS-DIAGNOSTICS](../requirements/runtime/diagnostics.md) defines the target
+reporting contract for both strict and staged profiles. Source/capability owners
+make decisions; the session exposes their facts. This adds no health manager,
+flight-mode policy or second numerical estimator.
+
+| Responsibility | Allocation |
+|---|---|
+| Gate/correction result | Existing numerical/runtime operation; retain status and computed evidence once. |
+| Readiness, source activity, usable outputs | Existing qualification/lifecycle/capability owner; reporting does not infer new policy from a residual or covariance. |
+| Evidence identity and phase snapshot | Session binds the actual record, source/frame generation and distinct input/selection/evaluation/output/P epochs. |
+| Transport and publication | Adapter copies bounded views, converts wire meanings and maintains publication/loss counters; external logger stores history. |
+| Flight-mode admission | Application or PX4 Commander uses its actual capability/accuracy/freshness rules. |
+
+Current-output completion and delayed-fusion completion are different report
+boundaries. A later failure preserves earlier commits and their reported results.
+Read-only snapshots cannot steal the internal innovation events used by adapter
+filters. Fixed storage and copying costs remain deployment qualification work;
+no generic callback, lock or event queue is introduced into runtime.
+
+The [PX4 status target](../requirements/integration/px4/status.md#diagnostic-reporting-target)
+binds external timestamps, signs and counters. Existing strict-module snapshots
+and event drains implement only parts of this allocation. N2 capabilities, N3
+source continuation and optional barometer remain independently scoped targets.
+
 ### Existing execution protocol
 
 The adapter supplies admitted source records with sample and arrival times in a

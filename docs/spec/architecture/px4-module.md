@@ -48,6 +48,15 @@ models and automatic recovery from numerical faults are outside this baseline.
 The numerical library remains independently usable for INS and AHRS; the PX4
 module does not impose its execution model on other callers.
 
+The [diagnostic-reporting target](../requirements/integration/px4/status.md#diagnostic-reporting-target)
+uses bounded portable owner reports under
+[R-INS-DIAGNOSTICS](../requirements/runtime/diagnostics.md). The module owns
+wire conversion, signed summary filtering, completed-update mask accounting and
+concurrent snapshot exchange; Commander retains mode admission. Existing public
+snapshots lack some result-specific epochs, and current mask counts sample at
+publication time. These gaps require implementation and acceptance, not another
+source-health engine or a change to core equations.
+
 ## Requirement allocation
 
 | Responsibility | Contract |

@@ -79,6 +79,12 @@ specified commits when a later stage fails. Origin migration and staged first
 attachment retain their coordinated prepare/commit boundary. Report counters, status and reset deltas from
 the actual owners; diagnostic formatting and logging remain adapter responsibilities.
 
+Under the [diagnostic-reporting target](diagnostics.md), expose coherent owner
+facts at the declared completed/failed boundaries without treating the callback
+as atomic. The diagnostic reader shall not consume the internal event stream
+or advance source/evidence clocks. This target adds reporting obligations, not
+new initialization, capability or fusion policy.
+
 Raw innovation events shall retain clear, measurement and reset effects in that
 order. The caller shall drain events after each startup/current or completed
 fusion phase, before another phase can replace them. Each source/axis has bounded

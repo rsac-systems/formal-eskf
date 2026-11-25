@@ -49,7 +49,9 @@ Rotation-variance frames and computed longitude follow
 [R-PX4-FRAME-OUTPUT](output-frames.md#r-px4-frame-output-geographic-and-rotation-variance-output-frames).
 Capability, uncertainty, bias, innovation and fault reporting follow
 [R-PX4-STATUS](status.md#r-px4-status-confidence-and-failure-reporting).
-Its covariance proxies and snapshot counters are not calibrated accuracy bounds
-or lossless event records.
+Its covariance proxies and sampled transition counters are not calibrated
+accuracy bounds or lossless event records. Under its diagnostic-reporting target,
+compare masks before throttled publication and preserve each retained result's
+own epoch; copying or publishing a snapshot shall not create new evidence.
 Advertisement/publication failure must be observable and cannot count as
 successful delivery. Ordinary absence of subscribers is not a delivery failure.

@@ -49,7 +49,9 @@ for unavailability. Reasons shall distinguish uninitialized, unreferenced,
 unqualified source, expired aiding, an applicable owner uncertainty limit,
 numerical regularization, stale output and
 numerical/history fault. Multiple reasons may coexist. Observing status shall not
-change state, covariance or source qualification.
+change state, covariance or source qualification. Common snapshot, evidence-age
+and identity semantics follow [R-INS-DIAGNOSTICS](diagnostics.md); this contract
+retains ownership of capability decisions and their premises.
 
 | Capability | Required prerequisites beyond common output admission |
 |---|---|

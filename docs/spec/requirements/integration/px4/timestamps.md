@@ -24,6 +24,11 @@ Keep these meanings distinct, in one monotonic PX4 time domain:
 | Fusion time | Epoch of the main filter state/covariance, behind the latest IMU by the configured history delay |
 | Wall time | Scheduling, arrival freshness, output age and detection of stopped inputs |
 
+Diagnostic output fields follow the
+[R-PX4-STATUS binding](status.md#evidence-fields-and-time): per-source selection,
+aggregate delayed-filter and publication epochs remain distinct. This mapping
+does not change the producer timestamp or residual delay used for input admission.
+
 Each topic binding must name its timestamp field, clock domain, units, sample
 point/interval convention and any residual delay correction. Receiver UTC and
 publication time must not silently substitute for measurement time. Do not

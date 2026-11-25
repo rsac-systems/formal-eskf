@@ -72,6 +72,11 @@ local bias/P reset and continued history operation. Other invalid-input, timing,
 frame, history-loss and numerical faults retain their own contracts. The target
 is not implemented or verified by the existing strict-profile evidence.
 
+The diagnostic-reporting target shall expose owner facts under
+[R-INS-DIAGNOSTICS](../runtime/diagnostics.md) without changing source policy or
+numerical updates. Strict and staged service retain their own capability rules;
+reporting cannot implement or qualify a missing staged capability.
+
 ## Decomposition
 
 | Child | Allocated obligation |
@@ -79,6 +84,7 @@ is not implemented or verified by the existing strict-profile evidence.
 | [R-SENSOR-INPUT](../runtime/sensor-input.md) | Common input units, epochs, frames, provenance and profile-owned uncertainty/qualification. |
 | [R-IMU-SOURCE](../runtime/imu/source-change.md) | Target IMU source/calibration events, selected bias/P reset and continued current/delayed history. |
 | [R-INS-SESSION](../runtime/ins-session.md) | Ordered owner phases, external model boundary, faults and raw reports. |
+| [R-INS-DIAGNOSTICS](../runtime/diagnostics.md) | Target bounded owner evidence, result epochs, coherent snapshots and event-count semantics. |
 | [R-INS-INITIALIZATION](../runtime/ins-initialization.md) | Strict stationary accumulation, tilt/heading preparation and initial state/P values. |
 | [R-INS-STARTUP](../runtime/ins-startup.md) | Staged target: IMU seed, pre-alignment refinement and independent aiding admission. |
 | [R-INS-CAPABILITIES](../runtime/ins-capabilities.md) | Staged target: full/partial output availability and application acceptance boundary. |

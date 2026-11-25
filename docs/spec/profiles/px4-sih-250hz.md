@@ -138,7 +138,11 @@ therefore has `h` near 2 ms.
 
 The half-period shift is an explicit timing approximation: a selected observation
 can physically refer to up to `h` after the filter endpoint. Selection and delayed
-policy clocks use `t_observation`; diagnostics retain `t_sample`. Do not describe
+policy clocks use `t_observation`; portable diagnostics retain `t_sample` and
+`t_observation` separately. Under the
+[diagnostic-reporting target](../requirements/integration/px4/status.md#evidence-fields-and-time),
+GNSS quality and position/velocity aid `timestamp_sample` uses `t_observation`;
+aggregate diagnostic sample time uses the delayed-filter horizon. Do not describe
 these as identical physical epochs. Future buffered observations are future
 relative to the fusion horizon, not permission for a future boot-clock timestamp.
 

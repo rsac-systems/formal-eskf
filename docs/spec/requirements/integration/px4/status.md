@@ -79,9 +79,10 @@ converged are different facts. Reporting must not change fusion decisions.
   Zeroed legacy LPE health/timeout flags and false unsupported capability bits
   remain unused. Missing numeric diagnostics do not prove good health: consumers
   must also check solution capabilities, topic freshness and source status.
-- Status change counters count changes between published snapshots (currently
-  10 Hz). They are not a lossless event log and can miss transitions between
-  snapshots. Do not claim PX4's on-change event accounting. Filtering is bounded,
+- The existing strict-module status counters count changes between published
+  snapshots (currently 10 Hz). The diagnostic-reporting target below replaces
+  that sampling boundary; existing evidence covers only the old accounting.
+  Neither is a lossless event log. Filtering is bounded,
   allocation-free and module-owned; no shared-core equation or public API changes.
 
 Native evidence must cover independent capability combinations, actual failure
@@ -91,6 +92,100 @@ semantics and duplicate publication. SIH must arm normally with the existing
 preflight checks and exercise flight/fault recovery; retain failed runs. Native,
 sanitizer and SIH evidence do not establish target timing, calibration accuracy,
 formal source correctness or hardware-flight qualification.
+
+## Diagnostic-reporting target
+
+The adapter shall consume [R-INS-DIAGNOSTICS](../../runtime/diagnostics.md) owner
+facts without recomputing gates, readiness or correction outcomes. This target
+applies to strict and staged service; only the staged mapping below changes
+capability admission. Existing packed/named flags, ratio filtering, covariance
+proxy limitations, reset notifications and consumer responsibilities remain.
+Uniform source-result epochs, per-group retention and completed-update counters
+are implementation gaps, not claims about the existing module snapshot.
+
+### Evidence fields and time
+
+The adapter shall bind each exposed field to the record that produced it:
+
+| Field/view | Required producer meaning |
+|---|---|
+| GNSS quality result | Actual selected sample evaluation, qualification applicability and source generation; not the newest consumed watermark or the current publication epoch. Retained failure bits do not by themselves establish a fresh evaluation. |
+| GNSS quality and position/velocity aid `timestamp_sample` | Frozen adjusted selection time of the evaluated record. Preserve original input time separately in portable diagnostics. |
+| Buffered magnetic, barometer and GNSS-height aid `timestamp_sample` | The owning evaluated observation's selection epoch under PX4-TIME; retain input/evaluation epochs separately. Reset-only records retain their reset action and owner epoch. |
+| Gravity aid `timestamp_sample` | Endpoint of the real IMU interval completing the gravity observation, with accumulated duration retained in portable diagnostics. No observation-buffer half-period subtraction is added to this IMU-derived path. |
+| Aggregate innovation, variance and test-ratio sample time | Current delayed-filter epoch; individual retained source values can be older. Aggregate publication shall not claim their freshness or replace their source epochs. |
+| Publication `timestamp` | Actual publication clock (or the declared replay publication convention), distinct from retained evidence. |
+| Residual, variance, test ratio | Existing computed owner evidence, its validity, group and axes. Convert portable measurement-minus-prediction residuals to PX4's prediction-minus-measurement convention once; do not sign-change variance or unsigned raw ratios. |
+| Filtered innovation summaries | Existing adapter-owned filter outputs, updated by actual events once, not by reads/publication. Applied/limited residuals and raw gate evidence remain distinguishable. |
+| Activity, output validity, faults | Actual owner facts at the snapshot assessment boundary. A stale retained diagnostic cannot assert a new healthy source or refresh successful aiding. |
+| Reset deltas/counters and uncertainty | Existing PX4-OUT and frame/status contracts; resets remain separate from corrections, and covariance retains its delayed epoch. |
+
+This binds existing outputs and any supported per-source aid records exposed by
+the declared publication profile. It does not require a new topic, every verbose
+EKF2 topic or unused wire field. The profile shall state its supported messages;
+unavailable fields shall retain their documented invalid/unsupported convention,
+not fabricated healthy data. Full aid-source publication is not implemented by
+the existing summary messages. Local readout shall show a retained result's
+source/selection epoch and current activity separately.
+
+At pinned PX4 v1.16.2, [UpdateGpsSample](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF2.cpp#L2432)
+uses the GNSS input message's `timestamp`.
+[setGpsData](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/estimator_interface.cpp#L180)
+subtracts GPS delay and half the mean filter period before buffering.
+[PublishGpsStatus](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF2.cpp#L1222)
+and the GNSS position/velocity aid producers use that adjusted sample time;
+[aid publication](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF2.hpp#L251)
+preserves it. It is not an unadjusted raw-input timestamp despite the message
+comment. Aggregate innovations use the delayed-filter time instead.
+
+Our [SIH source binding](../../../profiles/px4-sih-250hz.md#source-timestamps-and-admission)
+continues to use `timestamp_sample` with zero residual GNSS delay. Align the
+meaning of exported selection time without changing that qualified producer
+binding, importing EKF2's GPS-delay default or subtracting the offset twice.
+
+### Outcome and counter binding
+
+Portable correction success shall mean that the actual numerical operation
+committed its state/P. It shall not inherit the pinned
+[gravity path's unconditional fused assignment](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/aid_sources/gravity/gravity_fusion.cpp#L108).
+PX4's reset helpers also mark aid records fused; the portable report shall retain
+reset as a separate action. Any external aid-field mapping shall distinguish
+correction and reset provenance and shall not increment correction totals or
+clocks merely to mimic such a wire flag. Existing reset notifications/history
+clearing remain unchanged. No full source-by-source numerical equivalence is
+claimed, including sequential magnetic versus batch/projected correction.
+
+Status-mask comparisons shall run once at each completed estimator update and
+at explicit fault/no-IMU availability boundaries, before publication throttling.
+The prior mask starts at zero on adapter instance creation. Increment each mask's
+counter once if its complete value differs from the previous comparison, not once
+per changed bit; then retain the new mask. Repeated publication shall not compare
+or increment again. Fault/expiry boundaries ensure our independent terminal
+failures are observable; they do not claim identical EKF2 internal update ordering.
+This follows [EKF2's comparison before throttling](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF2.cpp#L1864),
+not the module's existing 10 Hz sampled accounting. Transitions wholly inside
+one comparison interval can still be missed; no lossless event claim is allowed.
+
+External status-change fields remain unsigned 32-bit and reset fields retain
+their defined unsigned 8-bit wrap. Ordinary portable reporting totals use
+R-INS-DIAGNOSTICS's uint64 rules, consistent with PX4's ordinary
+[perf counter increment](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/lib/perf/perf_counter.cpp#L203).
+Source/calibration changes shall not clear adapter-lifetime status totals.
+Our missing-generation totals count lost messages; PX4's missed-IMU perf event
+counts detected gaps. Do not relabel either as the other.
+
+### Reporting acceptance
+
+Test production owner-to-snapshot-to-message paths with distinct sample,
+selection, filter and publication times, skipped evaluation, source replacement,
+outliers, numerical failure, timeout/recovery and counter wrap. Vary reader and
+publication rates independently while preserving estimator input. Verify packed
+and named flags, signs, invalid values, per-group commits and count units.
+Reuse the [staged consumer cases](../../../verification/px4-staged-ins-tests.md)
+for mode/reset decisions with actual Commander/controllers. Producer flag checks
+alone cannot establish consumer acceptance; do not disable checks or modify
+controllers to obtain a pass. Target synchronization/cost and external logger
+loss remain separate acceptance obligations under PX4-RT/PX4-VERIFY.
 
 ## Staged INS target mapping
 

@@ -158,6 +158,7 @@ remain empty: these two additional review units are proof gaps, not verified cla
 | `R-TILT-ALIGNMENT` | [Covariance-based tilt alignment latch](requirements/runtime/tilt-alignment.md) |
 | `R-ORIGIN-REBASE` | [Cartesian INS state and covariance rebasing](requirements/runtime/origin-rebasing.md) |
 | `R-INS-SESSION` | [ordered geographic INS session](requirements/runtime/ins-session.md) |
+| `R-INS-DIAGNOSTICS` | [Bounded health and diagnostic reporting](requirements/runtime/diagnostics.md) (Draft target) |
 | `R-INS-INITIALIZATION` | [strict stationary INS initialization](requirements/runtime/ins-initialization.md) |
 | `R-INS-STARTUP` | [Staged INS initialization and aiding admission](requirements/runtime/ins-startup.md) (Draft target) |
 | `R-INS-CAPABILITIES` | [Full and partial INS output availability](requirements/runtime/ins-capabilities.md) (Draft target) |
