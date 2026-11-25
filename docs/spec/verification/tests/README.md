@@ -57,6 +57,12 @@ the configured native core/runtime profile. Additional CTest targets retain thei
 own scope and do not count toward those totals. Formal proofs and deployment
 qualification keep their own runners.
 
+The [staged continuity family](runtime/ins-continuity.md) includes explicitly
+named short and endurance profiles: Debug/sanitizer builds exercise the forced
+branches over 60 simulated seconds; Release runs 3600 seconds. A short-profile
+pass is not a one-hour endurance claim. Both use the same production path and
+predeclared sensor-error schedule, with assertions retained in Release.
+
 ## Scope inventory
 
 | Layer | Responsibility |

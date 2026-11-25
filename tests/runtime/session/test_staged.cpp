@@ -317,7 +317,11 @@ void freshness(Context & test, std::string_view profile)
 
 void aiding_clocks(Context & test, std::string_view profile)
 {
-    Fixture f;
+    // Isolate the accepted-fusion clock from the independently shorter default
+    // GNSS reception deadline. Source-age withdrawal is covered separately.
+    auto parameters = ins_example::parameters<Session>();
+    parameters.settings.gnss.maximum_sample_age_us = 2000000;
+    Fixture f(parameters);
     test.expect(f.run(8500), profile, "full real aiding established");
     f.send_gnss = f.send_barometer = f.send_magnetic = false;
     test.expect(f.run(60), profile, "drain already admitted delayed measurements");

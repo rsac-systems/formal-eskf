@@ -180,7 +180,12 @@ relabeling, transport its retained barometer offset as b_new=b_old-DeltaH to
 preserve the residual. Real measurement resets retain their own covariance,
 history and report effects under R-INS-ATTACHMENT/R-GNSS-RESET. Failure to prepare
 geometry shall preserve the prepared observation; session/owner transactions
-retain their distinct commit boundaries.
+retain their distinct commit boundaries. A staged session may prepare a copied
+height owner/state/P before committing it with the required output/history reset;
+the standalone owner's atomic update contract is unchanged. The staged profile
+disables legacy zero-velocity fallback, and a numerical-recovery request uses a
+qualified real height sample with its effective observation and offset variance.
+It cannot clear regularized velocity or establish a missing MSL reference.
 
 ### Optional source and timing composition
 

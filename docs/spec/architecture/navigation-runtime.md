@@ -21,15 +21,19 @@ state dimension, geographic admission and source lifecycle. An attitude-only
 output path uses current quaternion/history without requiring position geometry;
 frame attachment coordinates the affected owners when geographic prerequisites
 become available. Staged seed, independent output admission and first attachment are implemented;
-numerical continuity and complete qualification remain explicit A-03 work.
+numerical continuity and real-source recovery are integrated. Formal, broader
+physical and deployment-resource qualification remain explicit A-03 work.
 
 [R-INS-CONTINUITY](../requirements/runtime/ins-continuity.md) allocates the staged
 source-loss policy to the session: real-aiding clocks and bias permissions precede
 real corrections; constrained numerical covariance updates precede output
 feedback. These operations retain full fixed-size P and separate intervention
 provenance. Their pure covariance algebra belongs below session policy; platform
-status/reset delivery remains in the adapter. The proposed numerical gain
-constraints do not modify the shared real-observation models.
+status/reset delivery remains in the adapter. The numerical gain constraints do not modify the shared real-observation models.
+`fusion/covariance_guard.hpp` owns the covariance-only Joseph algebra;
+`session/ins_continuity.hpp` owns bounded attempt/provenance state. Session
+coordination supplies actual source, observation-frame and history prerequisites.
+No second state estimate or persistent shadow covariance is introduced.
 
 ## Responsibilities and interfaces
 

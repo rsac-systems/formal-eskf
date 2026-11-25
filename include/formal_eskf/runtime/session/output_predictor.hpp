@@ -427,6 +427,8 @@ bool OutputPredictor<Linalg, Capacity>::apply_reset(quaternion_type const & q_de
     {
         return fail(Fault::invalid_state);
     }
+    bool const identity = q_delta.coefficients()(0) == value_type{1} && q_delta.coefficients()(1) == value_type{0} &&
+                          q_delta.coefficients()(2) == value_type{0} && q_delta.coefficients()(3) == value_type{0};
     // Before the first interval, stage the seed in one workspace slot instead.
     bool const seed_only = m_history.entries() == 0;
     auto const count = seed_only ? std::size_t{1} : m_history.entries();
@@ -437,11 +439,17 @@ bool OutputPredictor<Linalg, Capacity>::apply_reset(quaternion_type const & q_de
         candidate = seed_only ? m_current : m_history[index];
         candidate.v_n = candidate.v_n + velocity_delta_n;
         candidate.p_n = candidate.p_n + position_delta_n;
-        auto const rotated = q_delta * candidate.q_nb;
-        if (!succeeded(quaternion_type::from_coefficients(rotated.coefficients(),
-                                                          static_cast<value_type>(m_parameters.minimum_quaternion_norm),
-                                                          candidate.q_nb)) ||
-            !linalg::all_finite(candidate.v_n) || !linalg::all_finite(candidate.p_n))
+        if (!identity)
+        {
+            auto const rotated = q_delta * candidate.q_nb;
+            if (!succeeded(quaternion_type::from_coefficients(
+                    rotated.coefficients(), static_cast<value_type>(m_parameters.minimum_quaternion_norm),
+                    candidate.q_nb)))
+            {
+                return fail(Fault::numerical_failure);
+            }
+        }
+        if (!linalg::all_finite(candidate.v_n) || !linalg::all_finite(candidate.p_n))
         {
             return fail(Fault::numerical_failure);
         }

@@ -32,6 +32,13 @@ template <typename Session> typename Session::Parameters parameters()
     p.estimator.process_noise.accelerometer_bias_random_walk_variance_density =
         Vector::from_row_major({1e-6, 1e-6, 1e-6});
     p.estimator.process_noise.gyroscope_bias_random_walk_variance_density = Vector::from_row_major({1e-8, 1e-8, 1e-8});
+    p.continuity = {.position_variance_limit = 1e6,
+                    .velocity_variance_limit = 1e6,
+                    .heading_variance_limit = 0.09,
+                    .heading_noise_variance = 0.25,
+                    .heading_interval_us = 200000,
+                    .velocity_limit = 100,
+                    .bias_direction_cosine = 0.966};
     p.startup = {.gravity = gravity,
                  .minimum_force_ratio = 0.8,
                  .maximum_force_ratio = 1.2,
@@ -104,6 +111,7 @@ template <typename Session> typename Session::Parameters parameters()
                 .trigger_angle_rad = 0.05 * Session::math_type::pi() / 180,
                 .trigger_distance_m = 1000};
     s.aiding = {1000000, 5000000};
+    p.height.zero_velocity_on_barometer_reset = false;
     s.output = {1e-12, 1000000, 100000, 1e-7, 1e-10};
     double const position = s.gnss.minimum_position_noise_m * s.gnss.minimum_position_noise_m;
     double const velocity = s.gnss.minimum_velocity_noise_m_s * s.gnss.minimum_velocity_noise_m_s;

@@ -5702,7 +5702,7 @@
     },
     {
       "id": "R-GNSS-FUSION",
-      "title": "Portable GNSS lifecycle and inductive feedback invariants verified; numerical reset and adapter chronology remain separate",
+      "title": "Portable GNSS lifecycle with native numerical-recovery request and persistent-failure tests; retained formal feedback invariants predate the new request branch and require rebinding",
       "references": {
         "spec": [
           {
@@ -5934,7 +5934,7 @@
     },
     {
       "id": "R-HEIGHT-FUSION",
-      "title": "Portable height/PX4: geographic input, timing, optional-source, recovery and transaction tests bound; staged startup/attachment and ground-effect target pending; changed source signatures and former fixed-20 ESBMC profiles require rebinding",
+      "title": "Portable height/PX4 geographic and staged relative operation, source recovery and prepared reset transactions have native bindings; uniform numerical/target qualification, ground-effect implementation and changed source-proof rebinding remain open",
       "references": {
         "spec": [
           {
@@ -7068,7 +7068,7 @@
     },
     {
       "id": "R-PX4-STATUS",
-      "title": "PX4 capability, uncertainty, bias, innovation and failure reporting: native/SIH evidence only; formal source proof and target accuracy/timing remain open; staged capability mapping is a Draft target with no implementation evidence; diagnostic epoch, per-group and completed-update counting target pending",
+      "title": "PX4 capability, uncertainty, bias, innovation and failure reporting: native/SIH evidence only; staged capabilities have pinned consumer subsets; complete consumer/target and formal source qualification remain open; diagnostic epoch, per-group and completed-update counting target pending",
       "references": {
         "spec": [
           {
@@ -8488,7 +8488,7 @@
     },
     {
       "id": "R-INS-CAPABILITIES",
-      "title": "Independent staged INS capability snapshot and PX4 consumer subsets; numerical-intervention/recovery and complete acceptance remain pending",
+      "title": "Independent staged INS capabilities, numerical provenance withdrawal and real-source recovery; complete physical/target acceptance and formal evidence remain separate",
       "references": {
         "spec": [
           {
@@ -8524,7 +8524,7 @@
     },
     {
       "id": "R-INS-CONTINUITY",
-      "title": "Unaided INS numerical continuity and recovery: protected-gain policy retained after pinned PX4 comparison; implementation and formal evidence pending",
+      "title": "Bounded staged INS numerical continuity, transported intervention provenance and real-source reset recovery; finite native fixtures, formal and target evidence deferred",
       "references": {
         "spec": [
           {
@@ -8538,10 +8538,39 @@
           {
             "file": "docs/spec/verification/staged-ins-tests.md",
             "symbol": "## Cases"
+          },
+          {
+            "file": "docs/spec/verification/tests/runtime/ins-continuity.md",
+            "symbol": "## Cases"
           }
         ],
         "lean": [],
-        "cpp": [],
+        "cpp": [
+          {
+            "file": "include/formal_eskf/runtime/fusion/covariance_guard.hpp",
+            "symbol": "regularize_translation_covariance("
+          },
+          {
+            "file": "include/formal_eskf/runtime/fusion/covariance_guard.hpp",
+            "symbol": "regularize_heading_covariance("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_continuity.hpp",
+            "symbol": "class InsContinuity"
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_continuity.hpp",
+            "symbol": "InsSession<Linalg, Layout>::maintain_continuity("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_continuity.hpp",
+            "symbol": "InsSession<Linalg, Layout>::restrict_bias_learning("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_height("
+          }
+        ],
         "esbmc": []
       }
     },

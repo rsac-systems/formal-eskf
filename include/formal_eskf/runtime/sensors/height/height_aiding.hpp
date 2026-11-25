@@ -51,6 +51,7 @@ template <typename Scalar> struct HeightParameters
     Scalar maximum_aided_gnss_variance{};
     Scalar ground_effect_deadzone_m{};
     Scalar gate_sigma{};
+    bool zero_velocity_on_barometer_reset = true;
 };
 
 /** Scalar altitude offset outside the INS state; callers freeze the reference source. */
@@ -199,6 +200,16 @@ public:
         vector_type position_delta_n{}, velocity_delta_n{}; // Reset-only changes in working axes.
     };
 
+    // Current reception and selected-data progress are separate clocks. This
+    // query uses the same receipt deadline as update(), before any correction.
+    bool barometer_aiding(ObservationReceipt const & receipt) const
+    {
+        auto const & aid = session(Source::barometer);
+        return aid.active && aid.generation == receipt.generation && receipt.push_time_us != 0 &&
+               receipt.latest_time_us >= receipt.push_time_us &&
+               receipt.latest_time_us - receipt.push_time_us < m_parameters.barometer_timeout_us;
+    }
+
     explicit HeightAiding(Parameters const & parameters) : m_parameters(parameters)
     {
         for (auto & session : m_sessions)
@@ -233,7 +244,7 @@ public:
                                 state_type & state, covariance_type & covariance,
                                 configuration::Ins::BiasUpdate const & bias_update = {},
                                 Acceleration const & acceleration = {false, {0U, 0U}}, bool ground_effect = false,
-                                Geometry const * geometry = nullptr);
+                                Geometry const * geometry = nullptr, bool numerical_reset_required = false);
 
     /** Inspect one sensor session; source must be barometer or gnss. */
     Session const & session(Source source) const { return m_sessions[index(source)]; }
@@ -320,7 +331,7 @@ private:
     void process(Source source, std::uint64_t now_us, Sample const & sample, bool vertical_velocity_aiding,
                  state_type & state, covariance_type & covariance, Result & result,
                  configuration::Ins::BiasUpdate const & bias_update, Acceleration const & acceleration,
-                 bool ground_effect, Geometry const * geometry, bool receipt_recent);
+                 bool ground_effect, Geometry const * geometry, bool receipt_recent, bool numerical_reset_required);
     void reset_height(Source source, std::uint64_t now_us, value_type altitude, value_type variance, state_type & state,
                       covariance_type & covariance, Result & result, Geometry const * geometry);
 
@@ -588,7 +599,7 @@ void HeightAiding<Linalg>::recover(Source source, std::uint64_t now_us, Sample c
             return;
         }
         aid.bias.value = (barometer ? m_barometer_lpf : sample.altitude) - prediction.altitude;
-        if (barometer && !vertical_velocity_aiding)
+        if (barometer && !vertical_velocity_aiding && m_parameters.zero_velocity_on_barometer_reset)
         {
             auto const previous_velocity = state.v_n;
             if (geometry == nullptr)
@@ -635,7 +646,7 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
                                    bool vertical_velocity_aiding, state_type & state, covariance_type & covariance,
                                    Result & result, configuration::Ins::BiasUpdate const & bias_update,
                                    Acceleration const & acceleration, bool ground_effect, Geometry const * geometry,
-                                   bool receipt_recent)
+                                   bool receipt_recent, bool numerical_reset_required)
 {
     auto & aid = m_sessions[index(source)];
     bool const barometer = source == Source::barometer;
@@ -664,6 +675,22 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
     value_type const variance = !barometer && m_sessions[index(Source::barometer)].active
                                     ? std::min(sample.variance, m_parameters.maximum_aided_gnss_variance)
                                     : sample.variance;
+    if (numerical_reset_required && (!barometer || receipt_recent))
+    {
+        value_type const observed = barometer ? m_barometer_lpf - aid.bias.value : sample.altitude - aid.bias.value;
+        reset_height(source, now_us, observed, variance + aid.bias.variance, state, covariance, result, geometry);
+        if (!succeeded(result.status))
+        {
+            return;
+        }
+        aid.active = true;
+        aid.stop_reason = StopReason::none;
+        if (m_reference == Source::none)
+        {
+            m_reference = source;
+        }
+        return; // One real reset, no second use as an ordinary correction.
+    }
     if (!aid.active)
     {
         if (barometer && !receipt_recent)
@@ -745,7 +772,7 @@ HeightAiding<Linalg>::update(std::uint64_t now_us, Sample const & barometer, Sam
                              ObservationReceipt const & barometer_receipt, bool vertical_velocity_aiding,
                              state_type & state, covariance_type & covariance,
                              configuration::Ins::BiasUpdate const & bias_update, Acceleration const & acceleration,
-                             bool ground_effect, Geometry const * geometry)
+                             bool ground_effect, Geometry const * geometry, bool numerical_reset_required)
 {
     Result result;
     if (m_started == 0U || now_us < m_started || now_us <= m_tick)
@@ -805,7 +832,7 @@ HeightAiding<Linalg>::update(std::uint64_t now_us, Sample const & barometer, Sam
         }
         candidate.process(source, now_us, source == Source::barometer ? barometer : gnss, vertical_velocity_aiding,
                           next_state, next_covariance, result, bias_update, acceleration, ground_effect, geometry,
-                          receipt_recent);
+                          receipt_recent, numerical_reset_required && result.height_resets == 0);
         if (!succeeded(result.status))
         {
             return Result{result.status};

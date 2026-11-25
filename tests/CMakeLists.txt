@@ -201,6 +201,15 @@ formal_eskf_add_backend_test(test_ins_session runtime/session/test_session forma
 formal_eskf_add_backend_test(test_ins_initialization runtime/session/test_initialization formal_eskf.ins_initialization.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_ins_startup runtime/session/test_startup formal_eskf.ins_startup.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_ins_staged runtime/session/test_staged formal_eskf.ins_staged.eigen formal_eskf::runtime)
+formal_eskf_add_backend_test(test_covariance_guard runtime/session/test_covariance_guard formal_eskf.covariance_guard.eigen formal_eskf::runtime)
+formal_eskf_add_backend_test(test_ins_continuity runtime/session/test_continuity formal_eskf.ins_continuity.eigen formal_eskf::runtime)
+# Debug/sanitizer checks exercise the same forced paths over a short sequence.
+# Release adds a full simulated hour; the registry names the duration explicitly.
+foreach(target IN ITEMS test_ins_continuity test_ins_continuity_px4_matrix test_ins_continuity_cmsis_dsp)
+    if(TARGET ${target})
+        target_compile_definitions(${target} PRIVATE INS_ENDURANCE_SECONDS=$<IF:$<CONFIG:Release>,3600,60>)
+    endif()
+endforeach()
 formal_eskf_add_backend_test(test_output_predictor runtime/session/test_output_predictor formal_eskf.output_predictor.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_observation_history runtime/history/test_observation_history formal_eskf.observation_history.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_magnetometer_fusion runtime/magnetic/test_fusion formal_eskf.magnetometer_fusion.eigen formal_eskf::runtime)

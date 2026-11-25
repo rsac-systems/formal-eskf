@@ -56,6 +56,7 @@ public:
         bad_vertical_acceleration,
         fusion_failed,
         reset_failed,
+        numerical_intervention,
     };
 
     struct Parameters
@@ -72,6 +73,7 @@ public:
         bool ready = false;
         // Caller has established safe startup without another estimator reset.
         bool start_without_reset = false;
+        bool numerical_reset_required = false;
     };
 
     static constexpr std::uint64_t acceleration_reset_delay_us = 500'000U;
@@ -284,6 +286,10 @@ inline void GnssFusion::update_group(GroupState & group, GroupConditions conditi
     {
         return;
     }
+    if (new_sample && accepted && conditions.numerical_reset_required && !group.recovery_required)
+    {
+        request_reset(group, StopReason::numerical_intervention);
+    }
     if (!group.recovery_required && accepted && !group.active && !conditions.start_without_reset)
     {
         request_reset(group, StopReason::initialization_required);
@@ -292,7 +298,8 @@ inline void GnssFusion::update_group(GroupState & group, GroupConditions conditi
     {
         group.action = accepted && (group.stop_reason == StopReason::initialization_required ||
                                     group.stop_reason == StopReason::fusion_timeout ||
-                                    group.stop_reason == StopReason::bad_vertical_acceleration)
+                                    group.stop_reason == StopReason::bad_vertical_acceleration ||
+                                    group.stop_reason == StopReason::numerical_intervention)
                            ? Action::reset
                            : Action::none;
         return;

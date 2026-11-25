@@ -59,7 +59,13 @@ still apply; an action does not execute an estimator operation.
   of actual last fusion, successful reset and caller-authorized session start;
   a never-started group has no progress. A horizontal timeout request retains
   its active session while waiting for reset; it does not restart quality health.
-- Each group's `initialization_required`/`fusion_timeout`/`bad_vertical_acceleration` requests may grant
+- A caller with R-INS-CONTINUITY provenance may request `numerical_intervention`
+  recovery for a qualified new sample. It shall not bypass source freshness,
+  readiness or quality, refresh a successful clock, or override persistent
+  `fusion_failed`/`reset_failed` repair. Actual recovery is acknowledged only after
+  the owning state/P and required history reset succeeds.
+- Each group's `initialization_required`/`fusion_timeout`/`bad_vertical_acceleration`/
+  `numerical_intervention` requests may grant
   `Action::reset` only on a new, accepted, fresh, enabled and ready sample.
   Reset and correction permissions are mutually exclusive. Each update, even
   an invalid one, revokes old reset permission. `record_reset(group, sample, reset_succeeded)`
@@ -122,7 +128,9 @@ still apply; an action does not execute an estimator operation.
   or restart preserves metadata. The controller cannot verify whether an
   external correction/reset actually ran.
 
-ESBMC checks the actual portable controller over arbitrary uint64 times, flags,
+Existing ESBMC profiles check the preceding controller without the new
+numerical-intervention request; rebinding and execution are deferred to V-01.
+Their scope covers arbitrary uint64 times, flags,
 quality/result enums and an initialized, inductively preserved history invariant.
 Construction/reset establish ordered progress and permissions; every public update,
 feedback and restart preserves it. Checks cover exact validation/failure frames,

@@ -91,7 +91,9 @@ neither the defaults nor alternative tuning are flight qualification.
 
 `apply_reset` applies the same left quaternion delta and additive NED velocity /
 position deltas as the main reset, to the current output and every retained record.
-Preserve epochs. Common transforms leave the delayed tracking residuals and their sums
+Preserve epochs. An identity quaternion delta shall preserve the stored quaternion
+coefficients, without unnecessary renormalization during a translation-only reset.
+Common transforms leave the delayed tracking residuals and their sums
 unchanged; preserve them. The caller owns reset counters and must stop on failure. This
 operation is not a coordinate-frame rotation of NED vectors. `reset()` instead clears
 all temporal/tracking state and fault for a new session.

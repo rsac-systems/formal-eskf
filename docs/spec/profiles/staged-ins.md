@@ -159,6 +159,12 @@ recover while a regularized vertical velocity remains unavailable; a future
 height/dynamics convergence contract may supply that recovery. Do not equate
 PX4's local-Z compatibility OR with a separate velocity-convergence proof.
 
+This profile disables the standalone height owner's legacy zero-vertical-velocity
+fallback during barometer recovery. A genuine height reset does not reset unknown
+or regularized velocity. Previously initialized, unregularized vertical velocity
+can retain current real height/dynamics support, with its separate initialization
+and loss clocks.
+
 Stationary zero-velocity/zero-gyro observations and in-flight fake-position/height
 hold are **not enabled** by this policy. They are different assumptions from a
 zero-innovation numerical operation. No permanent second estimator is introduced.

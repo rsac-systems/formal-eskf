@@ -81,12 +81,26 @@ bool InsSession<Linalg, Layout>::reset_output(quaternion_type const & delta_q, v
     auto const before =
         seeded ? body_output()
                : body_output(m_state.p_n - delta_p, m_state.v_n - delta_v, delta_q.inverse() * m_state.q_nb, {});
-    if (!check(before.status) || (seeded && !check_timing(m_output.apply_reset(delta_q, delta_v, delta_p))))
+    BodyOutput after;
+    if (seeded)
     {
-        return false;
+        auto const & current = m_output.current();
+        auto attitude = current.q_nb;
+        bool const identity =
+            delta_q.coefficients()(0) == 1. && linalg::max_abs(delta_q.coefficients().template segment<1, 3>()) == 0.;
+        if (!identity &&
+            !check(so3::compose_normalized(delta_q, current.q_nb, m_parameters.minimum_quaternion_norm, attitude)))
+        {
+            return false;
+        }
+        after = body_output(current.p_n + delta_p, current.v_n + delta_v, attitude, m_output.angular_rate_b());
     }
-    auto const after = seeded ? body_output() : body_output(m_state.p_n, m_state.v_n, m_state.q_nb, {});
-    if (!check(after.status))
+    else
+    {
+        after = body_output(m_state.p_n, m_state.v_n, m_state.q_nb, {});
+    }
+    if (!check(before.status) || !check(after.status) ||
+        (seeded && !check_timing(m_output.apply_reset(delta_q, delta_v, delta_p))))
     {
         return false;
     }
@@ -178,8 +192,8 @@ bool InsSession<Linalg, Layout>::update_imu_health(std::uint8_t accelerometer_cl
 
 template <typename Linalg, typename Layout>
 InsSession<Linalg, Layout>::InsSession(Parameters const & p)
-    : m_parameters(p.estimator), m_startup(p.startup), m_observations(p.observation_timing), m_output(p.output),
-      m_height_aiding(p.height), m_bias_learning(p.bias_learning),
+    : m_parameters(p.estimator), m_startup(p.startup), m_continuity(p.continuity), m_observations(p.observation_timing),
+      m_output(p.output), m_height_aiding(p.height), m_bias_learning(p.bias_learning),
       m_average_imu_interval(p.settings.imu.nominal_interval_s), m_magnetic_model(p.magnetic_lookup_interval_us),
       m_settings(p.settings), m_imu_timing(p.observation_timing.imu)
 {
@@ -195,7 +209,8 @@ InsSession<Linalg, Layout>::InsSession(Parameters const & p)
 template <typename Linalg, typename Layout>
 bool InsSession<Linalg, Layout>::configure_timing(TimingParameters const & timing)
 {
-    return !m_fault && m_time_us == 0 && m_startup.valid() && m_settings.aiding.current_age_us != 0 &&
+    return !m_fault && m_time_us == 0 && m_startup.valid() && m_continuity.valid() &&
+           m_settings.aiding.current_age_us != 0 &&
            m_settings.aiding.maximum_age_us >= m_settings.aiding.current_age_us &&
            m_imu_history.configure(timing, m_imu_timing) && m_observations.configure(timing, Layout::imu_capacity) &&
            m_output.configure(timing) && (!Layout::barometer_aiding || m_height_aiding.configure_timing(timing));
@@ -313,7 +328,7 @@ void InsSession<Linalg, Layout>::process_imu(ImuInput const & sample, std::uint6
     // A failed required-history seed latches a restart fault; no partial estimate is usable.
     if (!check(m_height_aiding.initialize(m_time_us, 0.)) ||
         !check_timing(m_imu_history.seed(sample, arrival_us) && m_observations.seed(seed) &&
-                      m_output.seed(seed_state, m_time_us)))
+                      m_output.seed(seed_state, m_time_us) && m_continuity.seed(m_time_us)))
     {
         return;
     }
@@ -349,6 +364,10 @@ bool InsSession<Linalg, Layout>::complete_fusion(std::optional<typename magnetic
         return false;
     }
     complete_magnetic(model);
+    if (!m_fault && !maintain_continuity())
+    {
+        return false;
+    }
     m_phase = Phase::idle;
     m_model_request = {};
     if (m_fault || !check_timing(m_output.correct(m_time_us, m_state) && m_imu_history.complete(m_time_us)))
@@ -454,6 +473,7 @@ void InsSession<Linalg, Layout>::predict_and_fuse(typename imu_history_type::int
         return;
     }
     select_observations();
+    restrict_bias_learning();
     auto const acceleration_n = formal_eskf::so3::rotate(m_state.q_nb, imu.specific_force_b - m_state.b_a);
     if (m_fault || !check(m_magnetic.heading.update_acceleration(acceleration_n, sample.acceleration_interval_s())))
     {
@@ -525,7 +545,7 @@ void InsSession<Linalg, Layout>::complete_magnetic(
     }
     conditions.ready = !sample.fresh || sample.usable;
     conditions.heading_consistent = m_magnetic.heading.state().consistent;
-    conditions.heading_aligned = m_heading_aligned;
+    conditions.heading_aligned = m_heading_aligned && !m_continuity.state().heading;
     if (!check(m_magnetic.lifecycle.update(m_time_us, conditions, m_settings.magnetic.timing, event)))
     {
         return;
@@ -579,6 +599,15 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::pre
     if constexpr (Layout::magnetic_model)
     {
         bool const attached = m_navigation_frame.initialized();
+        if (attached)
+        {
+            auto const admission = frame_admission(m_state.p_n, m_state.v_n, m_output.current().time_us);
+            if (!admission.within_domain || !admission.within_frame)
+            {
+                m_pending_position_valid = m_pending_origin_updated = false;
+                return;
+            }
+        }
         m_pending_position_valid = attached ? gps_position_valid(m_settings.gnss.maximum_aiding_age_us) : gps_good();
         m_pending_origin_updated = m_origin.time_us > m_mag_model_origin_time;
         bool const initial = m_magnetic_model.reference_id() == 0;

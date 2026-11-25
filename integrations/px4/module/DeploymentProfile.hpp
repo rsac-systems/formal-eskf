@@ -332,10 +332,18 @@ struct InsLayout
 template <typename Session> typename Session::Parameters session_parameters()
 {
     typename Session::Parameters result;
+    result.continuity = {.position_variance_limit = 1e6,
+                         .velocity_variance_limit = 1e6,
+                         .heading_variance_limit = 0.09,
+                         .heading_noise_variance = 0.25,
+                         .heading_interval_us = 200000,
+                         .velocity_limit = 100,
+                         .bias_direction_cosine = 0.966};
     result.startup = startup_parameters<typename Session::startup_type>();
     result.observation_timing = history::observation_timing;
     result.output = output_parameters;
     result.height = height_parameters<typename Session::height_type>();
+    result.height.zero_velocity_on_barometer_reset = false;
     result.gnss_quality = gnss::quality;
     result.magnetic_lookup_interval_us = magnetic::model_interval_us;
     result.settings.projection_radius_m = 6371000.;

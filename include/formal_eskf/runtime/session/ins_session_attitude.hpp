@@ -243,6 +243,7 @@ InsSession<Linalg, Layout>::reset_magnetic_heading(std::uint64_t sample_time_us)
     bool const local_reference = !m_navigation_frame.initialized();
     auto heading = m_magnetic.heading;
     auto tilt = m_tilt_alignment;
+    auto continuity = m_continuity;
     BodyOutput before, after;
     if (succeeded(status) && local_reference)
     {
@@ -267,6 +268,10 @@ InsSession<Linalg, Layout>::reset_magnetic_heading(std::uint64_t sample_time_us)
         }
         if (succeeded(status))
         {
+            status = continuity.rebase(transform.rotation, m_navigation_frame.generation());
+        }
+        if (succeeded(status))
+        {
             status = tilt.rebase(state.q_nb, covariance.template block<6, 6, 3, 3>());
         }
         before = body_output();
@@ -280,13 +285,19 @@ InsSession<Linalg, Layout>::reset_magnetic_heading(std::uint64_t sample_time_us)
         }
     }
     bool const reset = formal_eskf::succeeded(status);
-    auto const feedback = m_magnetic.lifecycle.record_reset(sample_time_us, reset);
+    auto lifecycle = m_magnetic.lifecycle;
+    auto const feedback = lifecycle.record_reset(sample_time_us, reset);
     if (!formal_eskf::succeeded(feedback))
     {
         return feedback;
     }
     if (reset)
     {
+        if (!local_reference && !reset_output(delta, {}, {}, {.attitude = true}))
+        {
+            auto const failure = m_magnetic.lifecycle.record_reset(sample_time_us, false);
+            return succeeded(failure) ? status_type::out_of_range : failure;
+        }
         m_state = state;
         m_covariance = covariance;
         if (local_reference)
@@ -294,12 +305,10 @@ InsSession<Linalg, Layout>::reset_magnetic_heading(std::uint64_t sample_time_us)
             m_output.commit_rebase();
             m_magnetic.heading = heading;
             m_tilt_alignment = tilt;
+            m_continuity = continuity;
             record_output_reset(before, after, {.attitude = true});
         }
-        else if (!reset_output(delta, {}, {}, {.attitude = true}))
-        {
-            return status_type::out_of_range;
-        }
+        m_continuity.recover_heading();
         m_heading_reference_id = m_magnetic_model.reference_id();
         m_heading_reference = m_magnetic_model.heading_source() == magnetic_model_type::HeadingSource::magnetic_north
                                   ? InsCapabilities::HeadingReference::magnetic_north
@@ -311,6 +320,7 @@ InsSession<Linalg, Layout>::reset_magnetic_heading(std::uint64_t sample_time_us)
             ratio.record_reset(sample_time_us);
         }
     }
+    m_magnetic.lifecycle = lifecycle;
     return status;
 }
 

@@ -271,12 +271,17 @@ InsSession<Linalg, Layout>::rebase_navigation(FrameAdmission const & delayed, Fr
     }
     auto heading = m_magnetic.heading;
     auto tilt = m_tilt_alignment;
+    auto continuity = m_continuity;
     status = heading.rebase(candidate.rotation);
     if (formal_eskf::succeeded(status))
     {
         status = tilt.rebase(candidate.state.q_nb, candidate.covariance.template block<6, 6, 3, 3>());
     }
-    if (!formal_eskf::succeeded(status))
+    if (succeeded(status))
+    {
+        status = continuity.rebase(candidate.transform.rotation, m_navigation_frame.generation() + 1);
+    }
+    if (!succeeded(status))
     {
         return status;
     }
@@ -289,6 +294,7 @@ InsSession<Linalg, Layout>::rebase_navigation(FrameAdmission const & delayed, Fr
     m_output.commit_rebase();
     m_magnetic.heading = heading;
     m_tilt_alignment = tilt;
+    m_continuity = continuity;
     m_origin_control.output_axes = m_origin_control.output_axes * linalg::transpose(candidate.transform.rotation);
     return status_type::success;
 }

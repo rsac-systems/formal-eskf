@@ -9,7 +9,8 @@ after the pinned PX4 comparison. This does not establish implementation,
 finite-precision preservation or physical accuracy.
 
 **Applies to:** Staged binary64 INS runtime with the existing 15-error Cartesian
-model. This is a proposed policy, not implemented or flight-qualified behavior.
+model. Production integration and finite native fixtures are available; neither
+implementation nor these fixtures establish flight qualification.
 
 **Parent:** [SW-NAV](../software/navigation-runtime.md).
 
@@ -299,7 +300,15 @@ unbounded stage dispatcher is introduced.
 ## Acceptance and verification
 
 Executable allocation is specified in the [planned staged INS cases](../../verification/staged-ins-tests.md).
-Bindings and execution evidence remain pending.
+The [continuity bindings](../../verification/tests/runtime/ins-continuity.md)
+identify implemented finite fixtures and remaining qualification/proof boundaries.
+The implementation uses two-pass orthogonalization to transport affected spans.
+Its dimensionless rank/separation resolution is 128 scalar machine epsilons;
+for binary64 this is approximately 2.84e-14, not a physical angle, sensor gate or
+confidence threshold. It discards only geometric roundoff at that resolution.
+Arbitrary ill-conditioned frame histories and uniform IEEE error bounds remain
+formal/numerical qualification obligations. Every nonzero effective gain first
+marks its whole local basis direction, regardless of the gain's magnitude.
 
 - Prove the exact constrained-Joseph PSD and protected-marginal identities; check
   full 15-by-15 floating-point results against an independent dense oracle with

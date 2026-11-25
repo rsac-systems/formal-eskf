@@ -959,6 +959,11 @@ public:
         expect(!session.height_aiding().session(FormalEskf::height_type::Source::gnss).active,
                "stop height source before testing its real reset");
         auto const output = session.m_output.current();
+        auto const prior = session.state();
+        auto const covariance = session.covariance();
+        auto const progress = session.height_aiding().progress_time();
+        auto const reference = session.height_aiding().reference();
+        auto const diagnostic_time = f.m_height_ratios[1].time_us;
         auto const resets = session.resets().height_count;
         auto const published = f.m_last_output;
         // The public output owner latches a numerical fault without modifying
@@ -975,18 +980,20 @@ public:
         session.fuse_height(test.navigation_receipt());
         auto const event = session.m_innovations.height[1];
         f.update_innovations();
-        expect(session.fault() && event.reset && session.height_aiding().progress_time() == clock_us &&
-                   session.height_aiding().reference() == FormalEskf::height_type::Source::gnss,
-               "a later output failure cannot undo an already committed height-owner reset");
+        expect(session.fault() && !event.reset && session.height_aiding().progress_time() == progress &&
+                   session.height_aiding().reference() == reference &&
+                   formal_eskf::linalg::max_abs(session.state().p_n - prior.p_n) == 0 &&
+                   formal_eskf::linalg::max_abs(session.covariance() - covariance) == 0,
+               "staged height recovery commits neither main state nor owner when output preparation fails");
         expect(session.resets().height_count == resets && f.m_last_output == published &&
                    formal_eskf::linalg::max_abs(session.m_output.current().p_n - output.p_n) == 0 &&
                    session.m_output.current().time_us == output.time_us && !session.output_validity(clock_us).healthy,
                "failed output dependency preserves its history/counters and withdraws usable output");
-        expect(f.m_height_ratios[1].filtered == 0. && f.m_height_ratios[1].time_us == event.time_us,
-               "committed height diagnostic reset is consumed despite the later participant failure");
+        expect(f.m_height_ratios[1].time_us == diagnostic_time,
+               "failed staged recovery cannot publish a successful reset diagnostic");
         auto const repeated = session.take_innovations();
         expect(!repeated.height[1].reset && !repeated.height[1].measurement,
-               "adapter consumes the committed event once");
+               "failed recovery does not leave a consumable success event");
     }
 
     static void navigation_rejected_quality()
@@ -2825,7 +2832,8 @@ public:
         if (scenario == CapabilityCase::height_only || scenario == CapabilityCase::no_aiding)
         {
             f.m_session.m_gnss.lifecycle.reset();
-            horizontal = horizontal_velocity = vertical_velocity = false;
+            horizontal = horizontal_velocity = false;
+            vertical_velocity = scenario == CapabilityCase::height_only;
         }
         if (scenario == CapabilityCase::horizontal_only || scenario == CapabilityCase::velocity_without_height ||
             scenario == CapabilityCase::no_aiding)
@@ -2857,7 +2865,9 @@ public:
             ++f.m_session.m_gnss.generation; // Delayed source no longer matches the selected receiver generation.
             horizontal = horizontal_velocity = vertical_velocity = false;
             height = f.m_session.m_height_aiding.session(FormalEskf::height_type::Source::barometer).active;
-            vertical_velocity = false;
+            // A previously initialized vertical velocity retains independent
+            // height/dynamics support through a GNSS source change.
+            vertical_velocity = height;
         }
         if (scenario == CapabilityCase::no_tilt)
         {

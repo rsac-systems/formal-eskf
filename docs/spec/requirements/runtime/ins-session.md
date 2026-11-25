@@ -74,7 +74,13 @@ Numerical/history faults shall latch until session replacement. Observation
 rejection alone shall not latch that fault. The whole callback is not atomic:
 earlier state, history, source, configuration or publication effects retain their
 specified commits when a later stage fails. Origin migration and staged first
-attachment retain their coordinated prepare/commit boundary. Report counters, status and reset deltas from
+attachment retain their coordinated prepare/commit boundary. Staged navigation,
+height and heading recovery also prepare the required output/history effects
+before committing matching main state/P and successful owner progress. Failure
+preserves those reset participants; earlier real corrections and independent
+datum/reference changes keep their own commits. This strengthens the former
+height-owner-then-output sequence, without making the whole callback atomic.
+Report counters, status and reset deltas from
 the actual owners; diagnostic formatting and logging remain adapter responsibilities.
 
 Under the [diagnostic-reporting target](diagnostics.md), expose coherent owner

@@ -82,6 +82,10 @@ InsCapabilities InsSession<Linalg, Layout>::capabilities(std::uint64_t now_us) c
                                       : 0;
     auto const height_time = std::max(barometer_time, gnss_height_time);
     result.vertical_position = translation(height_time, height_time != 0);
+    if (m_velocity_seed_time_us != 0)
+    {
+        result.vertical_velocity = translation(std::max(velocity_time, height_time), m_navigation_frame.initialized());
+    }
     if (m_navigation_frame.initialized())
     {
         auto const delayed = frame_admission(m_state.p_n, m_state.v_n, result.output_time_us);
@@ -98,6 +102,37 @@ InsCapabilities InsSession<Linalg, Layout>::capabilities(std::uint64_t now_us) c
                 capability->available = capability->aided = false;
             }
         }
+    }
+    bool const gnss_aiding = gnss_current && gps_good();
+    result.horizontal_position.aided &= gnss_aiding && gnss.horizontal_position.active;
+    result.horizontal_velocity.aided &= gnss_aiding && gnss.velocity.active;
+    result.vertical_position.aided &=
+        (m_height_aiding.barometer_aiding(m_observations.barometer_receipt()) &&
+         age_less(barometer_time, m_settings.aiding.current_age_us)) ||
+        (gnss_aiding && height_gnss.active && age_less(gnss_height_time, m_settings.aiding.current_age_us));
+    result.vertical_velocity.aided &= (gnss_aiding && gnss.velocity.active) || result.vertical_position.aided;
+    auto const B = continuity_basis();
+    auto const & numerical = m_continuity.state();
+    auto withdraw = [](InsCapabilities::Capability & capability)
+    {
+        capability.available = capability.aided = false;
+        capability.reasons |= InsCapabilities::regularized;
+    };
+    for (std::size_t axis = 0; axis < 3; ++axis)
+    {
+        auto const direction = continuity_type::direction(B, axis);
+        if (numerical.position.affected(direction))
+        {
+            withdraw(axis == 2 ? result.vertical_position : result.horizontal_position);
+        }
+        if (numerical.velocity.affected(direction))
+        {
+            withdraw(axis == 2 ? result.vertical_velocity : result.horizontal_velocity);
+        }
+    }
+    if (numerical.heading)
+    {
+        withdraw(result.heading);
     }
     result.global_position = result.horizontal_position;
     result.msl_altitude = result.vertical_position;

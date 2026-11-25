@@ -185,8 +185,9 @@ arming/failsafe checks or force validity to pass these scenarios.
 
 ## Open decisions
 
-The selected continuity and attachment policies still need implementation,
-floating-point, mission/error and actual consumer evidence. Application-specific
+The selected continuity and attachment policies are implemented with finite
+native fixtures and pinned PX4 consumer cases. Uniform floating-point bounds,
+mission/error coverage and target resource/consumer qualification remain open. Application-specific
 accuracy budgets belong to deployment qualification. These gaps do not waive
 required service or permit a shared numerical fault to stand in for degraded
 operation. The profile distinguishes numerical triggers, support/loss timers

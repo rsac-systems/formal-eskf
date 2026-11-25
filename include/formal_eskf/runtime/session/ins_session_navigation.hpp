@@ -201,6 +201,19 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::fus
                                   m_navigation_frame.working().initialized();
     conditions.horizontal_position = {.enabled = true, .ready = navigation_ready};
     conditions.velocity = conditions.horizontal_position;
+    if (navigation_ready)
+    {
+        geodesy::NedTransform<backend_type> observation_frame;
+        if (!check(gnss_frame(observation_frame)))
+        {
+            return;
+        }
+        auto const & intervention = m_continuity.state();
+        conditions.horizontal_position.numerical_reset_required =
+            intervention.position.affected(continuity_type::direction(observation_frame.rotation, 0)) ||
+            intervention.position.affected(continuity_type::direction(observation_frame.rotation, 1));
+        conditions.velocity.numerical_reset_required = !intervention.velocity.empty();
+    }
     // HeightAiding manages the two height sources separately from horizontal aiding.
     if (!check(m_gnss.lifecycle.update(m_time_us, conditions, m_settings.gnss.timing, m_gnss.sample)))
     {
@@ -297,20 +310,27 @@ bool InsSession<Linalg, Layout>::fuse_gps_velocity(GnssVelocityObservation const
     if (m_gnss.lifecycle.state().velocity.action == GnssFusion::Action::reset)
     {
         vector3_type delta;
-        auto const prior_velocity = m_state.v_n;
-        auto const status =
-            reset_navigation_in_frame(m_state, m_covariance, observation.frame, NavigationReset::velocity, velocity,
-                                      velocity_variances, m_parameters.minimum_quaternion_norm, delta);
-        if (!check(m_gnss.lifecycle.record_reset(Group::velocity, m_gnss.sample.time_us,
-                                                 formal_eskf::succeeded(status))) ||
-            !check(status))
+        auto next_state = m_state;
+        auto next_covariance = m_covariance;
+        auto continuity = m_continuity;
+        auto lifecycle = m_gnss.lifecycle;
+        auto status =
+            reset_navigation_in_frame(next_state, next_covariance, observation.frame, NavigationReset::velocity,
+                                      velocity, velocity_variances, m_parameters.minimum_quaternion_norm, delta);
+        if (succeeded(status))
+        {
+            status = continuity.recover_velocity(observation.frame.rotation, {true, true, true});
+        }
+        if (!check(status) || !check(lifecycle.record_reset(Group::velocity, m_gnss.sample.time_us, true)) ||
+            !reset_output({}, next_state.v_n - m_state.v_n, {}, {.velocity = true, .vertical_velocity = true}))
         {
             return false;
         }
-        if (!reset_output({}, m_state.v_n - prior_velocity, {}, {.velocity = true, .vertical_velocity = true}))
-        {
-            return false;
-        }
+        m_state = next_state;
+        m_covariance = next_covariance;
+        m_continuity = continuity;
+        m_gnss.lifecycle = lifecycle;
+        m_velocity_seed_time_us = m_time_us;
 
         for (auto & ratio : m_innovations.velocity)
         {
@@ -342,17 +362,20 @@ bool InsSession<Linalg, Layout>::fuse_gps_velocity(GnssVelocityObservation const
         if (m_height_aiding.reset_required(m_time_us, {health.last_update_time_us, health.last_good_time_us}))
         {
             vector3_type delta;
-            auto const prior_velocity = m_state.v_n;
-            if (!check(reset_navigation_in_frame(m_state, m_covariance, observation.frame,
+            auto next_state = m_state;
+            auto next_covariance = m_covariance;
+            auto continuity = m_continuity;
+            if (!check(reset_navigation_in_frame(next_state, next_covariance, observation.frame,
                                                  NavigationReset::vertical_velocity, velocity, velocity_variances,
-                                                 m_parameters.minimum_quaternion_norm, delta)))
+                                                 m_parameters.minimum_quaternion_norm, delta)) ||
+                !check(continuity.recover_velocity(observation.frame.rotation, {false, false, true})) ||
+                !reset_output({}, next_state.v_n - m_state.v_n, {}, {.vertical_velocity = true}))
             {
                 return false;
             }
-            if (!reset_output({}, m_state.v_n - prior_velocity, {}, {.vertical_velocity = true}))
-            {
-                return false;
-            }
+            m_state = next_state;
+            m_covariance = next_covariance;
+            m_continuity = continuity;
 
             // A Down-only reset preserves this attempt's selected velocity diagnostics.
         }
@@ -385,20 +408,26 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::fus
     if (m_gnss.lifecycle.state().horizontal_position.action == GnssFusion::Action::reset)
     {
         vector3_type delta;
-        auto const prior_position = m_state.p_n;
-        auto const status = reset_navigation_in_frame(
-            m_state, m_covariance, frame, NavigationReset::horizontal_position, vector3(xy(0), xy(1), 0),
+        auto next_state = m_state;
+        auto next_covariance = m_covariance;
+        auto continuity = m_continuity;
+        auto lifecycle = m_gnss.lifecycle;
+        auto status = reset_navigation_in_frame(
+            next_state, next_covariance, frame, NavigationReset::horizontal_position, vector3(xy(0), xy(1), 0),
             vector3(position_variance, position_variance, 0), m_parameters.minimum_quaternion_norm, delta);
-        if (!check(m_gnss.lifecycle.record_reset(Group::horizontal_position, m_gnss.sample.time_us,
-                                                 formal_eskf::succeeded(status))) ||
-            !check(status))
+        if (succeeded(status))
+        {
+            status = continuity.recover_position(frame.rotation, {true, true, false});
+        }
+        if (!check(status) || !check(lifecycle.record_reset(Group::horizontal_position, m_gnss.sample.time_us, true)) ||
+            !reset_output({}, {}, next_state.p_n - m_state.p_n, {.horizontal_position = true}))
         {
             return false;
         }
-        if (!reset_output({}, {}, m_state.p_n - prior_position, {.horizontal_position = true}))
-        {
-            return false;
-        }
+        m_state = next_state;
+        m_covariance = next_covariance;
+        m_continuity = continuity;
+        m_gnss.lifecycle = lifecycle;
 
         for (auto & ratio : m_innovations.position)
         {
@@ -502,6 +531,14 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::upd
 template <typename Linalg, typename Layout>
 void InsSession<Linalg, Layout>::fuse_height(ObservationReceipt const & barometer_receipt)
 {
+    if (m_navigation_frame.initialized())
+    {
+        auto const admission = frame_admission(m_state.p_n, m_state.v_n, m_output.current().time_us);
+        if (!admission.within_domain || !admission.within_frame)
+        {
+            return;
+        }
+    }
     auto const & gps = m_gnss.input.sample;
     using Source = typename height_type::Source;
     typename height_type::Sample const barometer{m_barometer.time_us,
@@ -560,15 +597,24 @@ void InsSession<Linalg, Layout>::fuse_height(ObservationReceipt const & baromete
                                                           {health.last_update_time_us, health.last_good_time_us}};
     typename height_type::Geometry const geometry{m_navigation_frame.working(), m_height_datum,
                                                   m_origin_control.relative_height_ellipsoid_m};
-    auto const result = m_height_aiding.update(m_time_us, barometer, gnss, barometer_receipt,
-                                               m_gnss.lifecycle.state().velocity.active, m_state, m_covariance,
-                                               m_bias_learning_result.bias_update, acceleration, m_ground_effect.active,
-                                               m_navigation_frame.working().initialized() ? &geometry : nullptr);
+    auto const basis = continuity_basis();
+    auto continuity = m_continuity;
+    bool const numerical_reset = continuity.state().position.affected(continuity_type::direction(basis, 2));
+    auto height_owner = m_height_aiding;
+    auto next_state = m_state;
+    auto next_covariance = m_covariance;
+    auto const result = height_owner.update(
+        m_time_us, barometer, gnss, barometer_receipt, m_gnss.lifecycle.state().velocity.active, next_state,
+        next_covariance, m_bias_learning_result.bias_update, acceleration, m_ground_effect.active,
+        m_navigation_frame.working().initialized() ? &geometry : nullptr, numerical_reset);
     if (!check(result.status))
     {
         return;
     }
-    m_innovations.height = result.diagnostics;
+    if (result.height_resets != 0 && !check(continuity.recover_position(basis, {false, false, true})))
+    {
+        return;
+    }
     if ((result.height_resets != 0 || result.velocity_resets != 0) &&
         !reset_output({}, result.velocity_delta_n, result.position_delta_n,
                       {.vertical_velocity = result.velocity_resets != 0,
@@ -576,6 +622,11 @@ void InsSession<Linalg, Layout>::fuse_height(ObservationReceipt const & baromete
     {
         return;
     }
+    m_state = next_state;
+    m_covariance = next_covariance;
+    m_height_aiding = height_owner;
+    m_continuity = continuity;
+    m_innovations.height = result.diagnostics;
     m_statistics.rejections += result.rejected;
     auto const & baro = m_height_aiding.session(Source::barometer);
     auto const & gnss_session = m_height_aiding.session(Source::gnss);

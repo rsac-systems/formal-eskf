@@ -309,6 +309,25 @@ void height_progress(TestContext & test, std::string_view profile)
 
 void reset_feedback(TestContext & test, std::string_view profile)
 {
+    for (auto const & entry : groups)
+    {
+        Fixture f;
+        test.expect(f.update(1000, {1000, GnssQualityDecision::accepted}) == Status::success, profile,
+                    "active real source before numerical-intervention request");
+        (f.conditions.*entry.conditions).numerical_reset_required = true;
+        test.expect(f.update(1001, {1001, GnssQualityDecision::waiting}) == Status::success &&
+                        (f.monitor.state().*entry.state).action == Action::none,
+                    profile, "numerical intervention cannot bypass real source qualification");
+        test.expect(f.update(1002, {1002, GnssQualityDecision::accepted}) == Status::success &&
+                        (f.monitor.state().*entry.state).action == Action::reset &&
+                        (f.monitor.state().*entry.state).stop_reason == StopReason::numerical_intervention,
+                    profile, "qualified new sample requests a genuine observed-subspace reset");
+        test.expect(f.monitor.record_reset(entry.group, 1002, false) == Status::success &&
+                        f.update(1003, {1003, GnssQualityDecision::accepted}) == Status::success &&
+                        (f.monitor.state().*entry.state).action == Action::none &&
+                        (f.monitor.state().*entry.state).stop_reason == StopReason::reset_failed,
+                    profile, "intervention request cannot override persistent reset failure or auto-repair state");
+    }
     enum class Inhibition
     {
         no_sample,
@@ -1255,6 +1274,7 @@ void repair_persistence(TestContext & test, std::string_view profile)
             (f.conditions.*g.conditions).enabled = step != 0;
             (f.conditions.*g.conditions).ready = step != 1;
             (f.conditions.*g.conditions).start_without_reset = step == 3;
+            (f.conditions.*g.conditions).numerical_reset_required = true;
             auto const before_conditions = f.conditions;
             auto const before_parameters = f.parameters;
             GnssFusion::Sample const sample{1001U + step, GnssQualityDecision::accepted};

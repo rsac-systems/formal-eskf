@@ -14,7 +14,10 @@ Legacy log replay retains its separate scheduling; it has not been migrated.
 The [staged INS profile](../spec/profiles/staged-ins.md) keeps one full INS and
 independently qualifies tilt, heading and navigation. IMU seed, real gravity
 refinement, partial output and first geographic attachment are integrated.
-Numerical continuity and complete source-loss qualification remain A-03 work.
+Numerical covariance guards, aiding-based bias permissions, intervention provenance
+and genuine observed-subspace reset recovery are integrated. They preserve the
+full INS and cannot qualify unavailable navigation from artificially small P.
+Physical/target qualification and deferred formal evidence remain separate.
 The [contract allocation](../spec/architecture/navigation-runtime.md#staged-service-allocation)
 separates runtime support from application mode acceptance.
 
@@ -37,7 +40,8 @@ output. It is an API example, not a dataset accuracy benchmark. The separate
 settings; copying them does not qualify a real sensor or vehicle.
 The layout can exclude barometer aiding at compile time; then startup requires
 no barometric sample and pressure/altitude receive calls have no effects.
-GNSS and magnetic startup prerequisites remain until staged INS is implemented.
+IMU seeding requires neither GNSS nor magnetic input. Geographic attachment
+waits for qualified true-North and GNSS evidence; MSL also requires its own datum.
 
 ## Application responsibilities
 
@@ -84,7 +88,10 @@ snapshot under application-owned synchronization for concurrent readers. A callb
 is not a transaction: earlier successful phases/publications survive later
 failure. Numerical/history faults latch until session replacement. Observation
 rejection alone does not require restart. The core's individual atomic operations
-and coordinated origin transaction keep their existing boundaries.
+and coordinated origin transaction keep their own boundaries. Staged navigation,
+height and heading resets prepare matching current-output/history changes before
+committing their main state/P, owner progress and intervention recovery. Earlier
+independent corrections or datum updates are not rolled back.
 
 ## Resource and evidence boundary
 

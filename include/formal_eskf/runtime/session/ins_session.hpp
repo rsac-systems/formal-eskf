@@ -8,6 +8,7 @@
 #include <formal_eskf/runtime/session/ins_settings.hpp>
 #include <formal_eskf/runtime/session/ins_startup.hpp>
 #include <formal_eskf/runtime/session/ins_capabilities.hpp>
+#include <formal_eskf/runtime/session/ins_continuity.hpp>
 #include <formal_eskf/runtime/session/output_predictor.hpp>
 #include <formal_eskf/runtime/history/observation_history.hpp>
 #include <formal_eskf/runtime/sensors/height/height_aiding.hpp>
@@ -58,6 +59,7 @@ public:
     using magnetic_model_type = formal_eskf::runtime::MagneticModel<backend_type>;
 
     using startup_type = formal_eskf::runtime::InsStartup<backend_type>;
+    using continuity_type = formal_eskf::runtime::InsContinuity<backend_type>;
 
     using ImuSource = formal_eskf::runtime::ImuSource;
     using ImuInput = formal_eskf::runtime::ImuInput<backend_type>;
@@ -235,6 +237,7 @@ public:
         InsSettings settings{};
         typename types_type::parameter_type estimator{};
         typename startup_type::Parameters startup{};
+        typename continuity_type::Parameters continuity{};
         ObservationTiming observation_timing{};
         OutputParameters output{};
         typename height_type::Parameters height{};
@@ -345,6 +348,7 @@ public:
     magnetic_model_type const & magnetic_model() const { return m_magnetic_model; }
     Gnss const & gnss_state() const { return m_gnss; }
     bool fault() const { return m_fault; }
+    typename continuity_type::State const & continuity_state() const { return m_continuity.state(); }
 
     bool recent(uint64_t sample, uint64_t max_age) const;
     bool gps_good() const;
@@ -423,6 +427,10 @@ private:
                                              magnetic_lifecycle_type::Sample & event);
     bool fuse_magnetic_observation(MagneticSample const & sample);
     status_type reset_magnetic_heading(std::uint64_t sample_time_us);
+    matrix3_type continuity_basis() const;
+    void restrict_bias_learning();
+    bool maintain_continuity();
+    bool limit_velocity(matrix3_type const & basis, vector3_type const & velocity, std::array<bool, 3> const & limited);
     static double frame_angle(matrix3_type const & A);
     matrix3_type delayed_output_axes() const;
     bool output_frame_supported(vector3_type const & position, geodesy::GeodeticPosition const & geographic,
@@ -439,6 +447,8 @@ private:
     covariance_type m_covariance{};
     typename types_type::parameter_type m_parameters;
     startup_type m_startup;
+    continuity_type m_continuity;
+    std::uint64_t m_velocity_seed_time_us{};
     imu_history_type m_imu_history{};
     observation_history_type m_observations;
     output_predictor_type m_output;
@@ -495,3 +505,5 @@ private:
 #include <formal_eskf/runtime/session/ins_session_steps.hpp>
 
 #include <formal_eskf/runtime/session/ins_session_capabilities.hpp>
+
+#include <formal_eskf/runtime/session/ins_session_continuity.hpp>

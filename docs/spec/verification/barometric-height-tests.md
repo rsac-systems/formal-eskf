@@ -107,9 +107,10 @@ barometer lever-arm compensation and a QNH-specific control mechanism are exclud
 
 Draft allocation; the linked executable families retain their own bindings and
 limits. Rows still marked Pending are not execution results. In `height_output_failure`,
-the height tick commits before a separate output dependency fails. Its committed
-raw event remains reportable, but output history/reset counters are not partially
-updated and usable output is withdrawn. This is not a whole-cycle rollback or
-staged geographic-attachment acceptance claim. Numerical
+the staged session prepares the height owner/state/P and output dependency before
+committing the reset. A failed output participant preserves those owners and emits
+no successful-reset event; usable output is withdrawn. Earlier independent stages
+retain their commits. This strengthens the former owner-then-output failure
+boundary, without claiming whole-cycle rollback or geographic-attachment acceptance. Numerical
 and physical qualification gaps remain explicit. Self-review and commit permission
 do not promote this family or its requirements to Approved.
