@@ -42,15 +42,15 @@ bound through `DeploymentProfile`/`DeploymentConfig`, not live `EKF2_*` reads:
 | Barometer / GNSS missing-data timeout | 400 ms / 1 s; equality expired |
 | Owner barometer / GNSS maximum sample age | 200 ms / 500 ms; strict upper bound |
 | Admissible altitude | Strictly between -12000 and 100000 m |
-| Barometer warmup / LPF | More than 20 selected valid events / gain 0.1 |
+| Barometer warmup / LPF | Effective-timing count N; default N=50 at 4 ms / 200 ms; start after count>N / gain 0.1 |
 | Recovery Down-velocity variance | 10 (m/s)² |
 | Bias initial ceiling / interval | 2 m² / 0.01 s |
 | Bias process density / variance floor / measurement floor | `(0.13)²` m²/s / `1e-8` m² / `1e-4` m² |
 | Bias gate / persistent-offset multiplier | 3 sigma / 1000 |
 | Bias signed-ratio threshold / one-sided time / LPF time | 0.2 / 10 s / 10 s |
 
-The warmup/LPF binding follows the pinned PX4 v1.16.2 200 ms / 10 ms / 90 ms
-reference defaults, but counts selected events rather than arrivals or wall time.
+Warmup uses the pinned PX4 buffer-count formula under our effective timing,
+counting selected valid events rather than IMU ticks. The LPF gain remains 0.1.
 Bias prediction uses the estimator tick; this is not a bit-identical EKF2 bias claim.
 The independent acceleration reset predicate remains owned by
 R-GNSS-VERTICAL-RECOVERY, separately from the held fault duration.

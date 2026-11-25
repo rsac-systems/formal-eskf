@@ -179,6 +179,8 @@ void phases(Context & test, std::string_view profile)
 void stationary(Context & test, std::string_view profile)
 {
     Fixture f;
+    test.expect(f.configured && f.session.height_aiding().barometer_warmup_samples() == 50, profile,
+                "effective 4 ms / 200 ms timing, independent of reserved 64-entry IMU capacity");
     test.expect(f.configured && f.run(3500) && f.session.initialized(), profile, "complete standalone session runs");
     auto const & s = f.session;
     test.expect(s.statistics().predictions > 500, profile, "scenario executes delayed prediction");

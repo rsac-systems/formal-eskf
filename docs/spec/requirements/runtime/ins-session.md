@@ -40,7 +40,8 @@ capacities before processing IMU samples. Settings are copied into their owners;
 startup configuration shall not change after the first admitted estimator epoch.
 The initialization-settings check validates the bootstrap settings only, not the
 whole profile. Timing configuration retains the ordered IMU/observation/output
-component checks and their individual commits. Adapter setting validation and
+component checks and their individual commits, then binds the height owner
+warmup count from the same effective period and nominal delay. Adapter setting validation and
 earlier successful assignments are not rolled back by later setting rejection.
 
 One session shall own the main state/P, initialization, delayed histories, current

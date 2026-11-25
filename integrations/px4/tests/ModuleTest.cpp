@@ -498,7 +498,8 @@ public:
     void start_navigation()
     {
         prepare_navigation();
-        for (unsigned i = 0U; i < 23U; ++i)
+        auto const samples = m_filter.m_session.m_height_aiding.barometer_warmup_samples() + 3U;
+        for (unsigned i = 0U; i < samples; ++i)
         {
             navigation_tick();
         }
@@ -3267,17 +3268,20 @@ public:
         auto const handle = param_find("FESKF_DELAY_MS");
         std::int32_t maximum = 239;
         param_set_no_notification(handle, &maximum);
-        expect(test.m_filter.init() && test.m_filter.m_session.m_imu_history.configuration().imu_length == 64,
-               "largest supported millisecond delay uses all 64 fixed slots");
+        expect(test.m_filter.init() && test.m_filter.m_session.m_imu_history.configuration().imu_length == 64 &&
+                   test.m_filter.m_session.m_height_aiding.barometer_warmup_samples() == 60,
+               "239 ms / 4 ms requires 60 warmup events, independently of 64 reserved history slots");
         std::int32_t normal = 200;
         param_set_no_notification(handle, &normal);
-        expect(test.m_filter.init(), "restore the default history length before warmup");
+        expect(test.m_filter.init() && test.m_filter.m_session.m_height_aiding.barometer_warmup_samples() == 50,
+               "restore default 200 ms / 4 ms warmup count before initialization");
         test.warmup();
         param_set_no_notification(handle, &maximum);
         test.m_sample.timestamp_sample += 4000U;
         test.tick();
         expect(!test.m_filter.m_session.m_fault &&
                    test.m_filter.m_session.m_imu_history.configuration().imu_length == 54 &&
+                   test.m_filter.m_session.m_height_aiding.barometer_warmup_samples() == 50 &&
                    test.m_filter.m_session.m_output.current().time_us - test.m_filter.m_session.m_time_us == 212000U,
                "running parameter changes cannot resize or retime histories");
         param_set_no_notification(handle, &normal);

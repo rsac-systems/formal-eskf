@@ -744,6 +744,86 @@ void prior_case(Context & test, std::string_view profile)
     }
 }
 
+template <typename Linalg> void warmup_timing(Context & test)
+{
+    using F = HeightFixture<Linalg>;
+    using T = typename F::value_type;
+    using A = typename F::aiding_type;
+    using Source = typename A::Source;
+    struct TimingCase
+    {
+        std::int32_t period_us, delay_ms;
+        unsigned count;
+    };
+    TimingCase const cases[]{{4000, 200, 50}, {4000, 201, 51}, {10000, 200, 20},
+                             {10000, 10, 2},  {10000, 5, 1},   {6000, 2, 1}};
+    for (auto const & scenario : cases)
+    {
+        A aiding{height_parameters<T>()};
+        formal_eskf::runtime::TimingParameters timing{scenario.period_us, scenario.delay_ms, 0, 0, 0};
+        test.expect(aiding.configure_timing(timing) && aiding.barometer_warmup_samples() == scenario.count, "warmup",
+                    "independent rational count including round-half-up boundary");
+        for (auto const & invalid : {formal_eskf::runtime::TimingParameters{0, 200, 0, 0, 0},
+                                     formal_eskf::runtime::TimingParameters{4000, -1, 0, 0, 0},
+                                     formal_eskf::runtime::TimingParameters{6001, 2, 0, 0, 0},
+                                     formal_eskf::runtime::TimingParameters{1, INT_MAX, 0, 0, 0}})
+        {
+            test.expect(!aiding.configure_timing(invalid) && aiding.barometer_warmup_samples() == scenario.count,
+                        "warmup", "invalid or unrepresentable count preserves previous settings");
+        }
+        std::uint64_t now = 1000000;
+        typename A::state_type state;
+        auto P = A::covariance_type::identity();
+        test.expect(aiding.initialize(now, T{500}) == Status::success && !aiding.configure_timing(timing), "warmup",
+                    "timing freezes on initialization");
+        typename A::Sample sample;
+        for (unsigned count = 1; count <= scenario.count + 3; ++count)
+        {
+            now += 20000;
+            sample = {now, 1, 0, T{550}, T{4}};
+            auto const result = aiding.update(now, sample, {}, true, state, P);
+            test.expect(result.status == Status::success &&
+                            aiding.session(Source::barometer).active == (count > scenario.count),
+                        "warmup", "start only after N valid selected events, then remain active");
+            auto const duplicate = aiding.update(++now, sample, {}, true, state, P);
+            test.expect(duplicate.status == Status::success && duplicate.fused == 0 &&
+                            aiding.session(Source::barometer).active == (count > scenario.count),
+                        "warmup", "repeated event cannot shorten qualification or fuse twice");
+            if (count == 1 && scenario.count > 1)
+            {
+                sample = {now + 1, 1, 0, T{550}, T{4}};
+                now = sample.time_us + height_parameters<T>().barometer_maximum_age_us;
+                auto const stale = aiding.update(now, sample, {}, true, state, P);
+                test.expect(stale.status == Status::success && stale.rejected == 1, "warmup",
+                            "stale event is not a warmup sample");
+                sample.time_us = ++now;
+                sample.altitude = std::numeric_limits<T>::quiet_NaN();
+                auto const invalid = aiding.update(now, sample, {}, true, state, P);
+                test.expect(invalid.status == Status::success && invalid.rejected == 1, "warmup",
+                            "invalid altitude is not a warmup sample");
+                sample.time_us = now + 1000;
+                sample.altitude = T{550};
+                auto const future = aiding.update(++now, sample, {}, true, state, P);
+                test.expect(future.status == Status::success && future.fused == 0, "warmup",
+                            "future event waits without qualification");
+            }
+        }
+        test.expect(aiding.barometer_warmup_samples() == scenario.count, "warmup", "runtime never changes the bound");
+    }
+}
+
+void warmup_case(Context & test, std::string_view profile)
+{
+    if (profile == "binary32")
+    {
+        warmup_timing<formal_eskf::test::Backend<float>>(test);
+    }
+    else
+    {
+        warmup_timing<formal_eskf::test::Backend<double>>(test);
+    }
+}
+
 void management_case(Context & test, std::string_view profile)
 {
     if (profile == "binary32")
@@ -764,9 +844,13 @@ int main(int argc, char ** argv)
 {
     formal_eskf::test::configure_backend_test();
     formal_eskf::test::Case const cases[]{
-        {"TC-R-HEIGHT-AIDING-01", "binary32", management_case}, {"TC-R-HEIGHT-AIDING-01", "binary64", management_case},
-        {"TC-R-HEIGHT-AIDING-02", "binary64", geographic_case}, {"TC-R-HEIGHT-AIDING-BARO-04", "binary32", prior_case},
+        {"TC-R-HEIGHT-AIDING-01", "binary32", management_case},
+        {"TC-R-HEIGHT-AIDING-01", "binary64", management_case},
+        {"TC-R-HEIGHT-AIDING-02", "binary64", geographic_case},
+        {"TC-R-HEIGHT-AIDING-BARO-04", "binary32", prior_case},
         {"TC-R-HEIGHT-AIDING-BARO-04", "binary64", prior_case},
+        {"TC-R-HEIGHT-AIDING-BARO-05", "binary32", warmup_case},
+        {"TC-R-HEIGHT-AIDING-BARO-05", "binary64", warmup_case},
     };
     return formal_eskf::test::run_cases(cases, argc, argv);
 }

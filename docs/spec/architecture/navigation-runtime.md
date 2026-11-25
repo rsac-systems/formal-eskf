@@ -93,7 +93,7 @@ prediction, Joseph correction or quaternion conventions. Requirements are
 |---|---|
 | Driver/adapter | Calibrated Pa or existing model altitude, selected source/calibration identity, effective/receipt times and sensor-domain premises. PX4 retains `baro_alt_meter`; it does not reconvert or fuse pressure from the same sample separately. |
 | Runtime sensor conversion | Bounded pure pressure/model-altitude admission and failure-preserved output under `sensors/height/`; no clocks, bias history, QNH watcher or platform access. |
-| Runtime observation preparation | One common height helper under the existing fusion/frame boundary; relative or geographic prediction, prior offset, Down residual and Jacobian. No duplicated caller sign/reference arithmetic. |
+| Runtime observation preparation | Common height preparation under `sensors/height/`, reusing fusion/frame geometry; relative or geographic prediction, prior offset, Down residual and Jacobian. No duplicated caller sign/reference arithmetic. |
 | Height owner/session | Qualification, derived warmup, source clocks, prior-offset variance, source arbitration, bias update and real recovery/reset. Session coordinates first attachment, histories and output capabilities. |
 | Core | Consume prepared scalar observation/Jacobian/covariance through existing correction, injection and reset. No source-selection or reference-pressure policy. |
 | Application | Select supported sensor/configuration and qualify atmospheric, mounting, reference and accuracy assumptions. Adapter publishes actual source outcomes and real reset metadata. |

@@ -196,9 +196,10 @@ Other rates/backends/platforms need their applicable evidence; derivation from T
 does not qualify arbitrary configurations. Unchanged bias/gate/reset defaults
 remain in [R-HEIGHT-FUSION](../requirements/integration/px4/height-fusion.md).
 
-The current implementation still has strict geographic startup, a fixed warmup
-threshold of 20, broad altitude sanity bounds and a sample-age-based missing-data
-clock. This target explicitly replaces those barometer bindings when implemented;
+Effective-timing warmup derivation is implemented in the shared height owner and
+bound by the session startup call, including the PX4 adapter. The implementation
+still has strict geographic startup, broad altitude sanity bounds and a
+sample-age-based missing-data clock. This target explicitly replaces those barometer bindings when implemented;
 it does not silently narrow GNSS altitude or replace general sample-age checks.
 Existing proofs do not cover the changed contracts merely because paths or IDs
 remain the same.

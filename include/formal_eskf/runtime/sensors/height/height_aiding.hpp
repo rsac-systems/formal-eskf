@@ -9,6 +9,7 @@
 #include <limits>
 
 #include <formal_eskf/runtime/sensors/height/height_observation.hpp>
+#include <formal_eskf/runtime/history/timing.hpp>
 #include <formal_eskf/runtime/sensors/gnss/gnss_lifecycle.hpp>
 #include <formal_eskf/runtime/fusion/navigation.hpp>
 #include <formal_eskf/runtime/fusion/frame_navigation.hpp>
@@ -205,6 +206,13 @@ public:
         }
     }
 
+    /** Derive warmup from effective timing, before initialization; no storage capacity or jitter allowance.
+     * Invalid timing/count preserves the previous setting. Other height settings remain constructor-owned.
+     */
+    [[nodiscard]] bool configure_timing(TimingParameters const & timing);
+
+    unsigned barometer_warmup_samples() const { return m_parameters.barometer_warmup_samples; }
+
     [[nodiscard]] Status initialize(std::uint64_t now_us, value_type origin_altitude)
     {
         if (now_us == 0U || !valid_parameters() || !valid_altitude(origin_altitude))
@@ -282,6 +290,26 @@ private:
     unsigned m_barometer_samples{};
     std::uint64_t m_started{}, m_tick{}, m_last_height_progress{};
 }; /* end class HeightAiding */
+
+template <typename Linalg> bool HeightAiding<Linalg>::configure_timing(TimingParameters const & timing)
+{
+    if (m_started != 0 || timing.filter_interval_us <= 0 || timing.fusion_delay_ms <= 0)
+    {
+        return false;
+    }
+    // Positive int32 inputs fit these widened products, including the millisecond conversion.
+    auto const period = static_cast<std::uint64_t>(timing.filter_interval_us);
+    auto const delay = static_cast<std::uint64_t>(timing.fusion_delay_ms) * 1000;
+    auto const imu_count = std::max<std::uint64_t>(2, (delay + period - 1) / period);
+    auto const observation_count = (3 * delay + period) / (2 * period); // Round half upward.
+    auto const count = std::min(imu_count, observation_count);
+    if (count == 0 || count >= std::numeric_limits<unsigned>::max() - 1U)
+    {
+        return false;
+    }
+    m_parameters.barometer_warmup_samples = static_cast<unsigned>(count);
+    return true;
+}
 
 template <typename Linalg> bool HeightAiding<Linalg>::valid_parameters() const
 {

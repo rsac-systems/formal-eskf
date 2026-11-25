@@ -35,7 +35,10 @@ The barometer gain shall be in `(0, 1]`, and the warmup count shall allow both i
 saturation value and that value's next increment without unsigned overflow.
 The positive bias variance floor shall not exceed either the initial ceiling or
 measurement variance floor.
-Configuration has no implicit deployment defaults and remains fixed after construction.
+Configuration has no implicit deployment defaults. Numerical settings are copied
+at construction; an explicit pre-initialization timing call may derive the
+barometer warmup count. Initialization freezes that count with the other settings.
+Invalid timing or an unrepresentable/zero count preserves the previous setting.
 
 The caller shall supply increasing estimator epochs and source-qualified altitude with
 identity/calibration/generation, qualification, velocity-aiding activity, bias

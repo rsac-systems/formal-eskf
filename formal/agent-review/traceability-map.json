@@ -5930,7 +5930,7 @@
     },
     {
       "id": "R-HEIGHT-FUSION",
-      "title": "Portable height/PX4: shared preparation and frozen-offset native coverage; changed process/fusion source proofs require rebinding; optional source/timing and staged attachment pending; ground-effect target pending",
+      "title": "Portable height/PX4: shared preparation and effective-timing warmup have native bindings; changed process/fusion and old fixed-20 source profiles need rebinding; source exclusion/receipt and staged attachment pending; ground-effect target pending",
       "references": {
         "spec": [
           {
@@ -6088,6 +6088,10 @@
           {
             "file": "include/formal_eskf/runtime/sensors/height/height_observation.hpp",
             "symbol": "Status transport_height_offset("
+          },
+          {
+            "file": "include/formal_eskf/runtime/sensors/height/height_aiding.hpp",
+            "symbol": "bool configure_timing("
           }
         ],
         "esbmc": [

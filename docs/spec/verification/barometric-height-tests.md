@@ -64,10 +64,12 @@ bounds remain explicit gaps. Cases below remain Pending.
 The four height-preparation cases now belong to the
 [executable helper/owner family](tests/runtime/height-observation.md).
 Its component bindings do not close staged attachment or session acceptance.
+The [height-owner family](tests/runtime/height-aiding.md) binds effective-timing
+warmup. PX4 `ModuleTest.cpp::timing_parameters` exercises the actual startup
+overrides; the remaining adapter partitions below stay open.
 
 | Case ID | Name | Requirement / clause | Conditions, inputs and action | Expected result and oracle | Executable test |
 |---|---|---|---|---|---|
-| TC-R-HEIGHT-AIDING-BARO-05 | Derive and saturate warmup counts | R-HEIGHT-AIDING, optional source and timing composition | Default and alternate valid T/D; counts N-1, N, N+1; duplicate/stale events, saturation, invalid/overflowing settings. | Independent integer/rational count oracle; start only after count>N, once per distinct admitted event. LPF belongs to warmup/reset, not ordinary correction. Invalid settings cannot overflow or start a source. | Pending |
 | TC-R-HEIGHT-AIDING-BARO-06 | Separate receipt freshness from fusion progress | R-HEIGHT-AIDING, optional source and timing composition | Latest-clock receipt age below/at/above expiry; independently vary delayed sample age and successful-fusion timeout, including equality. | Each clock follows its own rule; rejected samples cannot refresh success, missing receipt may stop but cannot authorize reset or inject future data. | Pending |
 | TC-R-HEIGHT-AIDING-BARO-07 | Requalify only the changed source | R-HEIGHT-AIDING, source lifecycle | Device/calibration/generation changes while old samples remain delayed; duplicates, invalid or discarded new arrivals. | New admitted receipt cannot qualify old-generation data; changed source restarts bias/warmup, unrelated state/source history survives. Ordinary latch/recovery rules remain authoritative. | Pending |
 | TC-R-HEIGHT-AIDING-BARO-08 | Fuse optional sources without false capabilities | R-HEIGHT-AIDING, optional source composition; R-INS-CAPABILITIES | Barometer only before geography, GNSS only, both at unequal rates, loss/return of each and neither available. | Qualified sources may coexist with GNSS preference; missing barometer cannot block tilt/heading or GNSS height. Relative height is not absolute height, terrain clearance or direct velocity measurement. | Pending |

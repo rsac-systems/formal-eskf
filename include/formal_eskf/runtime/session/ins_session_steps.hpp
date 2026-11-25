@@ -178,7 +178,8 @@ template <typename Linalg, typename Layout>
 bool InsSession<Linalg, Layout>::configure_timing(TimingParameters const & timing)
 {
     return m_time_us == 0 && m_imu_history.configure(timing, m_imu_timing) &&
-           m_observations.configure(timing, Layout::imu_capacity) && m_output.configure(timing);
+           m_observations.configure(timing, Layout::imu_capacity) && m_output.configure(timing) &&
+           m_height_aiding.configure_timing(timing);
 }
 
 template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::configure_gravity(bool enabled)

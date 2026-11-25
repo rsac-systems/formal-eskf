@@ -64,7 +64,6 @@ template <typename Session> typename Session::Parameters parameters()
                 .barometer_maximum_age_us = 200000,
                 .gnss_maximum_age_us = 500000,
                 .barometer_lpf_gain = 0.1,
-                .barometer_warmup_samples = 20,
                 .reset_velocity_variance = 10,
                 .maximum_aided_gnss_variance = 100,
                 .ground_effect_deadzone_m = 4,

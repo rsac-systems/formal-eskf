@@ -164,7 +164,6 @@ inline constexpr double minimum_gnss_noise_m = ESKF_CFG_GNSS_MIN_HEIGHT_NOISE;
 inline constexpr double maximum_aided_gnss_variance = ESKF_CFG_GNSS_MAX_HEIGHT_VARIANCE;
 inline constexpr double gate_sigma = ESKF_CFG_HEIGHT_GATE;
 inline constexpr double barometer_lpf_gain = 0.1;
-inline constexpr unsigned barometer_warmup_samples = 20U;
 inline constexpr double reset_velocity_variance = 10.;
 inline constexpr bool ground_effect_enabled = ESKF_CFG_GROUND_EFFECT;
 inline constexpr double ground_effect_deadzone_m = ESKF_CFG_GROUND_DEADZONE;
@@ -313,7 +312,6 @@ template <typename Height> typename Height::Parameters height_parameters()
     result.barometer_maximum_age_us = height::barometer_maximum_age_us;
     result.gnss_maximum_age_us = height::gnss_maximum_age_us;
     result.barometer_lpf_gain = static_cast<Scalar>(height::barometer_lpf_gain);
-    result.barometer_warmup_samples = height::barometer_warmup_samples;
     result.reset_velocity_variance = static_cast<Scalar>(height::reset_velocity_variance);
     result.maximum_aided_gnss_variance = static_cast<Scalar>(height::maximum_aided_gnss_variance);
     result.ground_effect_deadzone_m = static_cast<Scalar>(height::ground_effect_deadzone_m);
