@@ -5,7 +5,7 @@
 **Status:** Draft
 
 **Applies to:** INS, binary32/binary64; caller-selected accelerometer bias,
-gyroscope bias, or both. AHRS has no such bias states. Implementation is pending.
+gyroscope bias, or both. AHRS has no such bias states.
 
 **Parent:** [SW-CORE](../software/core-estimation.md).
 
@@ -68,5 +68,6 @@ failure preservation in both scalar formats and enabled backends.
 The independent mathematical oracle is block restriction plus a fresh diagonal,
 not another invocation of the reset implementation. Exact PSD/symmetry properties,
 bounded source execution and source-event composition require separate evidence.
+[Native reset tests](../../verification/tests/core/bias-reset.md) bind the executable cases.
 Existing bias-inhibition and quaternion covariance-reset proofs do not prove
 this operation or qualify its numerical prior.

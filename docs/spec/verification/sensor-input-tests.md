@@ -60,12 +60,8 @@ Record each case/profile result under the [test standard](testing.md).
 
 ## Core reset cases
 
-| Case ID | Name | Requirement / clause | Conditions, inputs and action | Expected result and oracle | Executable test |
-|---|---|---|---|---|---|
-| TC-E-BIAS-RESET-01 | Reset only selected bias blocks | [Reset algebra](../requirements/core/bias-reset.md#reset-algebra) | All four group selections; unequal nonzero biases, correlated P and per-axis priors. | Selected biases zero; selected P rows/columns zero except new diagonal; every complementary coefficient and nominal p/v/q unchanged, by independent block oracle. | Pending |
-| TC-E-BIAS-RESET-02 | Reject invalid consumed priors atomically | [Validation](../requirements/core/bias-reset.md#validation-and-publication) | Put NaN, either infinity and negative finite values on every selected axis; combine negative and non-finite values in opposite scan orders. | Non-finite precedence before negative-domain failure; complete state/P unchanged; no successful partial reset. | Pending |
-| TC-E-BIAS-RESET-03 | Ignore unused reset data | [Validation](../requirements/core/bias-reset.md#validation-and-publication) | Invalid priors only in an unselected group; neither selected with all unused fields invalid. | Selected reset succeeds without consuming unused fields; empty selection is exact no-op. Input state/P still satisfy caller premises. | Pending |
-| TC-E-BIAS-RESET-04 | Preserve singular and extreme valid covariance | [Reset algebra](../requirements/core/bias-reset.md#reset-algebra) | Singular correlated PSD P, zero and largest finite reset variances, signed-zero complementary coefficients; repeat reset. | Direct block result without overflow from unnecessary products; complementary bits preserved; second identical reset idempotent. Does not accept invalid input P. | Pending |
+Cases 01–04 are implemented in [the executable bias-reset family](tests/core/bias-reset.md).
+Runtime/source composition and algebraic/source proofs remain separate work.
 
 ## Input and history cases
 

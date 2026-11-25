@@ -8604,7 +8604,7 @@
     },
     {
       "id": "E-BIAS-RESET",
-      "title": "Selected INS bias/P reset: Draft target; numerical operation and formal evidence pending",
+      "title": "Selected INS bias/P reset: direct numerical reset with native unit coverage; formal evidence and source-event composition pending",
       "references": {
         "spec": [
           {
@@ -8621,7 +8621,16 @@
           }
         ],
         "lean": [],
-        "cpp": [],
+        "cpp": [
+          {
+            "file": "include/formal_eskf/eskf/bias_reset.hpp",
+            "symbol": "Status reset_biases"
+          },
+          {
+            "file": "tests/core/test_bias_reset.cpp",
+            "symbol": "void blocks"
+          }
+        ],
         "esbmc": []
       }
     },
