@@ -9,6 +9,7 @@
 #include <formal_eskf/runtime/session/ins_startup.hpp>
 #include <formal_eskf/runtime/session/ins_capabilities.hpp>
 #include <formal_eskf/runtime/session/ins_continuity.hpp>
+#include <formal_eskf/runtime/session/ins_diagnostics.hpp>
 #include <formal_eskf/runtime/session/output_predictor.hpp>
 #include <formal_eskf/runtime/history/observation_history.hpp>
 #include <formal_eskf/runtime/sensors/height/height_aiding.hpp>
@@ -99,7 +100,7 @@ public:
         std::uint32_t device_id{};
         std::uint64_t sample_time_us{};
         bool metadata_valid{};
-        std::uint32_t corrections{};
+        std::uint64_t corrections{};
         bool position_rejected{}, velocity_rejected{};
         double position_test_ratio = NAN;
         vector3_type velocity_test_ratios = vector3_type::from_row_major({NAN, NAN, NAN});
@@ -152,8 +153,8 @@ public:
     {
         gravity_sampler_type sampler{};
         bool active{};
-        std::uint32_t samples{};
-        std::uint32_t corrections{};
+        std::uint64_t samples{};
+        std::uint64_t corrections{};
         std::uint64_t interval_us{};
 
         // Discard partial observations/LPF history, retaining session counters.
@@ -172,7 +173,7 @@ public:
         magnetic_lifecycle_type::Source source{};
         std::uint64_t sample_time_us{}; // Newest consumed effective event, including invalid payloads.
         bool horizontal_aiding{};
-        std::uint32_t corrections{};
+        std::uint64_t corrections{};
     };
 
     struct MagneticSample
@@ -240,6 +241,7 @@ public:
 
     struct Parameters
     {
+        std::uint64_t session_id{}; // Caller-owned instance identity; zero explicitly means unavailable.
         InsSettings settings{};
         typename types_type::parameter_type estimator{};
         typename startup_type::Parameters startup{};
@@ -301,8 +303,90 @@ public:
     {
         std::uint64_t arrival_rejections{}, rate_rejections{}, stale_arrivals{}, source_discards{}, overflows{},
             retired_observations{}, max_fusion_age{};
-        std::uint32_t predictions{}, baro_updates{}, rejections{}, errors{}, gaps{}, mag_model_unavailable{};
+        std::uint64_t predictions{}, baro_updates{}, rejections{}, errors{}, gaps{}, mag_model_unavailable{};
     };
+
+    enum class Group : std::size_t
+    {
+        gnss_position,
+        gnss_velocity,
+        gnss_height,
+        barometer,
+        gravity,
+        magnetic
+    };
+    struct AdmissionReport
+    {
+        typename observation_history_type::SourceStamp input{};
+        std::uint64_t arrival_time_us{}, attempts{}, accepted{}, rejected{};
+        typename observation_history_type::PushResult result{};
+        std::uint64_t selected{}, superseded{}, expired{}, source_discarded{}, overflow{};
+    };
+    enum class QualitySelection
+    {
+        none,
+        evaluated,
+        velocity_unavailable,
+        expired,
+        invalid_metadata
+    };
+    enum class ImuAdmission
+    {
+        none,
+        accepted,
+        unavailable,
+        invalid_input,
+        owner_rejected,
+        session_fault
+    };
+    struct HeightStatus
+    {
+        bool active{}, fault{};
+        typename height_type::StopReason stop_reason = height_type::StopReason::none;
+    };
+    struct Diagnostics
+    {
+        std::uint64_t session_id{}, capture_time_us{}, output_time_us{}, covariance_time_us{}, completed_fusion_us{};
+        std::uint64_t frame_epoch{}, evaluations{}, predictions{}, output_predictions{}, faults{}, imu_admissions{};
+        std::uint64_t imu_rejections{}, imu_raw_time_us{}, imu_arrival_time_us{}, lag_us{};
+        ImuSource imu_source{}, gravity_source{}; // Current admission versus last completed gravity interval.
+        ImuAdmission imu_admission = ImuAdmission::none;
+        std::array<double, 15> covariance_diagonal{}; // Working p/v, body attitude error, body biases.
+        bool covariance_available{};
+        std::size_t imu_entries{}, imu_capacity{};
+        std::array<std::size_t, 3> observation_entries{}, observation_capacity{};
+        bool initialized{}, fault{}, output_ready{}, gravity_supported{}, gravity_enabled{}, barometer_supported{};
+        Phase phase = Phase::idle;
+        InsOperation failure_operation = InsOperation::none;
+        status_type failure_status = status_type::success;
+        typename imu_history_type::Fault history_fault = imu_history_type::Fault::none;
+        InsCapabilities capabilities{};
+        std::array<FusionDiagnostic, 6> groups{};
+        std::array<AdmissionReport, 3> inputs{}; // GNSS, magnetic, barometer.
+        EvaluationEpoch gnss_quality_epoch{};
+        GnssQualityResult<double> gnss_quality{};
+        bool gnss_quality_evaluated{};
+        QualitySelection gnss_selection = QualitySelection::none;
+        std::uint64_t gnss_consumed_time_us{};
+        EvaluationEpoch magnetic_quality_epoch{};
+        MagneticFieldCheck<double> magnetic_quality{};
+        bool magnetic_quality_evaluated{};
+        std::uint64_t magnetic_consumed_time_us{};
+        GnssQualityChecks gnss_checks{};
+        GnssQualityMotion gnss_motion{};
+        typename gnss_lifecycle_type::State gnss{};
+        typename magnetic_lifecycle_type::State magnetic{};
+        std::array<HeightStatus, 2> height{}; // Barometer, GNSS.
+        typename height_type::Source height_reference = height_type::Source::none;
+        AccelerometerFusionCheck gravity_conditions{};
+        ResetReport resets{};
+    };
+    /** Pure bounded copy at a public-operation boundary, including pending/fault phases.
+     * Caller owns synchronization and the capture clock. Reads neither drain
+     * innovation events nor advance policies; availability uses existing owner deadlines.
+     */
+    Diagnostics diagnostics(std::uint64_t now_us) const;
+    EvaluationEpoch const & gnss_quality_epoch() const { return m_gnss_quality_epoch; }
 
     explicit InsSession(Parameters const & parameters);
     [[nodiscard]] bool configure_timing(TimingParameters const & timing);
@@ -405,7 +489,14 @@ private:
     void complete_magnetic(std::optional<typename magnetic_model_type::sample_type> const & model);
     bool check(status_type status);
     bool check_timing(bool succeeded);
-    void record_admission(typename observation_history_type::PushResult const & result);
+    void record_admission(std::size_t source, typename observation_history_type::SourceStamp const & stamp,
+                          std::uint64_t arrival_us, typename observation_history_type::PushResult const & result);
+    void record_selection(std::size_t source, typename observation_history_type::PopResult const & result);
+    template <typename Observation> EvaluationEpoch evaluation_epoch(Observation const & input);
+    EvaluationEpoch gravity_epoch(ImuInput const & input, std::uint64_t interval_us);
+    FusionDiagnostic & report(Group group) { return m_reports[static_cast<std::size_t>(group)]; }
+    void record_height(typename height_type::Result const & result, bool committed);
+
     void reset_imu_observations();
     void select_observations();
     bool reset_output(quaternion_type const & delta_q, vector3_type const & delta_v, vector3_type const & delta_p,
@@ -500,6 +591,25 @@ private:
     ContextInput m_context{};
     Phase m_phase = Phase::idle;
     ModelRequest m_model_request{};
+    std::uint64_t m_session_id{}, m_evaluation_order{}, m_frame_epoch{}, m_completed_fusion_us{};
+    std::uint64_t m_prediction_attempts{}, m_output_prediction_attempts{}, m_fault_count{};
+    std::uint64_t m_imu_admissions{}, m_imu_rejections{}, m_imu_raw_time_us{}, m_imu_arrival_time_us{},
+        m_delayed_imu_arrival_us{};
+    ImuSource m_diagnostic_imu_source{}, m_gravity_source{};
+    ImuAdmission m_imu_admission = ImuAdmission::none;
+    std::uint64_t m_covariance_time_us{};
+    InsOperation m_operation = InsOperation::none, m_failure_operation = InsOperation::none;
+    std::array<FusionDiagnostic, 6> m_reports{};
+    std::array<AdmissionReport, 3> m_admissions{};
+    EvaluationEpoch m_gnss_quality_epoch{};
+    bool m_gnss_quality_evaluated{};
+    QualitySelection m_gnss_selection = QualitySelection::none;
+    EvaluationEpoch m_magnetic_quality_epoch{};
+    MagneticFieldCheck<double> m_diagnostic_magnetic_quality{};
+    bool m_magnetic_quality_evaluated{};
+    GnssQualityResult<double> m_diagnostic_gnss_quality{};
+    GnssQualityMotion m_gnss_quality_motion{};
+    AccelerometerFusionCheck m_gravity_conditions{};
     ImuSource m_filtered_imu_source{};
     ImuSourceChanges m_imu_source_changes{};
     MagneticSample m_pending_magnetic{};
@@ -518,3 +628,5 @@ private:
 #include <formal_eskf/runtime/session/ins_session_capabilities.hpp>
 
 #include <formal_eskf/runtime/session/ins_session_continuity.hpp>
+
+#include <formal_eskf/runtime/session/ins_session_diagnostics.hpp>

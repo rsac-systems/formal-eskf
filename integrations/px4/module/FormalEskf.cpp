@@ -182,6 +182,7 @@ void FormalEskf::Run()
             advance_fusion();
         }
     }
+    update_status_changes(now);
     if (now - m_last_status >= profile::status_interval_us)
     {
         publish_status(now);
@@ -372,7 +373,7 @@ void FormalEskf::update_innovations()
             }
             if (event.measurement)
             {
-                ratio.update(event.time_us, event.innovation, event.test_ratio);
+                ratio.update(event.time_us, -event.innovation, event.test_ratio);
             }
             if (event.reset)
             {
@@ -397,7 +398,7 @@ void FormalEskf::update_innovations()
         }
         if (event.measurement)
         {
-            ratio.update(event.time_us, event.innovation, event.valid ? event.test_ratio : double(NAN));
+            ratio.update(event.time_us, -event.innovation, event.valid ? event.test_ratio : double(NAN));
         }
         if (event.reset)
         {
@@ -406,7 +407,7 @@ void FormalEskf::update_innovations()
     }
 }
 
-void FormalEskf::report_session_failure(std::uint32_t previous_errors) const
+void FormalEskf::report_session_failure(std::uint64_t previous_errors) const
 {
     if (m_session.statistics().errors != previous_errors)
     {

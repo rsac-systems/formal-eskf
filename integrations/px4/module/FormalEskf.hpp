@@ -101,6 +101,7 @@ private:
     // Fixed-size shell view. No reader accesses live filter fields or perf counters.
     struct Diagnostics
     {
+        session_type::Diagnostics session{};
         std::uint64_t time_us{}, sample_time_us{}, output_time_us{}, lag_us{}, sequence{}, skipped{}, exchange_errors{};
         std::uint64_t arrival_rejections{}, rate_rejections{}, stale_arrivals{}, source_discards{}, overflows{},
             retired_observations{}, generation_loss{};
@@ -108,7 +109,7 @@ private:
         std::size_t imu_entries{};
         bool output_ready{};
         bool initialized{}, fault{}, qualified{}, metadata_valid{};
-        std::uint32_t predictions{}, gps_updates{}, mag_updates{}, baro_updates{}, rejections{}, errors{}, gaps{};
+        std::uint64_t predictions{}, gps_updates{}, mag_updates{}, baro_updates{}, rejections{}, errors{}, gaps{};
         std::uint64_t maximum_gps_age_us{};
         int gnss_quality{};
         std::uint16_t gps_failure_flags{};
@@ -119,7 +120,8 @@ private:
         unsigned magnetic_stop{}, magnetic_recovery{}, quaternion_resets{};
         bool model_available{};
         std::uint64_t model_checks{};
-        unsigned model_revision{}, heading_revision{}, heading_source{}, model_unavailable{};
+        unsigned model_revision{}, heading_revision{}, heading_source{};
+        std::uint64_t model_unavailable{};
         double declination{};
         unsigned height_reference{};
         bool barometer_active{}, gnss_height_active{}, barometer_fault{};
@@ -127,7 +129,7 @@ private:
         unsigned accelerometer_mask{}, gyroscope_mask{};
         bool high_dynamics{}, health_available{}, bad_acceleration{};
         bool gravity_enabled{}, tilt_aligned{}, gravity_active{};
-        unsigned gravity_samples{}, gravity_corrections{};
+        std::uint64_t gravity_samples{}, gravity_corrections{};
         std::uint64_t gravity_interval_us{}, cycle_events{}, publication_failures{};
         float cycle_mean_s{}, output_mean_s{},
             fusion_mean_s{}; // PX4 perf uses its clock; lockstep time is not CPU time.
@@ -167,6 +169,7 @@ private:
     void publish_odometry(std::uint64_t now, imu_type const & imu, BodyOutput const & body,
                           OutputValidity const & validity, NavigationVariance const & variance);
     void publish_status(uint64_t now);
+    void update_status_changes(uint64_t now);
     estimator_status_s publish_estimator_status(std::uint64_t now, OutputValidity const & validity,
                                                 estimator_status_flags_s const & flags);
     estimator_status_flags_s status_flags(std::uint64_t now, OutputValidity const & validity) const;
@@ -176,7 +179,7 @@ private:
     std::optional<magnetic_model_type::sample_type>
     lookup_magnetic_model(session_type::ModelRequest const & request) const;
     void update_innovations();
-    void report_session_failure(std::uint32_t previous_errors) const;
+    void report_session_failure(std::uint64_t previous_errors) const;
     uint16_t gps_failure_flags() const;
     static vector3_type vector3(double x, double y, double z) { return vector3_type::from_row_major({x, y, z}); }
     static double square(double x) { return x * x; }
@@ -197,7 +200,7 @@ private:
     uORB::Publication<estimator_status_flags_s> m_flags_pub{ORB_ID(estimator_status_flags)};
     uORB::Publication<estimator_sensor_bias_s> m_bias_pub{ORB_ID(estimator_sensor_bias)};
 
-    session_type m_session{formal_eskf::px4::profile::session_parameters<session_type>()};
+    session_type m_session{formal_eskf::px4::profile::session_parameters<session_type>(hrt_absolute_time())};
     StatusChanges m_status_changes{};
     std::array<formal_eskf::px4::InnovationRatio, 2> m_position_ratios{}, m_height_ratios{};
     std::array<formal_eskf::px4::InnovationRatio, 3> m_velocity_ratios{}, m_magnetic_ratios{};

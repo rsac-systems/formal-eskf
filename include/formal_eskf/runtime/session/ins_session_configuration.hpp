@@ -150,6 +150,8 @@ InsSession<Linalg, Layout>::InsSession(Parameters const & p)
       m_average_imu_interval(p.settings.imu.nominal_interval_s), m_magnetic_model(p.magnetic_lookup_interval_us),
       m_settings(p.settings), m_imu_timing(p.observation_timing.imu)
 {
+    m_session_id = p.session_id;
+    m_operation = InsOperation::initialization;
     m_parameters_valid =
         valid_parameters(p) && m_startup.valid() && m_continuity.valid() && m_height_aiding.valid_parameters();
     m_gnss.quality_parameters = p.gnss_quality;

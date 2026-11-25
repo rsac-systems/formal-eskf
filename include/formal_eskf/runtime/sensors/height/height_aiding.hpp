@@ -194,10 +194,20 @@ public:
         bool reset = false;
     };
 
+    // Attempt evidence survives transaction rollback; reporting events above do not.
+    struct Evidence
+    {
+        fusion_type fusion{};
+        value_type fusion_innovation{};
+        bool evaluated{}, limited{}, reset_attempted{};
+        Status reset_status = Status::success;
+    };
+
     struct Result
     {
         Status status = Status::success;
         std::array<DiagnosticUpdate, 2> diagnostics{};
+        std::array<Evidence, 2> evidence{};
         unsigned fused{}, rejected{}, height_resets{}, velocity_resets{};
         value_type height_delta{}, velocity_delta{};        // Down-positive reset deltas in observation axes.
         vector_type position_delta_n{}, velocity_delta_n{}; // Reset-only changes in working axes.
@@ -467,6 +477,8 @@ void HeightAiding<Linalg>::reset_height(Source source, std::uint64_t now_us, val
                                         state_type & state, covariance_type & covariance, Result & result,
                                         Geometry const * geometry)
 {
+    auto & evidence = result.evidence[index(source)];
+    evidence.reset_attempted = true;
     value_type delta{};
     auto const previous_position = state.p_n;
     if (geometry == nullptr)
@@ -485,6 +497,7 @@ void HeightAiding<Linalg>::reset_height(Source source, std::uint64_t now_us, val
         }
         if (!succeeded(result.status))
         {
+            evidence.reset_status = result.status;
             return;
         }
         // Move along the estimated point's ellipsoid normal. At fixed lat/lon,
@@ -503,6 +516,7 @@ void HeightAiding<Linalg>::reset_height(Source source, std::uint64_t now_us, val
     }
     if (!succeeded(result.status))
     {
+        evidence.reset_status = result.status;
         return;
     }
     for (auto & aid : m_sessions)
@@ -680,6 +694,9 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
     result.status = height_prediction(state, geometry, prediction);
     if (!succeeded(result.status))
     {
+        auto & evidence = result.evidence[index(source)];
+        evidence.evaluated = true;
+        evidence.fusion.status = result.status;
         return;
     }
     value_type const altitude = prediction.altitude;
@@ -688,10 +705,19 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
     if (!std::isfinite(height_variance) || height_variance < 0)
     {
         result.status = std::isfinite(height_variance) ? Status::domain_error : Status::non_finite_result;
+        auto & evidence = result.evidence[index(source)];
+        evidence.evaluated = true;
+        evidence.fusion.status = result.status;
         return;
     }
     if (barometer && !prepare_barometer(sample, altitude, result))
     {
+        if (!succeeded(result.status))
+        {
+            auto & evidence = result.evidence[index(source)];
+            evidence.evaluated = true;
+            evidence.fusion.status = result.status;
+        }
         return;
     }
     value_type const variance = !barometer && m_sessions[index(Source::barometer)].active
@@ -743,6 +769,9 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
     result.status = runtime::prepare_height_observation(prediction, sample.altitude, aid.bias.value, observation);
     if (!succeeded(result.status))
     {
+        auto & evidence = result.evidence[index(source)];
+        evidence.evaluated = true;
+        evidence.fusion.status = result.status;
         return;
     }
     value_type const observation_variance = variance + aid.bias.variance;
@@ -757,9 +786,14 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
                                                         m_parameters.minimum_quaternion_norm, m_parameters.gate_sigma,
                                                         acceleration.bad, state, covariance, bias_update, deadzone);
     aid.fusion = measurement.fusion;
+    auto & evidence = result.evidence[index(source)];
+    evidence.evaluated = true;
+    evidence.fusion = measurement.fusion;
+    evidence.fusion_innovation = measurement.fusion_innovation(0);
+    evidence.limited = measurement.innovation_limited;
     auto & diagnostic = result.diagnostics[index(source)];
     diagnostic.time_us = sample.time_us;
-    diagnostic.innovation = -aid.fusion.innovation(0U);
+    diagnostic.innovation = aid.fusion.innovation(0U);
     diagnostic.test_ratio = aid.fusion.test_ratio(0U);
     diagnostic.valid = aid.fusion.diagnostics_valid;
     diagnostic.measurement = true;
@@ -857,7 +891,10 @@ HeightAiding<Linalg>::update(std::uint64_t now_us, Sample const & barometer, Sam
                           receipt_recent, numerical_reset_required && result.height_resets == 0);
         if (!succeeded(result.status))
         {
-            return Result{result.status};
+            Result failure;
+            failure.status = result.status;
+            failure.evidence = result.evidence;
+            return failure;
         }
     }
     if (candidate.m_reference == Source::none)
@@ -869,7 +906,10 @@ HeightAiding<Linalg>::update(std::uint64_t now_us, Sample const & barometer, Sam
     if (std::any_of(candidate.m_sessions.begin(), candidate.m_sessions.end(),
                     [](Session const & aid) { return !aid.bias.finite(); }))
     {
-        return Result{Status::non_finite_result};
+        Result failure;
+        failure.status = Status::non_finite_result;
+        failure.evidence = result.evidence;
+        return failure;
     }
     candidate.m_tick = now_us;
     *this = candidate;

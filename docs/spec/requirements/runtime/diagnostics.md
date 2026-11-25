@@ -5,8 +5,9 @@
 **Status:** Draft
 
 **Applies to:** Portable INS session reporting, for both strict and staged service
-profiles. This is a target contract; current per-call results and module snapshots
-implement only portions of it. Standalone AHRS/core APIs retain their contracts.
+profiles. The current production implementation is the staged session; historical
+strict-profile evidence does not establish an additional current configuration.
+Standalone AHRS/core APIs retain their contracts.
 
 **Parent:** [SW-NAV](../software/navigation-runtime.md).
 
@@ -172,7 +173,7 @@ state transition is implied by completed-update mask comparison.
 ## Acceptance and verification
 
 The [diagnostic test specification](../../verification/diagnostic-reporting-tests.md)
-allocates the required partitions with Pending executable bindings.
+allocates the required partitions and links their native bindings and target gaps.
 Use independent event/clock schedules and owner-contract expectations for normal,
 rejected, failed, expired and recovered sequences. Check exact reasons, epochs,
 source/frame identity and count deltas, including wrap boundaries. Compare runs
@@ -181,7 +182,6 @@ outputs, commits, source decisions and successful-aiding clocks shall be unchang
 
 Inspect complete storage/work bounds and actual adapter consumers. Per-operation
 fusion evidence does not establish session reporting, schema/consumer correctness,
-concurrency or target cost. The current public snapshot lacks some result-specific
-epochs and uniform per-group evidence; its existence is not completion of this
-contract. Planned tests and source/proof bindings must remain separate from
-execution evidence and requirement approval.
+concurrency or target cost. The public snapshot's existence alone does not
+establish this contract. Planned tests and source/proof bindings must remain
+separate from execution evidence and requirement approval.

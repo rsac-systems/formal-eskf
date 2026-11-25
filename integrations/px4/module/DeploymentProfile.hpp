@@ -329,9 +329,10 @@ struct InsLayout
     static constexpr bool magnetic_model = magnetic::use_model;
 };
 
-template <typename Session> typename Session::Parameters session_parameters()
+template <typename Session> typename Session::Parameters session_parameters(std::uint64_t session_id = 0)
 {
     typename Session::Parameters result;
+    result.session_id = session_id;
     result.continuity = {.position_variance_limit = 1e6,
                          .velocity_variance_limit = 1e6,
                          .heading_variance_limit = 0.09,

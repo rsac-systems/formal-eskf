@@ -242,18 +242,25 @@ void FormalEskf::publish_odometry(std::uint64_t now, imu_type const & imu, BodyO
     record_publication(m_odometry_pub.publish(odometry));
 }
 
+void FormalEskf::update_status_changes(std::uint64_t now)
+{
+    auto const flags = status_flags(now, m_session.output_validity(now));
+    auto const control = control_flags(flags);
+    auto const fault = fault_flags(flags);
+    auto const innovation = innovation_flags(flags);
+    m_status_changes.control_count += control != m_status_changes.control;
+    m_status_changes.fault_count += fault != m_status_changes.fault;
+    m_status_changes.innovation_count += innovation != m_status_changes.innovation;
+    m_status_changes.control = control;
+    m_status_changes.fault = fault;
+    m_status_changes.innovation = innovation;
+}
+
 void FormalEskf::publish_status(uint64_t now)
 {
     auto const validity = m_session.output_validity(now);
     auto flags = status_flags(now, validity);
-    auto const status = publish_estimator_status(now, validity, flags);
-    auto const innovation = innovation_flags(flags);
-    m_status_changes.control_count += status.control_mode_flags != m_status_changes.control;
-    m_status_changes.fault_count += status.filter_fault_flags != m_status_changes.fault;
-    m_status_changes.innovation_count += innovation != m_status_changes.innovation;
-    m_status_changes.control = status.control_mode_flags;
-    m_status_changes.fault = status.filter_fault_flags;
-    m_status_changes.innovation = innovation;
+    publish_estimator_status(now, validity, flags);
     flags.control_status_changes = m_status_changes.control_count;
     flags.fault_status_changes = m_status_changes.fault_count;
     flags.innovation_fault_status_changes = m_status_changes.innovation_count;
@@ -414,6 +421,7 @@ void FormalEskf::update_diagnostics(std::uint64_t now)
         return;
     }
     auto & snapshot = m_diagnostics;
+    snapshot.session = m_session.diagnostics(now);
     snapshot.time_us = now;
     snapshot.sample_time_us = m_session.fusion_time_us();
     snapshot.output_time_us = m_session.output_predictor().current().time_us;
@@ -444,8 +452,8 @@ void FormalEskf::update_diagnostics(std::uint64_t now)
     snapshot.gps_updates = m_session.gnss_state().corrections;
     snapshot.mag_updates = m_session.magnetic_state().corrections;
     snapshot.baro_updates = m_session.statistics().baro_updates;
-    snapshot.gnss_quality = static_cast<int>(m_session.gnss_state().quality_result.decision);
-    snapshot.qualified = m_session.gnss_state().quality_result.qualified;
+    snapshot.gnss_quality = static_cast<int>(snapshot.session.gnss_quality.decision);
+    snapshot.qualified = snapshot.session.gnss_quality_evaluated && snapshot.session.gnss_quality.qualified;
     snapshot.metadata_valid = m_session.gnss_state().metadata_valid;
     snapshot.gps_failure_flags = gps_failure_flags();
     snapshot.gps_position_active = m_session.gnss_state().lifecycle.state().horizontal_position.active;
@@ -535,24 +543,26 @@ int FormalEskf::print_status()
     PX4_INFO("origin: generation=%llu attempt_us=%llu success_us=%llu", (unsigned long long)snapshot.origin_generation,
              (unsigned long long)snapshot.origin_attempt_us, (unsigned long long)snapshot.origin_success_us);
     PX4_INFO("formal-eskf INS / PX4 matrix / binary64 / C++20 / single instance");
-    PX4_INFO("initialized=%d fault=%d predictions=%u gps=%u mag=%u baro=%u", snapshot.initialized, snapshot.fault,
-             snapshot.predictions, snapshot.gps_updates, snapshot.mag_updates, snapshot.baro_updates);
+    PX4_INFO("initialized=%d fault=%d predictions=%llu gps=%llu mag=%llu baro=%llu", snapshot.initialized,
+             snapshot.fault, (unsigned long long)snapshot.predictions, (unsigned long long)snapshot.gps_updates,
+             (unsigned long long)snapshot.mag_updates, (unsigned long long)snapshot.baro_updates);
     PX4_INFO("gnss_quality=%d qualified=%d metadata_valid=%d fail_flags=0x%x pos_active=%d vel_active=%d resets=%u/%u",
              int(snapshot.gnss_quality), snapshot.qualified, snapshot.metadata_valid,
              unsigned(snapshot.gps_failure_flags), snapshot.gps_position_active, snapshot.gps_velocity_active,
              unsigned(snapshot.position_resets), unsigned(snapshot.velocity_resets));
-    PX4_INFO("rejections=%u estimator_errors=%u gap_holds=%u max_gps_age_us=%llu", snapshot.rejections, snapshot.errors,
-             snapshot.gaps, (unsigned long long)snapshot.maximum_gps_age_us);
+    PX4_INFO("rejections=%llu estimator_errors=%llu gap_holds=%llu max_gps_age_us=%llu",
+             (unsigned long long)snapshot.rejections, (unsigned long long)snapshot.errors,
+             (unsigned long long)snapshot.gaps, (unsigned long long)snapshot.maximum_gps_age_us);
     PX4_INFO("p=[%.3f %.3f %.3f] v=[%.3f %.3f %.3f]", snapshot.position[0], snapshot.position[1], snapshot.position[2],
              snapshot.velocity[0], snapshot.velocity[1], snapshot.velocity[2]);
     PX4_INFO("mag: active=%u aligned=%u consistent=%u stop=%u recovery=%u resets=%u",
              unsigned(snapshot.magnetic_active), unsigned(snapshot.heading_aligned),
              unsigned(snapshot.heading_consistent), unsigned(snapshot.magnetic_stop),
              unsigned(snapshot.magnetic_recovery), unsigned(snapshot.quaternion_resets));
-    PX4_INFO("mag model: available=%u checks=%llu model_revision=%u heading_revision=%u source=%u unavailable=%u",
+    PX4_INFO("mag model: available=%u checks=%llu model_revision=%u heading_revision=%u source=%u unavailable=%llu",
              unsigned(snapshot.model_available), (unsigned long long)snapshot.model_checks,
              unsigned(snapshot.model_revision), unsigned(snapshot.heading_revision), unsigned(snapshot.heading_source),
-             unsigned(snapshot.model_unavailable));
+             (unsigned long long)snapshot.model_unavailable);
     PX4_INFO("mag declination: %.3f deg", math::degrees(snapshot.declination));
     PX4_INFO("height: ref=%u baro=%u gnss=%u baro_fault=%u resets=%u vz_resets=%u", unsigned(snapshot.height_reference),
              unsigned(snapshot.barometer_active), unsigned(snapshot.gnss_height_active),
@@ -563,9 +573,26 @@ int FormalEskf::print_status()
              unsigned(snapshot.high_dynamics));
     PX4_INFO("vertical IMU health: available=%u bad=%u", unsigned(snapshot.health_available),
              unsigned(snapshot.bad_acceleration));
-    PX4_INFO("gravity: enabled=%u tilt=%u active=%u samples=%u fused=%u interval_us=%llu",
+    PX4_INFO("gravity: enabled=%u tilt=%u active=%u samples=%llu fused=%llu interval_us=%llu",
              unsigned(snapshot.gravity_enabled), unsigned(snapshot.tilt_aligned), unsigned(snapshot.gravity_active),
-             snapshot.gravity_samples, snapshot.gravity_corrections, (unsigned long long)snapshot.gravity_interval_us);
+             (unsigned long long)snapshot.gravity_samples, (unsigned long long)snapshot.gravity_corrections,
+             (unsigned long long)snapshot.gravity_interval_us);
+    auto const & report = snapshot.session;
+    PX4_INFO("session=%llu phase=%u failing_operation=%u; GNSS evaluated=%u sample=%llu evaluation=%llu",
+             (unsigned long long)report.session_id, unsigned(report.phase), unsigned(report.failure_operation),
+             unsigned(report.gnss_quality_evaluated), (unsigned long long)report.gnss_quality_epoch.selection_time_us,
+             (unsigned long long)report.gnss_quality_epoch.evaluation_time_us);
+    static char const * const names[]{"GNSS position", "GNSS velocity", "GNSS height",
+                                      "barometer",     "gravity",       "magnetic"};
+    for (std::size_t i = 0; i < report.groups.size(); ++i)
+    {
+        auto const & group = report.groups[i];
+        PX4_INFO("%s: outcome=%u gate_valid=%u sample=%llu corrected=%llu rejected=%llu failed=%llu resets=%llu",
+                 names[i], unsigned(group.outcome), unsigned(group.gate_valid),
+                 (unsigned long long)group.epoch.selection_time_us, (unsigned long long)group.counts.corrected,
+                 (unsigned long long)group.counts.rejected, (unsigned long long)group.counts.failed,
+                 (unsigned long long)group.counts.resets);
+    }
     PX4_INFO("cycle: %llu events, %.3f us mean (PX4 clock)", (unsigned long long)snapshot.cycle_events,
              double(snapshot.cycle_mean_s) * 1e6);
     PX4_INFO("phases: output=%.3f fusion=%.3f us mean (PX4 clock, not wall-time WCET)",

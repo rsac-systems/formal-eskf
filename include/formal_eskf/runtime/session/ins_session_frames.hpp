@@ -192,6 +192,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::att
     // The representation event adds no measurement or covariance information.
     // North was admitted separately, with its real heading uncertainty reset.
     m_navigation_frame.commit(m_state, m_covariance);
+    ++m_frame_epoch;
     m_output.commit_rebase();
     m_height_aiding = height;
     m_height_datum = datum;
@@ -291,6 +292,7 @@ InsSession<Linalg, Layout>::rebase_navigation(FrameAdmission const & delayed, Fr
     }
     // Single writer, no publication or fallible operations between these commits.
     m_navigation_frame.commit(m_state, m_covariance);
+    ++m_frame_epoch;
     m_output.commit_rebase();
     m_magnetic.heading = heading;
     m_tilt_alignment = tilt;

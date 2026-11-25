@@ -76,7 +76,8 @@ template <typename Linalg> struct ImuInterval
     std::uint64_t start_time_us{};
     ImuInput<Linalg> sample{};
     ImuSample<Linalg> held_rate{};
-    std::uint32_t hold_period_us{}; // Zero means there is no synthetic segment.
+    std::uint32_t hold_period_us{};  // Zero means there is no synthetic segment.
+    std::uint64_t arrival_time_us{}; // Original receiver clock for this admitted real interval.
 };
 
 /**
@@ -255,6 +256,7 @@ bool ImuHistory<Linalg, Capacity>::push(input_type const & sample, std::uint64_t
     interval.time_us = sample.time_us;
     interval.start_time_us = m_previous.time_us;
     interval.sample = sample;
+    interval.arrival_time_us = now_us;
     if (gap > static_cast<std::int64_t>(m_timing.gap_tolerance_us))
     {
         interval.hold_period_us = static_cast<std::uint32_t>(gap);

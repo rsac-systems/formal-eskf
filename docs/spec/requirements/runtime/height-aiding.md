@@ -113,13 +113,17 @@ For each update, the owner shall:
 
 The complete tick shall commit owner history, state/P and result together only if
 all numerical stages and bias-finiteness checks succeed. Failure returns its status
-with zero events and preserves the three caller-visible objects. Rejection may
-commit lifecycle/diagnostic changes. Samples are borrowed for one call and may
-alias each other read-only; they shall not alias mutable owner/state/P storage.
+with zero committed events and preserves the three caller-visible objects.
+Separate attempt evidence may retain computed gates and attempted resets, including
+candidates discarded by rollback; it never grants a committed event or progress.
+[R-INS-DIAGNOSTICS](diagnostics.md) binds those attempts to the caller transaction's
+outcome. Rejection may commit lifecycle/diagnostic changes. Samples are borrowed
+for one call and may alias each other read-only; they shall not alias mutable
+owner/state/P storage.
 
 Return per-source raw diagnostic events, without platform reporting filters:
-source-change clearing, a measurement's sample epoch/signed innovation/test ratio
-and validity, and real-reset metadata. Measurement evidence shall survive a later
+source-change clearing, a measurement's sample epoch, measurement-minus-prediction
+residual, test ratio and validity, and real-reset metadata. Measurement evidence shall survive a later
 source stop/reset within the same successful tick. Consumers shall apply clear,
 measurement and reset in that order, only after success. Owner reinitialization
 requires consumers to clear their corresponding reporting history. Reset reports

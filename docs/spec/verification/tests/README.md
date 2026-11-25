@@ -14,6 +14,10 @@ expected outputs/history, an independent oracle and the defect it should expose.
 Executable bindings are updated after implementation review. They describe the
 tested scope and remaining acceptance gaps; they do not approve Draft requirements.
 
+The [INS diagnostics family](runtime/ins-diagnostics.md) binds owner evidence,
+epochs, source/frame identity, non-consuming snapshots and reporting counts. PX4
+exchange/consumer checks and target gaps remain in its parent allocation.
+
 ## Run the tests
 
 ```bash

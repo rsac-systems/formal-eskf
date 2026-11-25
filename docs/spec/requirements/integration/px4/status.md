@@ -79,11 +79,11 @@ converged are different facts. Reporting must not change fusion decisions.
   Zeroed legacy LPE health/timeout flags and false unsupported capability bits
   remain unused. Missing numeric diagnostics do not prove good health: consumers
   must also check solution capabilities, topic freshness and source status.
-- The existing strict-module status counters count changes between published
-  snapshots (currently 10 Hz). The diagnostic-reporting target below replaces
-  that sampling boundary; existing evidence covers only the old accounting.
-  Neither is a lossless event log. Filtering is bounded,
-  allocation-free and module-owned; no shared-core equation or public API changes.
+- Status counters compare complete masks after each completed update, fault or
+  no-IMU availability boundary, before publication throttling. Repeated publication
+  does not count a transition. This replaces historical published-snapshot-only
+  accounting; it remains a snapshot counter, not a lossless event log. Filtering
+  is bounded, allocation-free and module-owned; shared-core equations are unchanged.
 
 Native evidence must cover independent capability combinations, actual failure
 withdrawal/restart behavior, variance-norm boundaries, packed/named consistency,
@@ -210,7 +210,7 @@ change the deployed profile until implementation/consumer acceptance is complete
 | `pre_flt_fail_innov_heading` | Preserve actual innovation failures; absence of heading alone shall not veto otherwise qualified tilt-only manual service. Navigation modes shall still require their real position/velocity/heading prerequisites. |
 | Reset deltas/counters | Report actual estimate resets once, at the correct frame/epoch. A capability flag change alone is not a reset. |
 
-The existing strict-module implementation does not implement this mapping.
+Historical strict-profile evidence does not establish the staged mapping.
 The runtime owns capability support and its fault/age rules; Commander retains
 mode-specific accuracy thresholds, freshness checks, recovery hysteresis and mode
 exceptions. The adapter shall not duplicate those mode decisions in core/runtime

@@ -49,6 +49,7 @@ void InsSession<Linalg, Layout>::Gnss::change_source(std::uint32_t new_device_id
 
 template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::update_gps_quality()
 {
+    m_operation = InsOperation::gnss_quality;
     auto const & gps = m_gnss.input.sample;
     using namespace formal_eskf::runtime;
     m_gnss.sample = {};
@@ -66,6 +67,7 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::upd
     // Invalid velocity cannot qualify or refresh successful aiding.
     if (!gps.velocity_valid || !recent(m_gnss.input.time_us, m_settings.gnss.maximum_sample_age_us))
     {
+        m_gnss_selection = !gps.velocity_valid ? QualitySelection::velocity_unavailable : QualitySelection::expired;
         return;
     }
     m_gnss.sample.time_us = m_gnss.input.time_us;
@@ -75,6 +77,7 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::upd
                             std::isfinite(gps.vdop) && gps.vdop >= 0.;
     if (!m_gnss.metadata_valid)
     {
+        m_gnss_selection = QualitySelection::invalid_metadata;
         m_gnss.quality.reset();
         m_gnss.previous_fix.reset();
         m_gnss.quality_result = {};
@@ -85,6 +88,11 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::upd
     auto const sample = gnss_quality_sample();
     auto const motion = gnss_motion();
     m_gnss.quality_result = m_gnss.quality.update(sample, motion, m_time_us, m_gnss.quality_parameters);
+    m_gnss_quality_epoch = evaluation_epoch(m_gnss.input);
+    m_diagnostic_gnss_quality = m_gnss.quality_result;
+    m_gnss_quality_motion = motion;
+    m_gnss_quality_evaluated = true;
+    m_gnss_selection = QualitySelection::evaluated;
     if (m_gnss.quality_result.decision == GnssQualityDecision::invalid_call)
     {
         check(m_gnss.quality_result.status);
@@ -192,6 +200,7 @@ InsSession<Linalg, Layout>::gnss_velocity_offset(imu_type const & imu) const
 
 template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::fuse_gps(imu_type const & imu)
 {
+    m_operation = InsOperation::gnss_control;
     using namespace formal_eskf::runtime;
     GnssFusion::Conditions conditions;
     bool const source_current =
@@ -236,9 +245,12 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::fus
         m_gnss.vertical_innovation = {};
         return;
     }
+    m_operation = InsOperation::gnss_velocity;
     auto const observation = gnss_velocity_observation(imu);
     if (!check(observation.status))
     {
+        report(Group::gnss_velocity)
+            .evaluate(evaluation_epoch(m_gnss.input), FusionDiagnostic::Outcome::failed, observation.status, false);
         return;
     }
     if (!gps_good())
@@ -288,6 +300,13 @@ void InsSession<Linalg, Layout>::check_gnss_velocity_observation(GnssVelocityObs
     auto const evidence = formal_eskf::runtime::check_frame_velocity(
         m_state, m_covariance, observation.model, observation.covariance, m_parameters.minimum_quaternion_norm,
         m_settings.gnss.gate_sigma, observation.conditions);
+    auto & diagnostic = report(Group::gnss_velocity);
+    diagnostic.record_check(evaluation_epoch(m_gnss.input), evidence.gate);
+    diagnostic.innovation_limited = evidence.innovation_limited;
+    for (std::size_t axis = 0; axis < 3; ++axis)
+    {
+        diagnostic.fusion_innovation[axis] = evidence.fusion_innovation(axis);
+    }
     if (!check(evidence.gate.status))
     {
         return;
@@ -301,14 +320,16 @@ template <typename Linalg, typename Layout>
 bool InsSession<Linalg, Layout>::fuse_gps_velocity(GnssVelocityObservation const & observation)
 {
     using namespace formal_eskf::runtime;
-    using Group = gnss_lifecycle_type::Group;
+    using LifecycleGroup = gnss_lifecycle_type::Group;
     auto const & velocity = observation.velocity_n;
     auto const & velocity_variances = observation.variances;
     auto const & Rv = observation.covariance;
     auto const & velocity_conditions = observation.conditions;
     auto const & health = m_vertical_health.state();
+    m_operation = InsOperation::gnss_velocity;
     if (m_gnss.lifecycle.state().velocity.action == GnssFusion::Action::reset)
     {
+        auto const epoch = evaluation_epoch(m_gnss.input);
         vector3_type delta;
         auto next_state = m_state;
         auto next_covariance = m_covariance;
@@ -321,11 +342,13 @@ bool InsSession<Linalg, Layout>::fuse_gps_velocity(GnssVelocityObservation const
         {
             status = continuity.recover_velocity(observation.frame.rotation, {true, true, true});
         }
-        if (!check(status) || !check(lifecycle.record_reset(Group::velocity, m_gnss.sample.time_us, true)) ||
+        if (!check(status) || !check(lifecycle.record_reset(LifecycleGroup::velocity, m_gnss.sample.time_us, true)) ||
             !reset_output({}, next_state.v_n - m_state.v_n, {}, {.velocity = true, .vertical_velocity = true}))
         {
+            report(Group::gnss_velocity).record_reset(epoch, m_failure_status, false);
             return false;
         }
+        report(Group::gnss_velocity).record_reset(epoch, status_type::success, true);
         m_state = next_state;
         m_covariance = next_covariance;
         m_continuity = continuity;
@@ -345,14 +368,21 @@ bool InsSession<Linalg, Layout>::fuse_gps_velocity(GnssVelocityObservation const
         auto const result = fuse_frame_velocity(
             m_state, m_covariance, observation.model, Rv, m_parameters.minimum_quaternion_norm,
             m_settings.gnss.gate_sigma, velocity_conditions, m_state, m_covariance, m_bias_learning_result.bias_update);
+        auto & diagnostic = report(Group::gnss_velocity);
+        diagnostic.record(evaluation_epoch(m_gnss.input), result.fusion);
+        diagnostic.innovation_limited = result.innovation_limited;
+        for (std::size_t axis = 0; axis < 3; ++axis)
+        {
+            diagnostic.fusion_innovation[axis] = result.fusion_innovation(axis);
+        }
         m_gnss.velocity_test_ratios =
             result.fusion.diagnostics_valid ? result.fusion.test_ratio : vector3(NAN, NAN, NAN);
         for (std::size_t axis = 0; axis < 3; ++axis)
         {
-            m_innovations.velocity[axis].record(m_gnss.sample.time_us, -result.fusion.innovation(axis),
+            m_innovations.velocity[axis].record(m_gnss.sample.time_us, result.fusion.innovation(axis),
                                                 m_gnss.velocity_test_ratios(axis));
         }
-        if (!record_gps_fusion(Group::velocity, result.fusion.decision, result.fusion.status))
+        if (!record_gps_fusion(LifecycleGroup::velocity, result.fusion.decision, result.fusion.status))
         {
             return false;
         }
@@ -361,6 +391,7 @@ bool InsSession<Linalg, Layout>::fuse_gps_velocity(GnssVelocityObservation const
         // Use preceding height progress, after normal velocity correction and before height control.
         if (m_height_aiding.reset_required(m_time_us, {health.last_update_time_us, health.last_good_time_us}))
         {
+            auto const reset_epoch = evaluation_epoch(m_gnss.input);
             vector3_type delta;
             auto next_state = m_state;
             auto next_covariance = m_covariance;
@@ -371,8 +402,10 @@ bool InsSession<Linalg, Layout>::fuse_gps_velocity(GnssVelocityObservation const
                 !check(continuity.recover_velocity(observation.frame.rotation, {false, false, true})) ||
                 !reset_output({}, next_state.v_n - m_state.v_n, {}, {.vertical_velocity = true}))
             {
+                diagnostic.record_reset(reset_epoch, m_failure_status, false);
                 return false;
             }
+            diagnostic.record_reset(reset_epoch, status_type::success, true);
             m_state = next_state;
             m_covariance = next_covariance;
             m_continuity = continuity;
@@ -385,12 +418,15 @@ bool InsSession<Linalg, Layout>::fuse_gps_velocity(GnssVelocityObservation const
 
 template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::fuse_gps_position()
 {
+    m_operation = InsOperation::gnss_position;
     auto const & gps = m_gnss.input.sample;
     using namespace formal_eskf::runtime;
-    using Group = gnss_lifecycle_type::Group;
+    using LifecycleGroup = gnss_lifecycle_type::Group;
     formal_eskf::geodesy::NedTransform<backend_type> frame;
     if (!check(gnss_frame(frame)))
     {
+        report(Group::gnss_position)
+            .evaluate(evaluation_epoch(m_gnss.input), FusionDiagnostic::Outcome::failed, m_failure_status, false);
         return false;
     }
     auto const offset = frame.rotation * gnss_position_offset();
@@ -399,6 +435,8 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::fus
     if (!check(position_observation(m_state.p_n, xy, frame.rotation.template block<0, 0, 2, 3>(),
                                     frame.translation.template segment<0, 2>(), observation)))
     {
+        report(Group::gnss_position)
+            .evaluate(evaluation_epoch(m_gnss.input), FusionDiagnostic::Outcome::failed, m_failure_status, false);
         return false;
     }
     const double position_variance =
@@ -407,6 +445,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::fus
     const auto Rxy = matrix2_type::identity() * position_variance;
     if (m_gnss.lifecycle.state().horizontal_position.action == GnssFusion::Action::reset)
     {
+        auto const epoch = evaluation_epoch(m_gnss.input);
         vector3_type delta;
         auto next_state = m_state;
         auto next_covariance = m_covariance;
@@ -419,11 +458,14 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::fus
         {
             status = continuity.recover_position(frame.rotation, {true, true, false});
         }
-        if (!check(status) || !check(lifecycle.record_reset(Group::horizontal_position, m_gnss.sample.time_us, true)) ||
+        if (!check(status) ||
+            !check(lifecycle.record_reset(LifecycleGroup::horizontal_position, m_gnss.sample.time_us, true)) ||
             !reset_output({}, {}, next_state.p_n - m_state.p_n, {.horizontal_position = true}))
         {
+            report(Group::gnss_position).record_reset(epoch, m_failure_status, false);
             return false;
         }
+        report(Group::gnss_position).record_reset(epoch, status_type::success, true);
         m_state = next_state;
         m_covariance = next_covariance;
         m_continuity = continuity;
@@ -441,14 +483,15 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::fus
         auto const result = fuse_measurement(m_state, m_covariance, observation.innovation, observation.H, Rxy,
                                              m_parameters.minimum_quaternion_norm, m_settings.gnss.gate_sigma, m_state,
                                              m_covariance, m_bias_learning_result.bias_update);
+        report(Group::gnss_position).record(evaluation_epoch(m_gnss.input), result);
         m_gnss.position_test_ratio =
             result.diagnostics_valid ? std::max(result.test_ratio(0), result.test_ratio(1)) : double(NAN);
         for (std::size_t axis = 0; axis < 2; ++axis)
         {
-            m_innovations.position[axis].record(m_gnss.sample.time_us, -result.innovation(axis),
+            m_innovations.position[axis].record(m_gnss.sample.time_us, result.innovation(axis),
                                                 result.diagnostics_valid ? result.test_ratio(axis) : double(NAN));
         }
-        if (!record_gps_fusion(Group::horizontal_position, result.decision, result.status))
+        if (!record_gps_fusion(LifecycleGroup::horizontal_position, result.decision, result.status))
         {
             return false;
         }
@@ -531,6 +574,7 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::upd
 template <typename Linalg, typename Layout>
 void InsSession<Linalg, Layout>::fuse_height(ObservationReceipt const & barometer_receipt)
 {
+    m_operation = InsOperation::height;
     if (m_navigation_frame.initialized())
     {
         auto const admission = frame_admission(m_state.p_n, m_state.v_n, m_output.current().time_us);
@@ -609,10 +653,12 @@ void InsSession<Linalg, Layout>::fuse_height(ObservationReceipt const & baromete
         m_navigation_frame.working().initialized() ? &geometry : nullptr, numerical_reset);
     if (!check(result.status))
     {
+        record_height(result, false);
         return;
     }
     if (result.height_resets != 0 && !check(continuity.recover_position(basis, {false, false, true})))
     {
+        record_height(result, false);
         return;
     }
     if ((result.height_resets != 0 || result.velocity_resets != 0) &&
@@ -620,8 +666,10 @@ void InsSession<Linalg, Layout>::fuse_height(ObservationReceipt const & baromete
                       {.vertical_velocity = result.velocity_resets != 0,
                        .height_count = static_cast<std::uint8_t>(result.height_resets)}))
     {
+        record_height(result, false);
         return;
     }
+    record_height(result, true);
     m_state = next_state;
     m_covariance = next_covariance;
     m_height_aiding = height_owner;

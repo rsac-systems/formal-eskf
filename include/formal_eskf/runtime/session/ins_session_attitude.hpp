@@ -15,6 +15,7 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::Gra
 template <typename Linalg, typename Layout>
 void InsSession<Linalg, Layout>::fuse_gravity(ImuInput const & sample, imu_type const & imu)
 {
+    m_operation = InsOperation::gravity;
     // Only admitted, real IMU intervals reach this phase. Alignment uses the
     // post-navigation/height prior, even when gravity fusion is disabled.
     if (!check(m_tilt_alignment.update(m_state.q_nb, m_covariance.template block<6U, 6U, 3U, 3U>())))
@@ -35,6 +36,8 @@ void InsSession<Linalg, Layout>::fuse_gravity(ImuInput const & sample, imu_type 
                                  m_parameters.minimum_quaternion_norm);
     if (!check(observation.status))
     {
+        report(Group::gravity)
+            .evaluate(gravity_epoch(sample, 0), FusionDiagnostic::Outcome::failed, observation.status, false);
         return;
     }
 
@@ -62,6 +65,13 @@ void InsSession<Linalg, Layout>::fuse_gravity(ImuInput const & sample, imu_type 
         observation.magnitude, m_parameters.minimum_quaternion_norm, m_state, m_covariance,
         m_bias_learning_result.bias_update);
     m_gravity.active = result.conditions.active;
+    m_gravity_conditions = result.conditions;
+    auto const outcome = !result.conditions.sample_eligible         ? FusionDiagnostic::Outcome::inhibited
+                         : result.decision == FusionDecision::fused ? FusionDiagnostic::Outcome::corrected
+                                                                    : FusionDiagnostic::Outcome::failed;
+    report(Group::gravity)
+        .evaluate(gravity_epoch(sample, observation.interval_us), outcome, result.status,
+                  result.conditions.sample_eligible);
     if (!check(result.status))
     {
         return;
@@ -193,14 +203,21 @@ InsSession<Linalg, Layout>::prepare_magnetic_observation(MagneticSample const & 
                                   parameters, m_heading_aligned, conditions.horizontal_aiding);
     if (!formal_eskf::succeeded(status))
     {
-        return status;
+        m_magnetic.observation.field.status = status;
     }
-    auto const health_n = magnetic_reference(m_magnetic_model.health_n());
-    auto const * health = m_magnetic_model.available() ? &health_n : nullptr;
-    m_magnetic.observation.field = formal_eskf::runtime::check_magnetic_field(
-        m_state.q_nb, sample.field_b, magnetic_reference(m_magnetic_model.observation_n()), health,
-        m_settings.magnetic.field, false, m_settings.magnetic.checks);
-    event.field_accepted = m_magnetic.observation.field.accepted;
+    else
+    {
+        auto const health_n = magnetic_reference(m_magnetic_model.health_n());
+        auto const * health = m_magnetic_model.available() ? &health_n : nullptr;
+        m_magnetic.observation.field = formal_eskf::runtime::check_magnetic_field(
+            m_state.q_nb, sample.field_b, magnetic_reference(m_magnetic_model.observation_n()), health,
+            m_settings.magnetic.field, false, m_settings.magnetic.checks);
+        event.field_accepted = m_magnetic.observation.field.accepted;
+    }
+    m_magnetic_quality_epoch = evaluation_epoch(m_magnetic.input);
+    m_magnetic_quality_epoch.reference_id = m_magnetic_model.reference_id();
+    m_diagnostic_magnetic_quality = m_magnetic.observation.field;
+    m_magnetic_quality_evaluated = true;
     return m_magnetic.observation.field.status;
 }
 
@@ -215,9 +232,12 @@ bool InsSession<Linalg, Layout>::fuse_magnetic_observation(MagneticSample const 
         m_settings.magnetic.field, false, m_parameters.minimum_quaternion_norm, m_settings.magnetic.gate_sigma, m_state,
         m_covariance, m_bias_learning_result.bias_update, m_settings.magnetic.checks);
     auto const & fusion = m_magnetic.observation.fusion;
+    auto epoch = evaluation_epoch(m_magnetic.input);
+    epoch.reference_id = m_magnetic_model.reference_id();
+    report(Group::magnetic).record(epoch, fusion);
     for (std::size_t axis = 0; axis < 3; ++axis)
     {
-        m_innovations.magnetic[axis].record(sample.time_us, -fusion.innovation(axis),
+        m_innovations.magnetic[axis].record(sample.time_us, fusion.innovation(axis),
                                             fusion.diagnostics_valid ? fusion.test_ratio(axis) : double(NAN));
     }
     // Feedback precedes numerical status handling and post-correction limiting.
@@ -304,6 +324,7 @@ InsSession<Linalg, Layout>::reset_magnetic_heading(std::uint64_t sample_time_us)
         if (local_reference)
         {
             m_output.commit_rebase();
+            ++m_frame_epoch;
             m_magnetic.heading = heading;
             m_tilt_alignment = tilt;
             m_continuity = continuity;

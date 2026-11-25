@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 
@@ -196,6 +197,14 @@ public:
     }
     std::uint64_t fusion_time_us() const { return m_fusion_time_us; }
     std::uint32_t half_period_us() const { return static_cast<std::uint32_t>(m_average_period_us * 0.5); }
+    std::array<std::size_t, 3> entries() const
+    {
+        return {m_gnss.entries(), m_magnetic.entries(), m_barometer.entries()};
+    }
+    std::array<std::size_t, 3> capacities() const
+    {
+        return {m_gnss.get_length(), m_magnetic.get_length(), m_barometer.get_length()};
+    }
     void reset(); // Retain startup configuration; clear histories, watermarks, context and timing average.
 
 private:

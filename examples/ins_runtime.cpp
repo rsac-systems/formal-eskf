@@ -11,6 +11,7 @@ int main()
 {
     namespace profile = ins_example;
     auto parameters = profile::parameters<Session>();
+    parameters.session_id = 1; // One synthetic session in this process; callers assign IDs on replacement.
     Session session{parameters};
     if (!session.configure_timing(profile::timing) || !session.configure_gravity(true) ||
         !session.configure_magnetic({true, true, 0}) || !session.configure_sensor_positions({}))
@@ -106,12 +107,23 @@ int main()
     {
         return 5;
     }
+    auto const diagnostics = session.diagnostics(imu.time_us);
     std::printf(
-        "INS initialized: %s; delayed predictions: %u; lag: %llu us\n", session.initialized() ? "yes" : "no",
-        session.statistics().predictions,
+        "INS initialized: %s; delayed predictions: %llu; lag: %llu us\n", session.initialized() ? "yes" : "no",
+        static_cast<unsigned long long>(diagnostics.predictions),
         static_cast<unsigned long long>(session.output_predictor().current().time_us - session.fusion_time_us()));
     std::printf("Local NED: %.6f %.6f %.6f m; MSL altitude: %.6f m\n", body.position_n(0), body.position_n(1),
                 body.position_n(2), body.altitude_msl_m);
-    auto const capabilities = session.capabilities(session.output_predictor().current().time_us);
+    for (auto const & group : diagnostics.groups)
+    {
+        std::printf(
+            "Fusion group: evaluations=%llu corrected=%llu rejected=%llu failed=%llu resets=%llu; sample=%llu us\n",
+            static_cast<unsigned long long>(group.counts.evaluations),
+            static_cast<unsigned long long>(group.counts.corrected),
+            static_cast<unsigned long long>(group.counts.rejected),
+            static_cast<unsigned long long>(group.counts.failed), static_cast<unsigned long long>(group.counts.resets),
+            static_cast<unsigned long long>(group.epoch.selection_time_us));
+    }
+    auto const & capabilities = diagnostics.capabilities;
     return capabilities.global_position.available && capabilities.msl_altitude.available ? 0 : 6;
 }

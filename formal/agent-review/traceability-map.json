@@ -8425,7 +8425,7 @@
     },
     {
       "id": "R-INS-DIAGNOSTICS",
-      "title": "Bounded owner diagnostics, evidence epochs, snapshots and counters: Draft target; implementation, executable acceptance and formal source evidence pending",
+      "title": "Bounded owner diagnostics, source/evaluation epochs, coherent snapshots and event counts; native staged-session and PX4 bindings, target/logger and formal qualification remain separate",
       "references": {
         "spec": [
           {
@@ -8439,10 +8439,39 @@
           {
             "file": "docs/spec/verification/diagnostic-reporting-tests.md",
             "symbol": "## Runtime cases"
+          },
+          {
+            "file": "docs/spec/verification/tests/runtime/ins-diagnostics.md",
+            "symbol": "## Cases"
           }
         ],
         "lean": [],
-        "cpp": [],
+        "cpp": [
+          {
+            "file": "include/formal_eskf/runtime/session/ins_diagnostics.hpp",
+            "symbol": "struct FusionDiagnostic"
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_diagnostics.hpp",
+            "symbol": "InsSession<Linalg, Layout>::diagnostics("
+          },
+          {
+            "file": "include/formal_eskf/runtime/sensors/height/height_aiding.hpp",
+            "symbol": "struct Evidence"
+          },
+          {
+            "file": "tests/runtime/session/test_diagnostics.cpp",
+            "symbol": "class InsSessionTest"
+          },
+          {
+            "file": "integrations/px4/module/FormalEskfOutput.cpp",
+            "symbol": "void FormalEskf::update_status_changes("
+          },
+          {
+            "file": "integrations/px4/tests/ModuleTest.cpp",
+            "symbol": "static void diagnostic_mask_transitions("
+          }
+        ],
         "esbmc": []
       }
     },

@@ -703,12 +703,14 @@ public:
         {
             return;
         }
-        std::fprintf(trace_file, "%s %llu %u %u %u %u %u %u %u %u %u %u\n", label,
+        std::fprintf(trace_file, "%s %llu %u %u %u %u %llu %llu %llu %llu %u %u\n", label,
                      static_cast<unsigned long long>(m_filter.m_session.m_time_us), m_filter.m_session.m_initialized,
                      m_filter.m_session.m_fault, unsigned(m_filter.m_session.m_startup.ready()),
                      unsigned(m_filter.m_session.m_tilt_alignment.aligned()),
-                     m_filter.m_session.m_statistics.predictions, m_filter.m_session.m_statistics.rejections,
-                     m_filter.m_session.m_statistics.errors, m_filter.m_session.m_statistics.gaps,
+                     static_cast<unsigned long long>(m_filter.m_session.m_statistics.predictions),
+                     static_cast<unsigned long long>(m_filter.m_session.m_statistics.rejections),
+                     static_cast<unsigned long long>(m_filter.m_session.m_statistics.errors),
+                     static_cast<unsigned long long>(m_filter.m_session.m_statistics.gaps),
                      m_filter.m_session.m_resets.position_count, m_filter.m_session.m_resets.velocity_count);
         std::array<double, 16U + 225U> values{};
         auto const & state = m_filter.m_session.m_state;
@@ -731,18 +733,21 @@ public:
             }
         }
         trace_bytes(values.data(), sizeof(values));
-        std::fprintf(trace_file, "gravity %u %u %u %u %llu\n", unsigned(m_filter.m_session.m_tilt_alignment.aligned()),
-                     unsigned(m_filter.m_session.m_gravity.active), m_filter.m_session.m_gravity.samples,
-                     m_filter.m_session.m_gravity.corrections,
+        std::fprintf(trace_file, "gravity %u %u %llu %llu %llu\n",
+                     unsigned(m_filter.m_session.m_tilt_alignment.aligned()),
+                     unsigned(m_filter.m_session.m_gravity.active),
+                     static_cast<unsigned long long>(m_filter.m_session.m_gravity.samples),
+                     static_cast<unsigned long long>(m_filter.m_session.m_gravity.corrections),
                      static_cast<unsigned long long>(m_filter.m_session.m_gravity.interval_us));
         auto const & magnetic = m_filter.m_session.m_magnetic.lifecycle.state();
         auto const & heading = m_filter.m_session.m_magnetic.heading.state();
         auto const & observation = m_filter.m_session.m_magnetic.observation;
-        std::fprintf(trace_file, "magnetic %u %u %u %u %u %u %u %u %u %llu %llu %llu %llu %llu %llu\n",
+        std::fprintf(trace_file, "magnetic %u %u %u %u %u %u %u %llu %u %llu %llu %llu %llu %llu %llu\n",
                      unsigned(magnetic.active), unsigned(magnetic.action), unsigned(magnetic.stop_reason),
                      unsigned(magnetic.recovery_reason), unsigned(m_filter.m_session.m_heading_aligned),
                      unsigned(m_filter.m_session.m_resets.attitude_count), m_filter.m_session.m_resets.odometry_count,
-                     m_filter.m_session.m_magnetic.corrections, unsigned(observation.fusion.decision),
+                     static_cast<unsigned long long>(m_filter.m_session.m_magnetic.corrections),
+                     unsigned(observation.fusion.decision),
                      static_cast<unsigned long long>(m_filter.m_session.m_magnetic.sample_time_us),
                      static_cast<unsigned long long>(magnetic.start_time_us),
                      static_cast<unsigned long long>(magnetic.last_fuse_time_us),
@@ -766,8 +771,9 @@ public:
                          static_cast<unsigned long long>(group.last_reset_time_us),
                          static_cast<unsigned long long>(group.start_time_us));
         }
-        std::fprintf(trace_file, "navigation %u %u %u %u %u %llu %llu\n", m_filter.m_session.m_gnss.corrections,
-                     m_filter.m_session.m_statistics.baro_updates,
+        std::fprintf(trace_file, "navigation %llu %llu %u %u %u %llu %llu\n",
+                     static_cast<unsigned long long>(m_filter.m_session.m_gnss.corrections),
+                     static_cast<unsigned long long>(m_filter.m_session.m_statistics.baro_updates),
                      unsigned(m_filter.m_session.m_height_aiding.reference()),
                      unsigned(m_filter.m_session.m_resets.height_count),
                      unsigned(m_filter.m_session.m_resets.vertical_velocity_count),
@@ -3254,6 +3260,42 @@ public:
                "successful magnetic realignment restores preflight readiness without changing GNSS fusion");
     }
 
+    static void diagnostic_mask_transitions()
+    {
+        InsSessionTest test;
+        test.warmup();
+        auto & f = test.m_filter;
+        f.m_session.m_gnss.position_rejected = false;
+        f.m_session.m_gnss.velocity_rejected = false;
+        f.update_status_changes(clock_us);
+        auto before = f.m_status_changes.innovation_count;
+        auto const publication = f.m_last_status;
+        // Both bits change in one completed boundary: one whole-mask transition.
+        f.m_session.m_gnss.position_rejected = f.m_session.m_gnss.velocity_rejected = true;
+        f.update_status_changes(clock_us + 1);
+        f.m_session.m_gnss.position_rejected = f.m_session.m_gnss.velocity_rejected = false;
+        f.update_status_changes(clock_us + 2);
+        expect(f.m_status_changes.innovation_count == before + 2 && f.m_last_status == publication,
+               "A-B-A between publications counts two completed transitions, not individual bits");
+        before = f.m_status_changes.innovation_count;
+        f.publish_status(clock_us + 3);
+        f.publish_status(clock_us + 4);
+        expect(f.m_status_changes.innovation_count == before, "publishing retained masks does not count transitions");
+        f.m_status_changes.innovation_count = UINT32_MAX;
+        f.m_session.m_gnss.position_rejected = true;
+        f.update_status_changes(clock_us + 5);
+        expect(f.m_status_changes.innovation_count == 0, "external mask count retains uint32 modulo wrap");
+        auto const control = f.m_status_changes.control_count;
+        f.update_status_changes(clock_us + 10000000);
+        expect(f.m_status_changes.control_count == control + 1, "no-IMU expiry reaches completed mask comparison");
+        f.update_diagnostics(clock_us);
+        FormalEskf::Diagnostics view;
+        expect(f.read_diagnostics(view) && view.session.gnss_quality_evaluated &&
+                   view.session.gnss_quality_epoch.selection_time_us <= view.session.covariance_time_us &&
+                   view.session.output_time_us > view.session.covariance_time_us,
+               "adapter snapshot retains actual quality and separate current/delayed epochs");
+    }
+
     static void diagnostic_flags()
     {
         InsSessionTest test;
@@ -3273,6 +3315,7 @@ public:
             f.m_magnetic_ratios[axis] = {};
             f.m_magnetic_ratios[axis].update(f.m_session.m_time_us, -1., 0.25);
         }
+        f.update_status_changes(clock_us);
         f.publish_status(clock_us);
         estimator_status_s status{};
         estimator_status_flags_s flags{};
@@ -3286,6 +3329,7 @@ public:
                "summary ratio is amplitude-scaled; absent estimators do not report perfect zero residual");
         auto const initial = flags;
         auto const ratio_before = f.m_magnetic_ratios[0];
+        f.update_status_changes(clock_us);
         f.publish_status(clock_us);
         expect(f.m_magnetic_ratios[0].filtered == ratio_before.filtered &&
                    f.m_magnetic_ratios[0].time_us == ratio_before.time_us,
@@ -3306,6 +3350,7 @@ public:
             f.m_velocity_ratios[axis].update(f.m_session.m_time_us, -1., axis == 2 ? 0.01 : 0.75);
             f.m_magnetic_ratios[axis].update(f.m_session.m_time_us, -1., 0.75);
         }
+        f.update_status_changes(clock_us);
         f.publish_status(clock_us);
         orb_copy(ORB_ID(estimator_status), test.m_outputs[4], &status);
         orb_copy(ORB_ID(estimator_status_flags), test.m_outputs[5], &flags);
@@ -3318,6 +3363,7 @@ public:
         f.m_session.m_magnetic.observation.field.diagnostics_valid = true;
         f.m_session.m_magnetic.observation.field.failures.strength = true;
         f.m_session.m_gravity.active = true;
+        f.update_status_changes(clock_us);
         f.publish_status(clock_us);
         orb_copy(ORB_ID(estimator_status), test.m_outputs[4], &status);
         orb_copy(ORB_ID(estimator_status_flags), test.m_outputs[5], &flags);
@@ -3343,6 +3389,7 @@ public:
             expect(formal_eskf::succeeded(f.m_session.m_vertical_health.update(sample, observations)),
                    "vertical fault setup");
         }
+        f.update_status_changes(clock_us);
         f.publish_status(clock_us);
         orb_copy(ORB_ID(estimator_status), test.m_outputs[4], &status);
         orb_copy(ORB_ID(estimator_status_flags), test.m_outputs[5], &flags);
@@ -3352,6 +3399,7 @@ public:
                    flags.fault_status_changes == initial.fault_status_changes + 1,
                "actual vertical/clipping faults use PX4's current bits, not obsolete bit 16");
         f.m_session.m_vertical_health.reset();
+        f.update_status_changes(clock_us);
         f.publish_status(clock_us);
         orb_copy(ORB_ID(estimator_status_flags), test.m_outputs[5], &flags);
         expect(!flags.fs_bad_acc_vertical && !flags.fs_bad_acc_clipping &&
@@ -4839,6 +4887,7 @@ int main(int argc, char ** argv)
     InsSessionTest::innovation_reporting();
     InsSessionTest::heading_readiness(false);
     InsSessionTest::heading_readiness(true);
+    InsSessionTest::diagnostic_mask_transitions();
     InsSessionTest::diagnostic_flags();
     InsSessionTest::navigation_covariance_frame();
     InsSessionTest::dateline_output();

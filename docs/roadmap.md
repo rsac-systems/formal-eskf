@@ -293,22 +293,24 @@ The [portable diagnostic contract](spec/requirements/runtime/diagnostics.md) and
 [PX4 mapping](spec/requirements/integration/px4/status.md#diagnostic-reporting-target)
 are Draft specification baselines. They define owner facts, result epochs,
 per-group numerical evidence and bounded readout without adding fusion policy.
-The [acceptance design](spec/verification/diagnostic-reporting-tests.md) allocates
-Pending cases; existing F-06.1 evidence does not establish this expanded target.
+The [acceptance design](spec/verification/diagnostic-reporting-tests.md) binds
+native runtime/module cases and retains explicit target/logger qualification gaps;
+existing F-06.1 evidence alone does not establish this expanded target.
 Retain the original N4 action IDs. Staged capability and sensor-input behavior
 remain A-03/A-05 dependencies where used, not features implemented by reporting.
 
 | Task | Status | Completion boundary |
 |---|---|---|
 | N4-A1 — Reporting semantics and owner binding | Completed | Draft architecture, portable requirement, PX4 field/time/sign mapping and count units/reset scope. Implementation, requirement approval and execution evidence remain separate. |
-| N4-A2 — Source and numerical evidence | Planned | Retain actual evaluation identity/epochs and per-group outcomes, including failed/rejected calls and limited residuals. Preserve original input and selection times; skipped evaluation must not reuse the consumed watermark as new evidence. Convert PX4 residual signs once at the declared boundary; do not duplicate gate computation. |
-| N4-A3 — Bounded snapshots and counters | Planned | Implement coherent current/fusion/failure/expiry views and defined event/gauge units, uint64 wrap and owner reset. Public reads must not drain internal innovation events, alter estimation or require unbounded storage/work. Include exact count/identity and read-interleaving cases. |
-| N4-A4 — PX4 and standalone reporting | Planned | Bind supported existing outputs and local readout to actual owner reports; preserve SIH GNSS input settings while exporting the declared diagnostic epochs. Move mask comparison before publication throttling, retain external widths/wrap and qualify concurrent snapshot exchange. Reuse actual Commander/controller tests. |
+| N4-A2 — Source and numerical evidence | Implemented | Actual evaluation/source/frame epochs, skipped-input reasons and computed gate evidence are retained per group. Tentative height evidence survives rollback without a committed event. Portable residual signs convert once in the PX4 adapter. |
+| N4-A3 — Bounded snapshots and counters | Implemented | Pure fixed-size session view exposes current/delayed/completed phases, faults, owner decisions, per-group outcomes, admission/retirement gauges and uint64 totals. Native tests bind read noninterference, reset/wrap and first-fault semantics. |
+| N4-A4 — PX4 and standalone reporting | Implemented for declared profiles | Supported existing outputs and local readout consume owner facts. Mask comparison occurs at completed Run/expiry boundaries before throttling; external widths and one-consumer filters are preserved. Actual module/consumer fixtures and standalone example are covered. |
 | N4-A5 — Additional S/NIS diagnostics | Deferred | Consider only for an identified consumer and approved work/storage budget. Full innovation-covariance/NIS export, new gates and duplicate filters are outside the minimal baseline. This is not a prerequisite for N4-A6. |
-| N4-A6 — Acceptance and evidence closure | Partial | Pending cases and requirement links are specified. Adopt executable bindings, run applicable owner/caller/consumer profiles, qualify complete storage/work and reconcile current evidence. Review duplication and refactor with unchanged estimation behavior. Existing component results do not close composition or target gaps. |
+| N4-A6 — Acceptance and evidence closure | Partial | Native case registration, default/alternate backend and numerical mode tests, sanitizers and static review cover the implementation. Host module object/stack and concurrent exchange are checked. External-logger delivery, embedded target WCET/resources and formal migration remain separately scoped gaps. |
 
-Implement N4-A2, then N4-A3 and N4-A4 with their tests; close N4-A6 against the
-actual implementation and applicable target profile. Preserve numerical ordering,
+N4-A2 through N4-A4 are implemented in dependency order with their native tests.
+Close the remaining N4-A6 qualification against the applicable target profile.
+Preserve numerical ordering,
 source decisions and previously committed stages. Resource qualification uses
 F-07.2; unresolved target budgets are not timing passes. Ground-effect redesign,
 optional stationary updates and local/global output changes remain separate work.

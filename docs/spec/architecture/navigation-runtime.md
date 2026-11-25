@@ -188,9 +188,22 @@ filters. Fixed storage and copying costs remain deployment qualification work;
 no generic callback, lock or event queue is introduced into runtime.
 
 The [PX4 status target](../requirements/integration/px4/status.md#diagnostic-reporting-target)
-binds external timestamps, signs and counters. Existing strict-module snapshots
-and event drains implement only parts of this allocation. N2 capabilities, N3
-source continuation and optional barometer remain independently scoped targets.
+binds external timestamps, signs and counters. The production session retains
+fixed per-group evaluation/reset records and caller-assigned session identity.
+Its bounded read-only view copies owner facts at a public-operation boundary;
+the pending phase and last completed fusion epoch remain explicit. A reader
+supplies capture time but cannot advance the owners. PX4 owns synchronization,
+measurement-event filtering, sign conversion and pre-publication mask comparison.
+The standalone example uses the same view without platform dependencies.
+
+Evidence retains its original frame epoch across geographic migration or local
+heading admission. GNSS position/velocity residuals use the observation's NED
+axes; height uses the observation's Down axis; magnetic/gravity observations use
+body FRD units. Covariance diagonal values identify their delayed working p/v,
+body attitude-error and body-bias blocks. Retained evidence is not transported or
+relabeled by a later snapshot. A failed height transaction can return tentative
+gate evidence while its state, history and committed reporting events roll back.
+Formal source migration and target resource qualification remain separate.
 
 ### Ground-effect protection allocation
 

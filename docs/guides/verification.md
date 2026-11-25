@@ -15,6 +15,13 @@ it is neither a proof nor a mandatory review of every function.
 
 ## Open boundaries
 
+Diagnostic reporting has native bindings under R-INS-DIAGNOSTICS. The new retained
+IMU arrival metadata, height attempt evidence/result layout, portable residual-sign
+events and session/PX4 reporting paths have not been revalidated with Lean/ESBMC.
+Existing height transaction proofs retain their original result-field scope;
+they do not prove the new diagnostic fields. Runtime caller/source checks must
+be reconciled separately before extending historical evidence to these changes.
+
 - PX4/replay caller evidence remains tied to its checked source revision. The
   module/replay extractor currently rejects stale source pins; the portable-runtime
   extraction is not covered by those historical results. A-01.12 retains these

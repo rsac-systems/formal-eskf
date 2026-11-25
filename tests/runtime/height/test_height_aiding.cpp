@@ -658,13 +658,15 @@ template <typename Linalg> void parameters_and_events(Context & test)
     auto const & initial = start.diagnostics[1];
     test.expect(initial.source_changed && initial.reset && !initial.measurement && initial.time_us == f.now, "events",
                 "first GNSS report clears source history then resets at the admitted epoch");
+    f.gnss_altitude += T{0.5}; // A nonzero residual distinguishes the two sign conventions.
     auto const fused = f.tick(false, true);
     auto const & observation = fused.diagnostics[1];
     auto const & aid = f.aiding.session(A::Source::gnss);
-    test.expect(!observation.source_changed && !observation.reset && observation.measurement && observation.valid &&
-                    observation.time_us == f.now && observation.innovation == -aid.fusion.innovation(0) &&
-                    observation.test_ratio == aid.fusion.test_ratio(0),
-                "events", "ordinary fusion returns unfiltered gate diagnostics with the reporting sign");
+    test.expect(
+        !observation.source_changed && !observation.reset && observation.measurement && observation.valid &&
+            observation.time_us == f.now && observation.innovation != T{0} &&
+            observation.innovation == aid.fusion.innovation(0) && observation.test_ratio == aid.fusion.test_ratio(0),
+        "events", "ordinary fusion returns measurement-minus-prediction evidence before adapter sign conversion");
     auto const time = aid.sample_time;
     f.P(2, 2) = std::numeric_limits<T>::quiet_NaN();
     auto const failed = f.tick(false, true);
@@ -1198,12 +1200,21 @@ template <typename Linalg> void height_transaction(Context & test)
                         failed.height_resets == 0 && failed.velocity_resets == 0 && failed.height_delta == 0 &&
                         failed.velocity_delta == 0 && formal_eskf::linalg::max_abs(failed.position_delta_n) == 0 &&
                         formal_eskf::linalg::max_abs(failed.velocity_delta_n) == 0,
-                    "transaction", "failure returns only its status, with no tentative success or reset");
+                    "transaction", "failure returns no committed correction or reset");
         for (auto const & event : failed.diagnostics)
         {
             test.expect(!event.source_changed && !event.measurement && !event.reset && !event.valid &&
                             event.time_us == 0 && event.innovation == 0 && event.test_ratio == 0,
                         "transaction", "neither source publishes a tentative diagnostic event");
+        }
+        if (failure == Failure::second_correction)
+        {
+            test.expect(
+                failed.evidence[0].evaluated && failed.evidence[0].fusion.diagnostics_valid &&
+                    failed.evidence[0].fusion.decision == formal_eskf::runtime::FusionDecision::fused &&
+                    failed.evidence[1].evaluated && !failed.evidence[1].fusion.diagnostics_valid,
+                "transaction",
+                "rollback preserves computed first-source gate and invalid second-source attempt as evidence only");
         }
         expect_height_frame(test, f, before);
         // Retry the failed epoch against an untouched owner, then cross the warmup
