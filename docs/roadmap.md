@@ -124,7 +124,7 @@ not itself authorize a broad file relocation. Numerical thresholds come from ite
 
 | Task | Status | Scope and completion boundary |
 |---|---|---|
-| F-06.1 — Confidence and failure reporting | Completed | Capability flags, bias validity, faults, innovation summaries and covariance proxies follow the [status contract](spec/requirements/integration/px4/status.md). No bias-convergence or transported/current-time covariance claim; numerical/history faults require restart. |
+| F-06.1 — Confidence and failure reporting | Completed | Existing strict-module baseline: capability flags, bias validity, faults, innovation summaries and covariance proxies follow the [status contract](spec/requirements/integration/px4/status.md). No bias-convergence or transported/current-time covariance claim; numerical/history faults require restart. The expanded portable/PX4 diagnostic target remains N4 below. |
 | F-06.2 — Deployment parameters | Partial | Startup parameters and the Kconfiglib build frontend bind packaged PX4 controls. Remaining work: review supported tuning profiles and additional startup bindings against the [configuration inventory](guides/configuration.md#px4-deployment-menu). Preserve units, defaults, restart semantics and configuration-specific evidence. Replay stays separate; do not import live EKF2 settings implicitly. |
 
 ### F-07 — Deployment validation
@@ -271,6 +271,32 @@ and the core reset precedes its runtime/PX4 callers. Each implementation unit
 includes tests, self-review and necessary refactoring before commit. No Lean/ESBMC
 execution is part of this documentation baseline.
 
+### N4 — Health and diagnostic reporting
+
+The [portable diagnostic contract](spec/requirements/runtime/diagnostics.md) and
+[PX4 mapping](spec/requirements/integration/px4/status.md#diagnostic-reporting-target)
+are Draft specification baselines. They define owner facts, result epochs,
+per-group numerical evidence and bounded readout without adding fusion policy.
+The [acceptance design](spec/verification/diagnostic-reporting-tests.md) allocates
+Pending cases; existing F-06.1 evidence does not establish this expanded target.
+Retain the original N4 action IDs. Staged capability and sensor-input behavior
+remain A-03/A-05 dependencies where used, not features implemented by reporting.
+
+| Task | Status | Completion boundary |
+|---|---|---|
+| N4-A1 — Reporting semantics and owner binding | Completed | Draft architecture, portable requirement, PX4 field/time/sign mapping and count units/reset scope. Implementation, requirement approval and execution evidence remain separate. |
+| N4-A2 — Source and numerical evidence | Planned | Retain actual evaluation identity/epochs and per-group outcomes, including failed/rejected calls and limited residuals. Preserve original input and selection times; skipped evaluation must not reuse the consumed watermark as new evidence. Convert PX4 residual signs once at the declared boundary; do not duplicate gate computation. |
+| N4-A3 — Bounded snapshots and counters | Planned | Implement coherent current/fusion/failure/expiry views and defined event/gauge units, uint64 wrap and owner reset. Public reads must not drain internal innovation events, alter estimation or require unbounded storage/work. Include exact count/identity and read-interleaving cases. |
+| N4-A4 — PX4 and standalone reporting | Planned | Bind supported existing outputs and local readout to actual owner reports; preserve SIH GNSS input settings while exporting the declared diagnostic epochs. Move mask comparison before publication throttling, retain external widths/wrap and qualify concurrent snapshot exchange. Reuse actual Commander/controller tests. |
+| N4-A5 — Additional S/NIS diagnostics | Deferred | Consider only for an identified consumer and approved work/storage budget. Full innovation-covariance/NIS export, new gates and duplicate filters are outside the minimal baseline. This is not a prerequisite for N4-A6. |
+| N4-A6 — Acceptance and evidence closure | Partial | Pending cases and requirement links are specified. Adopt executable bindings, run applicable owner/caller/consumer profiles, qualify complete storage/work and reconcile current evidence. Review duplication and refactor with unchanged estimation behavior. Existing component results do not close composition or target gaps. |
+
+Implement N4-A2, then N4-A3 and N4-A4 with their tests; close N4-A6 against the
+actual implementation and applicable target profile. Preserve numerical ordering,
+source decisions and previously committed stages. Resource qualification uses
+F-07.2; unresolved target budgets are not timing passes. Ground-effect redesign,
+optional stationary updates and local/global output changes remain separate work.
+
 ### V-01 — Remaining proof boundaries
 
 **Status: Partial.** Scoped core/runtime evidence exists. Close the source,
@@ -293,6 +319,14 @@ The A-05 target adds selected bias/P reset algebra, exactly-once source handoff,
 retained old/new history and output bias-feedback composition obligations.
 Existing source-mismatch rejection proofs do not establish source continuation;
 retain their original scope and register new evidence before closing that target.
+
+The N4 reporting target adds evidence/epoch association, observation-outcome and
+counter/reset frames, non-destructive snapshot reads and phase composition.
+After implementation, register actual producers/callers and reassess reused
+fusion/history evidence before proof execution. Portable source checks do not
+establish adapter synchronization, consumer behavior or target cost; those remain
+native/integration/target obligations. No new mathematical filter proof is implied
+by adding the diagnostic requirement.
 
 ### V-02 — Design and execution-evidence pilot
 

@@ -22,6 +22,7 @@ the [specification index](spec/README.md) locates canonical requirement definiti
 | Planned staged acceptance | [Portable INS](spec/verification/staged-ins-tests.md), [PX4 consumers](spec/verification/px4-staged-ins-tests.md): Pending implementations, outside current executable totals. |
 | Planned barometric acceptance | [Conversion, runtime and PX4](spec/verification/barometric-height-tests.md): independent oracles and Pending executable bindings. |
 | Planned sensor-input acceptance | [Input, bias reset, histories and PX4 callers](spec/verification/sensor-input-tests.md): Pending cases and physical/target qualification gaps. |
+| Planned diagnostic acceptance | [Runtime evidence and PX4 reporting](spec/verification/diagnostic-reporting-tests.md): Pending cases, reused consumer tests and target resource obligations. |
 
 Specifications own required behavior and claim limits. A design proposal or local
 experiment does not silently override them.
