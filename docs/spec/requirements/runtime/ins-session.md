@@ -145,9 +145,13 @@ history-owned receipt facts explicitly to the height update; it does not infer
 receipt time from cached delayed samples. Before history seed there is no admitted
 barometer receipt, so startup input does not count as a new warmup event. It passes rejection
 status with source metadata to history so invalid payloads cannot bypass source
-retirement. Invalid fixed model settings reject configuration/startup; invalid
-observations alone do not latch a core fault. Startup still follows its current
-strict geographic prerequisites; optional and staged startup remain targets.
+retirement. Invalid fixed model settings reject configuration/startup when the
+source is enabled; invalid observations alone do not latch a core fault. The
+layout's compile-time barometer choice controls model setup, input and
+selection work, warmup, and its startup requirement. Disabled receive calls have
+no effects; GNSS height remains available. Common fixed storage and timing-profile
+validation remain. Startup still has its current GNSS/magnetic prerequisites;
+staged IMU-only startup remains a separate target.
 
 ## Acceptance and verification
 

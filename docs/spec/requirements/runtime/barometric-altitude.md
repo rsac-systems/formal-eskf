@@ -5,8 +5,8 @@
 **Status:** Draft
 
 **Applies to:** Optional portable barometric input, before height-reference or
-bias adjustment. The converter and session ingress admission are implemented; optional-source
-and staged/disabled-source composition remain pending.
+bias adjustment. Conversion, session ingress and compile-time exclusion are
+implemented; staged relative-source composition remains pending.
 
 **Parent:** [SW-NAV](../software/navigation-runtime.md).
 

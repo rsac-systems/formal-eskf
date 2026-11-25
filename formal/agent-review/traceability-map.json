@@ -5859,7 +5859,7 @@
     },
     {
       "id": "R-BAROMETRIC-ALTITUDE",
-      "title": "Barometric conversion and session/PX4 ingress admission with native fixtures; optional-source/staged composition, uniform bounds and formal evidence pending",
+      "title": "Barometric conversion and session/PX4 ingress admission with native fixtures; staged relative composition, uniform bounds and formal evidence pending",
       "references": {
         "spec": [
           {
@@ -5938,7 +5938,7 @@
     },
     {
       "id": "R-HEIGHT-FUSION",
-      "title": "Portable height/PX4: shared preparation and effective-timing warmup have native bindings; explicit receipt clocks/generations have native history/session/Run bindings; changed process/update/caller signatures and old fixed-20 source profiles need rebinding; source exclusion and staged attachment pending; ground-effect target pending",
+      "title": "Portable height/PX4: shared preparation and effective-timing warmup have native bindings; explicit receipt clocks/generations have native history/session/Run bindings; changed process/update/caller signatures and old fixed-20 source profiles need rebinding; source exclusion has enabled/disabled session/PX4 fixtures; staged attachment pending; ground-effect target pending",
       "references": {
         "spec": [
           {

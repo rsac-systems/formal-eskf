@@ -61,27 +61,29 @@ void collection(Context & test, std::string_view profile)
     Initialization::imu_type imu{Vector::from_row_major({0, 0, -9.80665}), Vector::from_row_major({0.01, -0.02, 0.03})};
     Initialization::MagneticSample mag{1000, 10, 0, Vector::from_row_major({0.3, 0, 0.4})};
     Initialization::Readiness ready{true, 1000, 500, 0.8f, 0.5f};
-    test.expect(!init.ready(1000, ready), profile, "empty history cannot initialize");
+    test.expect(!init.ready<true>(1000, ready), profile, "empty history cannot initialize");
     for (unsigned n = 0; n < 4; ++n)
     {
         mag.time_us = 1000 + n;
         test.expect(init.collect(mag.time_us, false, imu, mag), profile, "stationary sample admitted");
     }
-    test.expect(init.ready(1003, ready) && init.history().imu_samples == 4 && init.history().magnetic_samples == 4,
+    test.expect(init.ready<true>(1003, ready) && init.history().imu_samples == 4 &&
+                    init.history().magnetic_samples == 4,
                 profile, "copied minimum count and exact speed equality permit initialization");
     ready.horizontal_speed = std::nextafter(0.8f, 1.f);
-    test.expect(!init.ready(1003, ready), profile, "one receiver-format ULP above horizontal limit is not ready");
+    test.expect(!init.ready<true>(1003, ready), profile, "one receiver-format ULP above horizontal limit is not ready");
     ready.horizontal_speed = 0.8f;
     ready.vertical_speed = std::nextafter(0.5f, 1.f);
-    test.expect(!init.ready(1003, ready), profile, "one ULP above vertical limit is not ready");
+    test.expect(!init.ready<true>(1003, ready), profile, "one ULP above vertical limit is not ready");
     ready.vertical_speed = 0.5f;
-    test.expect(init.ready(501000, ready) && !init.ready(501001, ready), profile,
+    test.expect(init.ready<true>(501000, ready) && !init.ready<true>(501001, ready), profile,
                 "barometer maximum-age equality remains admitted");
     ready.gnss_qualified = false;
-    test.expect(!init.ready(1003, ready), profile, "source qualification is required independently of sample count");
+    test.expect(!init.ready<true>(1003, ready), profile,
+                "source qualification is required independently of sample count");
     ready.gnss_qualified = true;
     ready.barometer_altitude = std::numeric_limits<double>::infinity();
-    test.expect(!init.ready(1003, ready), profile, "nonfinite barometer cannot initialize");
+    test.expect(!init.ready<true>(1003, ready), profile, "nonfinite barometer cannot initialize");
 
     for (unsigned n = 0; n < 5; ++n)
     {

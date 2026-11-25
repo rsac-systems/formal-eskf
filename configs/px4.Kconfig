@@ -4,6 +4,15 @@ comment "Applied by make px4-install / px4-export; replay uses its own settings"
 
 menu "Features"
 
+config PX4_BAROMETER
+    bool "Barometric height aiding"
+    default y
+    help
+      Consume calibrated vehicle_air_data altitude with the portable height owner.
+      Disable to exclude barometer intake, model admission, warmup and fusion.
+      GNSS height remains available; no dummy barometer sample is required.
+
+
 config PX4_WMM
     bool "Use world magnetic model"
     default y

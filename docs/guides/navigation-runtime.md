@@ -36,6 +36,9 @@ timestamps without a wall clock or PX4/ROS dependency. It prints local NED/MSL
 output. It is an API example, not a dataset accuracy benchmark. The separate
 [example profile](../../examples/ins_runtime_profile.hpp) contains uncalibrated
 settings; copying them does not qualify a real sensor or vehicle.
+The layout can exclude barometer aiding at compile time; then startup requires
+no barometric sample and pressure/altitude receive calls have no effects.
+GNSS and magnetic startup prerequisites remain until staged INS is implemented.
 
 ## Application responsibilities
 

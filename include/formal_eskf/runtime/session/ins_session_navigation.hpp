@@ -463,7 +463,7 @@ void InsSession<Linalg, Layout>::ResetReport::record_vertical_velocity(std::uint
 
 template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::update_ground_effect()
 {
-    if constexpr (!Layout::ground_effect)
+    if constexpr (!Layout::barometer_aiding || !Layout::ground_effect)
     {
         m_ground_effect = {};
         return;

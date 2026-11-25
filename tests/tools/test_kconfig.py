@@ -136,7 +136,7 @@ class KconfigTests(unittest.TestCase):
                 FRONTEND.px4_header(SELF.read_config(TEXT), SELF.KCONFIGLIB)
 
     def test_px4_configured_package(SELF):
-        CONFIG = SELF.read_config('CONFIG_PX4_WMM=n\nCONFIG_PX4_GROUND_EFFECT=n\n'
+        CONFIG = SELF.read_config('CONFIG_PX4_WMM=n\nCONFIG_PX4_GROUND_EFFECT=n\nCONFIG_PX4_BAROMETER=n\n'
                                  'CONFIG_PX4_MAG_GATE="4.5"\nCONFIG_PX4_MAG_HEALTH_MS=0\n'
                                  'CONFIG_PX4_GNSS_TIMEOUT_MS=004000\nCONFIG_ESKF_RESET_APPROX=y\nCONFIG_ESKF_CODEGEN=n\n')
         PACKAGE = SELF.ROOT / "package"
@@ -149,6 +149,7 @@ class KconfigTests(unittest.TestCase):
         SELF.assertEqual(HEADER, FRONTEND.px4_header(CONFIG, SELF.KCONFIGLIB))
         SELF.assertIn("#define ESKF_CFG_WMM 0\n", HEADER)
         SELF.assertIn("#define ESKF_CFG_GROUND_EFFECT 0\n", HEADER)
+        SELF.assertIn("#define ESKF_CFG_BAROMETER 0\n", HEADER)
         SELF.assertIn("#define ESKF_CFG_MAG_GATE 4.5\n", HEADER)
         SELF.assertIn("#define ESKF_CFG_GNSS_TIMEOUT_MS 4000\n", HEADER)
         SELF.assertIn("#define ESKF_CFG_RESET_APPROX 1\n", HEADER)

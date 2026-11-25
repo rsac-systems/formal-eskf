@@ -2086,6 +2086,22 @@ public:
                "backup expires output without advancing either timeline");
     }
 
+    static void barometer_disabled()
+    {
+        InsSessionTest test;
+        test.m_baro_altitude = std::numeric_limits<float>::quiet_NaN();
+        test.m_baro_device = 0;
+        test.warmup();
+        auto const & session = test.m_filter.m_session;
+        expect(!session.fault() && session.height_aiding().session(FormalEskf::height_type::Source::gnss).active &&
+                   !session.height_aiding().session(FormalEskf::height_type::Source::barometer).active &&
+                   session.statistics().baro_updates == 0 && session.height_aiding().barometer_warmup_samples() == 0 &&
+                   session.m_observations.barometer_receipt().push_time_us == 0 && test.m_filter.m_baro.timestamp == 0,
+               "disabled module has no air-data subscription/admission or startup dependency; GNSS height works");
+        std::printf("Disabled barometer: session=%zu bytes, module=%zu bytes\n", sizeof(session), sizeof(test.m_filter));
+        test.snapshot("barometer_disabled");
+    }
+
     static void barometric_receipt()
     {
         InsSessionTest test;
@@ -3917,6 +3933,12 @@ int main(int argc, char ** argv)
     }
     uORB::Manager::initialize();
     param_init();
+    if constexpr (!formal_eskf::px4::profile::height::barometer_enabled)
+    {
+        InsSessionTest::barometer_disabled();
+        std::printf("PX4 barometer disabled: %u scenarios, %u failures\n", scenarios, failures);
+        return failures == 0U ? 0 : 1;
+    }
     if (origin_benchmark)
     {
         InsSessionTest::origin_benchmark();

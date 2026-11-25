@@ -50,8 +50,8 @@ only nonzero identity, finite field and strictly sufficient magnitude contribute
 to the mean. Do not reuse an old magnetic sample after motion or source changes.
 
 Readiness shall require the minimum IMU and magnetic counts, independent GNSS
-qualification, recent finite barometer altitude, and horizontal/absolute vertical
-speed no greater than their configured limits. The initial deployment retains
+qualification, recent finite barometer altitude when the compiled source is enabled,
+and horizontal/absolute vertical speed no greater than their configured limits. The initial deployment retains
 binary32 receiver speed metrics and limits; the adapter computes those metrics
 before passing them to the bootstrap. Qualification establishes their validity.
 Readiness does not mutate history or establish a geographic datum by itself.
@@ -92,3 +92,7 @@ Native/bootstrap evidence does not prove stationary-world truth, magnetic model
 accuracy, target execution bounds or full session composition. Existing module
 source proofs must be reconciled with their actual callers after extraction;
 old source pins and component results are not fresh initialization proof.
+
+The compiled barometer readiness choice has enabled/disabled native session
+fixtures. Existing source-proof caller bindings must be updated for the explicit
+choice before being reused; these changes do not establish new formal evidence.

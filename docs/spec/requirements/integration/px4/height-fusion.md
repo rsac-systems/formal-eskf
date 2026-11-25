@@ -36,7 +36,7 @@ bound through `DeploymentProfile`/`DeploymentConfig`, not live `EKF2_*` reads:
 
 | Setting | Default |
 |---|---|
-| Enabled sources / reference preference | Barometer and GNSS / GNSS |
+| Enabled sources / reference preference | Barometer (`CONFIG_PX4_BAROMETER`, default enabled) and GNSS / GNSS |
 | Barometer noise / GNSS noise | 3.5 m / `max(epv, 0.75 m)`; GNSS capped at 10 m while barometer is active |
 | Height gate / fusion timeout | 5 sigma / 5 s |
 | Barometer / GNSS missing-data timeout | 400 ms / 1 s; equality expired |
@@ -74,7 +74,10 @@ checks receipt expiry while invalid uORB arrivals continue. It does not establis
 staged startup, disabled-path resource bounds or flight qualification.
 
 With barometer excluded, remove its subscription/intake and startup dependency;
-GNSS height may continue. Staged relative height shall use the common runtime
+GNSS height may continue. This compiled exclusion is implemented for the current
+geographic startup, including absent/invalid air-data input tests. Common reserved
+session/history storage remains; no zero-memory or staged-startup claim follows.
+Staged relative height shall use the common runtime
 helper and existing capability/attachment owners, not adapter-local arithmetic
 or an invented geographic origin. Apply ordinary source metadata changes through
 their source-requalification contract.

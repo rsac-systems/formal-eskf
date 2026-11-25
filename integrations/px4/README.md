@@ -9,6 +9,13 @@ maintain a second estimator or history.
 
 Unless stated otherwise, behavior below describes the default profile.
 
+`make menuconfig` exposes **Barometric height aiding** under PX4 features
+(`CONFIG_PX4_BAROMETER`, default enabled). Disabling it removes the air-data
+subscription, barometric admission and fusion, and the startup dependency on
+barometric altitude. The current INS still requires qualified GNSS and magnetic
+startup inputs. Common reserved session/history storage remains allocated.
+
+
 The supported target is **PX4 v1.16.2**, commit `54f0455ffcd755534539a7cf33a09a20bf71d29d`, on Linux with GCC 11 or newer and C++20. The dedicated `px4_sitl_formal_eskf` board replaces EKF2 with a single-instance formal-eskf INS using the PX4 matrix backend and double precision.
 
 ## Source ownership

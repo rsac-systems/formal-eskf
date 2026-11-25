@@ -73,6 +73,7 @@ public:
 
     [[nodiscard]] bool valid() const;
     [[nodiscard]] bool collect(std::uint64_t now_us, bool armed, imu_type const & imu, MagneticSample const & magnetic);
+    template <bool BarometerEnabled>
     [[nodiscard]] bool ready(std::uint64_t now_us, Readiness const & observation) const;
     [[nodiscard]] bool tilt(Tilt & output) const;
     /** Commit q, then gyro bias, then limit both biases; not a whole-startup transaction. */
@@ -165,12 +166,19 @@ bool InsInitialization<Linalg>::collect(std::uint64_t now_us, bool armed, imu_ty
 }
 
 template <typename Linalg>
+template <bool BarometerEnabled>
 bool InsInitialization<Linalg>::ready(std::uint64_t now_us, Readiness const & observation) const
 {
+    if constexpr (BarometerEnabled)
+    {
+        if (!recent(now_us, observation.barometer_time_us, m_parameters.maximum_sample_age_us) ||
+            !math_type::is_finite(observation.barometer_altitude))
+        {
+            return false;
+        }
+    }
     return !(m_history.imu_samples < m_parameters.minimum_imu_samples ||
              m_history.magnetic_samples < m_parameters.minimum_magnetic_samples || !observation.gnss_qualified ||
-             !recent(now_us, observation.barometer_time_us, m_parameters.maximum_sample_age_us) ||
-             !math_type::is_finite(observation.barometer_altitude) ||
              observation.horizontal_speed > m_parameters.maximum_horizontal_speed ||
              observation.vertical_speed > m_parameters.maximum_vertical_speed);
 }

@@ -1,8 +1,8 @@
 # Optional Barometric Height Profile
 
-**Status:** Draft. Conversion/admission and session/PX4 ingress are implemented; optional-source
-and staged/disabled-source composition remain targets. Existing deployment evidence retains
-its original scope.
+**Status:** Draft. Conversion, admission, receipt timing and compile-time source
+exclusion are implemented. Staged relative-startup composition remains a target.
+Existing deployment evidence retains its original scope.
 
 This profile instantiates [R-BAROMETRIC-ALTITUDE](../requirements/runtime/barometric-altitude.md)
 and [R-HEIGHT-AIDING](../requirements/runtime/height-aiding.md), with the
@@ -18,7 +18,7 @@ a barometer lever arm, a wind state or a second altitude filter.
 
 | Quantity | Binding |
 |---|---|
-| Barometer support | Compile-time optional; enabled default retains the existing deployment choice |
+| Barometer support | Session layout selects `barometer_aiding`; PX4 `CONFIG_PX4_BAROMETER` defaults enabled |
 | Reference pressure p0 | `ESKF_BARO_REFERENCE_PRESSURE_PA`, default 101325 Pa (1013.25 hPa); explicit raw-converter configuration |
 | Reference temperature T0 | `ESKF_BARO_REFERENCE_TEMPERATURE_K`, default 288.15 K |
 | Positive lapse magnitude L | `ESKF_BARO_LAPSE_RATE_K_PER_M`, default 0.0065 K/m |
@@ -180,6 +180,15 @@ Disabling barometer removes its startup prerequisite, source intake/queue,
 conversion, qualification and fusion work. It shall not require dummy samples
 or change GNSS-height availability. Shared height/session storage may remain;
 measure the excluded path's actual resource effect rather than claim zero bytes.
+The disabled specialization performs no pressure conversion, source admission,
+selection, warmup or barometer correction, and the PX4 wrapper does not construct
+an air-data subscription. Its explicit receive methods are no-ops. The common
+fixed session/history layout (including unused barometer backing storage) and
+height bookkeeping remain allocated; source exclusion is not a zero-RAM claim.
+History timing/capacity configuration retains the common supported profile.
+GNSS/magnetic readiness and numeric/IMU faults remain independent prerequisites;
+this exclusion does not implement IMU-only staged startup.
+
 Keep the existing ordinary innovation, bias and reset rules. Source identity and
 calibration changes requalify that source without restarting the whole INS.
 
@@ -206,8 +215,9 @@ The history/session/height-owner handoff now supplies generation-qualified
 receipt facts. Seed input does not increment the selected-event warmup. Receipt
 freshness gates start and the no-new-usable-sample stop branch; continuing fusion
 of a selected eligible sample keeps its delayed checks, as in the pinned reference.
-The implementation still has strict geographic startup and no source exclusion;
-this target explicitly replaces those remaining bindings when implemented;
+Compile-time source exclusion is implemented for the session/PX4 adapter.
+The implementation still has strict geographic startup; this target explicitly
+replaces that remaining binding through staged INS when implemented;
 it does not silently narrow GNSS altitude or replace general sample-age checks.
 Existing proofs do not cover the changed contracts merely because paths or IDs
 remain the same.
@@ -222,7 +232,7 @@ The [planned acceptance cases](../verification/barometric-height-tests.md)
 separate converter, owner and actual adapter evidence. Converter and shared
 [height-preparation cases](../verification/tests/runtime/height-observation.md)
 have native bindings, including binary64 session ingress and PX4 Run fixtures;
-staged-source and optional adapter cases remain Pending.
+staged-source/attachment and physical qualification cases remain Pending.
 A binding is not an execution result or an approval.
 
 Reference: pinned PX4 [model constants](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/lib/atmosphere/atmosphere.h#L45),

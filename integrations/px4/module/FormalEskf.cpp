@@ -121,18 +121,20 @@ FormalEskf::InputUpdates FormalEskf::read_inputs()
     InputUpdates updates;
     auto const gps_generation = m_gps_sub.get_last_generation();
     auto const mag_generation = m_mag_sub.get_last_generation();
-    auto const baro_generation = m_baro_sub.get_last_generation();
     auto const imu_generation = m_imu_sub.get_last_generation();
     updates.gps = m_gps_sub.update(&m_gps);
     updates.magnetic = m_mag_sub.update(&m_mag);
+#if ESKF_CFG_BAROMETER
+    auto const baro_generation = m_baro_sub.get_last_generation();
     updates.barometer = m_baro_sub.update(&m_baro);
+    m_generation_loss += updates.barometer ? unsigned(m_baro_sub.get_last_generation() - baro_generation - 1) : 0;
+#endif
     m_land_sub.update(&m_land);
     m_vehicle_status_sub.update(&m_vehicle_status);
 
     updates.imu = m_imu_sub.update(&updates.sample);
     m_generation_loss += updates.gps ? unsigned(m_gps_sub.get_last_generation() - gps_generation - 1) : 0;
     m_generation_loss += updates.magnetic ? unsigned(m_mag_sub.get_last_generation() - mag_generation - 1) : 0;
-    m_generation_loss += updates.barometer ? unsigned(m_baro_sub.get_last_generation() - baro_generation - 1) : 0;
     m_generation_loss += updates.imu ? unsigned(m_imu_sub.get_last_generation() - imu_generation - 1) : 0;
     return updates;
 }
@@ -168,9 +170,12 @@ void FormalEskf::Run()
         {
             m_session.receive_magnetic(decode_magnetic(m_mag), now);
         }
-        if (updates.barometer)
+        if constexpr (profile::height::barometer_enabled)
         {
-            m_session.receive_barometer(decode_barometer(m_baro), now);
+            if (updates.barometer)
+            {
+                m_session.receive_barometer(decode_barometer(m_baro), now);
+            }
         }
         if (updates.imu)
         {
@@ -323,7 +328,10 @@ void FormalEskf::process_imu(ImuInput const & sample)
     if (!active)
     {
         startup.gnss = decode_gnss(m_gps);
-        startup.barometer = decode_barometer(m_baro);
+        if constexpr (profile::height::barometer_enabled)
+        {
+            startup.barometer = decode_barometer(m_baro);
+        }
         startup.magnetic = {m_mag.timestamp_sample, m_mag.device_id, m_mag.calibration_count,
                             vector3(m_mag.magnetometer_ga[0], m_mag.magnetometer_ga[1], m_mag.magnetometer_ga[2])};
         startup.horizontal_speed = std::hypot(m_gps.vel_n_m_s, m_gps.vel_e_m_s);

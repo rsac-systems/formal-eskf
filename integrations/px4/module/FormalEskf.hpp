@@ -184,7 +184,9 @@ private:
     uORB::SubscriptionCallbackWorkItem m_imu_sub{this, ORB_ID(vehicle_imu)};
     uORB::Subscription m_gps_sub{ORB_ID(vehicle_gps_position)};
     uORB::Subscription m_mag_sub{ORB_ID(vehicle_magnetometer)};
+#if ESKF_CFG_BAROMETER
     uORB::Subscription m_baro_sub{ORB_ID(vehicle_air_data)};
+#endif
     uORB::Subscription m_land_sub{ORB_ID(vehicle_land_detected)};
     uORB::Subscription m_vehicle_status_sub{ORB_ID(vehicle_status)};
     uORB::Publication<vehicle_attitude_s> m_attitude_pub{ORB_ID(vehicle_attitude)};

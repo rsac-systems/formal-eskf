@@ -152,6 +152,7 @@ inline constexpr double gate_sigma = ESKF_CFG_GNSS_GATE;
 
 namespace height
 {
+inline constexpr bool barometer_enabled = ESKF_CFG_BAROMETER;
 inline constexpr std::uint64_t fusion_timeout_us = std::uint64_t{ESKF_CFG_HEIGHT_TIMEOUT_MS} * 1000U;
 inline constexpr std::uint64_t barometer_timeout_us = std::uint64_t{ESKF_CFG_BARO_TIMEOUT_MS} * 1000U;
 inline constexpr std::uint64_t gnss_timeout_us = std::uint64_t{ESKF_CFG_GNSS_HEIGHT_TIMEOUT_MS} * 1000U;
@@ -337,6 +338,7 @@ struct InsLayout
     static constexpr std::size_t magnetic_capacity = history::magnetic_capacity;
     static constexpr std::size_t barometer_capacity = history::barometer_capacity;
     static constexpr std::uint64_t gravity_interval_us = gravity::observation_interval_us;
+    static constexpr bool barometer_aiding = height::barometer_enabled;
     static constexpr bool gravity_aiding = gravity::enabled;
     static constexpr bool ground_effect = height::ground_effect_enabled;
     static constexpr bool magnetic_model = magnetic::use_model;

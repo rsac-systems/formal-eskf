@@ -30,18 +30,19 @@ template <typename Matrix> bool same_bits(Matrix const & a, Matrix const & b)
     return true;
 }
 
-struct Fixture
+template <typename Runtime = Session> struct Fixture
 {
-    Session session;
-    Session::StartupInput input{};
-    Session::ImuInput imu{};
-    Session::ContextInput context{};
-    Session::magnetic_model_type::sample_type model{0, std::atan2(40., 20.), std::hypot(20., 40.)};
-    Session::Innovations events{};
+    Runtime session;
+    typename Runtime::StartupInput input{};
+    typename Runtime::ImuInput imu{};
+    typename Runtime::ContextInput context{};
+    typename Runtime::magnetic_model_type::sample_type model{0, std::atan2(40., 20.), std::hypot(20., 40.)};
+    typename Runtime::Innovations events{};
     unsigned step{};
     bool configured{};
     bool send_barometer = true;
-    explicit Fixture(Session::Parameters const & parameters = ins_example::parameters<Session>()) : session(parameters)
+    explicit Fixture(typename Runtime::Parameters const & parameters = ins_example::parameters<Runtime>())
+        : session(parameters)
     {
         configured = session.configure_timing(ins_example::timing) && session.configure_gravity(true) &&
                      session.configure_magnetic({true, true, 0}) && session.configure_sensor_positions({});
@@ -92,7 +93,7 @@ struct Fixture
         {
             return !session.fault();
         }
-        if (session.phase() == Session::Phase::initialization_model)
+        if (session.phase() == Runtime::Phase::initialization_model)
         {
             double yaw{};
             if (!session.complete_initialization(model, yaw) || !session.seed_initialization(now))
@@ -283,6 +284,50 @@ void barometric_inputs(Context & test, std::string_view profile)
     }
 }
 
+struct NoBarometer
+{
+    // These members bind InsSession's dependent storage/interval template arguments.
+    // Cppcheck does not resolve those uses for this local layout specialization.
+    // cppcheck-suppress-begin unusedStructMember
+    static constexpr std::size_t imu_capacity = ins_example::Layout::imu_capacity;
+    static constexpr std::size_t context_capacity = ins_example::Layout::context_capacity;
+    static constexpr std::size_t gnss_capacity = ins_example::Layout::gnss_capacity;
+    static constexpr std::size_t magnetic_capacity = ins_example::Layout::magnetic_capacity;
+    static constexpr std::size_t barometer_capacity = ins_example::Layout::barometer_capacity;
+    static constexpr std::uint64_t gravity_interval_us = ins_example::Layout::gravity_interval_us;
+    // cppcheck-suppress-end unusedStructMember
+    static constexpr bool gravity_aiding = true, ground_effect = true, magnetic_model = true;
+    static constexpr bool barometer_aiding = false;
+};
+
+void optional_barometer(Context & test, std::string_view profile)
+{
+    using Runtime = formal_eskf::runtime::InsSession<Backend, NoBarometer>;
+    using Source = Runtime::height_type::Source;
+    auto parameters = ins_example::parameters<Runtime>();
+    parameters.barometer_model.reference_pressure_pa = 0; // Excluded converter must never configure/evaluate.
+    Fixture<Runtime> f{parameters};
+    f.send_barometer = false;
+    f.input.barometer = {};
+    test.expect(f.configured && f.run(3000) && f.session.initialized() && !f.session.fault(), profile,
+                "disabled source is absent through real startup; invalid unused converter cannot block GNSS INS");
+    test.expect(f.session.height_aiding().barometer_warmup_samples() == 0 &&
+                    !f.session.height_aiding().session(Source::barometer).active &&
+                    f.session.height_aiding().session(Source::gnss).active && f.session.statistics().baro_updates == 0,
+                profile, "no warmup or barometer correction while GNSS height remains active");
+    auto const state = f.session.state();
+    auto const P = f.session.covariance();
+    auto const rejected = f.session.statistics().arrival_rejections;
+    f.session.receive_barometer({{0, {999, 7}}, std::numeric_limits<double>::quiet_NaN()}, 0);
+    f.session.receive_barometer_pressure({0, {999, 7}}, -1, 0);
+    test.expect(!f.session.fault() && f.session.statistics().arrival_rejections == rejected &&
+                    same_bits(state.p_n, f.session.state().p_n) && same_bits(P, f.session.covariance()),
+                profile, "excluded public ingress has no queue, conversion, source or numerical side effects");
+    test.expect(f.run(1000) && f.session.statistics().baro_updates == 0 &&
+                    f.session.height_aiding().session(Source::gnss).active,
+                profile, "continued GNSS height does not acquire a hidden barometer dependency");
+}
+
 void barometric_receipt(Context & test, std::string_view profile)
 {
     using Source = Session::height_type::Source;
@@ -412,6 +457,7 @@ int main(int argc, char ** argv)
         {"TC-R-BAROMETRIC-ALTITUDE-03", "binary64", barometric_configuration},
         {"TC-R-BAROMETRIC-ALTITUDE-04", "binary64", barometric_inputs},
         {"TC-R-HEIGHT-AIDING-BARO-06", "binary64", barometric_receipt},
+        {"TC-R-HEIGHT-AIDING-BARO-08", "binary64", optional_barometer},
     };
     return formal_eskf::test::run_cases(cases, argc, argv);
 }
