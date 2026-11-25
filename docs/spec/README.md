@@ -124,8 +124,13 @@ remain empty: these two additional review units are proof gaps, not verified cla
 
 ## Runtime requirements
 
+The optional ground-effect target splits the reusable mode/residual contract
+from PX4 message defaults and timing. Its implementation and physical acceptance
+are pending; see [F-03.2](../roadmap.md#f-03--height-protection).
+
 | ID | Required behavior |
 |---|---|
+| `R-BARO-GROUND-EFFECT` | [Optional barometric ground-effect protection](requirements/runtime/barometer-ground-effect.md) (Draft target) |
 | `R-GNSS-FUSION` | [GNSS fusion lifecycle](requirements/runtime/gnss/lifecycle.md) |
 | `R-GNSS-QUALITY` | [GNSS quality checks and health qualification](requirements/runtime/gnss/quality.md) |
 | `R-GNSS-RESET` | [checked GNSS position and velocity reset](requirements/runtime/gnss/reset.md) |
@@ -232,6 +237,7 @@ remain empty: these two additional review units are proof gaps, not verified cla
 - Planned barometric height: [conversion, runtime and PX4 test specification](verification/barometric-height-tests.md), with Pending executable bindings.
 - Planned sensor input: [reset, input/history and caller test specification](verification/sensor-input-tests.md), with Pending executable bindings and physical/resource qualification.
 - Planned diagnostics: [owner evidence, snapshots and PX4 reporting tests](verification/diagnostic-reporting-tests.md), with Pending bindings and reused staged consumer cases.
+- Planned ground effect: [runtime, PX4 and physical acceptance](verification/barometer-ground-effect-tests.md), with Pending bindings and independent software/physical completion.
 - [C++ Function Inventory and Review Boundary](verification/source-inventory.md).
 - [C++ Static Analysis Policy](verification/static-analysis.md).
 

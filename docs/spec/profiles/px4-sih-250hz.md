@@ -201,8 +201,10 @@ new source update. A later genuine update may use the still-fresh cached inputs.
 
 Use fixed backing capacity 64 and startup-derived active event length N, following
 the reference sizing expression:
-N = min(round(1.5 D / T_nom), max(2, ceil(D / T_nom))), where D is the configured
-maximum-delay setting and T_nom the nominal filter period, in the same units.
+N = min(round(1.5 D / T_nom), max(2, ceil(D / T_nom))), where D is this module's
+configured fusion-delay setting (requested minimum lag) and T_nom the nominal
+filter period, in the same units. D supplies the reference delay_max_ms sizing
+argument for this event history; it does not replace our actual-lag bounds.
 Positive half-integer rounding is upward. With D = 200 ms and T_nom = 4 ms,
 N = 50. Reject N < 2 or N > capacity, including arithmetic/conversion failure.
 This event length is independent of our jitter-aware 54-entry IMU/output length;

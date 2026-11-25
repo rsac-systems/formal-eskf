@@ -5877,8 +5877,39 @@
       }
     },
     {
+      "id": "R-BARO-GROUND-EFFECT",
+      "title": "Optional barometer ground-effect event/latch and height composition: Draft target; implementation, executable acceptance, physical tuning and formal source evidence pending",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/runtime/barometer-ground-effect.md",
+            "symbol": "# R-BARO-GROUND-EFFECT:"
+          },
+          {
+            "file": "docs/spec/architecture/navigation-runtime.md",
+            "symbol": "### Ground-effect protection allocation"
+          },
+          {
+            "file": "docs/spec/profiles/px4-sih-250hz.md",
+            "symbol": "## Ground-effect target binding"
+          },
+          {
+            "file": "docs/spec/verification/barometer-ground-effect-tests.md",
+            "symbol": "## Runtime cases"
+          },
+          {
+            "file": "docs/spec/verification/barometer-ground-effect-tests.md",
+            "symbol": "## Target and physical cases"
+          }
+        ],
+        "lean": [],
+        "cpp": [],
+        "esbmc": []
+      }
+    },
+    {
       "id": "R-HEIGHT-FUSION",
-      "title": "Portable height/PX4: process-owner and geometry proof gaps retained; optional barometer helper, source and timing target pending",
+      "title": "Portable height/PX4: process-owner and geometry proof gaps retained; optional barometer helper, source and timing target pending; PX4 ground-effect event/default-OFF target pending, legacy snapshot guard evidence does not establish the replacement",
       "references": {
         "spec": [
           {
@@ -5904,6 +5935,18 @@
           {
             "file": "docs/spec/verification/barometric-height-tests.md",
             "symbol": "### PX4 adapter"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/barometer-ground-effect.md",
+            "symbol": "### Height correction and isolation"
+          },
+          {
+            "file": "docs/spec/requirements/integration/px4/barometer-ground-effect.md",
+            "symbol": "## Alignment and applicability"
+          },
+          {
+            "file": "docs/spec/verification/barometer-ground-effect-tests.md",
+            "symbol": "## PX4 cases"
           }
         ],
         "lean": [
@@ -8273,7 +8316,7 @@
     },
     {
       "id": "R-INS-SESSION",
-      "title": "Portable INS session phase composition: native regression and independent fixtures; full symbolic and target evidence remain open; IMU source-continuation target pending; diagnostic-reporting composition target pending",
+      "title": "Portable INS session phase composition: native regression and independent fixtures; full symbolic and target evidence remain open; IMU source-continuation target pending; diagnostic-reporting composition target pending; ground-effect event composition target pending",
       "references": {
         "spec": [
           {
@@ -8298,6 +8341,14 @@
           },
           {
             "file": "docs/spec/verification/diagnostic-reporting-tests.md",
+            "symbol": "## Runtime cases"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/ins-session.md",
+            "symbol": "### Ground-effect target"
+          },
+          {
+            "file": "docs/spec/verification/barometer-ground-effect-tests.md",
             "symbol": "## Runtime cases"
           }
         ],

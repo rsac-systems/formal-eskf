@@ -23,6 +23,7 @@ the [specification index](spec/README.md) locates canonical requirement definiti
 | Planned barometric acceptance | [Conversion, runtime and PX4](spec/verification/barometric-height-tests.md): independent oracles and Pending executable bindings. |
 | Planned sensor-input acceptance | [Input, bias reset, histories and PX4 callers](spec/verification/sensor-input-tests.md): Pending cases and physical/target qualification gaps. |
 | Planned diagnostic acceptance | [Runtime evidence and PX4 reporting](spec/verification/diagnostic-reporting-tests.md): Pending cases, reused consumer tests and target resource obligations. |
+| Planned ground-effect acceptance | [Runtime, PX4 and physical qualification](spec/verification/barometer-ground-effect-tests.md): Pending cases; software conformance and physical efficacy remain separate. |
 
 Specifications own required behavior and claim limits. A design proposal or local
 experiment does not silently override them.
