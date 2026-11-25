@@ -360,9 +360,16 @@ void admission_failures(Context & test)
         {{18, 29, 2, 3}, {17, 30, 2, 3}, {17, 29, 3, 3}, {17, 29, 2, 4}}};
     for (auto const & source : changed_sources)
     {
-        invalid = good;
-        invalid.source = source;
-        add(invalid, Fault::discontinuity);
+        auto changed = good;
+        changed.source = source;
+        History history;
+        test.expect(history.configure(parameters_250hz, timing_250hz) && history.seed(seed, seed.time_us), "source",
+                    "seed source-transition history");
+        test.expect(history.can_push(changed, changed.time_us) && history.source().matches(seed.source), "source",
+                    "read-only admission does not acknowledge the new source");
+        test.expect(history.push(changed, changed.time_us) && history.source().matches(source) &&
+                        history.latest()->sample.source.matches(source),
+                    "source", "opaque source changes retain the admitted record without clearing history");
     }
     for (auto const & entry : cases)
     {

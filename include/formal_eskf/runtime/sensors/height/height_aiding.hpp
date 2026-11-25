@@ -122,7 +122,10 @@ public:
     /** Borrowed for one update. Without a datum, height is relative to the explicit ellipsoid anchor. */
     struct Geometry
     {
+        // Required aggregate references cannot be default-initialized by C++.
+        // cppcheck-suppress uninitMemberVarNoCtor
         geodesy::LocalNed<Linalg> const & frame;
+        // cppcheck-suppress uninitMemberVarNoCtor
         runtime::HeightDatum<Linalg> const & datum;
         value_type relative_reference_ellipsoid_m = std::numeric_limits<value_type>::quiet_NaN();
     };

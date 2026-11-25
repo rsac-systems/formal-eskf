@@ -44,6 +44,7 @@ public:
         m_collected = false;
         m_ready = false;
     }
+    Parameters const & parameters() const { return m_parameters; }
     imu_type const & filtered() const { return m_filtered; }
     bool ready() const { return m_ready; }
 

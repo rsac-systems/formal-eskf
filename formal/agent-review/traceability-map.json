@@ -6297,7 +6297,7 @@
     },
     {
       "id": "R-PX4-IMU-HISTORY",
-      "title": "Delayed IMU source transactions, complete storage frames and contract-derived temporal induction; live binding remains separate; IMU source-continuation target pending",
+      "title": "Delayed IMU source transactions, complete storage frames and contract-derived temporal induction; live binding remains separate; IMU source continuation has native coverage; historical mismatch-rejection proofs require migration",
       "references": {
         "spec": [
           {
@@ -6470,7 +6470,7 @@
     },
     {
       "id": "R-PX4-OUTPUT-PREDICTOR",
-      "title": "Current-time output tracking and coordinate transport; new owner transitions need formal evidence refresh; IMU source-continuation target pending",
+      "title": "Current-time output tracking and coordinate transport; new owner transitions need formal evidence refresh; IMU source continuation has native coverage; historical mismatch-rejection proofs require migration",
       "references": {
         "spec": [
           {
@@ -8361,7 +8361,7 @@
     },
     {
       "id": "R-INS-SESSION",
-      "title": "Portable INS session phase composition: native regression and independent fixtures; full symbolic and target evidence remain open; IMU source-continuation target pending; diagnostic-reporting composition target pending; ground-effect event composition target pending",
+      "title": "Portable INS session phase composition: native regression and independent fixtures; full symbolic and target evidence remain open; IMU source continuation has native coverage; historical mismatch-rejection proofs require migration; diagnostic-reporting composition target pending; ground-effect event composition target pending",
       "references": {
         "spec": [
           {
@@ -8668,7 +8668,7 @@
     },
     {
       "id": "R-IMU-SOURCE",
-      "title": "IMU source continuation: Draft target; reset, history and caller evidence pending",
+      "title": "IMU source continuation: native selected reset, retained history, bias feedback and PX4 caller tests; physical qualification and formal migration pending",
       "references": {
         "spec": [
           {
@@ -8682,10 +8682,31 @@
           {
             "file": "docs/spec/verification/sensor-input-tests.md",
             "symbol": "## IMU source sequence cases"
+          },
+          {
+            "file": "docs/spec/verification/tests/runtime/imu-source.md",
+            "symbol": "# IMU Source Continuation Tests"
           }
         ],
         "lean": [],
-        "cpp": [],
+        "cpp": [
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "bool InsSession<Linalg, Layout>::admit_imu("
+          },
+          {
+            "file": "include/formal_eskf/runtime/history/imu_history.hpp",
+            "symbol": "ImuHistory<Linalg, Capacity>::admission_fault("
+          },
+          {
+            "file": "tests/runtime/session/test_source.cpp",
+            "symbol": "static void selection("
+          },
+          {
+            "file": "integrations/px4/tests/ModuleTest.cpp",
+            "symbol": "static void imu_source_continuation("
+          }
+        ],
         "esbmc": []
       }
     }

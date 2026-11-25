@@ -92,7 +92,7 @@ Both input paths in pinned PX4 EKF2 reset the affected bias before new IMU ingre
 the [runtime source contract](../requirements/runtime/imu/source-change.md#basis)
 owns the equivalent placement in this project.
 
-For the target, reset each changed bias to zero and uncorrelate its covariance
+Reset each changed bias to zero and uncorrelate its covariance
 using configured initial uncertainty. Reuse the selected deployment's validated
 initial bias prior; distinguish per-axis variances from standard deviations and
 square the latter once, checking representability. Do not substitute process-noise
@@ -107,9 +107,10 @@ Source change alone continues; invalid input, timing discontinuity, history loss
 and numerical failure retain their fault contracts. No bounded transient accuracy
 claim follows solely from matching PX4's reset sequence.
 
-The current implementation instead faults on IMU identity/calibration mismatch.
-Keep that baseline's evidence scoped until the new ingress/reset/history path is
-implemented and accepted. Aiding-source generation, queue clearing, quality,
+Native source/caller evidence is bound in the
+[source family](../verification/tests/runtime/imu-source.md). Historical
+identity-mismatch rejection proofs require migration; they do not establish the
+current continuation path. Aiding-source generation, queue clearing, quality,
 offset and lifecycle recovery keep their existing individual owners.
 
 ## Noise and physical timing acceptance

@@ -110,6 +110,13 @@ public:
                configure_timing(parameters, timing, Capacity, candidate);
     }
     [[nodiscard]] bool seed(input_type const & sample, std::uint64_t now_us);
+    /** Read-only admission check; does not latch a fault or acknowledge a source.
+     * The caller must retain single-writer ownership through the following push.
+     */
+    [[nodiscard]] bool can_push(input_type const & sample, std::uint64_t now_us) const
+    {
+        return m_previous.time_us != 0 && m_fault == Fault::none && admission_fault(sample, now_us) == Fault::none;
+    }
     [[nodiscard]] bool push(input_type const & sample, std::uint64_t now_us);
 
     /** Latest admitted interval for current-time output propagation; view expires on mutation. */
@@ -129,6 +136,7 @@ public:
     std::uint64_t fusion_time_us() const { return m_fusion_time_us; }
 
 private:
+    Fault admission_fault(input_type const & sample, std::uint64_t now_us) const;
     static bool valid_input(input_type const & sample, std::uint64_t now_us, ImuTiming const & timing);
     bool fail(Fault reason);
 
@@ -190,31 +198,27 @@ template <typename Linalg, std::size_t Capacity> bool ImuHistory<Linalg, Capacit
 }
 
 template <typename Linalg, std::size_t Capacity>
-bool ImuHistory<Linalg, Capacity>::push(input_type const & sample, std::uint64_t now_us)
+typename ImuHistory<Linalg, Capacity>::Fault ImuHistory<Linalg, Capacity>::admission_fault(input_type const & sample,
+                                                                                           std::uint64_t now_us) const
 {
-    if (m_previous.time_us == 0 || m_fault != Fault::none)
-    {
-        return false;
-    }
     if (!valid_input(sample, now_us, m_timing) || sample.time_us <= m_previous.time_us)
     {
-        return fail(Fault::invalid_sample);
+        return Fault::invalid_sample;
     }
     auto const elapsed = sample.time_us - m_previous.time_us;
-    if (elapsed < m_timing.minimum_period_us || elapsed > m_timing.maximum_interval_us ||
-        !m_previous.source.matches(sample.source))
+    if (elapsed < m_timing.minimum_period_us || elapsed > m_timing.maximum_interval_us)
     {
-        return fail(Fault::discontinuity);
+        return Fault::discontinuity;
     }
     auto const gap = static_cast<std::int64_t>(elapsed) - static_cast<std::int64_t>(sample.angular_period_us);
     if (gap < -static_cast<std::int64_t>(m_timing.gap_tolerance_us))
     {
-        return fail(Fault::discontinuity);
+        return Fault::discontinuity;
     }
     bool const full = m_samples.entries() == m_samples.get_length();
     if (full && m_samples.get_oldest().time_us > m_fusion_time_us)
     {
-        return fail(Fault::history_loss);
+        return Fault::history_loss;
     }
     // Check the retained span that would result from this push, before mutation.
     if (m_samples.entries() + 1 >= m_samples.get_length())
@@ -227,9 +231,26 @@ bool ImuHistory<Linalg, Capacity>::push(input_type const & sample, std::uint64_t
         auto const lag = sample.time_us - m_samples[index].time_us;
         if (lag < m_configuration.minimum_lag_us || lag > m_timing.maximum_lag_us)
         {
-            return fail(Fault::lag_out_of_range);
+            return Fault::lag_out_of_range;
         }
     }
+    return Fault::none;
+}
+
+template <typename Linalg, std::size_t Capacity>
+bool ImuHistory<Linalg, Capacity>::push(input_type const & sample, std::uint64_t now_us)
+{
+    if (m_previous.time_us == 0 || m_fault != Fault::none)
+    {
+        return false;
+    }
+    auto const reason = admission_fault(sample, now_us);
+    if (reason != Fault::none)
+    {
+        return fail(reason);
+    }
+    auto const elapsed = sample.time_us - m_previous.time_us;
+    auto const gap = static_cast<std::int64_t>(elapsed) - static_cast<std::int64_t>(sample.angular_period_us);
     interval_type interval;
     interval.time_us = sample.time_us;
     interval.start_time_us = m_previous.time_us;

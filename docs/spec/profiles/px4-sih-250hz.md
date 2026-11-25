@@ -19,7 +19,7 @@ arrival, selection, capacity and lag constraints.
 The [sensor-input target](sensor-input.md) adds producer/rate qualification and
 IMU source continuation. It replaces only the identity/calibration-only restart
 response once implemented; it does not waive independent input/history faults.
-Current source-mismatch evidence still describes the strict baseline.
+Native source continuation is bound in the [source test family](../verification/tests/runtime/imu-source.md); historical mismatch-rejection proofs remain separate.
 
 Use the same reference as the architecture: **PX4 v1.16.2,
 `54f0455ffcd755534539a7cf33a09a20bf71d29d`**. The first profile targets the existing
@@ -339,7 +339,7 @@ establish their numerical correctness.
 | Required IMU/output record lost or timestamp mismatch | Fault before using a mismatched prior/history. Include owner overwrite checks; `push()` itself does not report loss. |
 | Aiding overflow, expiry or ordering rejection | Retire/drop with a reason; preserve other sources. Do not refresh successful-fusion time or reset the whole estimator merely for source loss. |
 | No new IMU | Backup callback maintains wall-time arrival/output expiry and status; no synthetic propagation and no advance of delayed policy time. Evaluate delayed lifecycle at the next real delayed step. |
-| Sensor/calibration switch | Clear that source's pending observations and requalify; retain ordering/provenance rules for the new generation. IMU mismatch faults in the current baseline; [R-IMU-SOURCE](../requirements/runtime/imu/source-change.md) defines its pending continuation replacement. |
+| Sensor/calibration switch | Clear that source's pending observations and requalify; retain ordering/provenance rules for the new generation. IMU changes instead reset only selected biases under [R-IMU-SOURCE](../requirements/runtime/imu/source-change.md), retaining the chronological histories. |
 | Successful state reset | Apply the same reset transform to affected current/output-history payloads, tracking accumulators and any vertical auxiliary state before the next affected publication. Preserve timestamps. Report the actual consumer-visible reset delta/counter exactly once. |
 | Ordinary fusion/tracking correction | Update tracking/bias feedback; do not increment reset counters. |
 | Session restart | Reset histories, processed cursors, timing averages and session policies together; repeat alignment/warmup. No automatic numerical-fault recovery is introduced. |

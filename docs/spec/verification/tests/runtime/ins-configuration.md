@@ -39,6 +39,6 @@ active records. The PX4 module retains its complete-object compile-time budget;
 stack/deadline measurements on candidate targets remain pending.
 
 Case 18 binds copied settings, rejected replacement, valid retry and freezing after
-admission. Initial-prior unit conversion and source-continuation checks are not
-implemented by this configuration test; they remain A-05.5 work. No new-rate,
+admission. Initial-prior source binding is exercised separately by
+[TC-R-IMU-SOURCE-01](imu-source.md), using unequal variances without re-squaring. No new-rate,
 physical calibration, target timing or Lean/ESBMC claim follows from these tests.

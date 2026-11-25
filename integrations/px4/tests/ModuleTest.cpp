@@ -4316,13 +4316,107 @@ public:
         }
     }
 
+    static void imu_source_continuation()
+    {
+        InsSessionTest test;
+        test.warmup();
+        auto & session = test.m_filter.m_session;
+        auto const initial_source = session.imu_history().source();
+        auto const initial_resets = session.resets();
+        enum class Change
+        {
+            accel,
+            gyro,
+            both,
+            accel_calibration,
+            gyro_calibration,
+            unchanged,
+            return_to_initial
+        };
+        for (auto change : {Change::accel, Change::gyro, Change::both, Change::accel_calibration,
+                            Change::gyro_calibration, Change::unchanged, Change::return_to_initial})
+        {
+            auto const old_source = session.imu_history().source();
+            auto const old_event = session.imu_source_changes();
+            auto const predictions = session.statistics().predictions;
+            auto const old_epoch = session.fusion_time_us();
+            switch (change)
+            {
+            case Change::accel:
+                ++test.m_sample.accel_device_id;
+                break;
+            case Change::gyro:
+                ++test.m_sample.gyro_device_id;
+                break;
+            case Change::both:
+                ++test.m_sample.accel_device_id;
+                ++test.m_sample.gyro_device_id;
+                break;
+            case Change::accel_calibration:
+                ++test.m_sample.accel_calibration_count;
+                break;
+            case Change::gyro_calibration:
+                ++test.m_sample.gyro_calibration_count;
+                break;
+            case Change::unchanged:
+                break;
+            case Change::return_to_initial:
+                test.m_sample.accel_device_id = initial_source.accelerometer_id;
+                test.m_sample.gyro_device_id = initial_source.gyroscope_id;
+                test.m_sample.accel_calibration_count = initial_source.accelerometer_calibration;
+                test.m_sample.gyro_calibration_count = initial_source.gyroscope_calibration;
+                break;
+            }
+            test.m_sample.timestamp_sample += 4000U;
+            test.tick(); // Actual Run: topic decoding, ingress reset, delayed fusion, feedback and publication.
+            auto const & source = session.imu_history().source();
+            bool const accel_changed = source.accelerometer_id != old_source.accelerometer_id ||
+                                       source.accelerometer_calibration != old_source.accelerometer_calibration;
+            bool const gyro_changed = source.gyroscope_id != old_source.gyroscope_id ||
+                                      source.gyroscope_calibration != old_source.gyroscope_calibration;
+            expect(!session.fault() && session.statistics().predictions == predictions + 1 &&
+                       session.fusion_time_us() == old_epoch + 4000 &&
+                       session.output_predictor().current().time_us == test.m_sample.timestamp_sample,
+                   "IMU replacement keeps Run, retained delayed history and current output progressing");
+            expect(source.accelerometer_id == test.m_sample.accel_device_id &&
+                       source.gyroscope_id == test.m_sample.gyro_device_id &&
+                       source.accelerometer_calibration == test.m_sample.accel_calibration_count &&
+                       source.gyroscope_calibration == test.m_sample.gyro_calibration_count,
+                   "adapter preserves both source IDs and calibration counters without a surrogate");
+            auto const & event = session.imu_source_changes();
+            expect(event.accelerometer_time_us ==
+                           (accel_changed ? test.m_sample.timestamp_sample : old_event.accelerometer_time_us) &&
+                       event.gyroscope_time_us ==
+                           (gyro_changed ? test.m_sample.timestamp_sample : old_event.gyroscope_time_us),
+                   "source change epochs identify accepted inputs, not delayed estimates or publication time");
+            auto const & reset = session.resets();
+            expect(reset.attitude_count == initial_resets.attitude_count &&
+                       reset.position_count == initial_resets.position_count &&
+                       reset.velocity_count == initial_resets.velocity_count &&
+                       reset.height_count == initial_resets.height_count &&
+                       reset.vertical_velocity_count == initial_resets.vertical_velocity_count &&
+                       reset.odometry_count == initial_resets.odometry_count,
+                   "source changes alone create no controller reset deltas/counters");
+            test.m_filter.publish_status(clock_us);
+            estimator_status_flags_s flags{};
+            estimator_sensor_bias_s bias{};
+            orb_copy(ORB_ID(estimator_status_flags), test.m_outputs[5], &flags);
+            orb_copy(ORB_ID(estimator_sensor_bias), test.m_outputs[6], &bias);
+            expect(flags.cs_tilt_align && bias.accel_device_id == source.accelerometer_id &&
+                       bias.gyro_device_id == source.gyroscope_id,
+                   "actual status and bias topics retain alignment and identify the new sensors");
+        }
+        for (unsigned i = 0; i < 100; ++i)
+        {
+            test.m_sample.timestamp_sample += 4000U;
+            test.tick();
+        }
+        expect(!session.fault(), "ordinary callbacks drain all source transitions without restarting the session");
+    }
+
     enum class Fault
     {
         non_finite,
-        source_change,
-        gyro_source_change,
-        calibration_change,
-        accel_calibration_change,
         overlap,
         outage,
         prediction,
@@ -4340,18 +4434,6 @@ public:
         {
         case Fault::non_finite:
             test.m_sample.delta_angle[0] = std::numeric_limits<float>::infinity();
-            break;
-        case Fault::source_change:
-            ++test.m_sample.accel_device_id;
-            break;
-        case Fault::gyro_source_change:
-            ++test.m_sample.gyro_device_id;
-            break;
-        case Fault::accel_calibration_change:
-            ++test.m_sample.accel_calibration_count;
-            break;
-        case Fault::calibration_change:
-            ++test.m_sample.gyro_calibration_count;
             break;
         case Fault::overlap:
             test.m_sample.timestamp_sample -= 201U;
@@ -4417,6 +4499,10 @@ public:
             if (step == 3400) { ++test.m_gps_device; }
             if (step == 3500) { ++test.m_mag_calibration; }
             if (step == 3700) { ++test.m_sample.accel_device_id; }
+            if (step == 3750)
+            {
+                test.m_sample.delta_angle_clipping = 1;
+            }
             test.m_sample.timestamp_sample += 4000;
             test.tick();
             // A standalone adapter consumes the same canonical decoded records,
@@ -4445,6 +4531,8 @@ public:
                 }
             }
             auto const & actual = module.m_session;
+            expect(step >= 3750 || (!actual.fault() && !direct.fault()),
+                   "source replacement continues until the independent gyro-clipping failure");
             auto const & a = actual.state();
             auto const & b = direct.state();
             auto const & ao = actual.output_predictor().current();
@@ -4624,14 +4712,13 @@ int main(int argc, char ** argv)
     InsSessionTest::output_mapping(false, true);
     InsSessionTest::output_cadence();
     using Fault = InsSessionTest::Fault;
-    for (auto fault :
-         {Fault::non_finite, Fault::source_change, Fault::gyro_source_change, Fault::calibration_change,
-          Fault::accel_calibration_change, Fault::overlap, Fault::outage, Fault::prediction, Fault::quality})
+    for (auto fault : {Fault::non_finite, Fault::overlap, Fault::outage, Fault::prediction, Fault::quality})
     {
         InsSessionTest::fault(fault);
     }
     FILE * comparison_trace = trace_file;
     trace_file = nullptr; // Deliberate diagnostic/startup changes have independent assertions.
+    InsSessionTest::imu_source_continuation();
     InsSessionTest::publication_preparation();
     InsSessionTest::resource_failures();
     InsSessionTest::diagnostic_contention();

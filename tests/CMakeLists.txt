@@ -202,6 +202,7 @@ formal_eskf_add_backend_test(test_ins_session runtime/session/test_session forma
 formal_eskf_add_backend_test(test_ins_initialization runtime/session/test_initialization formal_eskf.ins_initialization.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_ins_startup runtime/session/test_startup formal_eskf.ins_startup.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_ins_staged runtime/session/test_staged formal_eskf.ins_staged.eigen formal_eskf::runtime)
+formal_eskf_add_backend_test(test_ins_source runtime/session/test_source formal_eskf.ins_source.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_ins_configuration runtime/session/test_configuration formal_eskf.ins_configuration.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_covariance_guard runtime/session/test_covariance_guard formal_eskf.covariance_guard.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_ins_continuity runtime/session/test_continuity formal_eskf.ins_continuity.eigen formal_eskf::runtime)

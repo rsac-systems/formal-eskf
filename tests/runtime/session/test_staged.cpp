@@ -802,8 +802,8 @@ void freshness(Context & test, std::string_view profile)
                     (f.session.capabilities(epoch + 100000).attitude.reasons & Capabilities::stale) != 0 &&
                     !f.session.fault(),
                 profile, "freshness equality withdraws output, distinct from a numerical fault");
-    ++f.imu.source.gyroscope_id;
-    test.expect(!f.tick() && f.session.fault(), profile, "required IMU source change requires restart");
+    f.imu.gyroscope_clipping = 1;
+    test.expect(!f.tick() && f.session.fault(), profile, "invalid clipped gyro input still requires restart");
     auto const cap = f.session.capabilities(f.imu.time_us);
     test.expect(!cap.attitude.available && (cap.attitude.reasons & Capabilities::fault) != 0, profile,
                 "fault defeats previously completed tilt alignment");

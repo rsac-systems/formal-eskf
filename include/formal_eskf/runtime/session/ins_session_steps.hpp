@@ -220,6 +220,56 @@ bool InsSession<Linalg, Layout>::accept_imu(ImuInput const & sample, std::uint64
 }
 
 template <typename Linalg, typename Layout>
+bool InsSession<Linalg, Layout>::admit_imu(ImuInput const & sample, std::uint64_t arrival_us)
+{
+    auto const & previous = m_imu_history.source();
+    bool const accel_changed = previous.accelerometer_id != sample.source.accelerometer_id ||
+                               previous.accelerometer_calibration != sample.source.accelerometer_calibration;
+    bool const gyro_changed = previous.gyroscope_id != sample.source.gyroscope_id ||
+                              previous.gyroscope_calibration != sample.source.gyroscope_calibration;
+    if (accel_changed || gyro_changed)
+    {
+        // Reject unavailable identity and bad chronology/payload before resetting
+        // the main state. History alone treats identities as opaque values.
+        if (!check_timing(sample.source.accelerometer_id != 0 && sample.source.gyroscope_id != 0))
+        {
+            return false;
+        }
+        if (!m_imu_history.can_push(sample, arrival_us))
+        {
+            return check_timing(m_imu_history.push(sample, arrival_us));
+        }
+        auto const & prior = m_startup.parameters();
+        formal_eskf::BiasReset<backend_type> reset;
+        reset.accelerometer = accel_changed;
+        reset.gyroscope = gyro_changed;
+        reset.accelerometer_variance = vector3(prior.accelerometer_bias_variance, prior.accelerometer_bias_variance,
+                                               prior.accelerometer_bias_variance);
+        reset.gyroscope_variance =
+            vector3(prior.gyroscope_bias_variance, prior.gyroscope_bias_variance, prior.gyroscope_bias_variance);
+        if (!check(formal_eskf::reset_biases(m_state, m_covariance, reset)))
+        {
+            return false;
+        }
+    }
+    if (!check_timing(m_imu_history.push(sample, arrival_us)))
+    {
+        return false;
+    }
+    if (accel_changed)
+    {
+        m_imu_source_changes.accelerometer_time_us = sample.time_us;
+    }
+    if (gyro_changed)
+    {
+        m_imu_source_changes.gyroscope_time_us = sample.time_us;
+    }
+    // Motion/protection envelopes retain their actual delayed history. This
+    // owner has no separate learned calibration accumulator to clear.
+    return true;
+}
+
+template <typename Linalg, typename Layout>
 void InsSession<Linalg, Layout>::process_imu(ImuInput const & sample, std::uint64_t arrival_us,
                                              ContextInput const & context)
 {
@@ -230,7 +280,7 @@ void InsSession<Linalg, Layout>::process_imu(ImuInput const & sample, std::uint6
     m_context = context;
     if (m_initialized)
     {
-        if (!check_timing(m_imu_history.push(sample, arrival_us)))
+        if (!admit_imu(sample, arrival_us))
         {
             return;
         }
@@ -248,10 +298,10 @@ void InsSession<Linalg, Layout>::process_imu(ImuInput const & sample, std::uint6
         ++m_statistics.rejections;
         return;
     }
-    if (!m_collection_source.matches(sample.source))
+    if (!m_filtered_imu_source.matches(sample.source))
     {
         m_startup.reset();
-        m_collection_source = sample.source;
+        m_filtered_imu_source = sample.source;
     }
     m_time_us = sample.time_us;
     m_imu_context = startup_context(m_time_us, m_settings.imu.rest_maximum_age_us);
@@ -390,12 +440,23 @@ void InsSession<Linalg, Layout>::predict_and_fuse(typename imu_history_type::int
 {
     auto const & sample = interval.sample;
     auto const imu = sample.mean_rates();
+    bool const changed = !m_filtered_imu_source.matches(sample.source);
+    if (changed || interval.hold_period_us != 0)
+    {
+        // Discard partial observations at their delayed source boundary. Bias
+        // reset already happened at ingress; historical records never repeat it.
+        if (interval.hold_period_us == 0)
+        {
+            m_gravity.reset_samples();
+        }
+        m_magnetic.heading.reset_acceleration();
+        m_filtered_imu_source = sample.source;
+    }
     m_imu_context = m_observations.prediction_context(interval, m_settings.imu.rest_maximum_age_us);
     if (interval.hold_period_us != 0)
     {
         ++m_statistics.gaps;
         reset_imu_observations();
-        m_magnetic.heading.reset_acceleration();
         if (!check(formal_eskf::runtime::predict_imu(m_state, m_covariance, interval.held_rate,
                                                      interval.hold_period_us * seconds_per_microsecond, m_parameters, 0,
                                                      false, m_settings.imu.faulty_specific_force_variance)))

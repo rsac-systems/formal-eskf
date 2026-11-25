@@ -5,7 +5,8 @@
 **Scope:** Acceptance design for [R-SENSOR-INPUT](../requirements/runtime/sensor-input.md),
 [E-BIAS-RESET](../requirements/core/bias-reset.md),
 [R-IMU-SOURCE](../requirements/runtime/imu/source-change.md) and their history,
-profile and PX4 caller bindings. All executable bindings below are Pending.
+profile and PX4 caller bindings. Implemented families are linked below; remaining
+partitions retain explicit Pending/Partial bindings.
 Existing tests/proofs are not automatically credited to these target cases.
 
 **Level / purpose:** Core unit, runtime component, composed session/PX4 integration
@@ -85,16 +86,8 @@ Runtime/source composition and algebraic/source proofs remain separate work.
 
 ## IMU source sequence cases
 
-| Case ID | Name | Requirement / clause | Conditions, inputs and action | Expected result and oracle | Executable test |
-|---|---|---|---|---|---|
-| TC-R-IMU-SOURCE-01 | Detect independent admitted source changes | [Detection](../requirements/runtime/imu/source-change.md#detection-and-numerical-reset) | Accel-only, gyro-only, both and calibration-only events; unequal initial priors and nonzero learning histories. | Exactly one selected main bias/P reset per event, affected learning state invalidated, unselected bias/P/learning preserved. Compare core block oracle and event count. | Pending |
-| TC-R-IMU-SOURCE-02 | Retain old and new IMU records | [Ordering](../requirements/runtime/imu/source-change.md#current-and-delayed-ordering) | Change source during partial warmup and after wrap, with old records pending and distinct current/delayed epochs. Drain via ordinary admissible steps. | Reset at ingress without relabelling main time; old records neither cleared, skipped nor reset again; payload/provenance/chronology match reference list. | Pending |
-| TC-R-IMU-SOURCE-03 | Respect output bias feedback boundary | [Ordering](../requirements/runtime/imu/source-change.md#current-and-delayed-ordering) | Nonzero cached output biases differ from reset main biases; propagate changed-source input before delayed feedback and again after it. Include multiple events before feedback. | First current propagation uses cached biases; successful feedback supplies main biases for subsequent propagation. Past body rates, output epochs and tracking history not retroactively reset. | Pending |
-| TC-R-IMU-SOURCE-04 | Reject a bad handoff without partial reset | [Detection](../requirements/runtime/imu/source-change.md#detection-and-numerical-reset) | Changed source plus invalid values/time/clipping, impossible capacity/lag, or invalid consumed reset prior. | Input not accepted, binding not advanced, no partial bias/P reset or completed handoff report; preserve numerical reset frame. Independent fault latches follow their own contracts. | Pending |
-| TC-R-IMU-SOURCE-05 | Preserve stage commits after later failure | [State boundaries](../requirements/runtime/imu/source-change.md#state-and-reporting-boundaries) | Valid source reset/admission followed by forced production prediction, feedback or publication-eligibility failure. | Successful reset is not rolled back; no later valid output claims failed work. Assertions identify the actual failing stage, not callback-wide atomicity. | Pending |
-| TC-R-IMU-SOURCE-06 | Avoid repeat resets and recognize switch-back | [Detection](../requirements/runtime/imu/source-change.md#detection-and-numerical-reset) | Initial binding, repeated identical metadata, A-to-B-to-A on distinct admitted inputs and duplicated timestamps. | Initial/identical metadata do not reset; each distinct admitted switch does; old buffered metadata and duplicate input do not cause extra resets. | Pending |
-| TC-R-IMU-SOURCE-07 | Preserve alignment and consumer reset semantics | [State boundaries](../requirements/runtime/imu/source-change.md#state-and-reporting-boundaries) | Source change with aiding/context queues populated and an ordinary subsequent prediction/correction. | At reset boundary p/v/q, unselected state/P, readiness and unrelated qualification preserved; actual source epoch reported separately; no position/velocity/attitude/odometry reset counters incremented. Later normal updates allowed. | Pending |
-| TC-R-IMU-SOURCE-08 | Keep independent fault and gap protection | [Ordering](../requirements/runtime/imu/source-change.md#current-and-delayed-ordering) | Source change across permitted held gap, then unsupported gap/history loss and changed installation; explicit restart after fault. | Same held/real segment order in current/main paths, no synthetic sensor evidence; source change cannot waive faults. Restart reseeds owners coherently; no new automatic fault recovery. | Pending |
+Cases 01–08 are bound in [the executable source family](tests/runtime/imu-source.md).
+The physical transient case remains separately pending below.
 
 ## Profile, caller and qualification cases
 

@@ -5,8 +5,7 @@
 **Status:** Draft
 
 **Applies to:** Initialized single-writer INS session, admitted source/calibration
-changes with unchanged body frame, installation and timing profile. Target behavior;
-current production instead faults on changed IMU identity/calibration.
+changes with unchanged body frame, installation and timing profile.
 
 **Parent:** [SW-NAV](../../software/navigation-runtime.md).
 
@@ -93,8 +92,9 @@ admission with populated/wrapped history, distinct current/delayed epochs, warmu
 and held gaps. Check exactly-once reset, stored old/new records, continued cursor
 order, bias-feedback timing, unchanged reset counters and failure publication.
 
-Current expected-restart tests and source proofs describe the prior behavior;
-retain their historical scope and replace only the affected native expectations
-when implementing this target. Keep independent invalid-input/history-loss tests.
+The [source test family](../../../verification/tests/runtime/imu-source.md) binds
+current native continuation cases. Historical source proofs describe mismatch
+rejection and require migration; they are not current continuation evidence.
+Keep independent invalid-input/history-loss tests.
 Numerical reset proofs alone do not prove source-event ordering, continuity error,
 target real-time behavior or complete PX4 equivalence.

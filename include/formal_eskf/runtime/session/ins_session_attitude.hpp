@@ -234,12 +234,13 @@ typename InsSession<Linalg, Layout>::status_type
 InsSession<Linalg, Layout>::reset_magnetic_heading(std::uint64_t sample_time_us)
 {
     quaternion_type delta;
-    auto state = m_state;
-    auto covariance = m_covariance;
+    auto candidate_state = m_state;
+    auto candidate_covariance = m_covariance;
     auto status = formal_eskf::runtime::reset_magnetic_heading(
-        state, covariance, m_magnetic.filter.field_b(), magnetic_reference(m_magnetic_model.observation_n()),
-        square(m_settings.magnetic.heading_noise_rad), m_settings.magnetic.field.minimum_horizontal_field,
-        m_parameters.minimum_quaternion_norm, state, covariance, delta);
+        candidate_state, candidate_covariance, m_magnetic.filter.field_b(),
+        magnetic_reference(m_magnetic_model.observation_n()), square(m_settings.magnetic.heading_noise_rad),
+        m_settings.magnetic.field.minimum_horizontal_field, m_parameters.minimum_quaternion_norm, candidate_state,
+        candidate_covariance, delta);
     bool const local_reference = !m_navigation_frame.initialized();
     auto heading = m_magnetic.heading;
     auto tilt = m_tilt_alignment;
@@ -251,16 +252,16 @@ InsSession<Linalg, Layout>::reset_magnetic_heading(std::uint64_t sample_time_us)
         // local horizontal gauge. Its body-local attitude error basis is unchanged.
         geodesy::NedTransform<backend_type> transform;
         transform.rotation = so3::to_rotation_matrix(delta);
-        status =
-            rebase_origin(m_state, m_covariance, transform, m_parameters.minimum_quaternion_norm, state, covariance);
+        status = rebase_origin(m_state, m_covariance, transform, m_parameters.minimum_quaternion_norm, candidate_state,
+                               candidate_covariance);
         if (succeeded(status))
         {
             quaternion_type residual;
             // Establish real heading uncertainty once in the rotated state.
             status = runtime::reset_magnetic_heading(
-                state, covariance, m_magnetic.filter.field_b(), m_magnetic_model.observation_n(),
+                candidate_state, candidate_covariance, m_magnetic.filter.field_b(), m_magnetic_model.observation_n(),
                 square(m_settings.magnetic.heading_noise_rad), m_settings.magnetic.field.minimum_horizontal_field,
-                m_parameters.minimum_quaternion_norm, state, covariance, residual);
+                m_parameters.minimum_quaternion_norm, candidate_state, candidate_covariance, residual);
         }
         if (succeeded(status))
         {
@@ -272,7 +273,7 @@ InsSession<Linalg, Layout>::reset_magnetic_heading(std::uint64_t sample_time_us)
         }
         if (succeeded(status))
         {
-            status = tilt.rebase(state.q_nb, covariance.template block<6, 6, 3, 3>());
+            status = tilt.rebase(candidate_state.q_nb, candidate_covariance.template block<6, 6, 3, 3>());
         }
         before = body_output();
         auto const & current = m_output.current();
@@ -298,8 +299,8 @@ InsSession<Linalg, Layout>::reset_magnetic_heading(std::uint64_t sample_time_us)
             auto const failure = m_magnetic.lifecycle.record_reset(sample_time_us, false);
             return succeeded(failure) ? status_type::out_of_range : failure;
         }
-        m_state = state;
-        m_covariance = covariance;
+        m_state = candidate_state;
+        m_covariance = candidate_covariance;
         if (local_reference)
         {
             m_output.commit_rebase();

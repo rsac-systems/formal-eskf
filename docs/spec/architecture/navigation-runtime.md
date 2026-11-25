@@ -69,9 +69,9 @@ policy. Session composes lower components; lower components do not include it.
 ### Sensor-input and IMU source-change allocation
 
 [R-SENSOR-INPUT](../requirements/runtime/sensor-input.md) owns the common input
-contract. [R-IMU-SOURCE](../requirements/runtime/imu/source-change.md) is a target
-replacing identity-only session restart; current production still faults on that
-change. It does not add a sensor voter, general sensor registry or new motion model.
+contract. [R-IMU-SOURCE](../requirements/runtime/imu/source-change.md) replaces
+identity-only session restart. Native continuation tests cover the current path;
+historical mismatch-rejection proofs require migration. It does not add a sensor voter, general sensor registry or new motion model.
 
 | Owner | Target responsibility |
 |---|---|

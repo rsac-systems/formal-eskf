@@ -40,7 +40,7 @@ owns detection and reset before the new interval enters current processing; the
 adapter shall not duplicate the policy or clear histories. Preserve the source
 metadata of retained old records and the ordinary current/delayed phase order.
 Invalid input, missing required history and other faults still require their
-existing response. Current mismatch-restart evidence does not cover this target.
+existing response. The native source family covers continuation; historical mismatch-restart proofs do not.
 
 The [rate profile](../../../profiles/sensor-input.md#rate-and-storage-qualification)
 defines qualification of additional direct-interval rates. The existing 64-slot

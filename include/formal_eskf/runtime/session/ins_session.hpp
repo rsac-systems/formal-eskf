@@ -63,6 +63,12 @@ public:
 
     using ImuSource = formal_eskf::runtime::ImuSource;
     using ImuInput = formal_eskf::runtime::ImuInput<backend_type>;
+    struct ImuSourceChanges
+    {
+        // Input epochs of accepted changes, not the delayed state/reset epoch.
+        // Initial source binding leaves both zero.
+        std::uint64_t accelerometer_time_us{}, gyroscope_time_us{};
+    };
 
     using imu_history_type = formal_eskf::runtime::ImuHistory<backend_type, Layout::imu_capacity>;
     using observation_history_type =
@@ -335,6 +341,7 @@ public:
     std::uint64_t fusion_time_us() const { return m_time_us; }
     bool initialized() const { return m_initialized; }
     InsCapabilities capabilities(std::uint64_t now_us) const;
+    ImuSourceChanges const & imu_source_changes() const { return m_imu_source_changes; }
     ResetReport const & resets() const { return m_resets; }
     height_type const & height_aiding() const { return m_height_aiding; }
     GroundEffect const & ground_effect() const { return m_ground_effect; }
@@ -388,6 +395,7 @@ private:
         }
     }
     typename observation_history_type::Context startup_context(std::uint64_t epoch, std::uint64_t maximum_age) const;
+    bool admit_imu(ImuInput const & sample, std::uint64_t arrival_us);
     bool accept_imu(ImuInput const & sample, std::uint64_t arrival_us);
     void predict_and_fuse(typename imu_history_type::interval_type const & interval);
     bool attach_navigation();
@@ -492,7 +500,8 @@ private:
     ContextInput m_context{};
     Phase m_phase = Phase::idle;
     ModelRequest m_model_request{};
-    ImuSource m_collection_source{};
+    ImuSource m_filtered_imu_source{};
+    ImuSourceChanges m_imu_source_changes{};
     MagneticSample m_pending_magnetic{};
     magnetic_lifecycle_type::Conditions m_pending_conditions{};
     bool m_pending_position_valid{}, m_pending_origin_updated{};

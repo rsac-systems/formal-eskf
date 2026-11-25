@@ -132,17 +132,17 @@ profiles and runtime. Before starting, validate the entire selected rate profile
 including every history capacity, per-step filter/count convention and noise
 representation. A component constructor alone does not qualify a deployment.
 
-[R-IMU-SOURCE](imu/source-change.md) replaces the current identity/calibration-only
+[R-IMU-SOURCE](imu/source-change.md) replaces identity/calibration-only
 fault with a source-event bias/P reset before new-input processing. Source events
 are identified at ingress, not repeated when old records reach delayed fusion.
 Preserve the remaining startup/current/fusion phase order and all independent
 fault checks. Keep output bias feedback on its existing successful delayed-step
 boundary. Bias-only changes do not create position/attitude reset notifications.
 
-The current implementation and existing strict-source evidence still use the
-restart response. Qualification of the new composition requires actual input,
-reset, retained-history, feedback and publication paths, including failures after
-a successful reset. Staged startup and optional barometer are independent targets;
+The [source family](../../verification/tests/runtime/imu-source.md) binds native
+input/reset/history/feedback tests and actual PX4 callers, including later-stage
+failure. Historical mismatch-rejection proofs require migration; physical source
+transients and target qualification remain separate. Staged startup and optional barometer are independent targets;
 source continuation shall not silently enable either one.
 
 ### Barometric ingress
