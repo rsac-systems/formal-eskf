@@ -4,11 +4,9 @@
 
 **Status:** Draft
 
-**Implementation prerequisite:** The translation-gain restriction is provisional.
-Complete the pinned PX4 gain/heading comparisons in
-[A-02](../../../roadmap.md#a-02--staged-ins-numerical-policy-review) before
-implementing either numerical update. Design selection does not establish
-equivalence, finite-precision preservation or physical accuracy.
+**Design selection:** Retain the protected translation and Down-axis gains below
+after the pinned PX4 comparison. This does not establish implementation,
+finite-precision preservation or physical accuracy.
 
 **Applies to:** Staged binary64 INS runtime with the existing 15-error Cartesian
 model. This is a proposed policy, not implemented or flight-qualified behavior.
@@ -34,7 +32,7 @@ protection; it does not claim identical state definitions or fallback behavior.
 | PX4 mechanism | Selected project behavior and reason |
 |---|---|
 | [Variance protection](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/covariance.cpp#L244): above a limit, use zero innovation and `R = 10 P_ii`; this is a soft reduction, not a hard clip | Retain this scalar rule for unavailable translation, with gain restricted to unavailable translation directions. Preserve supported attitude/bias and translation marginals. |
-| [Zero-innovation heading](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/aid_sources/zero_innovation_heading_update.cpp#L48): no yaw aid, 200 ms cadence, conditional variance reduction | Regularize only the local Down-axis rotation uncertainty after tilt alignment and heading unavailability. Use a body-tangent projection, not an Euler-yaw Jacobian or body-Z selector. |
+| [Zero-innovation heading](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/aid_sources/zero_innovation_heading_update.cpp#L48): no yaw aid, 200 ms cadence, conditional variance reduction | Retain the local Down observation direction, expressed in the body tangent basis. Restrict its gain to that direction after tilt alignment and heading unavailability. |
 | [Fake position](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/aid_sources/fake_pos_control.cpp#L41): constant-position/rest mode, or poor tilt with gravity fusion disabled and dead reckoning expired | Do not assume constant position in moving flight. Staged tilt refinement uses real gravity observations. Stationary updates remain separately scoped; absence of GNSS shall not establish rest. |
 | [Fake height](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/aid_sources/fake_height_control.cpp#L41): no vertical aiding and expired vertical validity; may reset height/vertical velocity | Do not manufacture constant altitude or zero vertical velocity in flight. Protect unavailable covariance and bound internal velocity instead, while withholding unsupported navigation output. |
 | [Bias inhibition](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/ekf_helper.cpp#L971) and variance-dependent bias driving noise | Retain existing process-noise semantics. Add explicit aiding-based accel-bias permissions below; all purely numerical updates have zero bias gain. |
@@ -42,9 +40,31 @@ protection; it does not claim identical state definitions or fallback behavior.
 PX4's direct-state update uses the full covariance column, subject to its bias
 permissions. Even a zero innovation can therefore reduce attitude/bias variance.
 The project deliberately constrains numerical-update gains to preserve quantities
-that still have physical support. This is an adaptation for review, not a claim
+that still have physical support. This is a deliberate adaptation, not a claim
 that PX4 already implements the same protection. Real observation gains retain
 their existing full coupling and declared bias/magnetic constraints.
+
+PX4's [generated heading Jacobian](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/python/ekf_derivation/generated/compute_yaw_innov_var_and_h.h)
+selects local attitude-error Down. Its left/local perturbation in
+[the derivation](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/python/ekf_derivation/derivation.py)
+becomes `H_theta = e_D^T R_nb` under this project's body/right error convention.
+That is the same observation direction as below, even at nonzero tilt; it is
+not a general Euler-yaw derivative. The differences are the restricted gain,
+absence of PX4's tighter pre-alignment numerical update, and separate real and
+numerical progress clocks. PX4's numerical heading update can change tilt/bias
+covariance through its unrestricted cross-covariance gain and advances its
+heading-fusion clock; neither effect shall qualify a real reference here.
+
+For a direct observation of coordinate i, an unrestricted gain changes a
+protected marginal by `-P_ji^2 / (P_ii + R)` when that gain row is enabled.
+Zero innovation therefore does not mean zero information change. With the
+restricted gain and full Joseph expression, the protected principal block is
+unchanged in real arithmetic, while cross-covariances still evolve. Retain this
+policy to avoid artificial confidence in supported attitude/bias or translation;
+it is not a claim of improved estimation accuracy. Recovery must still reset
+the actually observed, numerically regularized subspace with real uncertainty.
+The profile retains the PX4-scale triggers and soft-reduction factor; they are
+numerical limits, not navigation-accuracy thresholds.
 
 ## Required behavior
 

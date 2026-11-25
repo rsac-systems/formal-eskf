@@ -136,9 +136,9 @@ measured accuracy or claimed operating-duration guarantees.
 | Current real translation aiding | Enabled/qualified current source generation, fresh under its source contract, and an actual accepted correction/reset less than 1 s old | PX4's 1 s real-aiding freshness concept; receipt alone is insufficient |
 | Horizontal and vertical no-aid grace | Expire the affected capability at age **at least 5 s** since its last actual constraining correction/reset; never-initialized capabilities remain unavailable | PX4 default 5 s no-aid budget, with explicit per-capability clocks and equality; not an accuracy guarantee |
 | Vertical-velocity support | Qualified real vertical velocity or continuing qualified real height/dynamics support after velocity initialization; a single new height sample does not initialize velocity | Preserves separate initialization and aiding facts; synthetic progress is excluded |
-| Position regularization trigger | Candidate `P_ii > 1e6 m^2` in the admitted local-level basis, only for unavailable directions | PX4 scale; finalize in A-02.1, not a navigable-accuracy bound |
-| Velocity regularization trigger | Candidate `P_ii > 1e6 (m/s)^2`, only for unavailable directions | PX4 scale; finalize in A-02.1, not a physical performance bound |
-| Translation artificial variance | Candidate `R = 10 P_ii`; at most one update per permitted axis per delayed horizon | PX4 factor; target-axis reduction is exactly `10/11` in real arithmetic; compare constrained gains in A-02.1 |
+| Position regularization trigger | `P_ii > 1e6 m^2` in the admitted local-level basis, only for unavailable directions | Selected PX4 scale; not a navigable-accuracy bound |
+| Velocity regularization trigger | `P_ii > 1e6 (m/s)^2`, only for unavailable directions | Selected PX4 scale; not a physical performance bound |
+| Translation artificial variance | `R = 10 P_ii`; at most one update per permitted axis per delayed horizon | PX4 factor; target-axis reduction is exactly `10/11` in real arithmetic; protected gain selected under R-INS-CONTINUITY |
 | Heading guard attempt cadence | Elapsed time **strictly greater than 200 ms** since the preceding attempt or actual heading update; seed time initializes the attempt clock | PX4 cadence, with a separate numerical clock |
 | Heading guard trigger / variance | After tilt alignment, no usable/eligible heading aid, `u_b^T P_theta u_b > 0.09 rad^2`; `R_y = 0.25 rad^2` | PX4 default 0.3-rad heading-noise threshold and aligned variance; no tighter pre-alignment guard |
 | Nominal velocity limit | Each admitted local-level component in `[-100,100] m/s`; intervene only outside the interval and withdraw affected translation capabilities | PX4 default velocity-limit scale; no silent valid-output saturation |
@@ -172,9 +172,9 @@ owns adapter/mode/reset behavior. The numerical endurance fixture spans at least
 intervention. This is a test duration, not a promised one-hour mission envelope.
 The 60 s / 3 deg criterion above remains the first benign-input physical target.
 
-Before implementation acceptance, finalize the A-02 translation trigger/gain and
-heading comparisons, bounded floating-point residual criteria, complete motion/
-noise fixtures and deployment accuracy/resource budgets. All 64 translation masks
+Before implementation acceptance, finalize bounded floating-point residual
+criteria, complete motion/noise fixtures and deployment accuracy/resource budgets.
+All 64 translation masks
 and compatible/unsupported active-observation bases require explicit coverage.
 No elapsed test duration or finite-P result establishes physical observability.
 At most six translation updates and one Down-axis update occur per delayed

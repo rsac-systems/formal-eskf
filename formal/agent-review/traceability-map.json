@@ -8506,7 +8506,7 @@
     },
     {
       "id": "R-INS-CONTINUITY",
-      "title": "Unaided INS numerical continuity and recovery: Draft; PX4 gain comparisons, implementation and formal evidence pending",
+      "title": "Unaided INS numerical continuity and recovery: protected-gain policy retained after pinned PX4 comparison; implementation and formal evidence pending",
       "references": {
         "spec": [
           {
