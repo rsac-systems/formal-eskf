@@ -140,7 +140,10 @@ source continuation shall not silently enable either one.
 
 The session owns the configured R-BAROMETRIC-ALTITUDE converter. It admits
 supplied model altitude or converts calibrated pressure once before queueing;
-these are alternatives for the same physical observation. It passes rejection
+these are alternatives for the same physical observation. The session passes
+history-owned receipt facts explicitly to the height update; it does not infer
+receipt time from cached delayed samples. Before history seed there is no admitted
+barometer receipt, so startup input does not count as a new warmup event. It passes rejection
 status with source metadata to history so invalid payloads cannot bypass source
 retirement. Invalid fixed model settings reject configuration/startup; invalid
 observations alone do not latch a core fault. Startup still follows its current

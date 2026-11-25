@@ -283,6 +283,26 @@ void barometric_inputs(Context & test, std::string_view profile)
     }
 }
 
+void barometric_receipt(Context & test, std::string_view profile)
+{
+    using Source = Session::height_type::Source;
+    Fixture f;
+    test.expect(f.run(3000), profile, "initialize the actual delayed pipeline");
+    auto const received = f.input.barometer.stamp.time_us; // This fixture admits on the same IMU endpoint.
+    f.send_barometer = false;
+    while (f.imu.time_us + 4000 < received + 400000)
+    {
+        test.expect(f.tick(), profile, "advance latest clock while draining delayed history");
+    }
+    test.expect(f.session.height_aiding().session(Source::barometer).active, profile,
+                "396 ms latest-clock outage retains source while delayed history drains");
+    auto const progress = f.session.height_aiding().session(Source::barometer).fused_time;
+    test.expect(f.tick() && !f.session.height_aiding().session(Source::barometer).active &&
+                    f.session.height_aiding().session(Source::barometer).fused_time == progress &&
+                    f.session.height_aiding().session(Source::gnss).active && !f.session.fault(),
+                profile, "400 ms receipt expiry stops barometer without waiting for the delayed clock");
+}
+
 void pressure_inputs(Context & test, std::string_view profile)
 {
     using Source = Session::height_type::Source;
@@ -391,6 +411,7 @@ int main(int argc, char ** argv)
         {"TC-R-BAROMETRIC-ALTITUDE-02", "binary64", pressure_boundary},
         {"TC-R-BAROMETRIC-ALTITUDE-03", "binary64", barometric_configuration},
         {"TC-R-BAROMETRIC-ALTITUDE-04", "binary64", barometric_inputs},
+        {"TC-R-HEIGHT-AIDING-BARO-06", "binary64", barometric_receipt},
     };
     return formal_eskf::test::run_cases(cases, argc, argv);
 }

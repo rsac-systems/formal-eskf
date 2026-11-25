@@ -45,6 +45,16 @@ struct ObservationTiming
     double interval_sample_weight{};
 };
 
+/** Latest IMU clock and last successful source buffer push, for one identity generation.
+ * Neither timestamp is a raw/effective measurement epoch. Zero push time means no admitted receipt.
+ */
+struct ObservationReceipt
+{
+    std::uint64_t latest_time_us{};
+    std::uint64_t push_time_us{};
+    std::uint64_t generation{};
+};
+
 /** Requested timing in signed startup units; the deployment supplies defaults. */
 struct TimingParameters
 {

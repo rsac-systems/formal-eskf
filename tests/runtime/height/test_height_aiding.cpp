@@ -54,6 +54,8 @@ template <typename Linalg> struct HeightFixture
     value_type baro_altitude = 550, gnss_altitude = 500;
     bool quality = true, velocity_aiding = true;
     std::uint8_t calibration{};
+    formal_eskf::runtime::ObservationReceipt receipt{};
+    std::uint64_t receipt_sample_time{};
     std::uint8_t reset_counter{};
     value_type reset_delta{};
 
@@ -64,7 +66,15 @@ template <typename Linalg> struct HeightFixture
                                         formal_eskf::configuration::Ins::BiasUpdate const & permissions = {},
                                         typename aiding_type::Acceleration const & acceleration = {false, {0U, 0U}})
     {
-        auto const result = aiding.update(time, baro, gps, velocity, estimate, covariance, permissions, acceleration);
+        receipt.latest_time_us = time;
+        if (baro.time_us > receipt_sample_time && baro.time_us <= time)
+        {
+            receipt_sample_time = baro.time_us;
+            receipt.push_time_us = time;
+            receipt.generation = baro.generation;
+        }
+        auto const result =
+            aiding.update(time, baro, gps, receipt, velocity, estimate, covariance, permissions, acceleration);
         if (result.status == Status::success && result.height_resets != 0U)
         {
             reset_counter = static_cast<std::uint8_t>(reset_counter + result.height_resets);
@@ -116,11 +126,12 @@ template <typename Linalg> void ground_effect(Context & test)
         typename A::Sample sample{baseline.now + 20000U, barometer ? 1U : 2U, 0,
                                   (barometer ? baseline.baro_altitude : baseline.gnss_altitude) - T{3}, T{1}};
         typename A::Sample empty{};
-        auto const result =
-            protected_case.aiding.update(sample.time_us, barometer ? sample : empty, barometer ? empty : sample, true,
-                                         protected_case.state, protected_case.P, {}, {}, true);
-        auto const unprotected = ordinary.aiding.update(sample.time_us, barometer ? sample : empty,
-                                                        barometer ? empty : sample, true, ordinary.state, ordinary.P);
+        auto const result = protected_case.aiding.update(
+            sample.time_us, barometer ? sample : empty, barometer ? empty : sample, {sample.time_us, sample.time_us, 0},
+            true, protected_case.state, protected_case.P, {}, {}, true);
+        auto const unprotected =
+            ordinary.aiding.update(sample.time_us, barometer ? sample : empty, barometer ? empty : sample,
+                                   {sample.time_us, sample.time_us, 0}, true, ordinary.state, ordinary.P);
         auto const & selected = protected_case.aiding.session(barometer ? Source::barometer : Source::gnss);
         auto const & original = ordinary.aiding.session(barometer ? Source::barometer : Source::gnss);
         test.expect(result.status == Status::success && unprotected.status == Status::success && result.fused == 1 &&
@@ -147,9 +158,10 @@ template <typename Linalg> void shared_sample(Context & test)
     auto separate = shared;
     typename F::aiding_type::Sample sample{shared.now + 20000U, 1U, 0U, shared.baro_altitude, T{1}};
     auto const duplicate = sample;
-    auto const aliased = shared.aiding.update(sample.time_us, sample, sample, true, shared.state, shared.P);
-    auto const independent =
-        separate.aiding.update(sample.time_us, sample, duplicate, true, separate.state, separate.P);
+    auto const aliased = shared.aiding.update(sample.time_us, sample, sample, {sample.time_us, sample.time_us, 0}, true,
+                                              shared.state, shared.P);
+    auto const independent = separate.aiding.update(
+        sample.time_us, sample, duplicate, {sample.time_us, sample.time_us, 0}, true, separate.state, separate.P);
     test.expect(aliased.status == Status::success && independent.status == Status::success &&
                     aliased.fused == independent.fused && aliased.rejected == independent.rejected &&
                     aliased.height_resets == independent.height_resets &&
@@ -557,7 +569,8 @@ template <typename Linalg> void geographic_height(Context & test)
     Aiding aiding{height_parameters<typename Aiding::value_type>()};
     test.expect(aiding.initialize(1000000, 503.) == Status::success, "geographic height", "source startup");
     typename Aiding::Sample gps{1020000, 2, 0, 500., 1.};
-    auto const first = aiding.update(gps.time_us, {}, gps, true, state, P, {}, {}, false, &old_geometry);
+    auto const first = aiding.update(gps.time_us, {}, gps, {gps.time_us, gps.time_us, 0}, true, state, P, {}, {}, false,
+                                     &old_geometry);
     V ecef;
     formal_eskf::geodesy::GeodeticPosition point;
     test.expect(first.status == Status::success && first.height_resets == 1 &&
@@ -572,8 +585,10 @@ template <typename Linalg> void geographic_height(Context & test)
                 "geographic height", "transport full prior");
     gps.time_us += 20000;
     gps.altitude += 0.5;
-    auto const a = aiding.update(gps.time_us, {}, gps, true, state, P, {}, {}, false, &old_geometry);
-    auto const b = moved_aiding.update(gps.time_us, {}, gps, true, moved, moved_P, {}, {}, false, &new_geometry);
+    auto const a = aiding.update(gps.time_us, {}, gps, {gps.time_us, gps.time_us, 0}, true, state, P, {}, {}, false,
+                                 &old_geometry);
+    auto const b = moved_aiding.update(gps.time_us, {}, gps, {gps.time_us, gps.time_us, 0}, true, moved, moved_P, {},
+                                       {}, false, &new_geometry);
     typename Aiding::state_type back;
     typename Aiding::covariance_type back_P;
     test.expect(
@@ -589,7 +604,8 @@ template <typename Linalg> void geographic_height(Context & test)
     formal_eskf::runtime::HeightDatum<Linalg> missing;
     typename Aiding::Geometry invalid{old_frame, missing};
     gps.time_us += 20000;
-    auto const failure = aiding.update(gps.time_us, {}, gps, true, state, P, {}, {}, false, &invalid);
+    auto const failure =
+        aiding.update(gps.time_us, {}, gps, {gps.time_us, gps.time_us, 0}, true, state, P, {}, {}, false, &invalid);
     test.expect(failure.status == Status::domain_error && aiding.session(Source::gnss).sample_time == epoch &&
                     formal_eskf::linalg::max_abs(state.p_n - prior.p_n) == 0. &&
                     formal_eskf::linalg::max_abs(P - prior_P) == 0.,
@@ -698,7 +714,8 @@ template <typename Linalg> void prior_offset(Context & test)
         typename A::Sample sample{f.now + 20000U, 1, 0, f.baro_altitude + T{0.25}, T{4}};
         T const residual = (T{500} - state.p_n(2)) - (sample.altitude - prior.value);
         T const S = P(2, 2) + sample.variance + prior_variance;
-        auto const result = f.aiding.update(sample.time_us, sample, {}, true, f.state, f.P);
+        auto const result =
+            f.aiding.update(sample.time_us, sample, {}, {sample.time_us, sample.time_us, 0}, true, f.state, f.P);
         auto const & aid = f.aiding.session(Source::barometer);
         T const epsilon = std::numeric_limits<T>::epsilon();
         test.expect(result.status == Status::success && result.fused == 1 && aid.fusion.innovation(0) == residual &&
@@ -724,7 +741,8 @@ template <typename Linalg> void prior_offset(Context & test)
                     "same frozen residual drives the state correction");
         auto const updated_P = f.P;
         auto const updated_offset = aid.bias.value;
-        auto const repeat = f.aiding.update(sample.time_us + 1, sample, {}, true, f.state, f.P);
+        auto const repeat = f.aiding.update(sample.time_us + 1, sample, {}, {sample.time_us + 1, sample.time_us + 1, 0},
+                                            true, f.state, f.P);
         test.expect(repeat.status == Status::success && repeat.fused == 0 &&
                         formal_eskf::linalg::max_abs(f.P - updated_P) == 0 &&
                         f.aiding.session(Source::barometer).bias.value == updated_offset,
@@ -781,11 +799,12 @@ template <typename Linalg> void warmup_timing(Context & test)
         {
             now += 20000;
             sample = {now, 1, 0, T{550}, T{4}};
-            auto const result = aiding.update(now, sample, {}, true, state, P);
+            auto const result = aiding.update(now, sample, {}, {now, now, 0}, true, state, P);
             test.expect(result.status == Status::success &&
                             aiding.session(Source::barometer).active == (count > scenario.count),
                         "warmup", "start only after N valid selected events, then remain active");
-            auto const duplicate = aiding.update(++now, sample, {}, true, state, P);
+            ++now;
+            auto const duplicate = aiding.update(now, sample, {}, {now, sample.time_us, 0}, true, state, P);
             test.expect(duplicate.status == Status::success && duplicate.fused == 0 &&
                             aiding.session(Source::barometer).active == (count > scenario.count),
                         "warmup", "repeated event cannot shorten qualification or fuse twice");
@@ -793,17 +812,18 @@ template <typename Linalg> void warmup_timing(Context & test)
             {
                 sample = {now + 1, 1, 0, T{550}, T{4}};
                 now = sample.time_us + height_parameters<T>().barometer_maximum_age_us;
-                auto const stale = aiding.update(now, sample, {}, true, state, P);
+                auto const stale = aiding.update(now, sample, {}, {now, now, 0}, true, state, P);
                 test.expect(stale.status == Status::success && stale.rejected == 1, "warmup",
                             "stale event is not a warmup sample");
                 sample.time_us = ++now;
                 sample.altitude = std::numeric_limits<T>::quiet_NaN();
-                auto const invalid = aiding.update(now, sample, {}, true, state, P);
+                auto const invalid = aiding.update(now, sample, {}, {now, now, 0}, true, state, P);
                 test.expect(invalid.status == Status::success && invalid.rejected == 1, "warmup",
                             "invalid altitude is not a warmup sample");
                 sample.time_us = now + 1000;
                 sample.altitude = T{550};
-                auto const future = aiding.update(++now, sample, {}, true, state, P);
+                ++now;
+                auto const future = aiding.update(now, sample, {}, {now, now, 0}, true, state, P);
                 test.expect(future.status == Status::success && future.fused == 0, "warmup",
                             "future event waits without qualification");
             }
@@ -821,6 +841,138 @@ void warmup_case(Context & test, std::string_view profile)
     else
     {
         warmup_timing<formal_eskf::test::Backend<double>>(test);
+    }
+}
+
+template <typename Linalg> void receipt_clocks(Context & test)
+{
+    using F = HeightFixture<Linalg>;
+    using T = typename F::value_type;
+    using A = typename F::aiding_type;
+    using Source = typename F::Source;
+    F baseline;
+    baseline.start(test);
+    auto const progress = baseline.aiding.session(Source::barometer).fused_time;
+    for (std::uint64_t age : {399999U, 400000U, 400001U})
+    {
+        auto f = baseline;
+        auto const now = f.now + 20000;
+        auto const latest = now + 212000;
+        auto const result = f.aiding.update(now, {}, {}, {latest, latest - age, 0}, true, f.state, f.P);
+        test.expect(result.status == Status::success && f.aiding.session(Source::barometer).active == (age < 400000) &&
+                        f.aiding.session(Source::barometer).fused_time == progress && result.fused == 0 &&
+                        result.height_resets == 0 && result.velocity_resets == 0 &&
+                        formal_eskf::linalg::max_abs(f.state.p_n - baseline.state.p_n) == 0 &&
+                        formal_eskf::linalg::max_abs(f.P - baseline.P) == 0,
+                    "receipt", "latest-clock equality expires without inventing fusion or a reset");
+    }
+    auto f = baseline;
+    auto const now = f.now + 400000;
+    typename A::Sample stale{now - 200000, 1, 0, T{550}, T{1}};
+    auto result = f.aiding.update(now, stale, {}, {now + 212000, now + 212000, 0}, true, f.state, f.P);
+    test.expect(result.status == Status::success && result.rejected == 1 && result.fused == 0 &&
+                    f.aiding.session(Source::barometer).active &&
+                    f.aiding.session(Source::barometer).fused_time == progress,
+                "receipt", "fresh receipt does not make a stale delayed sample usable");
+    for (std::uint64_t elapsed : {5000000U, 5000001U})
+    {
+        f = baseline;
+        auto const time = f.now + elapsed;
+        typename A::Sample rejected{time, 1, 0, T{800}, T{1}};
+        result = f.aiding.update(time, rejected, {}, {time + 212000, time + 212000, 0}, true, f.state, f.P);
+        test.expect(result.status == Status::success && result.fused == 0 &&
+                        f.aiding.session(Source::barometer).active == (elapsed == 5000000) &&
+                        f.aiding.session(Source::barometer).fused_time == progress,
+                    "receipt", "fresh rejected arrivals do not refresh the strict delayed fusion timeout");
+    }
+    f = F{};
+    test.expect(f.aiding.initialize(f.now, T{500}) == Status::success, "receipt", "fresh owner");
+    auto time = f.now;
+    for (unsigned count = 0; count < 21; ++count)
+    {
+        time += 20000;
+        typename A::Sample selected{time, 1, 0, T{550}, T{1}};
+        result = f.aiding.update(time, selected, {}, {time + 400000, time, 0}, true, f.state, f.P);
+        test.expect(result.status == Status::success && !f.aiding.session(Source::barometer).active, "receipt",
+                    "valid warmup alone cannot start with an expired latest receipt");
+    }
+    time += 20000;
+    typename A::Sample selected{time, 1, 0, T{550}, T{1}};
+    result = f.aiding.update(time, selected, {}, {time + 212000, time + 212000, 0}, true, f.state, f.P);
+    test.expect(result.status == Status::success && f.aiding.session(Source::barometer).active, "receipt",
+                "a fresh matching receipt permits the already qualified source to start");
+    time += 20000;
+    selected.time_us = time;
+    result = f.aiding.update(time, selected, {}, {time + 400000, time, 0}, true, f.state, f.P);
+    test.expect(result.status == Status::success && result.fused == 1, "receipt",
+                "active source can fuse an eligible delayed sample before the no-data stop branch, as in PX4");
+    for (auto receipt : {formal_eskf::runtime::ObservationReceipt{baseline.now, baseline.now, 0},
+                         formal_eskf::runtime::ObservationReceipt{baseline.now + 20000, baseline.now + 20001, 0}})
+    {
+        f = baseline;
+        result = f.aiding.update(baseline.now + 20000, {}, {}, receipt, true, f.state, f.P);
+        test.expect(result.status == Status::out_of_range && f.aiding.session(Source::barometer).active &&
+                        f.aiding.session(Source::barometer).fused_time == progress &&
+                        formal_eskf::linalg::max_abs(f.P - baseline.P) == 0,
+                    "receipt", "inconsistent latest/push clocks fail before the owner transaction");
+    }
+}
+
+template <typename Linalg> void receipt_generation(Context & test)
+{
+    using F = HeightFixture<Linalg>;
+    using T = typename F::value_type;
+    using A = typename F::aiding_type;
+    using Source = typename F::Source;
+    F f;
+    f.start(test);
+    auto const P = f.P;
+    auto const gnss_progress = f.aiding.session(Source::gnss).fused_time;
+    auto now = f.now + 20000;
+    typename A::Sample sample{now, 1, 0, T{550}, T{1}, true, 0};
+    auto result = f.aiding.update(now, sample, {}, {now + 212000, now + 212000, 1}, true, f.state, f.P);
+    test.expect(result.status == Status::success && !f.aiding.session(Source::barometer).active &&
+                    f.aiding.session(Source::gnss).active &&
+                    f.aiding.session(Source::gnss).fused_time == gnss_progress && result.fused == 0 &&
+                    result.height_resets == 0 && formal_eskf::linalg::max_abs(f.P - P) == 0,
+                "receipt", "new generation cannot qualify an older delayed sample or reset state");
+    sample.generation = 1;
+    sample.altitude = T{560};
+    for (unsigned count = 1; count <= 21; ++count)
+    {
+        now += 20000;
+        sample.time_us = now;
+        result = f.aiding.update(now, sample, {}, {now + 212000, now + 212000, 1}, true, f.state, f.P);
+        test.expect(result.status == Status::success && f.aiding.session(Source::barometer).active == (count > 20) &&
+                        f.aiding.session(Source::barometer).generation == 1 &&
+                        result.diagnostics[0].source_changed == (count == 1),
+                    "receipt", "same identity with a new generation restarts qualification exactly once");
+    }
+    test.expect(f.aiding.session(Source::barometer).bias.value == T{60} &&
+                    f.aiding.session(Source::gnss).fused_time == gnss_progress,
+                "receipt", "new source learns its own offset without rewriting unrelated fusion history");
+}
+
+void receipt_case(Context & test, std::string_view profile)
+{
+    if (profile == "binary32")
+    {
+        receipt_clocks<formal_eskf::test::Backend<float>>(test);
+    }
+    else
+    {
+        receipt_clocks<formal_eskf::test::Backend<double>>(test);
+    }
+}
+void generation_case(Context & test, std::string_view profile)
+{
+    if (profile == "binary32")
+    {
+        receipt_generation<formal_eskf::test::Backend<float>>(test);
+    }
+    else
+    {
+        receipt_generation<formal_eskf::test::Backend<double>>(test);
     }
 }
 
@@ -851,6 +1003,10 @@ int main(int argc, char ** argv)
         {"TC-R-HEIGHT-AIDING-BARO-04", "binary64", prior_case},
         {"TC-R-HEIGHT-AIDING-BARO-05", "binary32", warmup_case},
         {"TC-R-HEIGHT-AIDING-BARO-05", "binary64", warmup_case},
+        {"TC-R-HEIGHT-AIDING-BARO-06", "binary32", receipt_case},
+        {"TC-R-HEIGHT-AIDING-BARO-06", "binary64", receipt_case},
+        {"TC-R-HEIGHT-AIDING-BARO-07", "binary32", generation_case},
+        {"TC-R-HEIGHT-AIDING-BARO-07", "binary64", generation_case},
     };
     return formal_eskf::test::run_cases(cases, argc, argv);
 }

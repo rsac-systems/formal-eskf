@@ -24,6 +24,9 @@ not a second copy of the source-selection implementation.
 | TC-R-HEIGHT-AIDING-02 | Height aiding: geographic observation and reset | R-HEIGHT-AIDING, geometric path | Independent geographic frame/datum and airborne displacement; initial GNSS height reset, equivalent corrections before/after rebasing, and a missing datum. | Expected physical height, ellipsoid-normal reset, equivalent full covariance and rollback on missing datum; finite scenario tolerances do not establish global error bounds. Detects use of working Z after frame rotation and incorrect datum/reset signs. | Native: [test_height_aiding.cpp](../../../../../tests/runtime/height/test_height_aiding.cpp) |
 | TC-R-HEIGHT-AIDING-BARO-05 | Derive and saturate warmup counts | R-HEIGHT-AIDING, optional source and timing composition | Default and alternate valid T/D; counts N-1, N, N+1; duplicate/stale events, saturation, invalid/overflowing settings. | Independent integer/rational count oracle; start only after count>N, once per distinct admitted event. LPF belongs to warmup/reset, not ordinary correction. Invalid settings cannot overflow or start a source. | Native: [test_height_aiding.cpp](../../../../../tests/runtime/height/test_height_aiding.cpp) |
 
+| TC-R-HEIGHT-AIDING-BARO-06 | Separate receipt freshness from fusion progress | R-HEIGHT-AIDING, optional source and timing composition | Latest-clock receipt age below/at/above expiry; independently vary delayed sample age and successful-fusion timeout, including equality. | Each clock follows its own rule; rejected samples cannot refresh success, missing receipt may stop but cannot authorize reset or inject future data. | Native: [test_height_aiding.cpp](../../../../../tests/runtime/height/test_height_aiding.cpp), [test_observation_history.cpp](../../../../../tests/runtime/history/test_observation_history.cpp), [test_session.cpp](../../../../../tests/runtime/session/test_session.cpp) |
+| TC-R-HEIGHT-AIDING-BARO-07 | Requalify only the changed source | R-HEIGHT-AIDING, source lifecycle | Device/calibration/generation changes while old samples remain delayed; duplicates, invalid or discarded new arrivals. | New admitted receipt cannot qualify old-generation data; changed source restarts bias/warmup, unrelated state/source history survives. Ordinary latch/recovery rules remain authoritative. | Native: [test_height_aiding.cpp](../../../../../tests/runtime/height/test_height_aiding.cpp) |
+
 ## Boundaries
 
 The retained scenarios establish this fixed profile's behavior, not all possible
@@ -40,3 +43,12 @@ owner. Finite sequences do not prove arbitrary-length counter invariants. The
 session case checks the default derived count against reserved storage; the
 PX4 module timing fixture checks 200/239 ms overrides (50/60 samples) and runtime
 parameter freeze independently of the 54/64 retained history lengths.
+
+Receipt fixtures deliberately separate latest IMU, raw sample, arrival, effective
+selection and delayed-fusion epochs. Test expiry at 399999/400000/400001 us and
+fusion timeout at 5 s equality/one microsecond later. Actual session/Run fixtures
+retain the 212 ms delayed horizon, drain old samples and expire using the latest
+clock. Rejected payloads/rate-limited samples cannot refresh receipt; a changed
+generation cannot inherit the old one. Owner fixtures check qualification restart
+and failure frames; these are distinct from the adapter's direct, zero-delay
+owner-policy fixtures and do not replace deferred source proofs.

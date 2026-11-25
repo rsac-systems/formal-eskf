@@ -25,6 +25,14 @@ residual-delay assumptions. Retain the existing frozen half-period convention;
 no unshifted input mode is introduced by that contract. Admission and selection
 bounds do not establish physical timing accuracy.
 
+Barometer history exposes its latest IMU epoch, last successful buffer-push IMU
+epoch and identity generation as one receipt fact. Seed watermarks are not
+receipts. Successful queueing records the current latest IMU epoch, never arrival
+or raw/effective sample time. Rejection retains the previous receipt; a source
+change clears it before any new admission, including a rejected replacement.
+History reset clears all three fields. Consumers must compare generations before
+using the latest receipt to authorize an older delayed observation.
+
 - Validate startup timing settings. Seed at a nonzero alignment epoch with
   timestamped context, explicit known/unknown flags and existing source watermarks.
   Reject invalid/repeated seeds and live reconfiguration without mutation. Never

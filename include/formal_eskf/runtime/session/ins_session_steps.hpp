@@ -339,7 +339,8 @@ bool InsSession<Linalg, Layout>::complete_initialization(
     fuse_gps(imu);
     if (!m_fault && update_imu_health(m_startup_imu.accelerometer_clipping))
     {
-        fuse_height();
+        // History is not seeded yet: startup input is not a new admitted barometer event.
+        fuse_height({m_time_us, 0, 0});
     }
     if (m_fault)
     {
@@ -496,7 +497,7 @@ void InsSession<Linalg, Layout>::predict_and_fuse(typename imu_history_type::int
         return;
     }
     update_ground_effect();
-    fuse_height();
+    fuse_height(m_observations.barometer_receipt());
     if (m_fault)
     {
         return;

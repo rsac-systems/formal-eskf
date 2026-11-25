@@ -423,6 +423,14 @@ public:
         }
     }
 
+    // Direct owner fixtures have no delayed queue: supply their explicit zero-delay receipt schedule.
+    // Production Run scenarios obtain this fact from the real ObservationHistory instead.
+    formal_eskf::runtime::ObservationReceipt navigation_receipt() const
+    {
+        auto const latest = m_filter.m_session.m_time_us;
+        return {latest, std::min(latest, m_filter.m_baro.timestamp_sample), m_filter.m_session.m_barometer.generation};
+    }
+
     void select_navigation_inputs()
     {
         auto & f = m_filter;
@@ -486,7 +494,7 @@ public:
         if (!f.m_session.m_fault)
         {
             select_navigation_inputs();
-            f.m_session.fuse_height();
+            f.m_session.fuse_height(navigation_receipt());
             f.update_innovations();
         }
         f.publish(FormalEskf::imu_type{});
@@ -724,7 +732,7 @@ public:
             break;
         }
         test.select_navigation_inputs();
-        f.m_session.fuse_height();
+        f.m_session.fuse_height(test.navigation_receipt());
         f.update_innovations();
         expect(!f.m_session.m_fault, "height admission rejection is not an estimator fault");
         if (scenario != HeightInputCase::unqualified)
@@ -765,7 +773,7 @@ public:
         // back the preceding tentative bias update and all source watermarks.
         f.m_session.m_covariance(0, 0) = std::numeric_limits<double>::quiet_NaN();
         test.select_navigation_inputs();
-        f.m_session.fuse_height();
+        f.m_session.fuse_height(test.navigation_receipt());
         f.update_innovations();
         expect(f.m_session.m_fault && f.m_session.m_statistics.errors == 1U &&
                    f.m_session.m_height_aiding.progress_time() == progress &&
@@ -2078,6 +2086,32 @@ public:
                "backup expires output without advancing either timeline");
     }
 
+    static void barometric_receipt()
+    {
+        InsSessionTest test;
+        test.warmup();
+        auto & session = test.m_filter.m_session;
+        auto const received = session.m_observations.barometer_receipt().push_time_us;
+        test.m_baro_altitude = 11001.f;
+        while (test.m_sample.timestamp_sample + 4000 < received + 400000)
+        {
+            test.m_sample.timestamp_sample += 4000;
+            test.tick();
+        }
+        auto const source = FormalEskf::height_type::Source::barometer;
+        auto const fused = session.height_aiding().session(source).fused_time;
+        auto const resets = session.m_resets.height_count;
+        expect(session.height_aiding().session(source).active &&
+                   session.m_observations.barometer_receipt().push_time_us == received,
+               "invalid uORB altitude cannot refresh receipt; source remains active just below expiry");
+        test.m_sample.timestamp_sample += 4000;
+        test.tick();
+        expect(!session.fault() && !session.height_aiding().session(source).active &&
+                   session.height_aiding().session(source).fused_time == fused && session.m_resets.height_count == resets,
+               "actual Run stops at latest-clock receipt equality without a fake fusion or height reset");
+        test.snapshot("barometric_receipt");
+    }
+
     static void barometric_input()
     {
         InsSessionTest test;
@@ -2258,7 +2292,7 @@ public:
                    "compensation preserves raw receiver data and its existing noise policy");
             f.m_session.fuse_gps(imu);
             f.update_innovations();
-            f.m_session.fuse_height();
+            f.m_session.fuse_height(test.navigation_receipt());
             f.update_innovations();
             for (std::size_t axis = 0; axis < 3; ++axis)
             {
@@ -2274,7 +2308,7 @@ public:
             test.select_navigation_inputs();
             f.m_session.fuse_gps(imu);
             f.update_innovations();
-            f.m_session.fuse_height();
+            f.m_session.fuse_height(test.navigation_receipt());
             f.update_innovations();
             expect(!f.m_session.m_fault && f.m_session.m_gnss.corrections == corrections + 3U &&
                        formal_eskf::linalg::norm(f.m_session.m_gnss.velocity_test_ratios) < 1e-12 &&
@@ -2945,7 +2979,7 @@ public:
         f.m_session.m_gnss.lifecycle.reset();
         f.m_session.fuse_gps({});
         f.update_innovations();
-        f.m_session.fuse_height();
+        f.m_session.fuse_height(test.navigation_receipt());
         f.update_innovations();
         expect(!f.m_session.m_fault && f.m_session.m_gnss.lifecycle.state().horizontal_position.active &&
                    f.m_session.m_gnss.lifecycle.state().velocity.active,
@@ -3903,6 +3937,7 @@ int main(int argc, char ** argv)
     InsSessionTest::startup_parameters();
     InsSessionTest::startup();
     InsSessionTest::barometric_input();
+    InsSessionTest::barometric_receipt();
     InsSessionTest::admission();
     InsSessionTest::gaps_and_periods();
     InsSessionTest::interval_boundaries();

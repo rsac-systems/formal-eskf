@@ -650,6 +650,47 @@ void barometric_admission(Context & test, std::string_view profile)
                 profile, "independent history entry rejects a nonfinite payload");
 }
 
+void receipt_clock(Context & test, std::string_view profile)
+{
+    Session session;
+    session.seed();
+    test.expect(session.history.barometer_receipt().push_time_us == 0, profile,
+                "seed watermark is not an admitted receipt");
+    session.advance(1400000);
+    auto sample = barometer(1399000);
+    require(session.history.push_barometer(sample, 1402000).decision == Admission::queued);
+    auto receipt = session.history.barometer_receipt();
+    test.expect(receipt.latest_time_us == 1400000 && receipt.push_time_us == 1400000 && receipt.generation == 0,
+                profile, "receipt records latest IMU time, not sample, shifted selection or arrival time");
+    session.tick();
+    sample.stamp.time_us = 1404000;
+    test.expect(session.history.push_barometer(sample, 1404000, formal_eskf::Status::out_of_range).decision ==
+                        Admission::invalid_measurement &&
+                    session.history.barometer_receipt().push_time_us == 1400000,
+                profile, "rejected payload advances neither receipt nor admitted spacing");
+    session.tick();
+    sample.stamp.time_us = 1408000;
+    ++sample.stamp.source.calibration_count;
+    test.expect(session.history.push_barometer(sample, 1408000, formal_eskf::Status::out_of_range).source_changed &&
+                    session.history.barometer_receipt().push_time_us == 0 &&
+                    session.history.barometer_receipt().generation == 1,
+                profile, "rejected new generation cannot inherit an old successful receipt");
+    session.tick();
+    sample.stamp.time_us = session.time;
+    require(session.history.push_barometer(sample, session.time).decision == Admission::queued);
+    receipt = session.history.barometer_receipt();
+    test.expect(receipt.push_time_us == 1412000 && receipt.generation == 1, profile,
+                "new admitted generation owns its receipt");
+    ++sample.stamp.time_us;
+    test.expect(session.history.push_barometer(sample, sample.stamp.time_us).decision == Admission::too_fast &&
+                    session.history.barometer_receipt().push_time_us == receipt.push_time_us,
+                profile, "discarded too-fast arrival cannot refresh receipt");
+    session.history.reset();
+    receipt = session.history.barometer_receipt();
+    test.expect(receipt.latest_time_us == 0 && receipt.push_time_us == 0 && receipt.generation == 0, profile,
+                "history reset clears receipt provenance together");
+}
+
 void observation_scenarios(Context & test, std::string_view)
 {
     configuration_and_seed(test);
@@ -677,6 +718,7 @@ int main(int argc, char ** argv)
     formal_eskf::test::Case const cases[] = {
         {"TC-R-OBSERVATION-HISTORY-01", "double", observation_scenarios},
         {"TC-R-BAROMETRIC-ALTITUDE-04", "binary64", barometric_admission},
+        {"TC-R-HEIGHT-AIDING-BARO-06", "binary64", receipt_clock},
     };
     return formal_eskf::test::run_cases(cases, argc, argv);
 }

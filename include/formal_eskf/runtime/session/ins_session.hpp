@@ -410,7 +410,7 @@ private:
     bool fuse_gps_velocity(GnssVelocityObservation const & observation);
     bool fuse_gps_position();
     void update_ground_effect();
-    void fuse_height();
+    void fuse_height(ObservationReceipt const & barometer_receipt);
     void fuse_gravity(ImuInput const & sample, imu_type const & imu);
     void initialize_magnetic_aiding(magnetic_lifecycle_type::Source const & source, std::uint64_t sample_time_us);
     magnetic_lifecycle_type::Conditions magnetic_conditions() const;

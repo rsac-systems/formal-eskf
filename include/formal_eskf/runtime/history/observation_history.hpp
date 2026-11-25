@@ -184,6 +184,10 @@ public:
     std::uint64_t gnss_generation() const { return m_gnss_time.generation; }
     std::uint64_t magnetic_generation() const { return m_magnetic_time.generation; }
     std::uint64_t barometer_generation() const { return m_barometer_time.generation; }
+    ObservationReceipt barometer_receipt() const
+    {
+        return {m_latest_time_us, m_barometer_push_time_us, m_barometer_time.generation};
+    }
     std::uint64_t fusion_time_us() const { return m_fusion_time_us; }
     std::uint32_t half_period_us() const { return static_cast<std::uint32_t>(m_average_period_us * 0.5); }
     void reset(); // Retain startup configuration; clear histories, watermarks, context and timing average.
@@ -215,6 +219,7 @@ private:
     RingBuffer<Context, ContextCapacity> m_context{ContextCapacity};
     ObservationTiming m_timing{};
     Timeline m_gnss_time{}, m_magnetic_time{}, m_barometer_time{};
+    std::uint64_t m_barometer_push_time_us{};
     TimingConfiguration m_configuration{};
     std::uint64_t m_seed_time_us{}, m_latest_time_us{}, m_fusion_time_us{}, m_advanced_at_us{};
     double m_average_period_us{};
@@ -505,11 +510,13 @@ ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, Co
     {
         result.source_discarded = m_barometer.entries();
         m_barometer.reset();
+        m_barometer_push_time_us = 0;
     }
     if (result.decision == Admission::queued)
     {
         result.overwritten = m_barometer.entries() == m_barometer.get_length();
         m_barometer.push({time, now_us, delay, half_period_us(), sample, m_barometer_time.generation});
+        m_barometer_push_time_us = m_latest_time_us;
     }
     return result;
 }
@@ -643,6 +650,7 @@ void ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacit
     m_gnss_time = {};
     m_magnetic_time = {};
     m_barometer_time = {};
+    m_barometer_push_time_us = 0;
     m_seed_time_us = 0;
     m_latest_time_us = 0;
     m_fusion_time_us = 0;

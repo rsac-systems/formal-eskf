@@ -1,7 +1,7 @@
 # Optional Barometric Height Profile
 
 **Status:** Draft. Conversion/admission and session/PX4 ingress are implemented; optional-source
-and receipt/lifecycle composition remain targets. Existing deployment evidence retains
+and staged/disabled-source composition remain targets. Existing deployment evidence retains
 its original scope.
 
 This profile instantiates [R-BAROMETRIC-ALTITUDE](../requirements/runtime/barometric-altitude.md)
@@ -48,7 +48,7 @@ Kconfig binding or change existing PX4 source settings in this implementation.
 ## Converter numerical realization
 
 The standalone converter is implemented for binary32/binary64; optional-source
-and adapter composition below remain targets. Configuration is explicit and
+and staged composition below remain targets. Configuration is explicit and
 transactional: a failed replacement preserves the entire previous usable model.
 An unconfigured converter rejects finite samples as a domain error. Nonfinite
 inputs/settings take precedence over domain errors. An empty model/sensor
@@ -202,8 +202,12 @@ mapping; the alternative raw-pressure entry converts exactly once. Rejected
 payloads still carry source-change metadata to history, without entering its
 queue. Fixed invalid converter settings reject startup; bad observations alone
 do not latch a core numerical fault. PX4 retains supplied `baro_alt_meter`.
-The implementation still has strict geographic startup and a
-sample-age-based missing-data clock. This target explicitly replaces those barometer bindings when implemented;
+The history/session/height-owner handoff now supplies generation-qualified
+receipt facts. Seed input does not increment the selected-event warmup. Receipt
+freshness gates start and the no-new-usable-sample stop branch; continuing fusion
+of a selected eligible sample keeps its delayed checks, as in the pinned reference.
+The implementation still has strict geographic startup and no source exclusion;
+this target explicitly replaces those remaining bindings when implemented;
 it does not silently narrow GNSS altitude or replace general sample-age checks.
 Existing proofs do not cover the changed contracts merely because paths or IDs
 remain the same.
@@ -218,7 +222,7 @@ The [planned acceptance cases](../verification/barometric-height-tests.md)
 separate converter, owner and actual adapter evidence. Converter and shared
 [height-preparation cases](../verification/tests/runtime/height-observation.md)
 have native bindings, including binary64 session ingress and PX4 Run fixtures;
-staged-source and receipt/optional adapter cases remain Pending.
+staged-source and optional adapter cases remain Pending.
 A binding is not an execution result or an approval.
 
 Reference: pinned PX4 [model constants](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/lib/atmosphere/atmosphere.h#L45),

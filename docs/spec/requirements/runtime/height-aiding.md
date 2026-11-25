@@ -42,7 +42,7 @@ Invalid timing or an unrepresentable/zero count preserves the previous setting.
 
 The caller shall supply increasing estimator epochs and source-qualified altitude with
 identity/calibration/generation, qualification, velocity-aiding activity, bias
-permissions and acceleration-health times. GNSS supplies MSL height in the admitted
+permissions, acceleration-health times and the barometer history receipt fact. GNSS supplies MSL height in the admitted
 datum; barometer supplies model altitude, whose reference/offset mapping is owned
 here. It shall establish the core's finite
 state, unit-quaternion and symmetric-PSD covariance premises. This owner does not
@@ -53,6 +53,10 @@ origin altitude without changing history. Successful initialization shall reset
 both source histories, offsets and clocks, retaining copied settings. An update
 shall reject uninitialized/backwards/repeated time, inconsistent/future health,
 nonfinite vertical position/variance, or negative vertical variance before processing.
+The receipt's latest IMU epoch shall not precede the delayed update, and its push
+epoch shall not be future relative to that latest clock. Inconsistent clocks fail
+before mutation. Zero push time supplies no admitted barometer event; a generation
+mismatch stops that source without consuming the old sample or resetting state.
 
 For each update, the owner shall:
 
@@ -62,7 +66,12 @@ For each update, the owner shall:
   source's declared bounds and finite positive variance. The existing geographic
   profile has strict broad sanity bounds; the target barometer additionally uses
   R-BAROMETRIC-ALTITUDE's inclusive model envelope before offset/reference changes.
-  Missing-data equality expires.
+  Missing-data equality expires. Barometer start requires a recent receipt;
+  when no usable new delayed sample is available, an expired receipt stops it.
+  An already-active source may process an eligible delayed sample before the
+  no-data branch, matching the pinned PX4 control sequence. Receipt freshness
+  does not replace sample-age or successful-fusion checks. GNSS retains its
+  delayed data-time rule.
 - On identity, calibration or generation change, stop the source, reset its bias
   history and clear its fault; barometer restarts warmup. Invalid or unqualified
   data stops only that source. Source stop clears its active raw fusion result,
@@ -187,7 +196,7 @@ sample and effective variance, without an extra return-window average. Preserve
 the established publication reference and running attitude/bias history except
 for changes required by the genuine reset's existing contract.
 
-The target missing-data decision shall use the admitted receipt fact bound by
+The missing-data decision shall use the admitted receipt fact bound by
 the profile, with matching source generation and latest clock. Selected-sample
 age and successful-fusion timeout remain separate delayed-time checks. Receipt
 cannot invent a delayed measurement or authorize a height reset. Rejected or

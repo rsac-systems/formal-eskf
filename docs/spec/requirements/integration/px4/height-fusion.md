@@ -41,7 +41,7 @@ bound through `DeploymentProfile`/`DeploymentConfig`, not live `EKF2_*` reads:
 | Height gate / fusion timeout | 5 sigma / 5 s |
 | Barometer / GNSS missing-data timeout | 400 ms / 1 s; equality expired |
 | Owner barometer / GNSS maximum sample age | 200 ms / 500 ms; strict upper bound |
-| Admissible altitude | Strictly between -12000 and 100000 m |
+| Admissible altitude | Barometer model envelope inclusive [-5000, 11000] m at ingress; owner/GNSS broad sanity strictly between -12000 and 100000 m |
 | Barometer warmup / LPF | Effective-timing count N; default N=50 at 4 ms / 200 ms; start after count>N / gain 0.1 |
 | Recovery Down-velocity variance | 10 (m/s)² |
 | Bias initial ceiling / interval | 2 m² / 0.01 s |
@@ -68,8 +68,10 @@ including supported startup overrides. Do not bind it to a reserved queue's
 capacity or independent 50/51 literals. Publish the generation-qualified admitted
 receipt fact to runtime; its latest-clock freshness, delayed selected-sample age
 and delayed successful-fusion timeout remain separate. A changed source's new
-receipt shall not qualify an older source at the delayed horizon. The implementation
-must establish this bounded handoff before claiming the target timing contract.
+receipt shall not qualify an older source at the delayed horizon. The shared
+history/session handoff implements this timing contract; the actual Run fixture
+checks receipt expiry while invalid uORB arrivals continue. It does not establish
+staged startup, disabled-path resource bounds or flight qualification.
 
 With barometer excluded, remove its subscription/intake and startup dependency;
 GNSS height may continue. Staged relative height shall use the common runtime

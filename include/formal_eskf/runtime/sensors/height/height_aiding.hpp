@@ -225,9 +225,11 @@ public:
         return Status::success;
     }
 
-    /** One increasing estimator tick: barometer before GNSS; future samples wait. */
+    /** One increasing delayed tick: barometer before GNSS; future samples wait.
+     * Receipt uses the latest IMU clock and matching history generation, never the sample epoch. */
     [[nodiscard]] Result update(std::uint64_t now_us, Sample const & barometer, Sample const & gnss,
-                                bool vertical_velocity_aiding, state_type & state, covariance_type & covariance,
+                                ObservationReceipt const & barometer_receipt, bool vertical_velocity_aiding,
+                                state_type & state, covariance_type & covariance,
                                 configuration::Ins::BiasUpdate const & bias_update = {},
                                 Acceleration const & acceleration = {false, {0U, 0U}}, bool ground_effect = false,
                                 Geometry const * geometry = nullptr);
@@ -271,7 +273,7 @@ private:
     [[nodiscard]] Status height_frame(state_type const & state, Geometry const & geometry,
                                       geodesy::NedTransform<Linalg> & transform) const;
     void stop(Source source, StopReason reason);
-    bool admit(Source source, std::uint64_t now_us, Sample const & sample, Result & result);
+    bool admit(Source source, std::uint64_t now_us, Sample const & sample, bool receipt_recent, Result & result);
     bool prepare_barometer(Sample const & sample, value_type altitude, Result & result);
     void recover(Source source, std::uint64_t now_us, Sample const & sample, value_type variance,
                  bool vertical_velocity_aiding, state_type & state, covariance_type & covariance, Result & result,
@@ -279,7 +281,7 @@ private:
     void process(Source source, std::uint64_t now_us, Sample const & sample, bool vertical_velocity_aiding,
                  state_type & state, covariance_type & covariance, Result & result,
                  configuration::Ins::BiasUpdate const & bias_update, Acceleration const & acceleration,
-                 bool ground_effect, Geometry const * geometry);
+                 bool ground_effect, Geometry const * geometry, bool receipt_recent);
     void reset_height(Source source, std::uint64_t now_us, value_type altitude, value_type variance, state_type & state,
                       covariance_type & covariance, Result & result, Geometry const * geometry);
 
@@ -439,15 +441,16 @@ void HeightAiding<Linalg>::reset_height(Source source, std::uint64_t now_us, val
 }
 
 template <typename Linalg>
-bool HeightAiding<Linalg>::admit(Source source, std::uint64_t now_us, Sample const & sample, Result & result)
+bool HeightAiding<Linalg>::admit(Source source, std::uint64_t now_us, Sample const & sample, bool receipt_recent,
+                                 Result & result)
 {
     auto & aid = m_sessions[index(source)];
     bool const barometer = source == Source::barometer;
-    auto const data_timeout = barometer ? m_parameters.barometer_timeout_us : m_parameters.gnss_timeout_us;
+    bool const missing_data = barometer ? !receipt_recent : now_us - aid.data_time >= m_parameters.gnss_timeout_us;
     auto const maximum_age = barometer ? m_parameters.barometer_maximum_age_us : m_parameters.gnss_maximum_age_us;
     if (sample.time_us == 0U || sample.time_us <= aid.sample_time || sample.time_us > now_us)
     {
-        if (aid.active && now_us - aid.data_time >= data_timeout)
+        if (aid.active && missing_data)
         {
             stop(source, StopReason::no_data);
         }
@@ -457,7 +460,7 @@ bool HeightAiding<Linalg>::admit(Source source, std::uint64_t now_us, Sample con
     if (now_us - sample.time_us >= maximum_age)
     {
         ++result.rejected;
-        if (aid.active && now_us - aid.data_time >= data_timeout)
+        if (aid.active && missing_data)
         {
             stop(source, StopReason::no_data);
         }
@@ -584,11 +587,12 @@ template <typename Linalg>
 void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample const & sample,
                                    bool vertical_velocity_aiding, state_type & state, covariance_type & covariance,
                                    Result & result, configuration::Ins::BiasUpdate const & bias_update,
-                                   Acceleration const & acceleration, bool ground_effect, Geometry const * geometry)
+                                   Acceleration const & acceleration, bool ground_effect, Geometry const * geometry,
+                                   bool receipt_recent)
 {
     auto & aid = m_sessions[index(source)];
     bool const barometer = source == Source::barometer;
-    if (!admit(source, now_us, sample, result))
+    if (!admit(source, now_us, sample, receipt_recent, result))
     {
         return;
     }
@@ -615,6 +619,10 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
                                     : sample.variance;
     if (!aid.active)
     {
+        if (barometer && !receipt_recent)
+        {
+            return;
+        }
         if (source == Source::gnss)
         {
             reset_height(source, now_us, sample.altitude, variance, state, covariance, result, geometry);
@@ -687,7 +695,8 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
 template <typename Linalg>
 typename HeightAiding<Linalg>::Result
 HeightAiding<Linalg>::update(std::uint64_t now_us, Sample const & barometer, Sample const & gnss,
-                             bool vertical_velocity_aiding, state_type & state, covariance_type & covariance,
+                             ObservationReceipt const & barometer_receipt, bool vertical_velocity_aiding,
+                             state_type & state, covariance_type & covariance,
                              configuration::Ins::BiasUpdate const & bias_update, Acceleration const & acceleration,
                              bool ground_effect, Geometry const * geometry)
 {
@@ -697,7 +706,9 @@ HeightAiding<Linalg>::update(std::uint64_t now_us, Sample const & barometer, Sam
         result.status = Status::out_of_range;
         return result;
     }
-    if (acceleration.times.update_time_us > now_us ||
+    if (barometer_receipt.latest_time_us < now_us ||
+        barometer_receipt.push_time_us > barometer_receipt.latest_time_us ||
+        acceleration.times.update_time_us > now_us ||
         acceleration.times.last_good_time_us > acceleration.times.update_time_us ||
         (acceleration.bad && acceleration.times.update_time_us == 0U))
     {
@@ -719,15 +730,29 @@ HeightAiding<Linalg>::update(std::uint64_t now_us, Sample const & barometer, Sam
     auto next_covariance = covariance;
     value_type const dt =
         m_tick == 0U ? value_type{0} : static_cast<value_type>(now_us - m_tick) * static_cast<value_type>(1e-6);
+    bool const receipt_recent =
+        barometer_receipt.push_time_us != 0 &&
+        barometer_receipt.latest_time_us - barometer_receipt.push_time_us < m_parameters.barometer_timeout_us;
     for (Source source : {Source::barometer, Source::gnss})
     {
         auto & aid = candidate.m_sessions[index(source)];
+        if (source == Source::barometer && barometer_receipt.push_time_us == 0)
+        {
+            candidate.stop(source, StopReason::no_data);
+            continue;
+        }
+        if (source == Source::barometer && barometer.generation != barometer_receipt.generation)
+        {
+            candidate.stop(source, StopReason::source_changed);
+            continue;
+        }
         if (aid.active && candidate.m_reference != source)
         {
             aid.bias.predict(dt, m_parameters.bias);
         }
         candidate.process(source, now_us, source == Source::barometer ? barometer : gnss, vertical_velocity_aiding,
-                          next_state, next_covariance, result, bias_update, acceleration, ground_effect, geometry);
+                          next_state, next_covariance, result, bias_update, acceleration, ground_effect, geometry,
+                          receipt_recent);
         if (!succeeded(result.status))
         {
             return Result{result.status};

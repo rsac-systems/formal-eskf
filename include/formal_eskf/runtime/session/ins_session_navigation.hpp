@@ -493,7 +493,8 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::upd
     }
 }
 
-template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::fuse_height()
+template <typename Linalg, typename Layout>
+void InsSession<Linalg, Layout>::fuse_height(ObservationReceipt const & barometer_receipt)
 {
     auto const & gps = m_gnss.input.sample;
     using Source = typename height_type::Source;
@@ -525,9 +526,9 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::fus
     typename height_type::Acceleration const acceleration{health.bad_vertical_acceleration,
                                                           {health.last_update_time_us, health.last_good_time_us}};
     typename height_type::Geometry const geometry{m_navigation_frame.working(), m_height_datum};
-    auto const result = m_height_aiding.update(m_time_us, barometer, gnss, m_gnss.lifecycle.state().velocity.active,
-                                               m_state, m_covariance, m_bias_learning_result.bias_update, acceleration,
-                                               m_ground_effect.active, &geometry);
+    auto const result = m_height_aiding.update(
+        m_time_us, barometer, gnss, barometer_receipt, m_gnss.lifecycle.state().velocity.active, m_state, m_covariance,
+        m_bias_learning_result.bias_update, acceleration, m_ground_effect.active, &geometry);
     if (!check(result.status))
     {
         return;
