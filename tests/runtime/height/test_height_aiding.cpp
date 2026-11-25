@@ -951,6 +951,25 @@ template <typename Linalg> void receipt_generation(Context & test)
     test.expect(f.aiding.session(Source::barometer).bias.value == T{60} &&
                     f.aiding.session(Source::gnss).fused_time == gnss_progress,
                 "receipt", "new source learns its own offset without rewriting unrelated fusion history");
+    auto const progress = f.aiding.session(Source::barometer).progress_time;
+    now += 4000;
+    result = f.aiding.update(now, {}, {}, {now + 212000, now + 212000, 1}, true, f.state, f.P);
+    test.expect(result.status == Status::success && f.aiding.session(Source::barometer).active &&
+                    f.aiding.session(Source::barometer).progress_time == progress && result.fused == 0,
+                "receipt",
+                "a tick without a new sample retains the active matching generation, not default generation zero");
+    now += 4000;
+    sample.time_us = now;
+    result = f.aiding.update(now, sample, {}, {now + 212000, now + 212000, 1}, true, f.state, f.P);
+    test.expect(result.status == Status::success && result.fused == 1 &&
+                    f.aiding.session(Source::barometer).fused_time == now,
+                "receipt", "the next same-generation sample corrects instead of repeatedly restarting");
+    now += 4000;
+    result = f.aiding.update(now, {}, {}, {now + 212000, now + 212000, 2}, true, f.state, f.P);
+    test.expect(result.status == Status::success && !f.aiding.session(Source::barometer).active &&
+                    f.aiding.session(Source::barometer).stop_reason == A::StopReason::source_changed,
+                "receipt",
+                "a genuinely new receipt generation still stops the old source before a new sample is selected");
 }
 
 template <typename Linalg> void selected_gnss_recovery(Context & test)

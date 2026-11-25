@@ -2157,6 +2157,18 @@ public:
         auto const & barometer = session.height_aiding().session(FormalEskf::height_type::Source::barometer);
         expect(barometer.generation == generation + 1 && barometer.active,
                "changed source recovers through ordinary delayed warmup");
+        auto const corrections = session.statistics().baro_updates;
+        unsigned empty_ticks = 0;
+        for (unsigned n = 0; n < 60; ++n)
+        {
+            test.m_sample.timestamp_sample += 4000;
+            test.tick();
+            empty_ticks += session.m_barometer.time_us == 0;
+            expect(!session.fault() && session.height_aiding().session(FormalEskf::height_type::Source::barometer).active,
+                   "changed source stays active between its slower measurements");
+        }
+        expect(empty_ticks > 0 && session.statistics().baro_updates > corrections,
+               "actual Run corrects after source recovery despite empty selection ticks");
         test.snapshot("barometric_input");
     }
 

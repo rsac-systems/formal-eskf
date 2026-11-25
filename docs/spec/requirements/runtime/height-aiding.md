@@ -57,6 +57,9 @@ The receipt's latest IMU epoch shall not precede the delayed update, and its pus
 epoch shall not be future relative to that latest clock. Inconsistent clocks fail
 before mutation. Zero push time supplies no admitted barometer event; a generation
 mismatch stops that source without consuming the old sample or resetting state.
+When no sample is selected, compare the receipt with the owner's current source
+generation; an empty sample has no source identity. Such a tick retains a matching
+active source until its ordinary receipt/fusion timeout, without refreshing progress.
 
 For each update, the owner shall:
 

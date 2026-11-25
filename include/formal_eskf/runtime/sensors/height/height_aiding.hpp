@@ -736,15 +736,21 @@ HeightAiding<Linalg>::update(std::uint64_t now_us, Sample const & barometer, Sam
     for (Source source : {Source::barometer, Source::gnss})
     {
         auto & aid = candidate.m_sessions[index(source)];
-        if (source == Source::barometer && barometer_receipt.push_time_us == 0)
+        if (source == Source::barometer)
         {
-            candidate.stop(source, StopReason::no_data);
-            continue;
-        }
-        if (source == Source::barometer && barometer.generation != barometer_receipt.generation)
-        {
-            candidate.stop(source, StopReason::source_changed);
-            continue;
+            if (barometer_receipt.push_time_us == 0)
+            {
+                candidate.stop(source, StopReason::no_data);
+                continue;
+            }
+            // No selected sample carries no identity. Retain the owner's source
+            // unless the latest admitted receipt actually belongs to a new one.
+            auto const generation = barometer.time_us == 0 ? aid.generation : barometer.generation;
+            if (generation != barometer_receipt.generation)
+            {
+                candidate.stop(source, StopReason::source_changed);
+                continue;
+            }
         }
         if (aid.active && candidate.m_reference != source)
         {
