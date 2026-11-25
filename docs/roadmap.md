@@ -208,17 +208,17 @@ separates core algebra, runtime policy, PX4 mapping and application mode decisio
 The following order applies within this feature; it does not reorder unrelated
 functional tracks or bring optional pressure conversion into this scope.
 Each implementation item includes its allocated tests, evidence-impact review
-and refactoring before commit. The IMU seed component is implemented; its
-production session migration and staged service remain in progress.
+and refactoring before commit. The session/PX4 caller now use IMU-only startup; complete staged source-loss,
+recovery and deployment qualification remain in progress.
 
 | Task | Status | Completion boundary |
 |---|---|---|
 | A-03.1 — Contract and test baseline | Completed | Draft startup, capability, continuity and attachment requirements, profile, responsibility allocation and planned runtime/PX4 test families. Design selection is separate from requirement approval and execution evidence. |
-| A-03.2 — IMU seed and gravity refinement | In progress | IMU-only filtered seed/full priors and real pre-alignment gravity correction have native component bindings. Session gravity admission now uses a valid seed independently of its alignment latch. Pending: staged session/history seeding and truth-based convergence cases. The strict bootstrap remains until that migration is validated. |
-| A-03.3 — Independent capability lifecycle | Planned | Expose actual source/epoch/fault/reference facts, real-aiding clocks, partial outputs and selected bias permissions. Keep full P/coupling and explicit numerical-domain limitations; flags alone do not close continuity. |
+| A-03.2 — IMU seed and gravity refinement | In progress | Production IMU-only seed, common history epoch and real pre-alignment gravity are integrated. Executable fixed 60-second/3-degree fixtures and disabled/invalid-input cases are bound; remaining acceptance partitions stay explicit in the staged matrix. |
+| A-03.3 — Independent capability lifecycle | In progress | Independent source/epoch/reference/fault and real-aiding clocks now drive partial output. Selected numerical-intervention provenance and aiding-based bias permissions remain A-03.4 dependencies. |
 | A-03.4 — Numerical continuity and recovery | Design | After A-02.1/A-02.2 comparisons and their retained/revised decision, implement bounded covariance-only guards, intervention provenance, nominal-velocity handling and real-source reset recovery. Validate protected marginals and actual attitude effects. |
-| A-03.5 — First geographic attachment | Planned | Implement R-INS-ATTACHMENT across state/P, sources, references and histories; validate independent transforms, uncertainty reset, once-only consumption and full rollback. Optional height cases require their qualified source contract. |
-| A-03.6 — PX4 mapping and actual consumers | Planned | Bind portable capabilities and resets to unchanged PX4 topics; prove behavior through actual Commander/manual/navigation consumers. Resolve incompatibilities explicitly without false validity or disabled checks. |
+| A-03.5 — First geographic attachment | In progress | First geographic attachment, optional MSL, preserved local/estimated height and coordinated output/reference preparation are implemented with native transaction subsets. Full yaw/history and recovery composition remain in the acceptance matrix. |
+| A-03.6 — PX4 mapping and actual consumers | In progress | Staged mapping uses unchanged topics and actual pinned estimator/mode/attitude consumers. Tilt-only support and navigation rejection are exercised; full recovery/mode matrices and the pinned one-cycle manual-heading-reset response remain explicit qualification items. |
 | A-03.7 — Qualification and migration closure | Planned | Complete selected physical error/time, endurance, fault/recovery and target resource cases; audit implementation against contracts, refactor remaining ownership/duplication and retire only superseded strict-startup tests/APIs. No host-only flight or WCET claim. |
 | A-03.8 — Formal evidence | Planned | Deferred to V-01: exact numerical-guard identities, source failure/frame/provenance behavior, startup/capability state machines and attachment/caller composition. Existing proofs do not cover the new policy; no proof execution in the documentation round. |
 

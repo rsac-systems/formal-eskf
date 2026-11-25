@@ -1,7 +1,7 @@
 # Staged INS Service Profile
 
-**Status:** Draft; target behavior, not the current deployed profile or evidence
-of flight qualification. [R-INS-STARTUP](../requirements/runtime/ins-startup.md),
+**Status:** Draft; selected design with partial implementation, not evidence of
+flight qualification. [R-INS-STARTUP](../requirements/runtime/ins-startup.md),
 [R-INS-CAPABILITIES](../requirements/runtime/ins-capabilities.md) and
 [R-INS-CONTINUITY](../requirements/runtime/ins-continuity.md) and
 [R-INS-ATTACHMENT](../requirements/runtime/ins-attachment.md) own behavior.
@@ -12,9 +12,9 @@ Use one binary64 INS session with fixed storage and the existing Cartesian
 prediction/observation equations. AHRS is a separate rotation-only build
 configuration, not a fallback estimator started during a GNSS outage.
 Core compile-time numerical choices remain under their existing contracts.
-PX4 timing continues to use the [250 Hz profile](px4-sih-250hz.md); its existing
-strict startup remains the deployed baseline until staged behavior is implemented
-and accepted. This document does not introduce a second permanent startup API.
+PX4 timing continues to use the [250 Hz profile](px4-sih-250hz.md); the session now uses the staged startup API. Complete source-loss, recovery and
+resource acceptance remains distinct from that implementation; there is no second
+permanent startup API.
 
 The following startup defaults bind the accepted staged design. `g` is the
 configured positive gravity magnitude, not a new literal gravity constant.
@@ -151,7 +151,7 @@ limits or faults may withdraw the affected capability before the no-aid deadline
 Heading retains its source/field/consistency policy; numerical heading updates
 cannot satisfy it. Source reception freshness, actual fusion age, numerical
 attempt cadence and output age remain separate. At startup no timer makes
-unknown translation/heading usable. Existing strict-profile defaults are unchanged.
+unknown translation/heading usable. Other source-owner timing defaults retain their own contracts.
 
 Regularized translation stays unavailable until genuine requalification and the
 required observed-subspace reset. If barometric height returns alone, height may

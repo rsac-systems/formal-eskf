@@ -90,41 +90,51 @@ bool InsSession<Linalg, Layout>::reset_output(quaternion_type const & delta_q, v
     {
         return false;
     }
+    record_output_reset(before, after, request, seeded);
+    return true;
+}
+
+template <typename Linalg, typename Layout>
+void InsSession<Linalg, Layout>::record_output_reset(BodyOutput const & before, BodyOutput const & after,
+                                                     OutputReset request, bool current_output)
+{
     auto const position = after.position_n - before.position_n;
     auto const velocity = after.velocity_n - before.velocity_n;
     auto const attitude = after.q_nb * before.q_nb.inverse();
-    bool const rotated_point = seeded &&
-                               formal_eskf::linalg::max_abs(delta_q.coefficients().template segment<1, 3>()) > 0. &&
+    bool const rotated_point = current_output &&
+                               formal_eskf::linalg::max_abs(attitude.coefficients().template segment<1, 3>()) >
+                                   m_settings.output.attitude_reset_resolution &&
                                formal_eskf::linalg::squared_norm(m_sensor_positions.imu_b) > 0.;
     // Ignore representation noise in unrelated axes, not an estimator innovation.
     if (request.horizontal_position || rotated_point ||
-        (seeded && math_type::hypot(position(0), position(1)) > m_settings.output.position_reset_resolution_m))
+        (current_output && math_type::hypot(position(0), position(1)) > m_settings.output.position_reset_resolution_m))
     {
         m_resets.record_position(m_time_us, vector2_type::from_row_major({position(0), position(1)}));
     }
     if (request.height_count != 0 || rotated_point ||
-        (seeded && std::abs(position(2)) > m_settings.output.position_reset_resolution_m))
+        (current_output && std::abs(position(2)) > m_settings.output.position_reset_resolution_m))
     {
         m_resets.record_height(m_time_us, position(2), std::max<std::uint8_t>(request.height_count, 1));
     }
     if (request.velocity || rotated_point ||
-        (seeded && math_type::hypot(velocity(0), velocity(1)) > m_settings.output.velocity_reset_resolution_m_s))
+        (current_output &&
+         math_type::hypot(velocity(0), velocity(1)) > m_settings.output.velocity_reset_resolution_m_s))
     {
         m_resets.record_velocity(m_time_us, velocity);
     }
     if (request.vertical_velocity || rotated_point ||
-        (seeded && std::abs(velocity(2)) > m_settings.output.velocity_reset_resolution_m_s))
+        (current_output && std::abs(velocity(2)) > m_settings.output.velocity_reset_resolution_m_s))
     {
         m_resets.record_vertical_velocity(m_time_us, velocity(2));
     }
-    if (request.attitude || (seeded && formal_eskf::linalg::max_abs(attitude.coefficients().template segment<1, 3>()) >
-                                           m_settings.output.attitude_reset_resolution))
+    if (request.attitude ||
+        (current_output && formal_eskf::linalg::max_abs(attitude.coefficients().template segment<1, 3>()) >
+                               m_settings.output.attitude_reset_resolution))
     {
         m_resets.record_attitude(m_time_us, attitude);
     }
     auto const count = std::max<unsigned>(1, request.height_count + request.vertical_velocity);
     m_resets.odometry_count = static_cast<std::uint8_t>(m_resets.odometry_count + count);
-    return true;
 }
 
 template <typename Linalg, typename Layout>
@@ -168,8 +178,8 @@ bool InsSession<Linalg, Layout>::update_imu_health(std::uint8_t accelerometer_cl
 
 template <typename Linalg, typename Layout>
 InsSession<Linalg, Layout>::InsSession(Parameters const & p)
-    : m_parameters(p.estimator), m_initialization(p.initialization), m_observations(p.observation_timing),
-      m_output(p.output), m_height_aiding(p.height), m_bias_learning(p.bias_learning),
+    : m_parameters(p.estimator), m_startup(p.startup), m_observations(p.observation_timing), m_output(p.output),
+      m_height_aiding(p.height), m_bias_learning(p.bias_learning),
       m_average_imu_interval(p.settings.imu.nominal_interval_s), m_magnetic_model(p.magnetic_lookup_interval_us),
       m_settings(p.settings), m_imu_timing(p.observation_timing.imu)
 {
@@ -185,9 +195,10 @@ InsSession<Linalg, Layout>::InsSession(Parameters const & p)
 template <typename Linalg, typename Layout>
 bool InsSession<Linalg, Layout>::configure_timing(TimingParameters const & timing)
 {
-    return !m_fault && m_time_us == 0 && m_imu_history.configure(timing, m_imu_timing) &&
-           m_observations.configure(timing, Layout::imu_capacity) && m_output.configure(timing) &&
-           (!Layout::barometer_aiding || m_height_aiding.configure_timing(timing));
+    return !m_fault && m_time_us == 0 && m_startup.valid() && m_settings.aiding.current_age_us != 0 &&
+           m_settings.aiding.maximum_age_us >= m_settings.aiding.current_age_us &&
+           m_imu_history.configure(timing, m_imu_timing) && m_observations.configure(timing, Layout::imu_capacity) &&
+           m_output.configure(timing) && (!Layout::barometer_aiding || m_height_aiding.configure_timing(timing));
 }
 
 template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::configure_gravity(bool enabled)
@@ -251,7 +262,7 @@ bool InsSession<Linalg, Layout>::accept_imu(ImuInput const & sample, std::uint64
 
 template <typename Linalg, typename Layout>
 void InsSession<Linalg, Layout>::process_imu(ImuInput const & sample, std::uint64_t arrival_us,
-                                             ContextInput const & context, StartupInput const & startup)
+                                             ContextInput const & context)
 {
     if (m_fault || !check_timing(m_phase == Phase::idle))
     {
@@ -268,7 +279,7 @@ void InsSession<Linalg, Layout>::process_imu(ImuInput const & sample, std::uint6
         check_timing(m_observations.record_imu(interval, context.land, context.vehicle) && m_output.predict(interval));
         return;
     }
-    if (!accept_imu(sample, arrival_us))
+    if (!accept_imu(sample, arrival_us) || sample.source.accelerometer_id == 0 || sample.source.gyroscope_id == 0)
     {
         return;
     }
@@ -278,112 +289,38 @@ void InsSession<Linalg, Layout>::process_imu(ImuInput const & sample, std::uint6
         ++m_statistics.rejections;
         return;
     }
+    if (!m_collection_source.matches(sample.source))
+    {
+        m_startup.reset();
+        m_collection_source = sample.source;
+    }
     m_time_us = sample.time_us;
     m_imu_context = startup_context(m_time_us, m_settings.imu.rest_maximum_age_us);
-    m_gnss.input = {startup.gnss.stamp.time_us, 0, 0, 0, startup.gnss};
-    m_gnss.context = startup_context(m_gnss.input.time_us, m_settings.gnss.context_maximum_age_us);
-    if constexpr (Layout::barometer_aiding)
-    {
-        m_barometer = {startup.barometer.stamp.time_us, 0, 0, 0, startup.barometer};
-    }
-    update_gps_quality();
-    if (m_fault || !m_initialization.collect(m_time_us, context.vehicle.armed, imu, startup.magnetic))
+    if (!m_startup.update(imu, sample.angular_interval_s(), sample.acceleration_interval_s()))
     {
         return;
     }
-    if constexpr (Layout::barometer_aiding)
-    {
-        if (!succeeded(m_barometric.admit_altitude(startup.barometer.altitude_m, m_barometer.sample.altitude_m)))
-        {
-            return;
-        }
-    }
-    if (!m_initialization.template ready<Layout::barometer_aiding>(
-            m_time_us, {gps_good(), startup.barometer.stamp.time_us, startup.barometer.altitude_m,
-                        startup.horizontal_speed, startup.vertical_speed}))
+    state_type seed_state;
+    covariance_type seed_covariance;
+    if (!check(m_startup.seed(seed_state, seed_covariance)))
     {
         return;
     }
-    if (!succeeded(m_height_aiding.initialize(m_time_us, startup.gnss.altitude_msl_m)))
-    {
-        return;
-    }
-    m_innovations.clear_height = true;
-    if (!m_initialization.tilt(m_startup_tilt))
-    {
-        return;
-    }
-    m_startup_imu = sample;
-    m_startup_magnetic = {startup.magnetic.time_us, {startup.magnetic.device_id, startup.magnetic.calibration_count}};
-    m_model_request = {
-        true, startup.gnss.latitude_deg, startup.gnss.longitude_deg,
-        m_origin.projection.initialized() ? m_origin.projection.latitude_deg() : startup.gnss.latitude_deg,
-        m_origin.projection.initialized() ? m_origin.projection.longitude_deg() : startup.gnss.longitude_deg};
-    m_phase = Phase::initialization_model;
-}
-
-template <typename Linalg, typename Layout>
-bool InsSession<Linalg, Layout>::complete_initialization(
-    std::optional<typename magnetic_model_type::sample_type> const & model, double & yaw)
-{
-    if (m_fault || !check_timing(m_phase == Phase::initialization_model))
-    {
-        return false;
-    }
-    m_phase = Phase::idle;
-    m_model_request = {};
-    m_statistics.mag_model_unavailable += !model.has_value();
-    auto const & field = m_startup_tilt.level_field_gauss;
-    if (!check(m_magnetic_model.initialize(
-            m_time_us, m_magnetic_settings,
-            vector3(microtesla_per_gauss * field(0), microtesla_per_gauss * field(1), microtesla_per_gauss * field(2)),
-            model)) ||
-        !check(m_initialization.align(m_startup_tilt, m_magnetic_model.declination(), m_state, yaw)))
-    {
-        return false;
-    }
-    auto const imu = m_startup_imu.mean_rates();
-    if (!initialize_navigation(imu))
-    {
-        return false;
-    }
-    m_initialization.magnetic_reference(m_magnetic_model.reference_id());
-    initialize_magnetic_aiding(m_initialization.history().magnetic_source, m_startup_magnetic.time_us);
-    m_initialized = true;
-    if (!update_imu_bias(m_startup_imu, imu))
-    {
-        return false;
-    }
-    fuse_gps(imu);
-    if (!m_fault && update_imu_health(m_startup_imu.accelerometer_clipping))
-    {
-        // History is not seeded yet: startup input is not a new admitted barometer event.
-        fuse_height({m_time_us, 0, 0});
-    }
-    if (m_fault)
-    {
-        return false;
-    }
-    m_phase = Phase::initialization_seed;
-    return true;
-}
-
-template <typename Linalg, typename Layout>
-bool InsSession<Linalg, Layout>::seed_initialization(std::uint64_t arrival_us)
-{
-    if (m_fault || !check_timing(m_phase == Phase::initialization_seed))
-    {
-        return false;
-    }
-    m_phase = Phase::idle;
     typename observation_history_type::Seed seed;
-    seed.context = startup_context(m_time_us, m_settings.gnss.context_maximum_age_us);
-    seed.gnss = m_gnss.input.sample.stamp;
-    // The selected raw magnetic stamp is retained even if collection rejected its payload.
-    seed.magnetic = m_startup_magnetic;
-    seed.barometer = m_barometer.sample.stamp;
-    return check_timing(m_imu_history.seed(m_startup_imu, arrival_us) && m_observations.seed(seed) &&
-                        m_output.seed(m_state, m_time_us));
+    seed.context = m_imu_context;
+    // No navigation observation was consumed. Leave their watermarks empty.
+    // Publish the main seed only after every required history has accepted this epoch.
+    // A failed required-history seed latches a restart fault; no partial estimate is usable.
+    if (!check(m_height_aiding.initialize(m_time_us, 0.)) ||
+        !check_timing(m_imu_history.seed(sample, arrival_us) && m_observations.seed(seed) &&
+                      m_output.seed(seed_state, m_time_us)))
+    {
+        return;
+    }
+    m_state = seed_state;
+    m_covariance = seed_covariance;
+    m_seed_time_us = m_time_us;
+    m_initialized = true;
 }
 
 template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::begin_fusion()
@@ -417,6 +354,14 @@ bool InsSession<Linalg, Layout>::complete_fusion(std::optional<typename magnetic
     if (m_fault || !check_timing(m_output.correct(m_time_us, m_state) && m_imu_history.complete(m_time_us)))
     {
         return false;
+    }
+    if (!m_navigation_frame.initialized())
+    {
+        // Missing references defer attachment without stopping supported service.
+        if (!attach_navigation())
+        {
+            ++m_statistics.rejections;
+        }
     }
     update_origin();
     return true;
@@ -539,7 +484,7 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::beg
     m_pending_conditions = magnetic_conditions();
     m_model_request = {};
     m_phase = Phase::fusion_completion;
-    if (m_pending_magnetic.usable)
+    if (m_pending_magnetic.usable && m_tilt_alignment.aligned())
     {
         prepare_magnetic_model();
     }
@@ -549,9 +494,17 @@ template <typename Linalg, typename Layout>
 void InsSession<Linalg, Layout>::complete_magnetic(
     std::optional<typename magnetic_model_type::sample_type> const & model)
 {
+    if (!m_tilt_alignment.aligned())
+    {
+        return;
+    }
     auto sample = m_pending_magnetic;
     auto conditions = m_pending_conditions;
     apply_magnetic_model(model);
+    if (m_magnetic_model.reference_id() == 0)
+    {
+        return;
+    }
     sample.source.reference_id = m_magnetic_model.reference_id();
     if (m_fault)
     {
@@ -621,36 +574,24 @@ void InsSession<Linalg, Layout>::complete_magnetic(
     m_statistics.rejections += rejected;
 }
 
-template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::initialize_navigation(imu_type const & imu)
-{
-    auto const & gps = m_gnss.input.sample;
-    geodesy::GeodeticPosition const origin{gps.latitude_deg, gps.longitude_deg, gps.altitude_ellipsoid_m};
-    if (!update_height_datum(gps.stamp.time_us, origin, gps.altitude_msl_m) ||
-        !succeeded(m_navigation_frame.initialize(origin)))
-    {
-        return false;
-    }
-    m_initialization.seed_navigation(gps.velocity_n, gnss_position_offset(), gnss_velocity_offset(imu), m_state,
-                                     m_covariance);
-    m_origin.time_us = m_time_us;
-    m_origin.projection.set_origin(gps.latitude_deg, gps.longitude_deg, m_origin.time_us);
-    m_mag_model_origin_time = m_origin.time_us;
-    m_origin.altitude_msl_m = gps.altitude_msl_m;
-    return true;
-}
-
 template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::prepare_magnetic_model()
 {
     if constexpr (Layout::magnetic_model)
     {
-        m_pending_position_valid = gps_position_valid(m_settings.gnss.maximum_aiding_age_us);
+        bool const attached = m_navigation_frame.initialized();
+        m_pending_position_valid = attached ? gps_position_valid(m_settings.gnss.maximum_aiding_age_us) : gps_good();
         m_pending_origin_updated = m_origin.time_us > m_mag_model_origin_time;
-        if (!m_magnetic_model.lookup_due(m_time_us, m_pending_position_valid, m_pending_origin_updated))
+        bool const initial = m_magnetic_model.reference_id() == 0;
+        if (!m_pending_position_valid && !m_pending_origin_updated)
         {
             return;
         }
-        double latitude = m_origin.projection.latitude_deg(), longitude = m_origin.projection.longitude_deg();
-        if (m_pending_position_valid)
+        if (!initial && !m_magnetic_model.lookup_due(m_time_us, m_pending_position_valid, m_pending_origin_updated))
+        {
+            return;
+        }
+        double latitude = m_gnss.input.sample.latitude_deg, longitude = m_gnss.input.sample.longitude_deg;
+        if (attached)
         {
             geodesy::GeodeticPosition geographic;
             if (!check(m_navigation_frame.geographic(m_state.p_n, geographic)))
@@ -658,11 +599,11 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::pre
                 return;
             }
             latitude = geographic.latitude_deg;
-            // Successful inverse geometry supplies [-180, 180]; select the half-open longitude convention.
-            longitude = geographic.longitude_deg == 180. ? -180. : geographic.longitude_deg;
+            longitude = geographic.longitude_deg;
         }
-        m_model_request = {true, latitude, longitude, m_origin.projection.latitude_deg(),
-                           m_origin.projection.longitude_deg()};
+        longitude = longitude == 180. ? -180. : longitude;
+        m_model_request = {true, latitude, longitude, attached ? m_origin.projection.latitude_deg() : latitude,
+                           attached ? m_origin.projection.longitude_deg() : longitude};
         m_phase = Phase::magnetic_model;
     }
 }
@@ -671,6 +612,16 @@ template <typename Linalg, typename Layout>
 void InsSession<Linalg, Layout>::apply_magnetic_model(
     std::optional<typename magnetic_model_type::sample_type> const & model)
 {
+    if (m_magnetic_model.reference_id() == 0)
+    {
+        if (m_pending_magnetic.usable)
+        {
+            auto const field = so3::rotate(m_state.q_nb, m_pending_magnetic.field_b);
+            check(m_magnetic_model.initialize(m_time_us, m_magnetic_settings, field,
+                                              m_model_request.required ? model : std::nullopt));
+        }
+        return;
+    }
     if (m_model_request.required)
     {
         m_statistics.mag_model_unavailable += !model.has_value();

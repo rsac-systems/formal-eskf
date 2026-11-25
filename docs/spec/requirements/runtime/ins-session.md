@@ -9,7 +9,7 @@ component settings. AHRS and standalone core operations retain their own APIs.
 
 **Parent:** [SW-NAV](../software/navigation-runtime.md).
 
-**Uses:** [R-INS-INITIALIZATION](ins-initialization.md),
+**Uses:** [R-INS-STARTUP](ins-startup.md),
 [R-IMU-HISTORY](history/imu-history.md),
 [R-OBSERVATION-HISTORY](history/observation-history.md),
 [R-OUTPUT-PREDICTOR](output-predictor.md), [R-HEIGHT-AIDING](height-aiding.md),
@@ -25,15 +25,12 @@ stage graph; the staged target below has its own explicit startup allocation.
 
 ## Required behavior
 
-The startup rows below describe the existing strict geographic profile. The
-[staged profile](../../profiles/staged-ins.md) shall instead use
-[R-INS-STARTUP](ins-startup.md) and [R-INS-CAPABILITIES](ins-capabilities.md)
-for seed/admission and partial output, and [R-INS-ATTACHMENT](ins-attachment.md)
-for first geographic attachment. The existing current/delayed phase order,
-one-writer ownership and per-operation commits remain
-applicable except for the explicitly allocated continuity and attachment phases
-below. A staged session shall not require a magnetic provider or geographic
-height conversion solely to seed or publish qualified attitude.
+The session uses [R-INS-STARTUP](ins-startup.md) and
+[R-INS-CAPABILITIES](ins-capabilities.md) for local seed/admission and partial
+output, and [R-INS-ATTACHMENT](ins-attachment.md) for its first geographic frame.
+Current/delayed phase order, one-writer ownership and per-operation commits remain
+applicable. R-INS-CONTINUITY's additional numerical phases retain their explicit
+implementation/acceptance allocation; they are not implied by a capability flag.
 
 The caller shall supply valid, mutually consistent component settings and storage
 capacities before processing IMU samples. Settings are copied into their owners;
@@ -52,12 +49,12 @@ Read-only views borrow session storage and are not concurrent-reader snapshots.
 
 | Phase | Required ordering and external boundary |
 |---|---|
-| Startup IMU | Admit time/rate/clipping and finite rates, update qualification, collect stationary samples, check readiness, initialize height and prepare tilt. Request external magnetic data only after these steps. |
-| Startup completion | Consume the supplied model result, align heading, initialize frame/datum and navigation, bind magnetic lifecycle, then apply IMU protection, GNSS, vertical health and height. Obtain the seed arrival time after this work. Seed IMU, observation/context and output histories in that order. |
+| Startup IMU | Admit chronology, source, periods, clipping and finite rates. Update independent startup filters; an eligible IMU can seed local state/P without other sensors. |
+| Startup completion | Initialize relative height, seed IMU, context/observation and output histories at the admitted sample epoch; expose initialized main state/P only after all required participants succeed. No navigation sensor watermark or external-model request is invented. |
 | Current IMU | Retain the admitted interval and context, then propagate current output. The adapter may publish fast attitude before admitting new non-IMU observations and before delayed fusion. |
 | Delayed fusion | Process at most the retained gap hold and real interval. Update protection/prediction, select observations/context, update heading acceleration, fuse GNSS velocity then position, evaluate vertical health, ground effect, height and gravity, then prepare magnetic fusion. |
 | Magnetic boundary | Consume at most one eligible sample, capture its conditions, and request a model only when the reference owner requires it. Accept an explicit optional provider result; perform no lookup or platform callback internally. |
-| Fusion completion | Complete magnetic processing, feed the delayed state to current output, complete the IMU interval, then attempt coordinated origin migration. Navigation publication follows this boundary. |
+| Fusion completion | Complete magnetic processing, feed the delayed state to current output, complete the IMU interval, then prepare first geographic attachment or coordinated origin migration. Navigation publication follows this boundary. |
 
 For the staged profile, real-source eligibility shall precede bias permissions;
 R-INS-CONTINUITY's numerical actions follow the real corrections and precede
@@ -99,7 +96,7 @@ Callers shall establish finite valid geographic coordinates. Session paths check
 geographic validity; the application's consumer-map operating domain shall also
 exclude antipodal queries. Moving the working origin alone does not establish
 that premise. Projection does not validate arbitrary geographic inputs. Output
-height uses the existing MSL datum; working coordinates remain Cartesian NED with
+height remains relative until a real MSL datum is admitted; working coordinates remain Cartesian NED with
 their existing rebasing contract.
 
 ### Ground-effect target
@@ -148,10 +145,10 @@ status with source metadata to history so invalid payloads cannot bypass source
 retirement. Invalid fixed model settings reject configuration/startup when the
 source is enabled; invalid observations alone do not latch a core fault. The
 layout's compile-time barometer choice controls model setup, input and
-selection work, warmup, and its startup requirement. Disabled receive calls have
+selection work and warmup. It is not a prerequisite for IMU-only startup. Disabled receive calls have
 no effects; GNSS height remains available. Common fixed storage and timing-profile
-validation remain. Startup still has its current GNSS/magnetic prerequisites;
-staged IMU-only startup remains a separate target.
+validation remain. Relative barometer startup and optional geographic/datum attachment follow the
+staged source and reference contracts.
 
 ## Acceptance and verification
 

@@ -48,8 +48,8 @@ keep existing strict-profile tests until their replacement scope is reviewed.
 
 ## Gaps and exclusions
 
-All bindings are Pending. Module stubs establish publication wiring only; actual
-consumer acceptance is separate. Existing strict-startup/SIH evidence does not
+The current binding below covers selected actual consumer paths; other partitions
+remain Pending. Module publication wiring alone is not consumer acceptance. Existing strict-startup/SIH evidence does not
 satisfy these staged cases. Target budget checks use
 [PX4-RT](../requirements/integration/px4/real-time.md); unmeasured hardware remains
 an evidence gap. Flight-dynamics truth, broad disturbance envelopes, safety
@@ -66,3 +66,26 @@ checks or fabricate healthy status to pass.
 Draft allocation only. Run identities, artifacts and outcomes belong to execution
 evidence under the [test standard](testing.md), not this specification. Keep these
 planned integration cases separate from the executable core/runtime runner totals.
+
+## Current consumer binding
+
+[ModuleTest.cpp](../../../integrations/px4/tests/ModuleTest.cpp) runs the pinned
+`EstimatorChecks`, `ModeChecks` and `MulticopterAttitudeControl` implementations,
+linked from the external PX4 checkout. It supplies real module/uORB output and a
+separate calibrated-rate producer. The isolated estimator/mode checks use the
+actual rotary-wing mode requirements and single-estimator selection; they are not
+a pass of every Commander arming check or hardware sensor check.
+
+The no-GNSS/mag/baro fixture binds the tilt-only subset of STATUS-STAGED-01,
+Stabilized admission and Altitude/Position rejection from STATUS-STAGED-02,
+and stale-attitude withdrawal from STATUS-STAGED-04. Reset consumption is a
+partial STATUS-STAGED-05 binding. These subsets do not close the full source,
+accuracy/hysteresis, attachment-failure or target-resource matrix above.
+
+The pinned manual controller generates a setpoint before applying the reset to
+its stored yaw lock. A heading reset can therefore produce one update using the
+previous yaw setpoint. The fixture checks the analytical single-cycle proportional
+response and subsequent removal of the reset error. This is a measured/source-
+explained upstream limitation, not a zero-transient flight-qualification claim.
+Do not mask it by omitting the reset, declaring unsupported heading valid, or
+modifying the upstream controller for this test.

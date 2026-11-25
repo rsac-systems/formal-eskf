@@ -30,21 +30,14 @@ inline constexpr float maximum_sensor_position_m = 10.f; // Per-axis small-vehic
 
 namespace startup
 {
-inline constexpr double gravity_tolerance_m_s2 = 0.5;
-inline constexpr double maximum_angular_rate_rad_s = 0.1;
-inline constexpr double minimum_magnetic_field_gauss = 0.1;
-inline constexpr unsigned minimum_imu_samples = 250U;
-inline constexpr unsigned maximum_imu_samples = 1000U;
-inline constexpr unsigned minimum_magnetic_samples = 20U;
-inline constexpr std::uint64_t maximum_sample_age_us = 500000U;
-inline constexpr float maximum_horizontal_speed_m_s = 0.8f;
-inline constexpr float maximum_vertical_speed_m_s = 0.5f;
-// Diagonal error-state variances: p_n, v_n, theta_b, b_a, b_g.
-inline constexpr std::array<double, 3U> position_variance{1., 1., 2.25};
-inline constexpr std::array<double, 3U> velocity_variance{0.09, 0.09, 0.09};
-inline constexpr std::array<double, 3U> attitude_variance{0.01, 0.01, 0.04};
+inline constexpr double minimum_force_ratio = 0.8;
+inline constexpr double maximum_force_ratio = 1.2;
+inline constexpr double maximum_angular_rate_rad_s = 0.2617993877991494;
+inline constexpr double filter_time_constant_s = 0.09;
+inline constexpr double minimum_interval_s = 0.0001;
+inline constexpr double tilt_variance = 0.01;
 inline constexpr double accelerometer_bias_variance = 0.04;
-inline constexpr double gyroscope_bias_variance = 1e-4;
+inline constexpr double gyroscope_bias_variance = 0.01;
 } // namespace startup
 
 namespace imu
@@ -271,31 +264,23 @@ template <typename Scalar> constexpr runtime::BiasLimits<Scalar> bias_limits()
             static_cast<Scalar>(ESKF_CFG_GYRO_BIAS_LIMIT)}; // m/s^2, rad/s.
 }
 
-template <typename Initialization> typename Initialization::Parameters initialization_parameters()
+template <typename Startup> typename Startup::Parameters startup_parameters()
 {
-    typename Initialization::Parameters result;
-    using value_type = typename Initialization::value_type;
-    result.gravity = static_cast<value_type>(gravity_m_s2);
-    result.gravity_tolerance = static_cast<value_type>(startup::gravity_tolerance_m_s2);
-    result.maximum_angular_rate = static_cast<value_type>(startup::maximum_angular_rate_rad_s);
-    result.minimum_magnetic_field_gauss = static_cast<value_type>(startup::minimum_magnetic_field_gauss);
-    result.minimum_horizontal_field = static_cast<value_type>(magnetic::field.minimum_horizontal_field);
-    result.minimum_imu_samples = startup::minimum_imu_samples;
-    result.maximum_imu_samples = startup::maximum_imu_samples;
-    result.minimum_magnetic_samples = startup::minimum_magnetic_samples;
-    result.maximum_sample_age_us = startup::maximum_sample_age_us;
-    result.maximum_horizontal_speed = startup::maximum_horizontal_speed_m_s;
-    result.maximum_vertical_speed = startup::maximum_vertical_speed_m_s;
-    result.minimum_quaternion_norm = static_cast<value_type>(minimum_quaternion_norm);
-    result.bias_limits = bias_limits<value_type>();
-    for (std::size_t axis = 0; axis < 3; ++axis)
-    {
-        result.position_variance[axis] = static_cast<value_type>(startup::position_variance[axis]);
-        result.velocity_variance[axis] = static_cast<value_type>(startup::velocity_variance[axis]);
-        result.attitude_variance[axis] = static_cast<value_type>(startup::attitude_variance[axis]);
-    }
-    result.accelerometer_bias_variance = static_cast<value_type>(startup::accelerometer_bias_variance);
-    result.gyroscope_bias_variance = static_cast<value_type>(startup::gyroscope_bias_variance);
+    typename Startup::Parameters result;
+    result.gravity = gravity_m_s2;
+    result.minimum_force_ratio = startup::minimum_force_ratio;
+    result.maximum_force_ratio = startup::maximum_force_ratio;
+    result.maximum_angular_rate = startup::maximum_angular_rate_rad_s;
+    result.filter_time_constant = startup::filter_time_constant_s;
+    result.minimum_interval = startup::minimum_interval_s;
+    result.minimum_quaternion_norm = minimum_quaternion_norm;
+    double const position = gnss::minimum_position_noise_m * gnss::minimum_position_noise_m;
+    double const velocity = gnss::minimum_velocity_noise_m_s * gnss::minimum_velocity_noise_m_s;
+    result.position_variance = {position, position, height::barometer_variance};
+    result.velocity_variance = {velocity, velocity, gnss::vertical_variance_multiplier * velocity};
+    result.tilt_variance = startup::tilt_variance;
+    result.accelerometer_bias_variance = startup::accelerometer_bias_variance;
+    result.gyroscope_bias_variance = startup::gyroscope_bias_variance;
     return result;
 }
 
@@ -347,7 +332,7 @@ struct InsLayout
 template <typename Session> typename Session::Parameters session_parameters()
 {
     typename Session::Parameters result;
-    result.initialization = initialization_parameters<typename Session::initialization_type>();
+    result.startup = startup_parameters<typename Session::startup_type>();
     result.observation_timing = history::observation_timing;
     result.output = output_parameters;
     result.height = height_parameters<typename Session::height_type>();
@@ -399,6 +384,7 @@ template <typename Session> typename Session::Parameters session_parameters()
     result.settings.output.attitude_reset_resolution = output::attitude_reset_resolution;
     result.settings.output.dead_reckoning_age_us = output::dead_reckoning_age_us;
     result.settings.output.maximum_age_us = output::maximum_age_us;
+    result.settings.aiding = {1000000, 5000000};
     result.settings.output.position_reset_resolution_m = output::position_reset_resolution_m;
     result.settings.output.velocity_reset_resolution_m_s = output::velocity_reset_resolution_m_s;
     result.settings.gnss.maximum_aiding_age_us = gnss::maximum_aiding_age_us;

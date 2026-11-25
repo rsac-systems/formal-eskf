@@ -60,6 +60,34 @@ public:
         return status;
     }
 
+    /** First geographic origin of an already North-referenced local state.
+     * No old ECEF frame is invented. The caller owns real measurement resets
+     * and prepares the matching histories before committing this translation.
+     */
+    [[nodiscard]] Status prepare_attachment(geodesy::GeodeticPosition const & origin, state_type const & state,
+                                            covariance_type const & covariance, vector_type const & local_anchor,
+                                            typename Linalg::value_type minimum_norm)
+    {
+        m_prepared = false;
+        if (initialized())
+        {
+            return Status::domain_error;
+        }
+        auto status = m_candidate.frame.set_origin(origin);
+        if (!succeeded(status))
+        {
+            return status;
+        }
+        m_candidate.transform = {};
+        m_candidate.transform.translation = -local_anchor;
+        m_candidate.rotation = {};
+        status = rebase_origin(state, covariance, m_candidate.transform, minimum_norm, m_candidate.state,
+                               m_candidate.covariance);
+        m_next_reference = {};
+        m_prepared = succeeded(status);
+        return status;
+    }
+
     /** Assignment-only commit. No successful preparation means no change. */
     void commit(state_type & state, covariance_type & covariance)
     {
@@ -69,9 +97,18 @@ public:
         }
         state = m_candidate.state;
         covariance = m_candidate.covariance;
+        if (!initialized())
+        {
+            // Like initialize(), attachment creates generation zero. Only a
+            // subsequent working-origin change advances the rebase counter.
+            m_reference = m_candidate.frame;
+        }
+        else
+        {
+            ++m_generation;
+        }
         m_working = m_candidate.frame;
         m_to_reference = m_next_reference;
-        ++m_generation;
         m_prepared = false;
     }
 

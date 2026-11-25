@@ -95,9 +95,7 @@ void FormalEskf::publish(imu_type const & imu)
         return;
     }
     m_last_output = time;
-    auto const frame = m_session.delayed_body_frame();
-    NavigationVariance const variance{m_session.navigation_variance(0, frame), m_session.navigation_variance(3, frame),
-                                      m_session.navigation_variance(6, frame)};
+    auto const variance = m_session.navigation_variances();
     auto const local = publish_local_position(now, imu, body, validity, variance);
     publish_global_position(now, local, body, validity);
     publish_odometry(now, imu, body, validity, variance);
@@ -105,6 +103,10 @@ void FormalEskf::publish(imu_type const & imu)
 
 void FormalEskf::publish_attitude(std::uint64_t now)
 {
+    if (!m_session.capabilities(now).attitude.available)
+    {
+        return;
+    }
     BodyOutput body;
     if (!m_session.prepare_output(body))
     {
@@ -142,9 +144,10 @@ vehicle_local_position_s FormalEskf::publish_local_position(std::uint64_t now, i
     local.ax = accel_n(0);
     local.ay = accel_n(1);
     local.az = accel_n(2);
-    local.xy_valid = local.v_xy_valid = validity.gps;
+    local.xy_valid = validity.gps_position;
+    local.v_xy_valid = validity.gps_velocity;
     // PX4 controller compatibility: local z/vz share vertical aiding; global altitude stays separate.
-    local.z_valid = local.v_z_valid = validity.vertical_velocity;
+    local.z_valid = local.v_z_valid = validity.vertical_velocity || validity.height;
     local.delta_z = m_session.resets().height_delta;
     local.z_reset_counter = m_session.resets().height_count;
     for (size_t axis = 0; axis < 2; ++axis)
@@ -166,7 +169,8 @@ vehicle_local_position_s FormalEskf::publish_local_position(std::uint64_t now, i
     auto const & delta = m_session.resets().attitude_delta.coefficients();
     local.delta_heading = 2. * std::atan2(delta(3), delta(0));
     local.heading_reset_counter = m_session.resets().attitude_count;
-    local.xy_global = local.z_global = true;
+    local.xy_global = body.geographic_available;
+    local.z_global = body.msl_available;
     local.ref_timestamp = m_session.navigation_origin().time_us;
     local.ref_lat = m_session.navigation_origin().projection.latitude_deg();
     local.ref_lon = m_session.navigation_origin().projection.longitude_deg();
@@ -195,9 +199,9 @@ void FormalEskf::publish_global_position(std::uint64_t now, vehicle_local_positi
     global.lon = matrix::wrap(body.geographic.longitude_deg, -180., 180.);
     global.alt = body.altitude_msl_m;
     global.alt_ellipsoid = body.geographic.height_ellipsoid_m;
-    global.lat_lon_valid = local.xy_valid;
+    global.lat_lon_valid = local.xy_valid && body.geographic_available;
     global.lat_lon_reset_counter = m_session.resets().position_count;
-    global.alt_valid = validity.height;
+    global.alt_valid = validity.capabilities.msl_altitude.available && body.msl_available;
     global.delta_alt = -local.delta_z;
     global.alt_reset_counter = local.z_reset_counter;
     global.eph = local.eph;
@@ -219,16 +223,19 @@ void FormalEskf::publish_odometry(std::uint64_t now, imu_type const & imu, BodyO
     odometry.velocity_frame = vehicle_odometry_s::VELOCITY_FRAME_NED;
     for (size_t i = 0; i < 4; ++i)
     {
-        odometry.q[i] = float(body.q_nb.coefficients()(i));
+        odometry.q[i] = validity.capabilities.attitude.available ? float(body.q_nb.coefficients()(i)) : NAN;
     }
     for (size_t i = 0; i < 3; ++i)
     {
-        odometry.position[i] = validity.navigation ? float(body.position_n(i)) : NAN;
-        odometry.velocity[i] = validity.navigation ? float(body.velocity_n(i)) : NAN;
+        bool const position_available = i == 2 ? validity.height : validity.gps_position;
+        bool const velocity_available = i == 2 ? validity.vertical_velocity : validity.gps_velocity;
+        odometry.position[i] = position_available ? float(body.position_n(i)) : NAN;
+        odometry.velocity[i] = velocity_available ? float(body.velocity_n(i)) : NAN;
         odometry.angular_velocity[i] = imu.angular_rate_b(i) - m_session.state().b_g(i);
-        odometry.position_variance[i] = validity.navigation ? float(position_variance(i)) : NAN;
-        odometry.velocity_variance[i] = validity.navigation ? float(velocity_variance(i)) : NAN;
-        odometry.orientation_variance[i] = m_session.covariance()(i + 6, i + 6);
+        odometry.position_variance[i] = position_available ? float(position_variance(i)) : NAN;
+        odometry.velocity_variance[i] = velocity_available ? float(velocity_variance(i)) : NAN;
+        odometry.orientation_variance[i] =
+            validity.capabilities.attitude.available ? float(m_session.covariance()(i + 6, i + 6)) : NAN;
     }
     odometry.reset_counter = m_session.resets().odometry_count;
     odometry.quality = validity.navigation ? 0 : -1; // Unknown quality when admitted; invalid otherwise.
@@ -296,10 +303,9 @@ estimator_status_s FormalEskf::publish_estimator_status(std::uint64_t now, Outpu
                                 : std::fmax(barometer_ratio, gnss_height_ratio);
     status.tas_test_ratio = status.hagl_test_ratio = status.beta_test_ratio = NAN;
     const float preflight_limit = profile::output::preflight_innovation_ratio;
-    // Commander does not check our tilt/yaw capability flags. Retain the module's
-    // heading-readiness veto; unlike EKF2, our GNSS policy has no alignment prerequisite.
-    status.pre_flt_fail_innov_heading =
-        !flags.cs_tilt_align || !validity.magnetic || status.hdg_test_ratio > preflight_limit;
+    // Missing absolute heading is not an innovation failure. Attitude publication
+    // and independent navigation validity supply Commander's mode prerequisites.
+    status.pre_flt_fail_innov_heading = status.hdg_test_ratio > preflight_limit;
     status.pre_flt_fail_innov_vel_horiz = horizontal_velocity_ratio > preflight_limit;
     status.pre_flt_fail_innov_vel_vert = vertical_velocity_ratio > preflight_limit;
     status.pre_flt_fail_innov_pos_horiz = status.pos_test_ratio > preflight_limit;
@@ -313,9 +319,12 @@ estimator_status_s FormalEskf::publish_estimator_status(std::uint64_t now, Outpu
         m_session.gnss_state().velocity_test_ratios(1) > 1. || m_session.gnss_state().velocity_test_ratios(2) > 1.;
     // MAVLink/PX4 solution capabilities are independent; horizontal aiding cannot certify height.
     status.solution_status_flags = static_cast<std::uint16_t>(
-        (unsigned(flags.cs_tilt_align) << 0) | (unsigned(validity.gps) << 1) |
-        (unsigned(validity.vertical_velocity) << 2) | (unsigned(validity.gps) << 3) | (unsigned(validity.gps) << 4) |
-        (unsigned(validity.height) << 5) | (unsigned(flags.cs_vehicle_at_rest) << 7) |
+        (unsigned(validity.capabilities.attitude.available) << 0) |
+        (unsigned(validity.capabilities.horizontal_velocity.available) << 1) |
+        (unsigned(validity.vertical_velocity) << 2) |
+        (unsigned(validity.capabilities.horizontal_position.available) << 3) |
+        (unsigned(validity.capabilities.global_position.available) << 4) | (unsigned(validity.height) << 5) |
+        (unsigned(flags.cs_vehicle_at_rest) << 7) |
         (unsigned(validity.navigation && (flags.cs_gnss_pos || flags.cs_gnss_vel)) << 8) |
         (unsigned(validity.navigation && flags.cs_gnss_pos) << 9) | (unsigned(gnss_glitch) << 10) |
         (unsigned(flags.fs_bad_acc_vertical || flags.fs_bad_acc_clipping) << 11));

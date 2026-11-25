@@ -52,6 +52,48 @@ template <typename Linalg>
     return status;
 }
 
+/** Relative geometric height above an explicit ellipsoid point. This is not MSL. */
+template <typename Linalg>
+[[nodiscard]] Status
+predict_relative_height(linalg::Vector<Linalg, 3> const & position, geodesy::LocalNed<Linalg> const & working,
+                        typename Linalg::value_type reference_ellipsoid_m, HeightPrediction<Linalg> & output)
+{
+    if (!scalar::is_finite<typename Linalg::scalar_math_type>(reference_ellipsoid_m))
+    {
+        return Status::non_finite_input;
+    }
+    linalg::Vector<Linalg, 3> ecef;
+    geodesy::GeodeticPosition point;
+    auto status = working.ned_to_ecef(position, ecef);
+    if (succeeded(status))
+    {
+        status = geodesy::ecef_to_geodetic<Linalg>(ecef, point);
+    }
+    geodesy::LocalNed<Linalg> at_point;
+    if (succeeded(status))
+    {
+        status = at_point.set_origin(point);
+    }
+    geodesy::NedTransform<Linalg> transform;
+    if (succeeded(status))
+    {
+        status = working.transform_to(at_point, transform);
+    }
+    if (!succeeded(status))
+    {
+        return status;
+    }
+    HeightPrediction<Linalg> candidate;
+    candidate.altitude = point.height_ellipsoid_m - reference_ellipsoid_m;
+    candidate.H.template set_block<0, 0>(transform.rotation.template block<2, 0, 1, 3>());
+    if (!scalar::is_finite<typename Linalg::scalar_math_type>(candidate.altitude))
+    {
+        return Status::non_finite_result;
+    }
+    output = candidate;
+    return Status::success;
+}
+
 /** Freeze r_D = predicted_height - (measured_altitude - prior_offset).
  * No covariance is added here: the height owner adds prior offset variance once.
  */

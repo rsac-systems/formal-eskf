@@ -11,13 +11,12 @@ The [architecture](../spec/architecture/navigation-runtime.md) and
 The [PX4 adapter](../../integrations/px4/module/FormalEskf.cpp) uses the same owner.
 Legacy log replay retains its separate scheduling; it has not been migrated.
 
-The [staged INS profile](../spec/profiles/staged-ins.md) specifies future
-IMU-only startup and independent tilt/heading/navigation availability in one
-full INS. It is not a currently selectable configuration. Its
-[contract allocation](../spec/architecture/navigation-runtime.md#staged-service-allocation)
-separates runtime support from application mode acceptance. Existing commands
-below exercise the strict geographic startup; they do not demonstrate indoor
-cold start, numerical continuity or first geographic attachment.
+The [staged INS profile](../spec/profiles/staged-ins.md) keeps one full INS and
+independently qualifies tilt, heading and navigation. IMU seed, real gravity
+refinement, partial output and first geographic attachment are integrated.
+Numerical continuity and complete source-loss qualification remain A-03 work.
+The [contract allocation](../spec/architecture/navigation-runtime.md#staged-service-allocation)
+separates runtime support from application mode acceptance.
 
 ## Build and run the host example
 
@@ -50,7 +49,7 @@ is no standalone installed CMake package/discovery interface at present. The PX4
 exporter copies the complete public-header tree into its relocatable package.
 
 The application validates the complete profile before processing inputs. Component
-validity checks have their own scope: `initialization_valid()` validates bootstrap
+validity checks have their own scope: `startup_valid()` validates bootstrap
 settings only. Configure timing, optional gravity, magnetic reference preferences
 and fixed body sensor positions before the first admitted estimator epoch. Keep
 these settings frozen thereafter. Layout controls backing capacities, gravity
@@ -59,18 +58,17 @@ supply numerical defaults or change the core state formulation.
 
 Supply calibrated body-FRD samples, geographic GNSS values with declared altitude
 datums, source/calibration identity and explicit sample/arrival times in one
-monotonic domain. Startup magnetic accumulation uses gauss; normal magnetic input
-uses microtesla. The adapter owns receiver-format startup speed metrics, unit/time
-conversion, driver acquisition and independently known land/vehicle context.
+monotonic domain. Magnetic input uses microtesla; IMU-only seeding does not consume it. The adapter
+owns unit/time conversion, driver acquisition and independently known
+land/vehicle context.
 No runtime owner reads a clock, device, filesystem or platform parameter.
 
 ## Bounded call sequence
 
 | Boundary | Application action |
 |---|---|
-| Startup/current IMU | Supply IMU, arrival time, context and current startup observations. Complete any pending phase before another IMU. |
-| Startup model request | Acquire an optional external magnetic result from the exposed query. Complete initialization; after success obtain the seed arrival time and seed histories. |
-| Current output | After an already initialized IMU update, a fresh current nominal attitude may be published before delayed fusion. |
+| Startup/current IMU | Supply IMU, arrival time and context. Complete any pending phase before another IMU. |
+| Current output | After an initialized IMU update, publish current attitude only if its capability is admitted; publication may precede delayed fusion. |
 | Observation admission | Admit newly arrived GNSS, magnetic and barometric records in that order. Preserve their actual source/sample/arrival identity. |
 | Delayed update | If fusion is ready, begin it; answer an optional magnetic model request and complete it. Completion includes output feedback, history completion and origin handling. |
 | Navigation/reporting | Publish from coherent read-only views after completion. Drain raw innovation events after each startup/current or fusion phase, applying clear, measurement and reset effects in order. |

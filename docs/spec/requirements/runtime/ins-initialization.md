@@ -4,8 +4,9 @@
 
 **Status:** Draft
 
-**Applies to:** Portable INS bootstrap, initially the binary64 geographic
-navigation profile. This is not degraded startup or a general attitude observer.
+**Applies to:** Retained strict-bootstrap component and its historical evidence.
+The production session uses staged startup; this component does not gate it.
+This is not degraded startup or a general attitude observer.
 The staged target is [R-INS-STARTUP](ins-startup.md); its independent source
 admission shall not inherit this baseline's all-sensor readiness gate.
 

@@ -4008,10 +4008,6 @@
             "symbol": "MagneticContext read_magnetic_context("
           },
           {
-            "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
-            "symbol": "InsSession<Linalg, Layout>::initialize_magnetic_aiding("
-          },
-          {
             "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
             "symbol": "InsSession<Linalg, Layout>::begin_magnetic("
           },
@@ -6952,10 +6948,6 @@
           },
           {
             "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
-            "symbol": "InsSession<Linalg, Layout>::initialize_navigation("
-          },
-          {
-            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
             "symbol": "InsSession<Linalg, Layout>::reset_output("
           },
           {
@@ -7017,6 +7009,10 @@
           {
             "file": "integrations/px4/module/formal_eskf_params.c",
             "symbol": "PARAM_DEFINE_FLOAT(FESKF_GPS_POS_X"
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_frames.hpp",
+            "symbol": "InsSession<Linalg, Layout>::attach_navigation("
           }
         ],
         "esbmc": []
@@ -7570,7 +7566,7 @@
     },
     {
       "id": "R-PX4-DELAYED-FUSION",
-      "title": "Live delayed/current timeline: source-composed caller order, reset notification and publication epochs under reviewed contracts; full deployed refinement and target qualification remain open; IMU source-continuation target pending",
+      "title": "Delayed/current timeline: staged startup and attachment have native caller tests; historical strict-startup source composition is stale and requires rebinding; full deployed refinement and target qualification remain open",
       "references": {
         "spec": [
           {
@@ -7611,14 +7607,6 @@
           {
             "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
             "symbol": "InsSession<Linalg, Layout>::process_imu("
-          },
-          {
-            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
-            "symbol": "InsSession<Linalg, Layout>::complete_initialization("
-          },
-          {
-            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
-            "symbol": "InsSession<Linalg, Layout>::seed_initialization("
           },
           {
             "file": "integrations/px4/module/FormalEskf.cpp",
@@ -8460,7 +8448,7 @@
     },
     {
       "id": "R-INS-STARTUP",
-      "title": "Staged INS startup: IMU-only seed/filter, full priors and pre-alignment gravity component; session migration, convergence and formal evidence pending",
+      "title": "Staged IMU-only startup, history seed and pre-alignment gravity: native session/physical-fixture bindings; remaining acceptance partitions and formal evidence pending",
       "references": {
         "spec": [
           {
@@ -8478,6 +8466,10 @@
           {
             "file": "docs/spec/verification/tests/runtime/ins-startup.md",
             "symbol": "## Cases"
+          },
+          {
+            "file": "docs/spec/verification/tests/runtime/ins-staged.md",
+            "symbol": "## Cases"
           }
         ],
         "lean": [],
@@ -8485,6 +8477,10 @@
           {
             "file": "include/formal_eskf/runtime/session/ins_startup.hpp",
             "symbol": "template <typename Linalg> class InsStartup"
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::process_imu("
           }
         ],
         "esbmc": []
@@ -8492,7 +8488,7 @@
     },
     {
       "id": "R-INS-CAPABILITIES",
-      "title": "Full/partial INS support and application acceptance: Draft contract; implementation and PX4 consumer evidence pending",
+      "title": "Independent staged INS capability snapshot and PX4 consumer subsets; numerical-intervention/recovery and complete acceptance remain pending",
       "references": {
         "spec": [
           {
@@ -8506,10 +8502,23 @@
           {
             "file": "docs/spec/verification/staged-ins-tests.md",
             "symbol": "## Cases"
+          },
+          {
+            "file": "docs/spec/verification/tests/runtime/ins-staged.md",
+            "symbol": "## Cases"
           }
         ],
         "lean": [],
-        "cpp": [],
+        "cpp": [
+          {
+            "file": "include/formal_eskf/runtime/session/ins_capabilities.hpp",
+            "symbol": "struct InsCapabilities"
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_capabilities.hpp",
+            "symbol": "InsSession<Linalg, Layout>::capabilities("
+          }
+        ],
         "esbmc": []
       }
     },
@@ -8538,7 +8547,7 @@
     },
     {
       "id": "R-INS-ATTACHMENT",
-      "title": "First local-to-geographic INS attachment: Draft transaction contract; implementation, consumer and formal evidence pending",
+      "title": "First local-to-geographic attachment, relative/MSL preservation and native transaction subsets; complete history/consumer and formal acceptance pending",
       "references": {
         "spec": [
           {
@@ -8548,10 +8557,19 @@
           {
             "file": "docs/spec/verification/staged-ins-tests.md",
             "symbol": "## Cases"
+          },
+          {
+            "file": "docs/spec/verification/tests/runtime/ins-staged.md",
+            "symbol": "## Cases"
           }
         ],
         "lean": [],
-        "cpp": [],
+        "cpp": [
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_frames.hpp",
+            "symbol": "InsSession<Linalg, Layout>::attach_navigation("
+          }
+        ],
         "esbmc": []
       }
     },

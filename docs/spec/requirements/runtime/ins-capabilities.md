@@ -5,7 +5,7 @@
 **Status:** Draft
 
 **Applies to:** The staged portable INS service and its PX4 adapter. This is a
-target contract; the existing strict-startup implementation does not satisfy it.
+target contract. Current source bindings and remaining acceptance partitions are identified in the staged test matrix.
 
 **Parent:** [SW-NAV](../software/navigation-runtime.md).
 
@@ -78,6 +78,11 @@ duplicate, stale or merely received samples shall not refresh that clock.
 Coordinate/datum availability, source activity and small variance alone shall
 not establish usability. The [staged profile](../../profiles/staged-ins.md)
 binds these rules and separates them from application accuracy acceptance.
+When unavailable position leaves the admitted navigation domain, retain the last
+supported output-axis orientation for attitude. Transport that retained basis on
+a working-frame change; do not reinterpret an invalid geodetic result as a new
+attitude frame. This does not restore any navigation capability.
+
 Attitude admission shall use its own IMU/tilt-support conditions, not a GNSS
 no-aid timer. The completed-alignment latch alone is not a current accuracy claim.
 

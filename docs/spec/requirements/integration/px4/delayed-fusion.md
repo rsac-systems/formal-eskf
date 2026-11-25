@@ -17,9 +17,9 @@ of the scheduler, backend, sensor producers or complete flight system.
 
 - Validate startup timing before callback registration; freeze one configuration
   for IMU, output and observations. Running parameter changes cannot retime history.
-- Seed all owners at a real alignment epoch after startup corrections. Admit real
-  output intervals during warmup, withholding valid estimates until matching
-  delayed feedback succeeds.
+- Seed required histories and the output predictor at the common admitted IMU
+  seed epoch. Admit real output intervals during warmup, withholding usable
+  attitude until real tilt refinement and matching delayed feedback succeed.
 - Propagate/publish current attitude first, then predict at most one oldest
   delayed interval. Replay held/real segments in the same order in both predictors.
   Advance the main epoch only after successful prediction; never label failure

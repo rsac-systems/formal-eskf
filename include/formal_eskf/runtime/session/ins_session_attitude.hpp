@@ -77,26 +77,6 @@ void InsSession<Linalg, Layout>::fuse_gravity(ImuInput const & sample, imu_type 
     m_gravity.corrections += fused;
 }
 
-template <typename Linalg, typename Layout>
-void InsSession<Linalg, Layout>::initialize_magnetic_aiding(magnetic_lifecycle_type::Source const & source,
-                                                            std::uint64_t sample_time_us)
-{
-    // Reset sensor history and estimator heading bookkeeping after real startup
-    // alignment. Retain module reporting totals; invent no fusion timestamp.
-    m_magnetic.heading = {};
-    m_magnetic.filter.reset();
-    m_magnetic.lifecycle.reset(source);
-    m_magnetic.observation = {};
-    clear_innovations(m_innovations.magnetic);
-    m_magnetic.source = source;
-    m_magnetic.sample_time_us = sample_time_us;
-    m_magnetic.horizontal_aiding = false;
-    m_magnetic.heading.reset_heading();
-    m_heading_aligned = true;
-    m_resets.attitude_delta = {};
-    m_resets.attitude_count = 0U;
-}
-
 template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::magnetic_heading_aiding() const
 {
     return m_magnetic.lifecycle.state().active && m_heading_aligned && m_magnetic.observation.field.accepted &&
@@ -254,11 +234,51 @@ typename InsSession<Linalg, Layout>::status_type
 InsSession<Linalg, Layout>::reset_magnetic_heading(std::uint64_t sample_time_us)
 {
     quaternion_type delta;
-    auto const status = formal_eskf::runtime::reset_magnetic_heading(
-        m_state, m_covariance, m_magnetic.filter.field_b(), magnetic_reference(m_magnetic_model.observation_n()),
-        m_settings.magnetic.heading_noise_rad * m_settings.magnetic.heading_noise_rad,
-        m_settings.magnetic.field.minimum_horizontal_field, m_parameters.minimum_quaternion_norm, m_state, m_covariance,
-        delta);
+    auto state = m_state;
+    auto covariance = m_covariance;
+    auto status = formal_eskf::runtime::reset_magnetic_heading(
+        state, covariance, m_magnetic.filter.field_b(), magnetic_reference(m_magnetic_model.observation_n()),
+        square(m_settings.magnetic.heading_noise_rad), m_settings.magnetic.field.minimum_horizontal_field,
+        m_parameters.minimum_quaternion_norm, state, covariance, delta);
+    bool const local_reference = !m_navigation_frame.initialized();
+    auto heading = m_magnetic.heading;
+    auto tilt = m_tilt_alignment;
+    BodyOutput before, after;
+    if (succeeded(status) && local_reference)
+    {
+        // Before geographic attachment, reference admission rotates the whole
+        // local horizontal gauge. Its body-local attitude error basis is unchanged.
+        geodesy::NedTransform<backend_type> transform;
+        transform.rotation = so3::to_rotation_matrix(delta);
+        status =
+            rebase_origin(m_state, m_covariance, transform, m_parameters.minimum_quaternion_norm, state, covariance);
+        if (succeeded(status))
+        {
+            quaternion_type residual;
+            // Establish real heading uncertainty once in the rotated state.
+            status = runtime::reset_magnetic_heading(
+                state, covariance, m_magnetic.filter.field_b(), m_magnetic_model.observation_n(),
+                square(m_settings.magnetic.heading_noise_rad), m_settings.magnetic.field.minimum_horizontal_field,
+                m_parameters.minimum_quaternion_norm, state, covariance, residual);
+        }
+        if (succeeded(status))
+        {
+            status = heading.rebase(delta);
+        }
+        if (succeeded(status))
+        {
+            status = tilt.rebase(state.q_nb, covariance.template block<6, 6, 3, 3>());
+        }
+        before = body_output();
+        auto const & current = m_output.current();
+        after = body_output(transform.rotation * current.p_n, transform.rotation * current.v_n, delta * current.q_nb,
+                            m_output.angular_rate_b());
+        if (succeeded(status) &&
+            (!succeeded(before.status) || !succeeded(after.status) || !m_output.prepare_rebase(delta, {})))
+        {
+            status = status_type::non_finite_result;
+        }
+    }
     bool const reset = formal_eskf::succeeded(status);
     auto const feedback = m_magnetic.lifecycle.record_reset(sample_time_us, reset);
     if (!formal_eskf::succeeded(feedback))
@@ -267,11 +287,23 @@ InsSession<Linalg, Layout>::reset_magnetic_heading(std::uint64_t sample_time_us)
     }
     if (reset)
     {
-        if (!reset_output(delta, {}, {}, {.attitude = true}))
+        m_state = state;
+        m_covariance = covariance;
+        if (local_reference)
+        {
+            m_output.commit_rebase();
+            m_magnetic.heading = heading;
+            m_tilt_alignment = tilt;
+            record_output_reset(before, after, {.attitude = true});
+        }
+        else if (!reset_output(delta, {}, {}, {.attitude = true}))
         {
             return status_type::out_of_range;
         }
-
+        m_heading_reference_id = m_magnetic_model.reference_id();
+        m_heading_reference = m_magnetic_model.heading_source() == magnetic_model_type::HeadingSource::magnetic_north
+                                  ? InsCapabilities::HeadingReference::magnetic_north
+                                  : InsCapabilities::HeadingReference::true_north;
         m_heading_aligned = true;
         m_magnetic.heading.reset_heading();
         for (auto & ratio : m_innovations.magnetic)

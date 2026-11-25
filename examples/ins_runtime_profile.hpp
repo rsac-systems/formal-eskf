@@ -32,24 +32,16 @@ template <typename Session> typename Session::Parameters parameters()
     p.estimator.process_noise.accelerometer_bias_random_walk_variance_density =
         Vector::from_row_major({1e-6, 1e-6, 1e-6});
     p.estimator.process_noise.gyroscope_bias_random_walk_variance_density = Vector::from_row_major({1e-8, 1e-8, 1e-8});
-    p.initialization = {.gravity = gravity,
-                        .gravity_tolerance = 0.5,
-                        .maximum_angular_rate = 0.1,
-                        .minimum_magnetic_field_gauss = 0.1,
-                        .minimum_horizontal_field = 5,
-                        .minimum_imu_samples = 250,
-                        .maximum_imu_samples = 1000,
-                        .minimum_magnetic_samples = 20,
-                        .maximum_sample_age_us = 500000,
-                        .maximum_horizontal_speed = 0.8f,
-                        .maximum_vertical_speed = 0.5f,
-                        .minimum_quaternion_norm = 1e-6,
-                        .bias_limits = {0.4, 0.15},
-                        .position_variance = {1, 1, 2.25},
-                        .velocity_variance = {0.09, 0.09, 0.09},
-                        .attitude_variance = {0.01, 0.01, 0.04},
-                        .accelerometer_bias_variance = 0.04,
-                        .gyroscope_bias_variance = 1e-4};
+    p.startup = {.gravity = gravity,
+                 .minimum_force_ratio = 0.8,
+                 .maximum_force_ratio = 1.2,
+                 .maximum_angular_rate = Session::math_type::pi() / 12.,
+                 .filter_time_constant = 0.09,
+                 .minimum_interval = 0.0001,
+                 .minimum_quaternion_norm = 1e-6,
+                 .tilt_variance = 0.01,
+                 .accelerometer_bias_variance = 0.04,
+                 .gyroscope_bias_variance = 0.01};
     p.observation_timing = {
         {4000, 3800, 4200, 50000, 200, 100000, 300000, 150000, 100000, 100000}, 100000, 50000, 10000, 8000, 0.99, 0.01};
     p.output = {p.observation_timing.imu, gravity, 1e-6, 1e-10, 1e-6, 0.05, 0.004, 0.25, 0.25, 0.8, 0.2, 0.5, 0.1};
@@ -111,7 +103,12 @@ template <typename Session> typename Session::Parameters parameters()
                 .retry_interval_us = 1000000,
                 .trigger_angle_rad = 0.05 * Session::math_type::pi() / 180,
                 .trigger_distance_m = 1000};
+    s.aiding = {1000000, 5000000};
     s.output = {1e-12, 1000000, 100000, 1e-7, 1e-10};
+    double const position = s.gnss.minimum_position_noise_m * s.gnss.minimum_position_noise_m;
+    double const velocity = s.gnss.minimum_velocity_noise_m_s * s.gnss.minimum_velocity_noise_m_s;
+    p.startup.position_variance = {position, position, s.height.barometer_variance};
+    p.startup.velocity_variance = {velocity, velocity, s.gnss.vertical_variance_multiplier * velocity};
     return p;
 }
 } // namespace ins_example

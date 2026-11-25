@@ -1,173 +1,19 @@
 // SPDX-License-Identifier: BSD-3-Clause
-#include <array>
-#include <bit>
-#include <cmath>
-#include <limits>
-
-#include "../../../examples/ins_runtime_profile.hpp"
-#include "test_backend.hpp"
-#include "test_cases.hpp"
+#include "session_fixture.hpp"
 
 namespace
 {
-using Backend = formal_eskf::test::Backend<double>;
-using Session = formal_eskf::runtime::InsSession<Backend, ins_example::Layout>;
-using Vector = Session::vector3_type;
-using formal_eskf::test::Context;
-
-template <typename Matrix> bool same_bits(Matrix const & a, Matrix const & b)
-{
-    for (std::size_t r = 0; r < Matrix::row_count; ++r)
-    {
-        for (std::size_t c = 0; c < Matrix::column_count; ++c)
-        {
-            if (std::bit_cast<std::uint64_t>(a(r, c)) != std::bit_cast<std::uint64_t>(b(r, c)))
-            {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-template <typename Runtime = Session> struct Fixture
-{
-    Runtime session;
-    typename Runtime::StartupInput input{};
-    typename Runtime::ImuInput imu{};
-    typename Runtime::ContextInput context{};
-    typename Runtime::magnetic_model_type::sample_type model{0, std::atan2(40., 20.), std::hypot(20., 40.)};
-    typename Runtime::Innovations events{};
-    unsigned step{};
-    bool configured{};
-    bool send_barometer = true;
-    explicit Fixture(typename Runtime::Parameters const & parameters = ins_example::parameters<Runtime>())
-        : session(parameters)
-    {
-        configured = session.configure_timing(ins_example::timing) && session.configure_gravity(true) &&
-                     session.configure_magnetic({true, true, 0}) && session.configure_sensor_positions({});
-        input.gnss.stamp.source.device_id = 201;
-        input.gnss.latitude_deg = 47.397742;
-        input.gnss.longitude_deg = 8.545594;
-        input.gnss.altitude_ellipsoid_m = 535;
-        input.gnss.altitude_msl_m = 488;
-        input.gnss.horizontal_accuracy_m = 0.7;
-        input.gnss.vertical_accuracy_m = 1;
-        input.gnss.speed_accuracy_m_s = 0.2;
-        input.gnss.hdop = 0.7;
-        input.gnss.vdop = 0.9;
-        input.gnss.fix_type = 3;
-        input.gnss.satellites = 12;
-        input.gnss.velocity_valid = true;
-        input.barometer.stamp.source.device_id = 401;
-        input.barometer.altitude_m = 538; // Different datum; the height owner must learn the offset.
-        input.magnetic.device_id = 301;
-        input.magnetic.field_gauss = Vector::from_row_major({0.2, 0, 0.4});
-        imu.source.accelerometer_id = 101;
-        imu.source.gyroscope_id = 102;
-        imu.angular_period_us = imu.acceleration_period_us = 4000;
-        imu.delta_velocity_b = Vector::from_row_major({0, 0, -9.80665 * 0.004});
-    }
-    bool tick(bool complete = true)
-    {
-        auto const now = std::uint64_t{1000000} + 4000 * std::uint64_t{step};
-        bool const gnss = step % 25 == 0, magnetic = step % 5 == 0, barometer = step % 2 == 0;
-        if (gnss)
-        {
-            input.gnss.stamp.time_us = now;
-        }
-        if (magnetic)
-        {
-            input.magnetic.time_us = now;
-        }
-        if (barometer)
-        {
-            input.barometer.stamp.time_us = now;
-        }
-        context = {{now, true, true, true, false}, {now, true, false, false}};
-        imu.time_us = now;
-        bool const active = session.initialized();
-        session.process_imu(imu, now, context, input);
-        ++step;
-        if (!complete)
-        {
-            return !session.fault();
-        }
-        if (session.phase() == Runtime::Phase::initialization_model)
-        {
-            double yaw{};
-            if (!session.complete_initialization(model, yaw) || !session.seed_initialization(now))
-            {
-                return false;
-            }
-        }
-        events = session.take_innovations();
-        if (active && !session.fault())
-        {
-            if (gnss)
-            {
-                session.receive_gnss(input.gnss, now);
-            }
-            if (magnetic)
-            {
-                session.receive_magnetic(
-                    {{input.magnetic.time_us, {input.magnetic.device_id, input.magnetic.calibration_count}},
-                     input.magnetic.field_gauss * 100.},
-                    now);
-            }
-            if (barometer && send_barometer)
-            {
-                session.receive_barometer(input.barometer, now);
-            }
-            if (session.fusion_ready())
-            {
-                session.begin_fusion();
-                if (!session.complete_fusion(model))
-                {
-                    return false;
-                }
-                events = session.take_innovations();
-            }
-        }
-        return !session.fault();
-    }
-    bool run(unsigned count)
-    {
-        for (unsigned n = 0; n < count; ++n)
-        {
-            if (!tick())
-            {
-                return false;
-            }
-        }
-        return true;
-    }
-};
+using namespace ins_test;
 
 void phases(Context & test, std::string_view profile)
 {
     Fixture f;
-    test.expect(f.configured && f.session.initialization_valid(), profile,
-                "valid explicit profile configures before startup");
-    test.expect(f.run(100) && !f.session.initialized(), profile, "sample count alone cannot bypass GNSS qualification");
-    for (unsigned n = 0; n < 2900 && f.session.phase() == Session::Phase::idle; ++n)
-    {
-        if (!f.tick(false))
-        {
-            break;
-        }
-    }
-    test.expect(f.session.phase() == Session::Phase::initialization_model && f.session.model_request().required &&
-                    !f.session.initialized() && f.imu.time_us >= 11000000,
-                profile, "stationary startup requests external model only after readiness");
-    double yaw = 9;
-    test.expect(f.session.complete_initialization(f.model, yaw) && f.session.initialized() &&
-                    f.session.phase() == Session::Phase::initialization_seed && !f.session.output_predictor().ready() &&
-                    std::abs(yaw) < 1e-12,
-                profile, "alignment commits before the explicit history seed");
-    test.expect(f.session.seed_initialization(f.imu.time_us) && f.session.phase() == Session::Phase::idle &&
-                    f.session.output_predictor().current().time_us == f.session.fusion_time_us(),
-                profile, "fresh arrival seeds one common epoch");
+    test.expect(f.configured && f.session.startup_valid(), profile, "valid explicit profile configures before startup");
+    test.expect(f.tick() && f.session.initialized() && f.session.phase() == Session::Phase::idle &&
+                    !f.session.output_predictor().ready() &&
+                    f.session.output_predictor().current().time_us == f.session.fusion_time_us() &&
+                    !f.session.navigation_frame().initialized(),
+                profile, "one admitted stationary IMU seeds all histories without external navigation");
     test.expect(!f.session.configure_timing(ins_example::timing) && !f.session.configure_gravity(false) &&
                     !f.session.configure_magnetic({}) && !f.session.configure_sensor_positions({}),
                 profile, "configuration freezes after an admitted startup epoch");
@@ -183,12 +29,12 @@ void stationary(Context & test, std::string_view profile)
     Fixture f;
     test.expect(f.configured && f.session.height_aiding().barometer_warmup_samples() == 50, profile,
                 "effective 4 ms / 200 ms timing, independent of reserved 64-entry IMU capacity");
-    test.expect(f.configured && f.run(3500) && f.session.initialized(), profile, "complete standalone session runs");
+    test.expect(f.configured && f.run(8000) && f.session.initialized(), profile, "complete standalone session runs");
     auto const & s = f.session;
     test.expect(s.statistics().predictions > 500, profile, "scenario executes delayed prediction");
     test.expect(s.gnss_state().corrections > 0, profile, "scenario executes GNSS correction");
-    test.expect(s.gravity().samples > 0 && s.gravity().corrections == 0, profile,
-                "active horizontal GNSS aiding inhibits redundant gravity correction");
+    test.expect(s.gravity().samples > 0 && s.gravity().corrections > 0, profile,
+                "startup gravity refinement precedes horizontal GNSS aiding");
     test.expect(s.magnetic_state().corrections > 0, profile, "scenario executes magnetic correction");
     test.expect(s.statistics().baro_updates > 0, profile, "scenario executes barometer correction");
     test.expect(formal_eskf::linalg::max_abs(s.state().p_n) < 1e-5 &&
@@ -215,7 +61,7 @@ void stationary(Context & test, std::string_view profile)
 void admission(Context & test, std::string_view profile)
 {
     Fixture f;
-    test.expect(f.configured && f.run(3500), profile, "established delayed session");
+    test.expect(f.configured && f.run(8000), profile, "established delayed session");
     auto const before = f.session.covariance();
     auto const epoch = f.session.fusion_time_us();
     auto const rejected = f.session.statistics().arrival_rejections;
@@ -234,12 +80,12 @@ void admission(Context & test, std::string_view profile)
     auto const stopped = f.session.covariance();
     auto const current = f.session.output_predictor().current().time_us;
     auto const predictions = f.session.statistics().predictions;
-    f.session.process_imu(f.imu, f.imu.time_us, f.context, f.input);
+    f.session.process_imu(f.imu, f.imu.time_us, f.context);
     test.expect(f.session.fault() && same_bits(stopped, f.session.covariance()) &&
                     f.session.output_predictor().current().time_us == current,
                 profile, "duplicate IMU latches history fault before output or main prediction");
     f.imu.time_us += 4000;
-    f.session.process_imu(f.imu, f.imu.time_us, f.context, f.input);
+    f.session.process_imu(f.imu, f.imu.time_us, f.context);
     test.expect(f.session.statistics().predictions == predictions && !f.session.fusion_ready(), profile,
                 "later valid IMU does not clear the restart-required fault");
 }
@@ -248,7 +94,7 @@ void barometric_inputs(Context & test, std::string_view profile)
 {
     using Source = Session::height_type::Source;
     Fixture f;
-    test.expect(f.run(3000), profile, "initialize with an independently offset barometer");
+    test.expect(f.run(8000), profile, "initialize with an independently offset barometer");
     f.send_barometer = false;
     test.expect(f.run(80), profile, "drain already admitted delayed samples");
     auto const fused = f.session.height_aiding().session(Source::barometer).fused_time;
@@ -310,7 +156,7 @@ void optional_barometer(Context & test, std::string_view profile)
     Fixture<Runtime> f{parameters};
     f.send_barometer = false;
     f.input.barometer = {};
-    test.expect(f.configured && f.run(3000) && f.session.initialized() && !f.session.fault(), profile,
+    test.expect(f.configured && f.run(8000) && f.session.initialized() && !f.session.fault(), profile,
                 "disabled source is absent through real startup; invalid unused converter cannot block GNSS INS");
     test.expect(f.session.height_aiding().barometer_warmup_samples() == 0 &&
                     !f.session.height_aiding().session(Source::barometer).active &&
@@ -355,7 +201,7 @@ void barometric_receipt(Context & test, std::string_view profile)
 {
     using Source = Session::height_type::Source;
     Fixture f;
-    test.expect(f.run(3000), profile, "initialize the actual delayed pipeline");
+    test.expect(f.run(8000), profile, "initialize the actual delayed pipeline");
     auto const received = f.input.barometer.stamp.time_us; // This fixture admits on the same IMU endpoint.
     f.send_barometer = false;
     while (f.imu.time_us + 4000 < received + 400000)
@@ -375,11 +221,11 @@ void pressure_inputs(Context & test, std::string_view profile)
 {
     using Source = Session::height_type::Source;
     Fixture raw;
-    test.expect(raw.run(3000), profile, "bootstrap real delayed session");
+    test.expect(raw.run(8000), profile, "bootstrap real delayed session");
     raw.send_barometer = false;
     test.expect(raw.run(80), profile, "drain preceding barometer events");
     Fixture converted;
-    test.expect(converted.run(3000), profile, "independent reference session with the same admitted history");
+    test.expect(converted.run(8000), profile, "independent reference session with the same admitted history");
     converted.send_barometer = false;
     test.expect(converted.run(80), profile, "drain reference history");
     auto const stamp = Session::observation_history_type::SourceStamp{raw.imu.time_us, {401, 0}};
@@ -412,7 +258,7 @@ void pressure_boundary(Context & test, std::string_view profile)
     parameters.barometer_model.maximum_altitude_m = 10;
     Fixture f{parameters};
     f.input.barometer.altitude_m = 0;
-    test.expect(f.run(3000), profile, "narrow barometer model never narrows GNSS MSL height");
+    test.expect(f.run(8000), profile, "narrow barometer model never narrows GNSS MSL height");
     f.send_barometer = false;
     test.expect(f.run(80), profile, "drain old pressure-altitude data");
     Session::barometric_type converter;
@@ -440,10 +286,11 @@ void barometric_configuration(Context & test, std::string_view profile)
                 profile, "invalid model settings prevent startup instead of reaching unsupported power evaluation");
     Fixture f;
     f.input.barometer.altitude_m = 11001;
-    test.expect(f.run(3000) && !f.session.initialized() && !f.session.fault(), profile,
-                "invalid measurement blocks the existing strict startup without a core fault");
+    test.expect(f.run(8000) && f.session.initialized() && !f.session.fault(), profile,
+                "invalid optional barometer input cannot block IMU startup");
     f.input.barometer.altitude_m = 538;
-    test.expect(f.run(100) && f.session.initialized(), profile, "admitted input permits ordinary startup recovery");
+    test.expect(f.run(100) && f.session.initialized(), profile,
+                "admitted barometer input can recover without restarting the INS");
 }
 
 void projection(Context & test, std::string_view profile)

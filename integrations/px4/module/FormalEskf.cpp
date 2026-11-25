@@ -92,7 +92,7 @@ bool FormalEskf::load_startup_parameters()
         return false;
     }
     return m_session.configure_gravity(profile::gravity::enabled && gravity_enabled != 0) &&
-           m_session.initialization_valid() && load_magnetic_parameters() && load_sensor_positions();
+           m_session.startup_valid() && load_magnetic_parameters() && load_sensor_positions();
 }
 
 bool FormalEskf::init()
@@ -324,29 +324,7 @@ void FormalEskf::process_imu(ImuInput const & sample)
     }
     auto const errors = m_session.statistics().errors;
     bool const active = m_session.initialized();
-    session_type::StartupInput startup;
-    if (!active)
-    {
-        startup.gnss = decode_gnss(m_gps);
-        if constexpr (profile::height::barometer_enabled)
-        {
-            startup.barometer = decode_barometer(m_baro);
-        }
-        startup.magnetic = {m_mag.timestamp_sample, m_mag.device_id, m_mag.calibration_count,
-                            vector3(m_mag.magnetometer_ga[0], m_mag.magnetometer_ga[1], m_mag.magnetometer_ga[2])};
-        startup.horizontal_speed = std::hypot(m_gps.vel_n_m_s, m_gps.vel_e_m_s);
-        startup.vertical_speed = std::abs(m_gps.vel_d_m_s);
-    }
-    m_session.process_imu(sample, hrt_absolute_time(), {land_state(), vehicle_state()}, startup);
-    if (m_session.phase() == session_type::Phase::initialization_model)
-    {
-        auto const model = lookup_magnetic_model(m_session.model_request());
-        double yaw{};
-        if (m_session.complete_initialization(model, yaw) && m_session.seed_initialization(hrt_absolute_time()))
-        {
-            PX4_INFO("initialized from IMU + magnetometer + GNSS; yaw=%.2f deg, EKF2 replacement", math::degrees(yaw));
-        }
-    }
+    m_session.process_imu(sample, hrt_absolute_time(), {land_state(), vehicle_state()});
     if (active && m_session.output_healthy(hrt_absolute_time()))
     {
         publish_attitude(hrt_absolute_time());

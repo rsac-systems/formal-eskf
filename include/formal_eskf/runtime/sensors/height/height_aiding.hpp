@@ -118,11 +118,12 @@ public:
     using prediction_type = runtime::HeightPrediction<Linalg>;
     using Parameters = HeightParameters<value_type>;
 
-    /** Borrowed for one update only; both references use the same admitted height datum. */
+    /** Borrowed for one update. Without a datum, height is relative to the explicit ellipsoid anchor. */
     struct Geometry
     {
         geodesy::LocalNed<Linalg> const & frame;
         runtime::HeightDatum<Linalg> const & datum;
+        value_type relative_reference_ellipsoid_m = std::numeric_limits<value_type>::quiet_NaN();
     };
 
     enum class Source : std::uint8_t
@@ -165,7 +166,7 @@ public:
         fusion_type fusion{}; // Raw gate diagnostics.
         value_type fusion_innovation{};
         bool innovation_limited = false;
-        std::uint64_t sample_time{}, data_time{}, progress_time{}, fused_time{};
+        std::uint64_t sample_time{}, data_time{}, progress_time{}, fused_time{}, reset_time{};
         std::uint32_t device_id{};
         std::uint8_t calibration_count{};
         std::uint64_t generation{};
@@ -246,6 +247,44 @@ public:
         return {true, -aid.fusion_innovation, aid.fusion.innovation_variance(0U)};
     }
     Source reference() const { return m_reference; }
+    value_type origin_altitude() const { return m_origin_altitude; }
+
+    /** Relabel one physical point without adding measurement information.
+     * Shift only initialized source offsets; retain raw LPF data, variance,
+     * source identity and all real progress clocks. Failure preserves the owner.
+     */
+    [[nodiscard]] Status change_reference(value_type new_origin_altitude, value_type height_old, value_type height_new)
+    {
+        if (m_started == 0 || !valid_altitude(new_origin_altitude))
+        {
+            return Status::domain_error;
+        }
+        auto sessions = m_sessions;
+        for (auto & aid : sessions)
+        {
+            if (aid.sample_time == 0)
+            {
+                continue;
+            }
+            auto const status = transport_height_offset<typename Linalg::scalar_math_type>(
+                height_old, height_new, aid.bias.value, aid.bias.value);
+            if (!succeeded(status))
+            {
+                return status;
+            }
+        }
+        // Validate even when no source has been initialized.
+        value_type shift{};
+        auto const status =
+            transport_height_offset<typename Linalg::scalar_math_type>(height_old, height_new, 0, shift);
+        if (!succeeded(status))
+        {
+            return status;
+        }
+        m_sessions = sessions;
+        m_origin_altitude = new_origin_altitude;
+        return Status::success;
+    }
     std::uint64_t progress_time() const { return m_last_height_progress; }
     bool reset_required(std::uint64_t now_us,
                         runtime::GnssFusion::VerticalAccelerationTimes const & acceleration = {0U, 0U}) const
@@ -346,7 +385,15 @@ Status HeightAiding<Linalg>::height_prediction(state_type const & state, Geometr
     }
     if constexpr (std::numeric_limits<value_type>::digits == 53)
     {
-        return runtime::predict_height(state.p_n, geometry->frame, geometry->datum, output);
+        if (geometry->datum.initialized())
+        {
+            return runtime::predict_height(state.p_n, geometry->frame, geometry->datum, output);
+        }
+        if (std::isfinite(geometry->relative_reference_ellipsoid_m))
+        {
+            return runtime::predict_relative_height(state.p_n, geometry->frame,
+                                                    geometry->relative_reference_ellipsoid_m, output);
+        }
     }
     return Status::domain_error;
 }
@@ -434,7 +481,7 @@ void HeightAiding<Linalg>::reset_height(Source source, std::uint64_t now_us, val
     ++result.height_resets;
     m_last_height_progress = now_us;
     auto & aid = m_sessions[index(source)];
-    aid.progress_time = now_us;
+    aid.progress_time = aid.reset_time = now_us;
     aid.fusion_reset = true;
     result.diagnostics[index(source)].time_us = aid.sample_time;
     result.diagnostics[index(source)].reset = true;

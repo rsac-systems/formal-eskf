@@ -11,9 +11,11 @@ Unless stated otherwise, behavior below describes the default profile.
 
 `make menuconfig` exposes **Barometric height aiding** under PX4 features
 (`CONFIG_PX4_BAROMETER`, default enabled). Disabling it removes the air-data
-subscription, barometric admission and fusion, and the startup dependency on
-barometric altitude. The current INS still requires qualified GNSS and magnetic
-startup inputs. Common reserved session/history storage remains allocated.
+subscription, barometric admission and fusion. IMU-only seeding and real gravity
+refinement can provide tilt without GNSS or magnetic heading. Relative height,
+referenced heading and geographic navigation have independent qualification;
+full staged source-loss acceptance remains open. Common reserved session/history
+storage remains allocated.
 
 The supported target is **PX4 v1.16.2**, commit `54f0455ffcd755534539a7cf33a09a20bf71d29d`, on Linux with GCC 11 or newer and C++20. The dedicated `px4_sitl_formal_eskf` board replaces EKF2 with a single-instance formal-eskf INS using the PX4 matrix backend and double precision.
 
@@ -324,7 +326,7 @@ flowchart LR
 - Holds the previous IMU rate for small missing intervals; discontinuities beyond 50 ms and IMU identity/calibration changes latch a fault. Numerical failures also latch a fault. Restart is required for recovery.
 - Reserves a 60 KiB work-queue stack. The module disables fast-math, FMA contraction, exceptions and RTTI. Lockstep virtual-time performance counters do not measure wall-clock CPU cost.
 
-This is a single-sensor SITL POC with stationary startup and simulated sensor noise. It has no redundant sensors or wind, terrain and magnetic-bias states. Delayed fusion and current output prediction use the 250 Hz SIH timing profile; physical receiver delays require their own producer binding and qualification. Magnetic fusion retains a three-component observation with `ESKF_MAG_TILT=1` by default; it reports heading aiding, not 3D magnetic-state estimation. AUTO/3D switching and terrain-based in-flight realignment remain unconnected. See [the magnetic integration contract](../../docs/spec/requirements/integration/px4/magnetic-aiding.md#r-px4-magnetic-aiding-px4-module-magnetic-aiding). Heading variance uses the navigation-frame rotation proxy defined by [R-PX4-FRAME-OUTPUT](../../docs/spec/requirements/integration/px4/output-frames.md#r-px4-frame-output-geographic-and-rotation-variance-output-frames); it is not an exact Euler-yaw variance. Sensor failure checks cover flag withdrawal and recovery on the ground, not continued flight through sensor failures.
+This is a single-sensor SITL POC with low-dynamics IMU startup and simulated sensor noise. It has no redundant sensors or wind, terrain and magnetic-bias states. Delayed fusion and current output prediction use the 250 Hz SIH timing profile; physical receiver delays require their own producer binding and qualification. Magnetic fusion retains a three-component observation with `ESKF_MAG_TILT=1` by default; it reports heading aiding, not 3D magnetic-state estimation. AUTO/3D switching and terrain-based in-flight realignment remain unconnected. See [the magnetic integration contract](../../docs/spec/requirements/integration/px4/magnetic-aiding.md#r-px4-magnetic-aiding-px4-module-magnetic-aiding). Heading variance uses the navigation-frame rotation proxy defined by [R-PX4-FRAME-OUTPUT](../../docs/spec/requirements/integration/px4/output-frames.md#r-px4-frame-output-geographic-and-rotation-variance-output-frames); it is not an exact Euler-yaw variance. Sensor failure checks cover flag withdrawal and recovery on the ground, not continued flight through sensor failures.
 
 Detailed magnetic, gravity, height, GNSS and bias policies belong to the
 [requirements](../../docs/spec/README.md). The module uses its

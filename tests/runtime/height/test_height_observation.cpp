@@ -156,6 +156,16 @@ void geographic_height(Context & test, std::string_view)
                     std::abs(observation.innovation(0) + 1) <= height_tolerance,
                 "geographic", "same one metre Up measurement has negative Down innovation");
     auto const saved = prediction;
+    r::HeightPrediction<L> relative;
+    test.expect(r::predict_relative_height(point, frame, 1000., relative) == Status::success &&
+                    std::abs(relative.altitude - 20.) <= height_tolerance &&
+                    f::linalg::max_abs(relative.H - saved.H) <= row_tolerance,
+                "geographic", "ellipsoid-relative height uses the same physical Down row without inventing MSL");
+    auto const relative_saved = relative;
+    test.expect(r::predict_relative_height(point, frame, double(NAN), relative) == Status::non_finite_input &&
+                    relative.altitude == relative_saved.altitude &&
+                    f::linalg::max_abs(relative.H - relative_saved.H) == 0,
+                "geographic", "invalid relative anchor preserves the complete preparation");
     r::HeightDatum<L> missing;
     test.expect(r::predict_height(point, frame, missing, prediction) == Status::domain_error &&
                     prediction.altitude == saved.altitude && f::linalg::max_abs(prediction.H - saved.H) == 0,

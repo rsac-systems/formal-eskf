@@ -69,6 +69,10 @@ struct InsSettings
         double trigger_angle_rad{};
         double trigger_distance_m{};
     } origin{};
+    struct Aiding
+    {
+        std::uint64_t current_age_us{}, maximum_age_us{};
+    } aiding{};
     struct Output
     {
         double attitude_reset_resolution{};

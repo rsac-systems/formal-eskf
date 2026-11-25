@@ -67,7 +67,7 @@ private:
     using quaternion_type = session_type::quaternion_type;
     using magnetic_lifecycle_type = session_type::magnetic_lifecycle_type;
     using magnetic_model_type = session_type::magnetic_model_type;
-    using initialization_type = session_type::initialization_type;
+    using startup_type = session_type::startup_type;
     using ImuSource = session_type::ImuSource;
     using ImuInput = session_type::ImuInput;
     using imu_history_type = session_type::imu_history_type;

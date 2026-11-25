@@ -6,8 +6,8 @@
 filters, complete local seed and real pre-alignment correction. Session/history atomicity, source admission and
 real refinement remain in the [staged acceptance plan](../../staged-ins-tests.md).
 
-**Level / purpose:** Unit tests of the startup numerical owner. These bindings
-do not yet establish a sensor-independent cold start through InsSession or PX4.
+**Level / purpose:** Unit tests of the startup numerical owner. The [session bindings](ins-staged.md) and separate PX4 acceptance cover caller
+composition; these component cases alone do not.
 
 **Profiles:** Binary64 on enabled backends, using the
 [staged seed profile](../../../profiles/staged-ins.md#seed-and-gravity-settings).
@@ -45,6 +45,6 @@ Counts, readiness, zero priors and retained outputs use exact comparisons.
 owns frozen settings, filtered rates, eligibility and candidate state/P seeding.
 The session must clear collection on source replacement, reject clipped/invalid
 chronology and commit required histories before exposing an initialized estimate.
-The existing strict bootstrap is retained until its production replacement and
-caller tests are complete. These cases do not validate that migration, 60-second
-convergence, arbitrary motion, whole-session rollback or formal refinement.
+The session uses the staged bootstrap; these component cases alone do not validate
+that migration, 60-second convergence, arbitrary motion, whole-session rollback
+or formal refinement.

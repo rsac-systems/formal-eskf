@@ -8,10 +8,10 @@ and the [C++ subset](../requirements/common/cpp-subset.md) constrain dependencie
 and implementation. Implementation status belongs
 to [A-01](../../roadmap.md#a-01--portable-navigation-runtime).
 
-The first profile preserves existing binary64 geographic INS behavior, including
-the PX4 250 Hz timing and strict startup. Core equations, numerical choices and
-AHRS APIs remain unchanged. New rate modes, staged startup, stationary updates,
-strict continuous odometry and legacy replay migration require separate work.
+The binary64 INS session retains PX4 250 Hz timing, core equations, numerical
+choices and separate AHRS APIs. Startup now follows the staged contract below.
+New rate modes, stationary updates, strict continuous odometry and legacy replay
+migration remain separately scoped.
 
 The [staged INS target](../profiles/staged-ins.md) allocates that startup and
 degradation work to [R-INS-STARTUP](../requirements/runtime/ins-startup.md) and
@@ -20,7 +20,8 @@ one full INS and existing phase ownership. It separates output admission from
 state dimension, geographic admission and source lifecycle. An attitude-only
 output path uses current quaternion/history without requiring position geometry;
 frame attachment coordinates the affected owners when geographic prerequisites
-become available. This is a Draft target, not implemented extraction behavior.
+become available. Staged seed, independent output admission and first attachment are implemented;
+numerical continuity and complete qualification remain explicit A-03 work.
 
 [R-INS-CONTINUITY](../requirements/runtime/ins-continuity.md) allocates the staged
 source-loss policy to the session: real-aiding clocks and bias permissions precede
@@ -86,7 +87,8 @@ allocation does not require a new class or wrapper per responsibility.
 The [barometric target profile](../profiles/barometric-height.md) extends existing
 height aiding. Conversion/admission, shared observation preparation, derived
 warmup/receipt tracking and optional geographic-session fusion are implemented.
-Relative startup and first geographic attachment remain staged-INS dependencies.
+Relative startup and first geographic attachment compose through staged INS;
+their remaining acceptance partitions belong to A-03.
 These changes do not alter core state,
 prediction, Joseph correction or quaternion conventions. Requirements are
 [R-BAROMETRIC-ALTITUDE](../requirements/runtime/barometric-altitude.md) and
@@ -231,7 +233,7 @@ existing individual commit boundaries. Diagnostics are copied after a bounded
 phase; concurrent readers synchronize in their adapter, not inside the runtime.
 
 The [ordered session contract](../requirements/runtime/ins-session.md) owns the
-startup/model/seed and current/fusion/model/completion phase protocol. The public
+IMU seed and current/fusion/model/completion phase protocol. The public
 [session header](../../../include/formal_eskf/runtime/session/ins_session.hpp)
 includes grouped template definition headers; callers include the public header.
 Take raw innovation events after each completed phase; the PX4 adapter applies its
@@ -267,4 +269,5 @@ For the staged target, verify seed, capability decisions, numerical algebra,
 first attachment and actual PX4 consumer behavior separately, then compose their
 evidence. Initial development-test targets do not establish arbitrary-dynamics
 accuracy or an unrestricted attitude-only mission duration. The staged profile
-is a Draft design baseline; existing source/proofs still describe strict startup.
+remains Draft. Existing strict-startup source proofs are not evidence for the
+new startup and attachment compositions.

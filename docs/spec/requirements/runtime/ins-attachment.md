@@ -5,7 +5,7 @@
 **Status:** Draft
 
 **Applies to:** Staged binary64 Cartesian INS with a seeded local-level frame
-that has no geographic origin. This is target behavior, not an existing API.
+that has no geographic origin. The staged test matrix identifies current bindings and remaining composition acceptance.
 
 **Parent:** [SW-NAV](../software/navigation-runtime.md).
 
@@ -98,7 +98,11 @@ If local Z was already valid, a pure reference change shall preserve it. At the
 attachment anchor, the publication reference obeys
 `ref_alt_msl = H_anchor + z_previous`, with Down-positive local Z. This is an
 output-reference offset, not a second state or the working ellipsoid origin's
-height. A genuine height correction remains a separate reset; the reference
+height. If an MSL estimate already exists, use the GNSS anchor expressed in those old
+height coordinates: the estimated vehicle need not have zero Down after attachment.
+Preserve its estimated MSL and the fixed publication reference. A raw GNSS height
+difference must not be hidden by moving that reference.
+A genuine height correction remains a separate reset; the reference
 shall not be adjusted to hide that correction. Previously unavailable XY may
 acquire its first geographic reference without claiming prior physical accuracy.
 Later ordinary rebases retain the fixed publication reference contract.

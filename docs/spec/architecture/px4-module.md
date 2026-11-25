@@ -21,8 +21,9 @@ the [verification requirements](../README.md).
 The [timing profile](../profiles/px4-sih-250hz.md) defines the implemented source
 bindings and capacities. Its proposed target execution budgets remain unqualified.
 
-The [staged INS target](../profiles/staged-ins.md) is a separate Draft behavior
-allocation, not the current strict-startup implementation. It retains this
+The [staged INS target](../profiles/staged-ins.md) remains a Draft behavior
+allocation. Its IMU seed, partial publication and first attachment are integrated;
+numerical continuity and complete qualification remain open. It retains this
 execution/resource architecture while changing startup and independent output
 admission under the [portable owner inventory](navigation-runtime.md#staged-service-allocation).
 The adapter maps capabilities/resets to existing topics; Commander owns mode

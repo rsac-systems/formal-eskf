@@ -22,8 +22,8 @@ retaining original sample/arrival times, source identity/calibration and quality
 metadata. Queueing shall not establish quality or fusion success. Transport
 loss remains a separate adapter diagnostic.
 
-Transfer strict-startup source watermarks and land/vehicle context at the common
-seed epoch. Record context once per admitted real IMU endpoint with original
+Seed land/vehicle context at the common IMU seed epoch. An IMU-only seed
+consumes no aiding samples and shall not fabricate their source watermarks. Record context once per admitted real IMU endpoint with original
 message times and known flags; held gaps are not new evidence. This endpoint
 snapshot design differs from PX4's system-flag event buffer.
 

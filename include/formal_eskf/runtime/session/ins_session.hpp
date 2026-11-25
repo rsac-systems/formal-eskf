@@ -6,7 +6,8 @@
 #include <type_traits>
 #include <formal_eskf/eskf/eskf.hpp>
 #include <formal_eskf/runtime/session/ins_settings.hpp>
-#include <formal_eskf/runtime/session/ins_initialization.hpp>
+#include <formal_eskf/runtime/session/ins_startup.hpp>
+#include <formal_eskf/runtime/session/ins_capabilities.hpp>
 #include <formal_eskf/runtime/session/output_predictor.hpp>
 #include <formal_eskf/runtime/history/observation_history.hpp>
 #include <formal_eskf/runtime/sensors/height/height_aiding.hpp>
@@ -56,7 +57,7 @@ public:
     using magnetic_lifecycle_type = formal_eskf::runtime::MagnetometerFusion;
     using magnetic_model_type = formal_eskf::runtime::MagneticModel<backend_type>;
 
-    using initialization_type = formal_eskf::runtime::InsInitialization<backend_type>;
+    using startup_type = formal_eskf::runtime::InsStartup<backend_type>;
 
     using ImuSource = formal_eskf::runtime::ImuSource;
     using ImuInput = formal_eskf::runtime::ImuInput<backend_type>;
@@ -71,6 +72,7 @@ public:
         projection_type projection{0};
         std::uint64_t time_us{};
         double altitude_msl_m{};
+        double height_ellipsoid_m = NAN;
     };
 
     struct Gnss
@@ -85,7 +87,7 @@ public:
         gnss_lifecycle_type lifecycle{};
         gnss_lifecycle_type::Sample sample{};
         typename vertical_health_type::Innovation vertical_innovation{};
-        double previous_altitude{};
+        double previous_altitude{}, previous_ellipsoid_altitude{};
         std::uint32_t device_id{};
         std::uint64_t sample_time_us{};
         bool metadata_valid{};
@@ -133,8 +135,9 @@ public:
         vector3_type position_n{}, velocity_n{};
         quaternion_type q_nb{};
         matrix3_type rotation{}; // Working NED to geographic NED at this output point.
-        formal_eskf::geodesy::GeodeticPosition geographic{};
-        double altitude_msl_m{};
+        formal_eskf::geodesy::GeodeticPosition geographic{NAN, NAN, NAN};
+        double altitude_msl_m = NAN;
+        bool geographic_available{}, msl_available{};
     };
 
     struct Gravity
@@ -181,6 +184,7 @@ public:
 
     struct OutputValidity
     {
+        InsCapabilities capabilities{};
         bool healthy{}, navigation{}, gps_position{}, gps_velocity{}, gps{}, gps_height{};
         bool magnetic{}, magnetic_aiding{}, barometer{};
         bool height{}, vertical_velocity{}, dead_reckoning{};
@@ -196,6 +200,8 @@ public:
     {
         formal_eskf::geodesy::LocalNed<backend_type> datum_frame{};
         std::uint64_t attempt_time_us{}, success_time_us{};
+        matrix3_type output_axes = matrix3_type::identity();
+        double relative_height_ellipsoid_m = NAN;
     };
 
     struct OutputReset
@@ -228,7 +234,7 @@ public:
     {
         InsSettings settings{};
         typename types_type::parameter_type estimator{};
-        typename initialization_type::Parameters initialization{};
+        typename startup_type::Parameters startup{};
         ObservationTiming observation_timing{};
         OutputParameters output{};
         typename height_type::Parameters height{};
@@ -244,13 +250,6 @@ public:
         typename observation_history_type::LandState land{};
         typename observation_history_type::VehicleState vehicle{};
     };
-    struct StartupInput
-    {
-        typename observation_history_type::GnssSample gnss{};
-        typename observation_history_type::BarometerSample barometer{};
-        typename initialization_type::MagneticSample magnetic{};
-        float horizontal_speed{}, vertical_speed{};
-    };
     struct ModelRequest
     {
         bool required{};
@@ -260,8 +259,6 @@ public:
     enum class Phase
     {
         idle,
-        initialization_model,
-        initialization_seed,
         magnetic_model,
         fusion_completion
     };
@@ -303,13 +300,9 @@ public:
     [[nodiscard]] bool configure_gravity(bool enabled);
     [[nodiscard]] bool configure_magnetic(typename magnetic_model_type::Settings const & settings);
     [[nodiscard]] bool configure_sensor_positions(SensorPositions const & positions);
-    [[nodiscard]] bool initialization_valid() const { return m_initialization.valid(); }
+    [[nodiscard]] bool startup_valid() const { return m_startup.valid(); }
     // One writer supplies coherent snapshots; complete a pending phase before admitting another IMU.
-    void process_imu(ImuInput const & sample, std::uint64_t arrival_us, ContextInput const & context,
-                     StartupInput const & startup);
-    [[nodiscard]] bool complete_initialization(std::optional<typename magnetic_model_type::sample_type> const & model,
-                                               double & yaw);
-    [[nodiscard]] bool seed_initialization(std::uint64_t arrival_us);
+    void process_imu(ImuInput const & sample, std::uint64_t arrival_us, ContextInput const & context);
     void receive_gnss(typename observation_history_type::GnssSample const & sample, std::uint64_t arrival_us);
     void receive_magnetic(typename observation_history_type::MagneticSample const & sample, std::uint64_t arrival_us);
     void receive_barometer(typename observation_history_type::BarometerSample const & sample, std::uint64_t arrival_us);
@@ -338,6 +331,7 @@ public:
     OriginControl const & origin_control() const { return m_origin_control; }
     std::uint64_t fusion_time_us() const { return m_time_us; }
     bool initialized() const { return m_initialized; }
+    InsCapabilities capabilities(std::uint64_t now_us) const;
     ResetReport const & resets() const { return m_resets; }
     height_type const & height_aiding() const { return m_height_aiding; }
     GroundEffect const & ground_effect() const { return m_ground_effect; }
@@ -360,10 +354,18 @@ public:
     vector3_type rotation_variance_n() const;
     bool magnetic_heading_valid() const;
     GeographicFrame geographic_frame(vector3_type const & position) const;
+    static GeographicFrame geographic_frame(vector3_type const & position,
+                                            geodesy::LocalNed<backend_type> const & working);
     GeographicFrame delayed_body_frame() const;
+    NavigationVariance navigation_variances() const;
+    vector3_type navigation_variance(std::size_t start, matrix3_type const & rotation) const;
     vector3_type navigation_variance(std::size_t start, GeographicFrame const & frame) const;
     BodyOutput body_output(vector3_type const & position, vector3_type const & velocity,
                            quaternion_type const & attitude, vector3_type const & angular_rate) const;
+    BodyOutput geographic_output(vector3_type const & position, vector3_type const & velocity,
+                                 quaternion_type const & attitude, vector3_type const & angular_rate,
+                                 geodesy::LocalNed<backend_type> const & working,
+                                 HeightDatum<backend_type> const & datum, NavigationOrigin const & origin) const;
     bool output_healthy(std::uint64_t now) const;
     OutputValidity output_validity(std::uint64_t now) const;
 
@@ -383,7 +385,7 @@ private:
     typename observation_history_type::Context startup_context(std::uint64_t epoch, std::uint64_t maximum_age) const;
     bool accept_imu(ImuInput const & sample, std::uint64_t arrival_us);
     void predict_and_fuse(typename imu_history_type::interval_type const & interval);
-    bool initialize_navigation(imu_type const & imu);
+    bool attach_navigation();
     void prepare_magnetic_model();
     void apply_magnetic_model(std::optional<typename magnetic_model_type::sample_type> const & model);
     void begin_magnetic();
@@ -395,6 +397,8 @@ private:
     void select_observations();
     bool reset_output(quaternion_type const & delta_q, vector3_type const & delta_v, vector3_type const & delta_p,
                       OutputReset request = {false, false, false, false, 0});
+    void record_output_reset(BodyOutput const & before, BodyOutput const & after, OutputReset request,
+                             bool current_output = true);
     bool update_imu_bias(ImuInput const & sample, imu_type const & imu);
     bool update_imu_health(std::uint8_t accelerometer_clipping);
     bool record_gps_fusion(gnss_lifecycle_type::Group group, formal_eskf::runtime::FusionDecision decision,
@@ -412,7 +416,6 @@ private:
     void update_ground_effect();
     void fuse_height(ObservationReceipt const & barometer_receipt);
     void fuse_gravity(ImuInput const & sample, imu_type const & imu);
-    void initialize_magnetic_aiding(magnetic_lifecycle_type::Source const & source, std::uint64_t sample_time_us);
     magnetic_lifecycle_type::Conditions magnetic_conditions() const;
     MagneticSample consume_magnetic_sample();
     status_type prepare_magnetic_observation(MagneticSample const & sample,
@@ -421,6 +424,9 @@ private:
     bool fuse_magnetic_observation(MagneticSample const & sample);
     status_type reset_magnetic_heading(std::uint64_t sample_time_us);
     static double frame_angle(matrix3_type const & A);
+    matrix3_type delayed_output_axes() const;
+    bool output_frame_supported(vector3_type const & position, geodesy::GeodeticPosition const & geographic,
+                                matrix3_type const & rotation) const;
     status_type gnss_frame(formal_eskf::geodesy::NedTransform<backend_type> & transform) const;
     vector3_type magnetic_reference(vector3_type const & fixed) const;
     bool update_height_datum(std::uint64_t time_us, formal_eskf::geodesy::GeodeticPosition const & position,
@@ -432,7 +438,7 @@ private:
     state_type m_state{};
     covariance_type m_covariance{};
     typename types_type::parameter_type m_parameters;
-    initialization_type m_initialization;
+    startup_type m_startup;
     imu_history_type m_imu_history{};
     observation_history_type m_observations;
     output_predictor_type m_output;
@@ -445,6 +451,10 @@ private:
     SensorPositions m_sensor_positions{};
     std::uint64_t m_time_us{};
     bool m_initialized{}, m_fault{};
+    bool m_msl_initialized{};
+    std::uint64_t m_seed_time_us{};
+    std::uint32_t m_heading_reference_id{};
+    InsCapabilities::HeadingReference m_heading_reference = InsCapabilities::HeadingReference::relative;
     ResetReport m_resets{};
     height_type m_height_aiding;
     barometric_type m_barometric{};
@@ -471,9 +481,7 @@ private:
     ContextInput m_context{};
     Phase m_phase = Phase::idle;
     ModelRequest m_model_request{};
-    ImuInput m_startup_imu{};
-    typename initialization_type::Tilt m_startup_tilt{};
-    typename observation_history_type::SourceStamp m_startup_magnetic{};
+    ImuSource m_collection_source{};
     MagneticSample m_pending_magnetic{};
     magnetic_lifecycle_type::Conditions m_pending_conditions{};
     bool m_pending_position_valid{}, m_pending_origin_updated{};
@@ -485,3 +493,5 @@ private:
 #include <formal_eskf/runtime/session/ins_session_attitude.hpp>
 #include <formal_eskf/runtime/session/ins_session_frames.hpp>
 #include <formal_eskf/runtime/session/ins_session_steps.hpp>
+
+#include <formal_eskf/runtime/session/ins_session_capabilities.hpp>
