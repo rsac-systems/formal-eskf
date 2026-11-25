@@ -231,6 +231,7 @@ remain empty: these two additional review units are proof gaps, not verified cla
 - Planned staged service: [runtime test specification](verification/staged-ins-tests.md) and [PX4 consumer acceptance](verification/px4-staged-ins-tests.md), with Pending executable bindings.
 - Planned barometric height: [conversion, runtime and PX4 test specification](verification/barometric-height-tests.md), with Pending executable bindings.
 - Planned sensor input: [reset, input/history and caller test specification](verification/sensor-input-tests.md), with Pending executable bindings and physical/resource qualification.
+- Planned diagnostics: [owner evidence, snapshots and PX4 reporting tests](verification/diagnostic-reporting-tests.md), with Pending bindings and reused staged consumer cases.
 - [C++ Function Inventory and Review Boundary](verification/source-inventory.md).
 - [C++ Static Analysis Policy](verification/static-analysis.md).
 

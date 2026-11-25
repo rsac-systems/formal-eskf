@@ -150,8 +150,9 @@ committed its state/P. It shall not inherit the pinned
 [gravity path's unconditional fused assignment](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/aid_sources/gravity/gravity_fusion.cpp#L108).
 PX4's reset helpers also mark aid records fused; the portable report shall retain
 reset as a separate action. Any external aid-field mapping shall distinguish
-correction and reset provenance and shall not increment correction totals or
-clocks merely to mimic such a wire flag. Existing reset notifications/history
+correction and reset provenance through the portable action and existing reset
+notifications, without inventing a wire field. It shall not increment correction
+totals or clocks merely to mimic such a wire flag. Existing reset notifications/history
 clearing remain unchanged. No full source-by-source numerical equivalence is
 claimed, including sequential magnetic versus batch/projected correction.
 
@@ -176,6 +177,8 @@ counts detected gaps. Do not relabel either as the other.
 
 ### Reporting acceptance
 
+The [diagnostic test specification](../../../verification/diagnostic-reporting-tests.md#px4-and-target-cases)
+allocates new reporting cases separately from the existing staged consumers.
 Test production owner-to-snapshot-to-message paths with distinct sample,
 selection, filter and publication times, skipped evaluation, source replacement,
 outliers, numerical failure, timeout/recovery and counter wrap. Vary reader and

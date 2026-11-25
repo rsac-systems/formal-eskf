@@ -171,6 +171,8 @@ state transition is implied by completed-update mask comparison.
 
 ## Acceptance and verification
 
+The [diagnostic test specification](../../verification/diagnostic-reporting-tests.md)
+allocates the required partitions with Pending executable bindings.
 Use independent event/clock schedules and owner-contract expectations for normal,
 rejected, failed, expired and recovered sequences. Check exact reasons, epochs,
 source/frame identity and count deltas, including wrap boundaries. Compare runs
