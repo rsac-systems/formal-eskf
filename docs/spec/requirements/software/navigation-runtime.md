@@ -24,10 +24,11 @@ domains and evidence. The PX4 adapter keeps its platform-specific contracts.
 
 The [staged INS target](../../profiles/staged-ins.md) shall provide independently
 qualified outputs under R-INS-CAPABILITIES without changing INS state dimension.
-R-INS-STARTUP owns its initialization; R-INS-INITIALIZATION owns only the existing
-strict baseline. These are distinct applicability scopes, not simultaneous
-startup requirements. Existing strict-profile evidence shall not be used to
-claim staged startup or sustained attitude-only service.
+R-INS-STARTUP owns the deployed session initialization. R-INS-INITIALIZATION
+retains the standalone strict-startup component contract; it is not a second
+startup path in this session. These are distinct applicability scopes, not
+simultaneous startup requirements. Existing strict-profile evidence shall not
+be used to claim staged startup or sustained attitude-only service.
 
 The session shall own exactly one main nominal state/covariance and compose the
 bounded input histories, source policies, current output predictor, geographic
@@ -49,9 +50,11 @@ the selected observation's context and the configured order. Only successful
 stages shall advance their corresponding committed state/epoch. Missing IMU shall
 not manufacture propagation; wall-time expiry is distinct from state progress.
 
-The existing strict profile shall retain its initialization, qualification, gap,
-source-switch, failure, feedback and reset rules. Failed numerical/history stages
-shall retain their specified frames and latch the required fault. Earlier
+The startup migration shall preserve the existing qualification, gap, source-
+switch, failure, feedback and reset rules unless an applicable child explicitly
+replaces them. The standalone strict-startup component retains its own contract.
+Failed numerical/history stages shall retain their specified frames and latch
+the required fault. Earlier
 successful stages and platform publications shall not be represented as rolled
 back by a later failure. Coordinate migration shall prepare all affected owners
 before committing a coherent event. Pure representation changes shall not be
@@ -74,8 +77,9 @@ is not implemented or verified by the existing strict-profile evidence.
 
 The diagnostic-reporting target shall expose owner facts under
 [R-INS-DIAGNOSTICS](../runtime/diagnostics.md) without changing source policy or
-numerical updates. Strict and staged service retain their own capability rules;
-reporting cannot implement or qualify a missing staged capability.
+numerical updates. Reporting shall retain the staged capability rules; diagnostics
+cannot implement or qualify a missing capability. Historical strict-profile evidence remains
+limited to its original applicability.
 
 ## Decomposition
 

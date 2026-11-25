@@ -8448,7 +8448,7 @@
     },
     {
       "id": "R-INS-STARTUP",
-      "title": "Staged IMU-only startup, history seed and pre-alignment gravity: native session/physical-fixture bindings; remaining acceptance partitions and formal evidence pending",
+      "title": "IMU-only startup, complete priors, required-history failure boundaries and real pre-alignment gravity; finite native truth fixtures, broader physical and formal qualification deferred",
       "references": {
         "spec": [
           {
@@ -8576,7 +8576,7 @@
     },
     {
       "id": "R-INS-ATTACHMENT",
-      "title": "First local-to-geographic attachment, relative/MSL preservation and native transaction subsets; complete history/consumer and formal acceptance pending",
+      "title": "First geographic attachment with full-P gauge transport, once-only reference information, retained history and later rebasing; native finite fixtures, formal and deployment qualification deferred",
       "references": {
         "spec": [
           {

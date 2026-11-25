@@ -337,27 +337,27 @@ public:
         Context context{vehicle};
         EstimatorChecks estimator;
         ModeChecks modes;
-        auto verify_modes = [&](bool attitude_valid)
+        failsafe_flags_s flags{};
+        mode_util::getModeRequirements(vehicle.vehicle_type, flags);
+        auto verify_modes = [&](bool attitude_valid, bool height_valid, bool position_valid)
         {
-            failsafe_flags_s flags{};
-            mode_util::getModeRequirements(vehicle.vehicle_type, flags);
             Report report{flags};
             estimator.checkAndReport(context, report);
             modes.checkAndReport(context, report);
             auto const allowed = static_cast<std::uint32_t>(report.armingCheckResults().can_run);
-            expect(flags.attitude_invalid != attitude_valid && flags.local_position_invalid &&
-                       flags.local_altitude_invalid,
-                   "actual EstimatorChecks distinguishes tilt from navigation");
+            expect(flags.attitude_invalid != attitude_valid && flags.local_position_invalid != position_valid &&
+                       flags.local_altitude_invalid != height_valid,
+                   "actual EstimatorChecks independently admits tilt, altitude and positioning");
             expect(((allowed & (1U << vehicle_status_s::NAVIGATION_STATE_STAB)) != 0) == attitude_valid &&
-                       (allowed & (1U << vehicle_status_s::NAVIGATION_STATE_POSCTL)) == 0 &&
-                       (allowed & (1U << vehicle_status_s::NAVIGATION_STATE_ALTCTL)) == 0,
-                   "actual ModeChecks permits supported stabilized mode and rejects unsupported navigation");
+                       ((allowed & (1U << vehicle_status_s::NAVIGATION_STATE_POSCTL)) != 0) == position_valid &&
+                       ((allowed & (1U << vehicle_status_s::NAVIGATION_STATE_ALTCTL)) != 0) == height_valid,
+                   "actual ModeChecks permits only the modes supported by real staged capabilities");
         };
         uORB::Publication<vehicle_angular_velocity_s> angular_pub{ORB_ID(vehicle_angular_velocity)};
         vehicle_angular_velocity_s angular{};
         angular.timestamp = angular.timestamp_sample = clock_us;
         angular_pub.publish(angular); // Independent sensors-module output, not an ESKF health override.
-        verify_modes(true);
+        verify_modes(true, false, false);
 
         // Expose the inherited virtual dispatch only, without changing upstream
         // implementation/access or duplicating its control law.
@@ -430,8 +430,38 @@ public:
         }
         expect(test.m_filter.m_session.resets().attitude_count == reset_count + 1 && reset_publications == 1,
                "real magnetic acquisition delivers one reset to the unchanged attitude consumer");
+        auto advance = [&](unsigned count)
+        {
+            for (unsigned i = 0; i < count; ++i)
+            {
+                test.m_sample.timestamp_sample += 4000;
+                test.tick();
+                angular.timestamp = angular.timestamp_sample = clock_us;
+                angular_pub.publish(angular);
+            }
+        };
+        test.m_send_barometer = true;
+        advance(3000);
+        verify_modes(true, true, false);
+        auto const relative = test.m_filter.m_session.capabilities(clock_us);
+        expect(relative.vertical_position.available && !relative.vertical_velocity.available &&
+                   !relative.msl_altitude.available,
+               "relative barometer permits PX4 altitude support without fabricated velocity or MSL");
+        test.m_send_gps = true;
+        advance(15000);
+        verify_modes(true, true, true);
+        expect(test.m_filter.m_session.capabilities(clock_us).global_position.available,
+               "genuine qualified GNSS and heading attach full navigation without estimator restart");
+        test.m_send_gps = test.m_send_magnetic = false;
+        advance(3000);
+        verify_modes(true, true, false);
+        expect(!test.m_filter.m_session.capabilities(clock_us).heading.available,
+               "loss of referenced heading and GNSS preserves tilt and independent barometric altitude");
+        test.m_send_gps = test.m_send_magnetic = true;
+        advance(15000);
+        verify_modes(true, true, true);
         clock_us += 1000001;
-        verify_modes(false);
+        verify_modes(false, false, false);
         param_set_no_notification(mode, &saved);
     }
 
@@ -449,6 +479,198 @@ public:
         auto const cap = test.m_filter.m_session.capabilities(clock_us);
         expect(cap.attitude.available && !cap.heading.available && !cap.geographic_attached,
                "weak near-pole model cannot manufacture heading or a geographic attachment");
+    }
+
+    static void staged_attachment_failure()
+    {
+        enum class Participant
+        {
+            geometry,
+            covariance,
+            height,
+            history_epoch,
+            output_geometry
+        };
+        for (auto participant : {Participant::geometry, Participant::covariance, Participant::height,
+                                 Participant::history_epoch, Participant::output_geometry})
+        {
+            InsSessionTest test;
+            test.warmup();
+            auto & filter = test.m_filter;
+            auto & session = filter.m_session;
+            for (unsigned attempt = 0; attempt < 30 && session.m_gnss.sample.time_us == 0; ++attempt)
+            {
+                test.m_sample.timestamp_sample += 4000;
+                test.tick();
+            }
+            // Explicit transaction fixture: retain genuinely qualified source
+            // owners/history, but remove the geographic attachment. Cold-start
+            // composition is exercised separately through ordinary Run() calls.
+            session.m_navigation_frame = {};
+            uORB::Subscription attitude_sub{ORB_ID(vehicle_attitude)}, local_sub{ORB_ID(vehicle_local_position)},
+                global_sub{ORB_ID(vehicle_global_position)}, odometry_sub{ORB_ID(vehicle_odometry)};
+            auto publish_current = [&]
+            {
+                filter.m_last_output = 0; // Compare publications at the same sample epoch.
+                filter.publish_attitude(clock_us);
+                filter.publish({});
+                filter.publish_status(clock_us);
+            };
+            publish_current();
+            vehicle_attitude_s attitude{};
+            vehicle_local_position_s local{};
+            vehicle_global_position_s global{};
+            vehicle_odometry_s odometry{};
+            expect(attitude_sub.copy(&attitude) && local_sub.copy(&local) && global_sub.copy(&global) &&
+                       odometry_sub.copy(&odometry),
+                   "snapshot real publications before first-attachment fault injection");
+            auto const state = session.m_state;
+            auto const P = session.m_covariance;
+            auto const height = session.m_height_aiding;
+            auto const time = session.m_time_us;
+            auto const latitude = session.m_gnss.input.sample.latitude_deg;
+            auto const sensors = session.m_sensor_positions;
+            switch (participant)
+            {
+            case Participant::geometry:
+                session.m_gnss.input.sample.latitude_deg = 100;
+                break;
+            case Participant::covariance:
+                session.m_covariance(0, 1) = NAN;
+                break;
+            case Participant::height:
+                session.m_height_aiding =
+                    FormalEskf::height_type{formal_eskf::px4::profile::height_parameters<FormalEskf::height_type>()};
+                break;
+            case Participant::history_epoch:
+                ++session.m_time_us;
+                break;
+            case Participant::output_geometry:
+                session.m_sensor_positions.imu_b(0) = 1e300;
+                break;
+            }
+            auto const injected_P = session.m_covariance;
+            expect(!session.attach_navigation() && !session.m_navigation_frame.initialized() &&
+                       same_bits(session.m_state.p_n, state.p_n) &&
+                       same_bits(session.m_state.q_nb.coefficients(), state.q_nb.coefficients()) &&
+                       same_bits(session.m_covariance, injected_P),
+                   "failed attachment participant commits neither geographic state nor covariance");
+            // Remove only the injected fault; retain the actual post-attempt
+            // state, history, references and reset notifications for comparison.
+            switch (participant)
+            {
+            case Participant::geometry:
+                session.m_gnss.input.sample.latitude_deg = latitude;
+                break;
+            case Participant::covariance:
+                session.m_covariance = P;
+                break;
+            case Participant::height:
+                session.m_height_aiding = height;
+                break;
+            case Participant::history_epoch:
+                session.m_time_us = time;
+                break;
+            case Participant::output_geometry:
+                session.m_sensor_positions = sensors;
+                break;
+            }
+            publish_current();
+            vehicle_attitude_s after_attitude{};
+            vehicle_local_position_s after_local{};
+            vehicle_global_position_s after_global{};
+            vehicle_odometry_s after_odometry{};
+            expect(attitude_sub.copy(&after_attitude) && local_sub.copy(&after_local) &&
+                       global_sub.copy(&after_global) && odometry_sub.copy(&after_odometry) &&
+                       std::memcmp(&attitude, &after_attitude, (ORB_ID(vehicle_attitude))->o_size_no_padding) == 0 &&
+                       std::memcmp(&local, &after_local, (ORB_ID(vehicle_local_position))->o_size_no_padding) == 0 &&
+                       std::memcmp(&global, &after_global, (ORB_ID(vehicle_global_position))->o_size_no_padding) == 0 &&
+                       std::memcmp(&odometry, &after_odometry, (ORB_ID(vehicle_odometry))->o_size_no_padding) == 0,
+                   "failed first attachment leaks no mixed-frame output or reset notification to real uORB");
+            expect(session.attach_navigation() && session.m_navigation_frame.initialized() && !session.fault(),
+                   "restored participants admit a coherent first-attachment retry");
+            publish_current();
+            expect(local_sub.copy(&after_local) && after_local.xy_global && after_local.z_global &&
+                       std::abs(after_local.z - local.z) < 1e-5f,
+                   "successful retry publishes a geographic reference while preserving supported local height");
+        }
+    }
+
+    static void staged_stack_budget()
+    {
+        // Keep the persistent module outside the worker stack, as in production.
+        // This is a host execution witness under the SITL reservation, not WCET
+        // or a complete analytical stack bound for another compiler/target.
+        InsSessionTest test;
+        for (unsigned i = 0; i < 8500; ++i)
+        {
+            test.m_sample.timestamp_sample += 4000;
+            test.tick();
+        }
+        auto & session = test.m_filter.m_session;
+        test.m_send_gps = test.m_send_magnetic = test.m_send_barometer = false;
+        pthread_attr_t attributes;
+        if (pthread_attr_init(&attributes) != 0)
+        {
+            expect(false, "initialize host stack-budget test attributes");
+            return;
+        }
+        auto const configured =
+            pthread_attr_setstacksize(&attributes, formal_eskf::px4::profile::work_queue_stack_bytes);
+        expect(configured == 0, "host thread accepts the actual configured SITL stack reservation");
+        pthread_t worker;
+        auto execute = [](void * opaque) -> void *
+        {
+            auto & fixture = *static_cast<InsSessionTest *>(opaque);
+            for (unsigned step = 0; step < 8500; ++step)
+            {
+                if (step == 1500)
+                {
+                    // Drain queued real observations and expire their five-second
+                    // support before imposing the declared numerical prior.
+                    auto const R = formal_eskf::so3::to_rotation_matrix(fixture.m_filter.m_session.m_state.q_nb);
+                    for (std::size_t i = 0; i < 6; ++i)
+                    {
+                        fixture.m_filter.m_session.m_covariance(i, i) += 2e6;
+                    }
+                    for (std::size_t i = 0; i < 3; ++i)
+                    {
+                        for (std::size_t j = 0; j < 3; ++j)
+                        {
+                            fixture.m_filter.m_session.m_covariance(6 + i, 6 + j) += .2 * R(2, i) * R(2, j);
+                        }
+                    }
+                }
+                if (step == 2000)
+                {
+                    fixture.m_send_gps = fixture.m_send_magnetic = fixture.m_send_barometer = true;
+                }
+                fixture.m_sample.timestamp_sample += 4000;
+                fixture.tick();
+            }
+            return nullptr;
+        };
+        int started = configured;
+        if (configured == 0)
+        {
+            started = pthread_create(&worker, &attributes, execute, &test);
+        }
+        pthread_attr_destroy(&attributes);
+        expect(started == 0, "start bounded-stack production-module execution");
+        if (started != 0)
+        {
+            return;
+        }
+        expect(pthread_join(worker, nullptr) == 0, "join completed stack-budget fixture");
+        auto const & continuity = session.continuity_state();
+        expect(
+            !session.fault() && continuity.translation_updates >= 6 && continuity.heading_updates > 0 &&
+                session.capabilities(clock_us).global_position.available,
+            "actual production call chain exercises numerical sweeps and genuine recovery within the SITL reservation");
+        std::printf("Staged stack fixture: %u-byte reservation; %llu translation and %llu heading guards\n",
+                    unsigned(formal_eskf::px4::profile::work_queue_stack_bytes),
+                    static_cast<unsigned long long>(continuity.translation_updates),
+                    static_cast<unsigned long long>(continuity.heading_updates));
     }
 
     void warmup()
@@ -4310,6 +4532,8 @@ int main(int argc, char ** argv)
         return failures == 0U ? 0 : 1;
     }
     InsSessionTest::staged_consumers();
+    InsSessionTest::staged_attachment_failure();
+    InsSessionTest::staged_stack_budget();
     InsSessionTest::polar_heading_unavailable();
     InsSessionTest::timing_parameters();
     InsSessionTest::delayed_pipeline();

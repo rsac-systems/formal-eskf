@@ -516,6 +516,8 @@ std::string_view gnss_stop_reason(GnssLifecycle::StopReason reason)
         return "fusion_failed";
     case GnssLifecycle::StopReason::reset_failed:
         return "reset_failed";
+    case GnssLifecycle::StopReason::numerical_intervention:
+        return "numerical_intervention";
     }
     return "invalid_call";
 }

@@ -14,8 +14,10 @@ Unless stated otherwise, behavior below describes the default profile.
 subscription, barometric admission and fusion. IMU-only seeding and real gravity
 refinement can provide tilt without GNSS or magnetic heading. Relative height,
 referenced heading and geographic navigation have independent qualification;
-full staged source-loss acceptance remains open. Common reserved session/history
-storage remains allocated.
+bounded numerical continuity and real-source recovery are integrated. The
+[staged acceptance](../../docs/spec/verification/px4-staged-ins-tests.md) identifies
+actual consumer tests and remaining flight/target qualification. Common reserved
+session/history storage remains allocated.
 
 The supported target is **PX4 v1.16.2**, commit `54f0455ffcd755534539a7cf33a09a20bf71d29d`, on Linux with GCC 11 or newer and C++20. The dedicated `px4_sitl_formal_eskf` board replaces EKF2 with a single-instance formal-eskf INS using the PX4 matrix backend and double precision.
 

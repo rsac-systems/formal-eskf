@@ -1,7 +1,7 @@
 # Staged INS Service Profile
 
-**Status:** Draft; selected design with partial implementation, not evidence of
-flight qualification. [R-INS-STARTUP](../requirements/runtime/ins-startup.md),
+**Status:** Draft; implemented software profile with scoped native acceptance,
+not evidence of flight qualification. [R-INS-STARTUP](../requirements/runtime/ins-startup.md),
 [R-INS-CAPABILITIES](../requirements/runtime/ins-capabilities.md) and
 [R-INS-CONTINUITY](../requirements/runtime/ins-continuity.md) and
 [R-INS-ATTACHMENT](../requirements/runtime/ins-attachment.md) own behavior.
@@ -48,7 +48,8 @@ Relative height uses the [optional barometric profile](barometric-height.md);
 absence shall not block tilt/heading. That profile owns pressure/model-altitude
 admission, derived warmup, reference settings and source timing. Its relative
 startup composes with this profile's common seed/capability/attachment behavior;
-neither document implies the target is already implemented.
+native relative-startup/attachment bindings do not establish physical sensor or
+deployment qualification.
 
 ## Seed and gravity settings
 
