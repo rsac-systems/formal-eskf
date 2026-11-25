@@ -61,6 +61,23 @@ is a caller obligation; the current PX4 binding is
 [R-PX4-DELAYED-FUSION](../../integration/px4/delayed-fusion.md). Target storage,
 stack and WCET need separate evidence.
 
+### Protection-event target
+
+[R-BARO-GROUND-EFFECT](../barometer-ground-effect.md) adds an optional event stream,
+not a new interpretation of the ordinary known-at snapshots above. Its caller
+submits processing epochs, update identities, resolved protection decisions and
+source provenance. Freeze the profile's half-period offset once, select at most
+one newest eligible event per delayed step, and preserve future events and loss
+accounting. Retained context snapshots alone cannot renew a consumed event.
+Capacity/rate/age binding follows the
+[PX4 target profile](../../../profiles/px4-sih-250hz.md#ground-effect-target-binding)
+when that adapter is selected; other bindings require their own profile.
+Reject duplicate/invalid chronology without changing the protection latch, retain
+admitted watermarks across empty buffers, and clear event history on replacement.
+Source-default decisions do not change unknown-context permission for existing
+consumers. This stream is pending implementation/evidence; current snapshot tests
+do not close its producer/selection obligations.
+
 ### Admission and context details
 
 Copy timing settings on construction; later caller changes shall not alter them.

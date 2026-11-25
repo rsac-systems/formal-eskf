@@ -174,6 +174,70 @@ not measured physical sensor delays. Do not infer callback rates from decimated
 ULog rows or treat publication-minus-sample age as calibrated physical latency.
 Logs/producers without these sample fields require a separate timestamp binding.
 
+## Ground-effect target binding
+
+This optional target implements
+[R-PX4-BARO-GROUND-EFFECT](../requirements/integration/px4/barometer-ground-effect.md)
+and [R-BARO-GROUND-EFFECT](../requirements/runtime/barometer-ground-effect.md).
+It replaces only the protection consumer of the unshifted context row above;
+other consumers retain the existing context history and freshness rules. The
+current implementation has not adopted this event path or default-OFF setting.
+
+| Setting | Target binding |
+|---|---|
+| Build option | PX4_GROUND_EFFECT defaults OFF; numeric ESKF_CFG_GROUND_EFFECT is 0 in the packaged default. Explicit ON remains available. |
+| Deadzone | PX4_GROUND_DEADZONE / ESKF_CFG_GROUND_DEADZONE: finite nonnegative metres, default 4.0; zero applies no reduction. |
+| Hold | PX4_GROUND_HOLD_MS / ESKF_CFG_GROUND_HOLD_MS: positive integer milliseconds, default 10000; checked conversion to microseconds. |
+| Source freshness | Age strictly below 3000000 us at event construction, before the half-period shift; preserve original source epochs. |
+| Event selection | t_s = t_c - floor(T_mean/2), frozen at admission. t_c is the processing IMU epoch; T_mean is the existing runtime mean filter period in microseconds. No added sensor delay. |
+| Selection age | Newest unconsumed t_s <= t_filter with t_filter - t_s < 100000 us; equality at 100000 us misses. This is the pinned system-flag ring window, separate from the ordinary observation age setting. |
+
+Retain explicit source-update identity, raw source timestamps/availability,
+processing and selection epochs, frozen offset and resolved protection decisions.
+At most one combined record is submitted per processing IMU callback with a new
+status/land subscription update. The adapter constructs it; runtime alone shifts,
+queues and selects it. An update rejected by the rate limiter is not retried as a
+new source update. A later genuine update may use the still-fresh cached inputs.
+
+Use fixed backing capacity 64 and startup-derived active event length N, following
+the reference sizing expression:
+N = min(round(1.5 D / T_nom), max(2, ceil(D / T_nom))), where D is the configured
+maximum-delay setting and T_nom the nominal filter period, in the same units.
+Positive half-integer rounding is upward. With D = 200 ms and T_nom = 4 ms,
+N = 50. Reject N < 2 or N > capacity, including arithmetic/conversion failure.
+This event length is independent of our jitter-aware 54-entry IMU/output length;
+it does not resize or retime those histories.
+
+At admission, use the pinned spacing expression floor(L/(N-1)), where L is the
+current admitted IMU endpoint minus the currently available delayed IMU horizon.
+Use the same pair of owner epochs throughout the admission phase; do not mix a
+pre-fusion horizon with a subsequently advanced one. Require monotonic processing
+and selection times, checked half-period subtraction, and at least that spacing
+from the last admitted event. Maintain an explicit watermark when the ring empties.
+These checked chronology guards preserve the project's time-domain contract;
+PX4's source code itself relies on its producer/clock premises.
+
+Use the existing ring's newest-eligible selection and bounded supersession;
+future events wait. Seed no positive request, skip pre-initialization events,
+and clear the event history on session replacement. Do not backfill an earlier
+context or recycle a consumed event. Record rate rejection, stale selection and
+oldest overwrite separately. This is not a guarantee that every producer update
+will be fused: PX4 also rate-limits and supersedes system-flag events.
+
+The selection offset permits application up to half a period before t_c, as in
+the reference. Preserve this scheduling approximation explicitly; it is not
+proof that the source physically changed at t_s. The 3 s check is made at t_c,
+not reapplied to discard a selected event at the delayed horizon. The runtime's
+10 s hold uses adoption time t_filter, not source, arrival or publication time.
+When no delayed step is possible, no hold clock is advanced by status publication.
+
+Compare event decisions against the pinned reference with identical supplied
+clocks, period, length and input sequence. Actual PX4 IMU lag/rate profiles can
+differ from this module; do not claim identical event outcomes across unmatched
+profiles. Validate all startup lag/length combinations, include the added storage
+in the existing 64 KiB owner budget, and qualify bounded scans/callback work.
+No byte/stack/WCET result is established by these capacity values.
+
 ## Histories and ownership
 
 Use the existing [runtime ring buffer contract](../requirements/runtime/ring-buffer.md).
@@ -185,7 +249,8 @@ generic sensor registry or buffer wrapper is required.
 |---|---|---|
 | IMU | 54 / 64 | One record per real interval, including any preceding permitted held-rate segment |
 | Output | 54 / 64 | Current output state captured at each matching real IMU endpoint |
-| Context | 128 / 128 | Flight/rest/ground-effect and vehicle-type values, known flags and original context timestamps, sampled at real IMU endpoints |
+| Context | 128 / 128 | Flight/rest and vehicle-type facts, known flags and original context timestamps, sampled at real IMU endpoints; existing protection uses this history until its target is implemented. |
+| Protection events (optional target) | 50 / 64 at default settings | Combined protection decisions and source provenance under the ground-effect binding; separate from ordinary context permission. |
 | GNSS | 16 / 16 | One event shared by velocity, horizontal-position and height consumers |
 | Magnetometer | 64 / 64 | Field measurement and source/calibration metadata |
 | Barometer | 128 / 128 | Height measurement and source/calibration metadata |
@@ -212,7 +277,9 @@ initialization; thereafter retain only information known at each endpoint,
 carrying the original message timestamp so repeated snapshots do not refresh
 freshness. A context message newer than the endpoint cannot enter that snapshot.
 Lookup the newest context at/before the requested effective epoch; missing or
-stale context is unknown, not a positive fusion permission.
+stale context is unknown, not a positive fusion permission. The optional protection
+event target has its own explicit adapter-default decisions; those decisions
+shall not overwrite these context facts or authorize other consumers.
 
 Arrival validation runs immediately. Source qualification/drift history and
 lifecycle run once in effective-time order at the delayed horizon, using the

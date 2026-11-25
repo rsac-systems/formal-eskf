@@ -101,6 +101,20 @@ that premise. Projection does not validate arbitrary geographic inputs. Output
 height uses the existing MSL datum; working coordinates remain Cartesian NED with
 their existing rebasing contract.
 
+### Ground-effect target
+
+Compose [R-BARO-GROUND-EFFECT](barometer-ground-effect.md) with the existing
+history and height owners. After a successful delayed prediction, adopt at most
+one selected protection event and evaluate its latch before height fusion. These
+decisions shall not replace the existing IMU/gravity/initialization context.
+Event admission uses the profile's declared pre-fusion timing snapshot; selection
+and hold use the actual delayed endpoint. Preserve the per-stage failure boundary
+and return actual phase/epoch facts through R-INS-DIAGNOSTICS. Feature exclusion
+shall leave ordinary barometer fusion and other context consumers unchanged.
+No-IMU publication cannot renew a hold or select an event; session replacement
+clears the event history and protection state. This is a target, not evidence that
+the current repeated-snapshot implementation satisfies the new input contract.
+
 ### Sensor-input target
 
 [R-SENSOR-INPUT](sensor-input.md) allocates shared input premises to adapters,

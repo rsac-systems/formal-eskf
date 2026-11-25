@@ -57,6 +57,14 @@ snapshots lack some result-specific epochs, and current mask counts sample at
 publication time. These gaps require implementation and acceptance, not another
 source-health engine or a change to core equations.
 
+The optional [ground-effect target](../requirements/integration/px4/barometer-ground-effect.md)
+uses the external PX4 land detector and the
+[portable allocation](navigation-runtime.md#ground-effect-protection-allocation).
+The adapter resolves platform freshness/defaults; runtime owns bounded event
+selection and the delayed hold. This replaces only the protection use of current
+unshifted context, keeps provenance for other consumers and defaults the feature
+OFF. Configuration, event-path and caller evidence remain pending implementation.
+
 ## Requirement allocation
 
 | Responsibility | Contract |

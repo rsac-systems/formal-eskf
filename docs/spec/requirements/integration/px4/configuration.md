@@ -21,7 +21,12 @@ and hashes. `DeploymentProfile.hpp` binds them to the existing typed parameters;
 the shared core/runtime do not parse configuration or depend on Kconfiglib.
 Every module translation unit and its test fixture uses the same algorithm modes.
 
-Preserve the tracked profile's defaults. Validate numeric representation, angular
+Preserve the tracked profile's defaults except for explicitly superseding targets.
+The [ground-effect target](barometer-ground-effect.md) changes its build default
+to OFF in both Kconfig generation and the checked-in deployment header, while
+retaining explicit user choices and ordinary barometer aiding. Configuration
+validation shall reject invalid protection durations/deadzones before startup;
+physical tuning remains separate. Validate numeric representation, angular
 domains, noise floor/cap relationships, duration units and known arithmetic
 constraints before packaging. Unknown symbols, ignored dependency requests and
 invalid numbers fail. These checks do not certify arbitrary tuning as flight-safe

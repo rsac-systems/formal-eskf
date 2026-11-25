@@ -38,8 +38,8 @@ Height fusion additionally accepts a finite nonnegative `deadzone` in metres,
 zero by default. After the IMU-fault limit, transform a positive selected residual
 `r` to `max(r - deadzone, 0)`; retain zero/negative residuals. Never recompute or
 release the gate because of this transform. Nonfinite/negative settings fail
-before gate/correction and preserve outputs. `R-HEIGHT-FUSION` defines when the
-module may supply a nonzero value. `innovation_limited` continues to describe
+before gate/correction and preserve outputs. [R-BARO-GROUND-EFFECT](../barometer-ground-effect.md) defines the portable
+permission to supply a nonzero value; its PX4 binding owns platform inputs. `innovation_limited` continues to describe
 only the acceleration-fault clamp; `fusion_innovation` includes both transforms.
 
 `NavigationFusionResult` retains raw innovation, S and test ratio in `fusion`, and

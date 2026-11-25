@@ -183,6 +183,30 @@ binds external timestamps, signs and counters. Existing strict-module snapshots
 and event drains implement only parts of this allocation. N2 capabilities, N3
 source continuation and optional barometer remain independently scoped targets.
 
+### Ground-effect protection allocation
+
+The optional [runtime protection target](../requirements/runtime/barometer-ground-effect.md)
+separates mode management from the [PX4 event binding](../requirements/integration/px4/barometer-ground-effect.md).
+The no-terrain scope has one latch and no new nominal/error state. Existing
+Cartesian height preparation, correction and state/P failure contracts remain.
+
+| Owner | Input/output and responsibility |
+|---|---|
+| PX4 adapter | Consume land/status subscription updates; at the current IMU processing epoch resolve source freshness, precedence and pinned defaults. Submit a platform-independent event with source-update identity, timestamps/availability and request/in-air/fixed-wing decisions. No timer or deadzone arithmetic. |
+| Runtime history/session | Freeze selection time once, retain/select events with fixed bounded storage, and preserve original provenance. Own adopted protection decisions, last positive detection and active latch on the delayed clock; apply before height fusion. |
+| Height/fusion owner | Supply deadzone only to barometer; retain raw gate evidence, apply the acceleration limit then the one-sided deadzone, and invoke existing numerical correction. Own unchanged offset/reference/recovery rules. |
+| Core | Existing innovation/gain/Joseph/injection/reset operations and failure frames; no PX4 flags, ground proximity, source clocks or protection lifecycle. |
+| Reporting adapter | Map the coherent runtime mode to existing packed/named PX4 flags, preserving output withdrawal and separate raw/applied evidence. |
+
+Standalone callers supply their own qualified/defaulted decisions under a declared
+binding; runtime does not assume that an unknown vehicle is non-fixed-wing.
+The PX4 fallback is a compatibility decision carried with unavailable-source
+provenance. It cannot authorize gravity, initialization or another consumer that
+requires known historical context. Keep their unshifted snapshots and guards.
+Reuse existing history/ring and session boundaries rather than adding a general
+context-policy framework or one wrapper per field. Target storage is reserved
+before operation and charged to the existing deployment resource budget.
+
 ### Existing execution protocol
 
 The adapter supplies admitted source records with sample and arrival times in a

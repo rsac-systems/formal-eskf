@@ -8,7 +8,10 @@ This profile instantiates [R-BAROMETRIC-ALTITUDE](../requirements/runtime/barome
 and [R-HEIGHT-AIDING](../requirements/runtime/height-aiding.md), with the
 [staged INS](staged-ins.md) for pre-geographic service. It preserves Cartesian
 state, full covariance correction and the existing GNSS-preferred height policy.
-It does not add ground-effect behavior, terrain, dynamic-pressure compensation,
+This base profile does not add ground-effect behavior; the separately scoped
+[protection target](../requirements/runtime/barometer-ground-effect.md) and its
+[PX4 timing/configuration binding](px4-sih-250hz.md#ground-effect-target-binding)
+apply only when selected. It does not add terrain, dynamic-pressure compensation,
 a barometer lever arm, a wind state or a second altitude filter.
 
 ## Model and input settings

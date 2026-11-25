@@ -111,6 +111,17 @@ requires consumers to clear their corresponding reporting history. Reset reports
 shall accumulate multiple reset deltas in one tick. Height validity includes
 fusion-timeout equality after actual fusion/reset and is distinct from source activity.
 
+### Optional ground-effect composition
+
+Under [R-BARO-GROUND-EFFECT](barometer-ground-effect.md), consume the session's
+protection decision and configured deadzone only for barometer fusion. This owner
+shall not decode platform flight flags, age context or maintain a second hold.
+Keep the current observation frozen at its prior offset; scalar offset training
+uses the original altitude under its existing eligibility/gate rules. The
+protection flag shall neither freeze that training nor change reference/reset
+policy. Retain raw versus applied residuals and the complete-tick failure frame.
+An admitted zero applied residual still executes the covariance correction.
+
 ### Common height observation preparation
 
 The target shall provide one shared runtime operation for height-reference, sign

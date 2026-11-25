@@ -52,6 +52,12 @@ The half-period shift is a scheduling approximation, not a change to the physica
 measurement time or proof of accuracy. This scope retains the existing half-period
 convention; it does not introduce an inferred or configurable unshifted mode.
 
+The [ground-effect binding](../integration/px4/barometer-ground-effect.md) is a
+scoped system-event exception: it starts from the processing IMU epoch, not a
+physical sensor measurement timestamp. Preserve source timestamps and availability
+separately and apply its shift once. Ordinary sensor and known-at context
+contracts above remain unchanged for their consumers.
+
 ### Units, frames and reference points
 
 Adapters shall supply calibrated body-FRD IMU/magnetic quantities: X forward,

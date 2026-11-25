@@ -63,8 +63,11 @@ history; prior caller evidence does not establish this new transition.
 `FormalEskf::Run` separates raw arrival caches from selected internal observations.
 GNSS quality consumes event-time historical context. Magnetic policy uses selected
 event context, or delayed-horizon context when there is no sample. IMU/bias,
-gravity and ground-effect policies use delayed IMU context with their own freshness
-limits. Do not reconstruct observations as retimestamped uORB messages.
+gravity and the current ground-effect implementation use delayed IMU context
+with their own freshness limits. The [ground-effect target](barometer-ground-effect.md)
+replaces only that protection consumer with admitted delayed system events under
+its profile. Apply their protection decisions before height fusion, without
+replacing other consumers' context or erasing unknown-source provenance. Do not reconstruct observations as retimestamped uORB messages.
 Source-generation changes may veto current validity and delayed use; requalification
 runs on a selected new generation, not on arrival. During IMU absence, wall-time
 arrival/status work continues without advancing delayed policy time.
