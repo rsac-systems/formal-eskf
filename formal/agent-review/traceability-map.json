@@ -5930,7 +5930,7 @@
     },
     {
       "id": "R-HEIGHT-FUSION",
-      "title": "Portable height/PX4: process-owner and geometry proof gaps retained; optional barometer helper, source and timing target pending; PX4 ground-effect event/default-OFF target pending, legacy snapshot guard evidence does not establish the replacement",
+      "title": "Portable height/PX4: shared preparation and frozen-offset native coverage; changed process/fusion source proofs require rebinding; optional source/timing and staged attachment pending; ground-effect target pending",
       "references": {
         "spec": [
           {
@@ -5968,6 +5968,10 @@
           {
             "file": "docs/spec/verification/barometer-ground-effect-tests.md",
             "symbol": "## PX4 cases"
+          },
+          {
+            "file": "docs/spec/verification/tests/runtime/height-observation.md",
+            "symbol": "# Height Observation Preparation Tests"
           }
         ],
         "lean": [
@@ -6068,6 +6072,22 @@
           {
             "file": "include/formal_eskf/runtime/sensors/height/height_aiding.hpp",
             "symbol": "bool HeightAiding<Linalg>::valid_parameters() const"
+          },
+          {
+            "file": "include/formal_eskf/runtime/sensors/height/height_observation.hpp",
+            "symbol": "struct HeightPrediction"
+          },
+          {
+            "file": "include/formal_eskf/runtime/sensors/height/height_observation.hpp",
+            "symbol": "Status predict_height("
+          },
+          {
+            "file": "include/formal_eskf/runtime/sensors/height/height_observation.hpp",
+            "symbol": "prepare_height_observation("
+          },
+          {
+            "file": "include/formal_eskf/runtime/sensors/height/height_observation.hpp",
+            "symbol": "Status transport_height_offset("
           }
         ],
         "esbmc": [

@@ -655,6 +655,95 @@ template <typename Linalg> void parameters_and_events(Context & test)
                 "events", "failed transaction publishes no diagnostic event or sample progress");
 }
 
+template <typename Linalg> void prior_offset(Context & test)
+{
+    using F = HeightFixture<Linalg>;
+    using T = typename F::value_type;
+    using A = typename F::aiding_type;
+    using Source = typename A::Source;
+    for (bool secondary : {false, true})
+    {
+        F f;
+        test.expect(f.aiding.initialize(f.now, T{500}) == Status::success, "prior", "initialize height gauge");
+        for (unsigned count = 0; count < 22; ++count)
+        {
+            test.expect(f.tick(true, secondary).status == Status::success, "prior", "warmup and source activation");
+        }
+        // PSD rank-one correlation across p/v/bias, leaving attitude uncorrelated
+        // so the independent scalar Kalman oracle needs no quaternion reset.
+        T weights[15]{};
+        for (std::size_t i = 0; i < 15; ++i)
+        {
+            weights[i] = (i >= 6 && i < 9) ? T{0} : T{0.125};
+            for (std::size_t j = 0; j <= i; ++j)
+            {
+                T const entry = weights[i] * weights[j] + (i == j ? T{1} : T{0});
+                f.P(i, j) = f.P(j, i) = entry;
+            }
+        }
+        auto const P = f.P;
+        auto const state = f.state;
+        auto const prior = f.aiding.session(Source::barometer).bias;
+        auto const settings = height_parameters<T>();
+        T const dt = static_cast<T>(0.02);
+        T const prior_variance =
+            secondary ? prior.variance + settings.bias.process_variance_density * dt : prior.variance;
+        test.expect(prior_variance >= settings.bias.minimum_variance || !secondary, "prior",
+                    "fixture above clamp floor");
+        test.expect(prior_variance < prior.maximum_variance &&
+                        std::abs(prior.signed_ratio) < settings.bias.offset_ratio &&
+                        prior.positive_time < settings.bias.offset_duration_s &&
+                        prior.negative_time < settings.bias.offset_duration_s,
+                    "prior", "fixture has nominal process density and no clamp/multiplier");
+        typename A::Sample sample{f.now + 20000U, 1, 0, f.baro_altitude + T{0.25}, T{4}};
+        T const residual = (T{500} - state.p_n(2)) - (sample.altitude - prior.value);
+        T const S = P(2, 2) + sample.variance + prior_variance;
+        auto const result = f.aiding.update(sample.time_us, sample, {}, true, f.state, f.P);
+        auto const & aid = f.aiding.session(Source::barometer);
+        T const epsilon = std::numeric_limits<T>::epsilon();
+        test.expect(result.status == Status::success && result.fused == 1 && aid.fusion.innovation(0) == residual &&
+                        std::abs(aid.fusion.innovation_variance(0) - S) <= T{16} * epsilon * S,
+                    "prior", "innovation freezes prior offset; S includes its variance exactly once");
+        long double const bias_gain = static_cast<long double>(prior_variance) /
+                                      (static_cast<long double>(prior_variance) + sample.variance + P(2, 2));
+        T const expected_offset = secondary ? static_cast<T>(prior.value - bias_gain * residual) : prior.value;
+        test.expect(std::abs(aid.bias.value - expected_offset) <= T{4} * epsilon * std::abs(expected_offset), "prior",
+                    "only nonreference offset learns from the unchanged prior height");
+        for (std::size_t i = 0; i < 15; ++i)
+        {
+            for (std::size_t j = 0; j < 15; ++j)
+            {
+                long double const expected =
+                    static_cast<long double>(P(i, j)) - static_cast<long double>(P(i, 2)) * P(2, j) / S;
+                test.expect(std::abs(static_cast<long double>(f.P(i, j)) - expected) <= 64 * epsilon, "prior",
+                            "full covariance follows independent scalar Kalman update");
+            }
+        }
+        T const expected_down = state.p_n(2) + P(2, 2) / S * residual;
+        test.expect(std::abs(f.state.p_n(2) - expected_down) <= T{32} * epsilon, "prior",
+                    "same frozen residual drives the state correction");
+        auto const updated_P = f.P;
+        auto const updated_offset = aid.bias.value;
+        auto const repeat = f.aiding.update(sample.time_us + 1, sample, {}, true, f.state, f.P);
+        test.expect(repeat.status == Status::success && repeat.fused == 0 &&
+                        formal_eskf::linalg::max_abs(f.P - updated_P) == 0 &&
+                        f.aiding.session(Source::barometer).bias.value == updated_offset,
+                    "prior", "duplicate sample cannot add independent information or relearn offset");
+    }
+}
+
+void prior_case(Context & test, std::string_view profile)
+{
+    if (profile == "binary32")
+    {
+        prior_offset<formal_eskf::test::Backend<float>>(test);
+    }
+    else
+    {
+        prior_offset<formal_eskf::test::Backend<double>>(test);
+    }
+}
+
 void management_case(Context & test, std::string_view profile)
 {
     if (profile == "binary32")
@@ -675,9 +764,9 @@ int main(int argc, char ** argv)
 {
     formal_eskf::test::configure_backend_test();
     formal_eskf::test::Case const cases[]{
-        {"TC-R-HEIGHT-AIDING-01", "binary32", management_case},
-        {"TC-R-HEIGHT-AIDING-01", "binary64", management_case},
-        {"TC-R-HEIGHT-AIDING-02", "binary64", geographic_case},
+        {"TC-R-HEIGHT-AIDING-01", "binary32", management_case}, {"TC-R-HEIGHT-AIDING-01", "binary64", management_case},
+        {"TC-R-HEIGHT-AIDING-02", "binary64", geographic_case}, {"TC-R-HEIGHT-AIDING-BARO-04", "binary32", prior_case},
+        {"TC-R-HEIGHT-AIDING-BARO-04", "binary64", prior_case},
     };
     return formal_eskf::test::run_cases(cases, argc, argv);
 }

@@ -61,12 +61,12 @@ bounds remain explicit gaps. Cases below remain Pending.
 
 ### Runtime composition
 
+The four height-preparation cases now belong to the
+[executable helper/owner family](tests/runtime/height-observation.md).
+Its component bindings do not close staged attachment or session acceptance.
+
 | Case ID | Name | Requirement / clause | Conditions, inputs and action | Expected result and oracle | Executable test |
 |---|---|---|---|---|---|
-| TC-R-HEIGHT-AIDING-BARO-01 | Prepare relative height with the correct sign | R-HEIGHT-AIDING, common height observation preparation | Qualified barometer before geography, nonzero initial model altitude/offset and a one-metre Up displacement. | Independent r_D and J_D from the contract; rising measured height drives negative Down residual. No fabricated latitude, geoid, absolute height or extra INS initialization. | Pending |
-| TC-R-HEIGHT-AIDING-BARO-02 | Prepare geographic height after frame rotation | R-HEIGHT-AIDING, common preparation; R-FRAME-OBSERVATIONS | Attached point away from origin, nontrivial working-frame rotation and valid/missing datum. | Independent physical height and finite-difference Down row; no fixed-Z shortcut. Geometry failure preserves prepared output. | Pending |
-| TC-R-HEIGHT-AIDING-BARO-03 | Preserve observations through reference relabeling | R-HEIGHT-AIDING, common preparation; R-INS-ATTACHMENT | Relative-to-geographic reference change and ordinary rebase of the same physical point, with retained offset. | Algebraic offset transport preserves residual; unchanged physical information/covariance apart from the owning coordinate transform. Reuse staged attachment rollback cases for the full transaction. | Pending |
-| TC-R-HEIGHT-AIDING-BARO-04 | Use prior offset uncertainty once | R-HEIGHT-AIDING, bias and common preparation | Nonzero prior offset/P_b, cross-correlated P, active reference/nonreference sources and repeated sample. | Independent observation uses prior b and R+P_b once; only eligible nonreference learning changes later observations. No repeated independent fusion or claim of jointly estimated bias covariance. | Pending |
 | TC-R-HEIGHT-AIDING-BARO-05 | Derive and saturate warmup counts | R-HEIGHT-AIDING, optional source and timing composition | Default and alternate valid T/D; counts N-1, N, N+1; duplicate/stale events, saturation, invalid/overflowing settings. | Independent integer/rational count oracle; start only after count>N, once per distinct admitted event. LPF belongs to warmup/reset, not ordinary correction. Invalid settings cannot overflow or start a source. | Pending |
 | TC-R-HEIGHT-AIDING-BARO-06 | Separate receipt freshness from fusion progress | R-HEIGHT-AIDING, optional source and timing composition | Latest-clock receipt age below/at/above expiry; independently vary delayed sample age and successful-fusion timeout, including equality. | Each clock follows its own rule; rejected samples cannot refresh success, missing receipt may stop but cannot authorize reset or inject future data. | Pending |
 | TC-R-HEIGHT-AIDING-BARO-07 | Requalify only the changed source | R-HEIGHT-AIDING, source lifecycle | Device/calibration/generation changes while old samples remain delayed; duplicates, invalid or discarded new arrivals. | New admitted receipt cannot qualify old-generation data; changed source restarts bias/warmup, unrelated state/source history survives. Ordinary latch/recovery rules remain authoritative. | Pending |
@@ -104,6 +104,7 @@ barometer lever-arm compensation and a QNH-specific control mechanism are exclud
 
 ## Review
 
-Draft allocation; all cases are planned, none is an execution result. Numerical
+Draft allocation; the linked executable families retain their own bindings and
+limits. Rows still marked Pending are not execution results. Numerical
 and physical qualification gaps remain explicit. Self-review and commit permission
 do not promote this family or its requirements to Approved.

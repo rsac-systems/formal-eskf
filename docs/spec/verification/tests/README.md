@@ -113,6 +113,7 @@ the canonical equations.
 | [Origin rebasing](runtime/origin-rebasing.md) | R-ORIGIN-REBASE. |
 | [Portable INS session](runtime/ins-session.md) | R-INS-SESSION; SW-NAV. |
 | [Strict INS initialization](runtime/ins-initialization.md) | R-INS-INITIALIZATION; SW-NAV. |
+| [Height preparation](runtime/height-observation.md) | R-HEIGHT-AIDING, local/geographic prediction, prior offset and reference transport; attachment remains planned. |
 | [Barometric altitude](runtime/barometric-altitude.md) | R-BAROMETRIC-ALTITUDE, standalone model conversion and supplied-altitude admission; composition remains planned. |
 | [Height aiding](runtime/height-aiding.md) | R-HEIGHT-AIDING, portable GNSS/barometer owner; PX4 filtering/publication remains adapter scope. |
 | [Height datum](runtime/height-datum.md) | R-HEIGHT-DATUM. |
