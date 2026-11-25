@@ -303,7 +303,7 @@ public:
     [[nodiscard]] bool configure_gravity(bool enabled);
     [[nodiscard]] bool configure_magnetic(typename magnetic_model_type::Settings const & settings);
     [[nodiscard]] bool configure_sensor_positions(SensorPositions const & positions);
-    [[nodiscard]] bool startup_valid() const { return m_startup.valid(); }
+    [[nodiscard]] bool startup_valid() const { return m_parameters_valid; }
     // One writer supplies coherent snapshots; complete a pending phase before admitting another IMU.
     void process_imu(ImuInput const & sample, std::uint64_t arrival_us, ContextInput const & context);
     void receive_gnss(typename observation_history_type::GnssSample const & sample, std::uint64_t arrival_us);
@@ -374,6 +374,7 @@ public:
     OutputValidity output_validity(std::uint64_t now) const;
 
 private:
+    static bool valid_parameters(Parameters const & parameters);
     static constexpr double seconds_per_microsecond = 1e-6;
     static constexpr double microtesla_per_gauss = 100.;
     static vector3_type vector3(double x, double y, double z) { return vector3_type::from_row_major({x, y, z}); }
@@ -460,7 +461,7 @@ private:
     OriginControl m_origin_control{};
     SensorPositions m_sensor_positions{};
     std::uint64_t m_time_us{};
-    bool m_initialized{}, m_fault{};
+    bool m_initialized{}, m_fault{}, m_parameters_valid{}, m_configured{};
     bool m_msl_initialized{};
     std::uint64_t m_seed_time_us{};
     std::uint32_t m_heading_reference_id{};
@@ -503,6 +504,7 @@ private:
 #include <formal_eskf/runtime/session/ins_session_attitude.hpp>
 #include <formal_eskf/runtime/session/ins_session_frames.hpp>
 #include <formal_eskf/runtime/session/ins_session_steps.hpp>
+#include <formal_eskf/runtime/session/ins_session_configuration.hpp>
 
 #include <formal_eskf/runtime/session/ins_session_capabilities.hpp>
 

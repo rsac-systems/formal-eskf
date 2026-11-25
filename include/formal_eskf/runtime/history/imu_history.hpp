@@ -102,6 +102,13 @@ public:
     };
 
     [[nodiscard]] bool configure(TimingParameters const & parameters, ImuTiming const & timing);
+    /** Read-only preflight for a session coordinating several history owners. */
+    [[nodiscard]] bool can_configure(TimingParameters const & parameters, ImuTiming const & timing) const
+    {
+        TimingConfiguration candidate;
+        return m_previous.time_us == 0 && m_fault == Fault::none &&
+               configure_timing(parameters, timing, Capacity, candidate);
+    }
     [[nodiscard]] bool seed(input_type const & sample, std::uint64_t now_us);
     [[nodiscard]] bool push(input_type const & sample, std::uint64_t now_us);
 

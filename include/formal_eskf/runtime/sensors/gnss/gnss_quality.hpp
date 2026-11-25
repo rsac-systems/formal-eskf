@@ -143,12 +143,12 @@ public:
      */
     [[nodiscard]] result_type update(sample_type const & sample, GnssQualityMotion motion, std::uint64_t now_us,
                                      parameters_type const & parameters);
+    [[nodiscard]] static Status validate_parameters(parameters_type const & parameters);
 
 private:
     using math_type = typename Linalg::scalar_math_type;
     using vector_type = linalg::Vector<Linalg, 3U>;
 
-    [[nodiscard]] static Status validate_parameters(parameters_type const & parameters);
     [[nodiscard]] Status validate_sample(sample_type const & sample, GnssQualityMotion motion) const;
     [[nodiscard]] Status update_stationary_checks(sample_type const & sample, parameters_type const & parameters,
                                                   result_type & result);

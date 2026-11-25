@@ -191,62 +191,6 @@ bool InsSession<Linalg, Layout>::update_imu_health(std::uint8_t accelerometer_cl
 }
 
 template <typename Linalg, typename Layout>
-InsSession<Linalg, Layout>::InsSession(Parameters const & p)
-    : m_parameters(p.estimator), m_startup(p.startup), m_continuity(p.continuity), m_observations(p.observation_timing),
-      m_output(p.output), m_height_aiding(p.height), m_bias_learning(p.bias_learning),
-      m_average_imu_interval(p.settings.imu.nominal_interval_s), m_magnetic_model(p.magnetic_lookup_interval_us),
-      m_settings(p.settings), m_imu_timing(p.observation_timing.imu)
-{
-    m_gnss.quality_parameters = p.gnss_quality;
-    m_origin.projection = projection_type{p.settings.projection_radius_m};
-    m_gnss.previous_fix = projection_type{p.settings.projection_radius_m};
-    if constexpr (Layout::barometer_aiding)
-    {
-        check(m_barometric.configure(p.barometer_model, p.barometer_sensor));
-    }
-}
-
-template <typename Linalg, typename Layout>
-bool InsSession<Linalg, Layout>::configure_timing(TimingParameters const & timing)
-{
-    return !m_fault && m_time_us == 0 && m_startup.valid() && m_continuity.valid() &&
-           m_settings.aiding.current_age_us != 0 &&
-           m_settings.aiding.maximum_age_us >= m_settings.aiding.current_age_us &&
-           m_imu_history.configure(timing, m_imu_timing) && m_observations.configure(timing, Layout::imu_capacity) &&
-           m_output.configure(timing) && (!Layout::barometer_aiding || m_height_aiding.configure_timing(timing));
-}
-
-template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::configure_gravity(bool enabled)
-{
-    if (m_time_us != 0)
-    {
-        return false;
-    }
-    m_gravity_enabled = enabled;
-    return true;
-}
-template <typename Linalg, typename Layout>
-bool InsSession<Linalg, Layout>::configure_magnetic(typename magnetic_model_type::Settings const & settings)
-{
-    if (m_time_us != 0)
-    {
-        return false;
-    }
-    m_magnetic_settings = settings;
-    return true;
-}
-template <typename Linalg, typename Layout>
-bool InsSession<Linalg, Layout>::configure_sensor_positions(SensorPositions const & positions)
-{
-    if (m_time_us != 0)
-    {
-        return false;
-    }
-    m_sensor_positions = positions;
-    return true;
-}
-
-template <typename Linalg, typename Layout>
 typename InsSession<Linalg, Layout>::observation_history_type::Context
 InsSession<Linalg, Layout>::startup_context(std::uint64_t epoch, std::uint64_t maximum_age) const
 {
@@ -279,7 +223,7 @@ template <typename Linalg, typename Layout>
 void InsSession<Linalg, Layout>::process_imu(ImuInput const & sample, std::uint64_t arrival_us,
                                              ContextInput const & context)
 {
-    if (m_fault || !check_timing(m_phase == Phase::idle))
+    if (m_fault || !check_timing(m_configured && m_phase == Phase::idle))
     {
         return;
     }

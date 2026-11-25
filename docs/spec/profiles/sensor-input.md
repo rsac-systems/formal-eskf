@@ -68,7 +68,13 @@ Aiding capacity uses its own admitted spacing, not IMU rate. With the existing
 12/52/102 slots. Retain the derivation in the
 [history profile](px4-sih-250hz.md#histories-and-ownership); recompute it if those
 limits change. Storage accounting includes full backing payloads and staging,
-not just active lengths. Budget stack, object memory and worst callback work on
+not just active lengths: count the complete session and containing deployment
+object. `OutputPredictor` owns both its history and a full-capacity staging array;
+IMU/aiding/context arrays, state/P, frame/attachment candidates and owner metadata
+are also resident. Per-call temporaries are additional stack, not included in
+`sizeof` object accounting. Keep the PX4 module's complete-object compile-time
+budget when evaluating candidates; increasing slot counts does not increase the
+budget automatically. Budget stack, object memory and worst callback work on
 the actual target, including simultaneous aiding, source change, reset and gaps.
 Do not inherit the 250 Hz deadline or memory feasibility at a different rate.
 

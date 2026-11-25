@@ -80,6 +80,12 @@ public:
     }
 
     [[nodiscard]] bool configure(TimingParameters const & parameters);
+    [[nodiscard]] bool can_configure(TimingParameters const & parameters) const
+    {
+        TimingConfiguration candidate;
+        return m_current.time_us == 0 && m_fault == Fault::none && valid_parameters() &&
+               configure_timing(parameters, m_parameters.timing, Capacity, candidate);
+    }
     [[nodiscard]] bool seed(state_type const & state, std::uint64_t time_us);
     /** Requires an admitted real interval from ImuHistory::latest(), exactly once. */
     [[nodiscard]] bool predict(interval_type const & interval);

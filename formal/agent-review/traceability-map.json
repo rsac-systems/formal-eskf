@@ -8627,7 +8627,7 @@
     },
     {
       "id": "R-SENSOR-INPUT",
-      "title": "Sensor clock/unit/frame/provenance contract: Draft target; producer, rate and physical qualification pending",
+      "title": "Sensor clock/unit/frame/provenance contract: native startup consistency/capacity/freeze checks; producer, rate and physical qualification pending",
       "references": {
         "spec": [
           {
@@ -8644,7 +8644,16 @@
           }
         ],
         "lean": [],
-        "cpp": [],
+        "cpp": [
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_configuration.hpp",
+            "symbol": "bool InsSession<Linalg, Layout>::valid_parameters"
+          },
+          {
+            "file": "tests/runtime/session/test_configuration.cpp",
+            "symbol": "void profile_validation"
+          }
+        ],
         "esbmc": []
       }
     },

@@ -222,6 +222,8 @@ public:
      * Invalid timing/count preserves the previous setting. Other height settings remain constructor-owned.
      */
     [[nodiscard]] bool configure_timing(TimingParameters const & timing);
+    [[nodiscard]] bool can_configure(TimingParameters const & timing) const;
+    bool valid_parameters() const;
 
     unsigned barometer_warmup_samples() const { return m_parameters.barometer_warmup_samples; }
 
@@ -312,7 +314,7 @@ public:
 
 private:
     static constexpr std::size_t index(Source source) { return source == Source::barometer ? 0U : 1U; }
-    bool valid_parameters() const;
+    static bool warmup_count(TimingParameters const & timing, unsigned & output);
     bool valid_altitude(value_type altitude) const
     {
         return std::isfinite(altitude) && altitude > m_parameters.minimum_altitude_m &&
@@ -343,9 +345,9 @@ private:
     std::uint64_t m_started{}, m_tick{}, m_last_height_progress{};
 }; /* end class HeightAiding */
 
-template <typename Linalg> bool HeightAiding<Linalg>::configure_timing(TimingParameters const & timing)
+template <typename Linalg> bool HeightAiding<Linalg>::warmup_count(TimingParameters const & timing, unsigned & output)
 {
-    if (m_started != 0 || timing.filter_interval_us <= 0 || timing.fusion_delay_ms <= 0)
+    if (timing.filter_interval_us <= 0 || timing.fusion_delay_ms <= 0)
     {
         return false;
     }
@@ -359,7 +361,24 @@ template <typename Linalg> bool HeightAiding<Linalg>::configure_timing(TimingPar
     {
         return false;
     }
-    m_parameters.barometer_warmup_samples = static_cast<unsigned>(count);
+    output = static_cast<unsigned>(count);
+    return true;
+}
+
+template <typename Linalg> bool HeightAiding<Linalg>::can_configure(TimingParameters const & timing) const
+{
+    unsigned count{};
+    return m_started == 0 && valid_parameters() && warmup_count(timing, count);
+}
+
+template <typename Linalg> bool HeightAiding<Linalg>::configure_timing(TimingParameters const & timing)
+{
+    unsigned count{};
+    if (m_started != 0 || !warmup_count(timing, count))
+    {
+        return false;
+    }
+    m_parameters.barometer_warmup_samples = count;
     return true;
 }
 

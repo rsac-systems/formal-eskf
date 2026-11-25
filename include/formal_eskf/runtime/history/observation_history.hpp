@@ -155,6 +155,12 @@ public:
     }
 
     [[nodiscard]] bool configure(TimingParameters const & parameters, std::size_t imu_capacity);
+    [[nodiscard]] bool can_configure(TimingParameters const & parameters, std::size_t imu_capacity) const
+    {
+        TimingConfiguration candidate;
+        return m_seed_time_us == 0 && valid_timing() &&
+               configure_timing(parameters, m_timing.imu, imu_capacity, candidate);
+    }
     [[nodiscard]] bool seed(Seed const & initial);
     /** Exactly once per newly admitted real IMU interval; no synthetic context samples. */
     [[nodiscard]] bool record_imu(interval_type const & interval, LandState const & land, VehicleState const & vehicle);

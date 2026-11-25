@@ -607,13 +607,15 @@ void seed_transaction(Context & test, std::string_view profile)
                     !rejected.session.initialized() &&
                     same_bits(before.q_nb.coefficients(), rejected.session.state().q_nb.coefficients()) &&
                     same_bits(P, rejected.session.covariance()),
-                profile, "failed required predictor seed exposes no partial main estimate after earlier history seeds");
+                profile, "rejected profile prevents all startup history and main-state seeds");
 }
 
 void seed_boundaries(Context & test, std::string_view profile)
 {
     auto parameters = ins_example::parameters<Session>();
     parameters.startup.gravity = 10.;
+    parameters.estimator.gravity_n(2) = 10.;
+    parameters.output.gravity_m_s2 = 10.;
     parameters.startup.maximum_angular_rate = .5;
     for (double force : {8. - 1e-6, 8., 8. + 1e-6, 12. - 1e-6, 12., 12. + 1e-6})
     {

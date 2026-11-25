@@ -32,14 +32,20 @@ Current/delayed phase order, one-writer ownership and per-operation commits rema
 applicable. R-INS-CONTINUITY's additional numerical phases retain their explicit
 implementation/acceptance allocation; they are not implied by a capability flag.
 
-The caller shall supply valid, mutually consistent component settings and storage
-capacities before processing IMU samples. Settings are copied into their owners;
-startup configuration shall not change after the first admitted estimator epoch.
-The initialization-settings check validates the bootstrap settings only, not the
-whole profile. Timing configuration retains the ordered IMU/observation/output
-component checks and their individual commits, then binds the height owner
-warmup count from the same effective period and nominal delay. Adapter setting validation and
-earlier successful assignments are not rolled back by later setting rejection.
+The caller shall supply a complete component profile and fixed storage capacities
+before processing IMU samples. The session shall validate their numerical domains,
+common gravity and IMU timing, nominal intervals, supported integration durations,
+declared noise domains, and required history capacities before configuration succeeds.
+Each independent owner retains its own validation. Timing replacement shall
+preflight every participant before changing any owner; rejection preserves the
+previous complete configuration. No seed is permitted without successful timing
+configuration. Settings are copied into their owners, and configuration shall
+not change after the first admitted estimator epoch. Installation/reference
+configuration shall reject non-finite values before assignment.
+
+These are domain and consistency checks, not sensor calibration, physical
+noise-model acceptance or target resource qualification. The
+[sensor-input profile](../../profiles/sensor-input.md) owns those separate claims.
 
 One session shall own the main state/P, initialization, delayed histories, current
 predictor, frame/datum, source policies and reset/fault bookkeeping. It shall use

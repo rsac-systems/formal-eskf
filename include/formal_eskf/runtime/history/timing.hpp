@@ -22,6 +22,7 @@ struct ImuTiming
     std::uint32_t gnss_arrival_age_us{};
     std::uint32_t magnetic_arrival_age_us{};
     std::uint32_t barometer_arrival_age_us{};
+    bool operator==(ImuTiming const &) const = default;
 };
 
 inline bool valid_imu_timing(ImuTiming const & timing)
@@ -101,7 +102,7 @@ struct TimingConfiguration
     }
     auto const intervals = candidate.minimum_lag_us / timing.minimum_period_us +
                            (candidate.minimum_lag_us % timing.minimum_period_us != 0);
-    if (intervals >= capacity)
+    if (intervals >= capacity || intervals * timing.maximum_period_us > timing.maximum_lag_us)
     {
         return false;
     }
