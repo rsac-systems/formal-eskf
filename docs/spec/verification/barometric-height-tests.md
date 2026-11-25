@@ -56,8 +56,8 @@ cases by name or proximity.
 
 The six stable converter case IDs now belong to the
 [executable converter family](tests/runtime/barometric-altitude.md). Its bindings
-cover the pure operations; lifecycle/adapter composition and uniform numerical
-bounds remain explicit gaps. Cases below remain Pending.
+cover pure operations and actual session/PX4 ingress; optional/staged lifecycle,
+receipt composition and uniform numerical bounds remain explicit gaps. Cases below remain Pending.
 
 ### Runtime composition
 
@@ -83,7 +83,7 @@ overrides; the remaining adapter partitions below stay open.
 
 | Case ID | Name | Requirement / clause | Conditions, inputs and action | Expected result and oracle | Executable test |
 |---|---|---|---|---|---|
-| TC-R-HEIGHT-FUSION-BARO-01 | Bind units and converted input once | R-HEIGHT-FUSION, optional barometric target binding | Actual air-data ingress with altitude, pressure, timestamps and identities; upstream QNH update without calibration change. | Preserve supplied metres and metadata, no second conversion/fusion or synthesized calibration event. Check the raw-pressure adapter's Pa conversion separately; plausible mislabeled values cannot all be detected by magnitude. | Pending |
+| TC-R-HEIGHT-FUSION-BARO-01 | Bind units and converted input once | R-HEIGHT-FUSION, optional barometric target binding | Actual air-data ingress with altitude, pressure, timestamps and identities; upstream QNH update without calibration change. | Preserve supplied metres and metadata, no second conversion/fusion or synthesized calibration event. Check the raw-pressure adapter's Pa conversion separately; plausible mislabeled values cannot all be detected by magnitude. | Partial: `integrations/px4/tests/ModuleTest.cpp::barometric_input` and session pressure/altitude ingress; QNH sequence remains pending |
 | TC-R-HEIGHT-FUSION-BARO-02 | Derive effective startup settings | R-HEIGHT-FUSION, optional binding | Default and supported filter-period/delay overrides, invalid overrides and different reserved queue capacities. | N derives from validated effective T/D once, then freezes; capacity is not N. Sigma/variance and domain limits have single configuration owners, not independent literals. | Pending |
 | TC-R-HEIGHT-FUSION-BARO-03 | Exclude barometer without a hidden dependency | R-HEIGHT-FUSION, optional binding | Enabled/disabled builds; actual module startup with GNSS or IMU-only staged inputs. | Disabled path has no subscription/intake/queue/conversion/warmup/fusion or dummy-data requirement. Inspect compiled dependencies and measure storage/work; shared owner storage may remain. | Pending |
 | TC-R-HEIGHT-FUSION-BARO-04 | Carry receipt generations through delayed execution | R-HEIGHT-FUSION, optional binding and reporting | Actual bounded intake/selection/session/publication, receipt expiry during backlog, source switch straddling horizon, rejected arrivals and numerical failure. | Independent timestamp/generation schedule reaches runtime correctly; no fresh-generation leak, future reset or report publication after failed owner transaction. Existing PX4 reset/report semantics remain intact. | Pending |

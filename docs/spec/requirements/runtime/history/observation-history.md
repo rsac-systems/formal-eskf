@@ -15,7 +15,11 @@ monotonic timestamps, timing settings and fixed backing capacities.
 
 `runtime::ObservationHistory` owns source time admission and retained observations
 and context. The caller supplies timing settings and compile-time capacities.
-It does not own numerical validation, source qualification, lifecycle or fusion.
+It does not own model conversion, source qualification, lifecycle or fusion.
+Barometer ingress consumes the caller's conversion/admission result and rejects
+nonfinite supplied altitude. A rejected payload cannot be queued, but valid newer
+source metadata still advances its raw watermark and retires the previous source
+generation. It does not advance admitted spacing or refresh successful fusion.
 [R-SENSOR-INPUT](../sensor-input.md) owns producer clock/unit/frame meaning and
 residual-delay assumptions. Retain the existing frozen half-period convention;
 no unshifted input mode is introduced by that contract. Admission and selection

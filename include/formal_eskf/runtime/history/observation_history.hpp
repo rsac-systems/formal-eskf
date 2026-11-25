@@ -123,7 +123,8 @@ public:
         imu_stale,
         offset_underflow,
         before_seed,
-        too_fast
+        too_fast,
+        invalid_measurement
     };
 
     struct PushResult
@@ -162,7 +163,12 @@ public:
 
     [[nodiscard]] PushResult push_gnss(GnssSample const & sample, std::uint64_t now_us);
     [[nodiscard]] PushResult push_magnetic(MagneticSample const & sample, std::uint64_t now_us);
-    [[nodiscard]] PushResult push_barometer(BarometerSample const & sample, std::uint64_t now_us);
+    /** Retain source-change/watermark handling even when upstream conversion rejects the payload.
+     * Successful input_status means the caller admitted its model/sensor domain.
+     * This history additionally rejects nonfinite altitude; it never converts pressure.
+     */
+    [[nodiscard]] PushResult push_barometer(BarometerSample const & sample, std::uint64_t now_us,
+                                            Status input_status = Status::success);
     /** Once per source per begun fusion step. Share the single GNSS event among all its consumers. */
     [[nodiscard]] PopResult pop_gnss(GnssObservation & output);
     [[nodiscard]] PopResult pop_magnetic(MagneticObservation & output);
@@ -200,7 +206,7 @@ private:
     static Context snapshot(Context const & previous, std::uint64_t time_us, LandState const & land,
                             VehicleState const & vehicle);
     PushResult admit(Timeline & timeline, SourceStamp const & stamp, std::uint64_t now_us, Limits const & limits,
-                     std::uint64_t & effective_time_us);
+                     std::uint64_t & effective_time_us, Status input_status = Status::success);
     PopResult select(Timeline & timeline);
 
     RingBuffer<GnssObservation, GnssCapacity> m_gnss{GnssCapacity};
@@ -370,7 +376,7 @@ template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacit
 typename ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::PushResult
 ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::admit(
     Timeline & timeline, SourceStamp const & stamp, std::uint64_t now_us, Limits const & limits,
-    std::uint64_t & effective_time_us)
+    std::uint64_t & effective_time_us, Status input_status)
 {
     PushResult result;
     if (m_seed_time_us == 0)
@@ -396,6 +402,10 @@ ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, Co
     if (stamp.source.device_id == 0)
     {
         result.decision = Admission::invalid_source;
+    }
+    else if (!succeeded(input_status))
+    {
+        result.decision = Admission::invalid_measurement;
     }
     else if (now_us - stamp.time_us >= limits.arrival_age_us)
     {
@@ -480,12 +490,17 @@ template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacit
           std::size_t ContextCapacity>
 typename ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::PushResult
 ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::push_barometer(
-    BarometerSample const & sample, std::uint64_t now_us)
+    BarometerSample const & sample, std::uint64_t now_us, Status input_status)
 {
     std::uint64_t time{};
     auto const delay = m_configuration.barometer_delay_us;
-    auto result = admit(m_barometer_time, sample.stamp, now_us,
-                        {delay, m_timing.imu.barometer_arrival_age_us, m_timing.barometer_spacing_us}, time);
+    if (!scalar::is_finite<typename Linalg::scalar_math_type>(sample.altitude_m))
+    {
+        input_status = Status::non_finite_input;
+    }
+    auto result =
+        admit(m_barometer_time, sample.stamp, now_us,
+              {delay, m_timing.imu.barometer_arrival_age_us, m_timing.barometer_spacing_us}, time, input_status);
     if (result.source_changed)
     {
         result.source_discarded = m_barometer.entries();

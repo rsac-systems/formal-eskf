@@ -1,7 +1,7 @@
 # Optional Barometric Height Profile
 
-**Status:** Draft. Standalone conversion/admission is implemented; optional-source
-and timing/adapter composition remain targets. Existing deployment evidence retains
+**Status:** Draft. Conversion/admission and session/PX4 ingress are implemented; optional-source
+and receipt/lifecycle composition remain targets. Existing deployment evidence retains
 its original scope.
 
 This profile instantiates [R-BAROMETRIC-ALTITUDE](../requirements/runtime/barometric-altitude.md)
@@ -197,8 +197,12 @@ does not qualify arbitrary configurations. Unchanged bias/gate/reset defaults
 remain in [R-HEIGHT-FUSION](../requirements/integration/px4/height-fusion.md).
 
 Effective-timing warmup derivation is implemented in the shared height owner and
-bound by the session startup call, including the PX4 adapter. The implementation
-still has strict geographic startup, broad altitude sanity bounds and a
+bound by the session startup call, including the PX4 adapter. Session ingress admits supplied barometric altitude before reference/offset
+mapping; the alternative raw-pressure entry converts exactly once. Rejected
+payloads still carry source-change metadata to history, without entering its
+queue. Fixed invalid converter settings reject startup; bad observations alone
+do not latch a core numerical fault. PX4 retains supplied `baro_alt_meter`.
+The implementation still has strict geographic startup and a
 sample-age-based missing-data clock. This target explicitly replaces those barometer bindings when implemented;
 it does not silently narrow GNSS altitude or replace general sample-age checks.
 Existing proofs do not cover the changed contracts merely because paths or IDs
@@ -213,7 +217,8 @@ new mathematical/source proofs remain in V-01. Ground-effect work stays F-03.2.
 The [planned acceptance cases](../verification/barometric-height-tests.md)
 separate converter, owner and actual adapter evidence. Converter and shared
 [height-preparation cases](../verification/tests/runtime/height-observation.md)
-have native bindings; staged source/session and adapter cases remain Pending.
+have native bindings, including binary64 session ingress and PX4 Run fixtures;
+staged-source and receipt/optional adapter cases remain Pending.
 A binding is not an execution result or an approval.
 
 Reference: pinned PX4 [model constants](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/lib/atmosphere/atmosphere.h#L45),

@@ -615,6 +615,41 @@ void explicit_settings(Context & test)
                 "timing uses the actual IMU capacity");
 }
 
+void barometric_admission(Context & test, std::string_view profile)
+{
+    Session session;
+    session.seed();
+    session.advance(1400000);
+    require(session.history.push_barometer(barometer(session.time), session.time).decision == Admission::queued);
+    session.tick();
+    auto changed = barometer(session.time);
+    ++changed.stamp.source.calibration_count;
+    auto result = session.history.push_barometer(changed, session.time, formal_eskf::Status::out_of_range);
+    test.expect(result.decision == Admission::invalid_measurement && result.source_changed &&
+                    result.source_discarded == 1 && session.history.barometer_generation() == 1,
+                profile, "rejected converted payload still retires the previous calibration");
+    test.expect(session.history.push_barometer(changed, session.time).decision == Admission::out_of_order, profile,
+                "rejected payload retains the raw watermark; duplicate retry is not a new sample");
+    session.tick();
+    changed.stamp.time_us = session.time;
+    changed.altitude_m = -0.;
+    result = session.history.push_barometer(changed, session.time);
+    test.expect(result.decision == Admission::queued && !result.source_changed, profile,
+                "rejection did not advance admitted spacing; newer valid sample can recover");
+    auto const effective_time = session.time - session.history.half_period_us();
+    session.fuse_until(session.time);
+    History::BarometerObservation observation;
+    test.expect(session.history.pop_barometer(observation).decision == Selection::selected &&
+                    observation.generation == 1 && observation.time_us == effective_time &&
+                    std::bit_cast<std::uint64_t>(observation.sample.altitude_m) == std::bit_cast<std::uint64_t>(-0.),
+                profile, "selection retains the valid generation and exact supplied-altitude bits");
+    session.tick();
+    changed.stamp.time_us = session.time;
+    changed.altitude_m = std::numeric_limits<double>::quiet_NaN();
+    test.expect(session.history.push_barometer(changed, session.time).decision == Admission::invalid_measurement,
+                profile, "independent history entry rejects a nonfinite payload");
+}
+
 void observation_scenarios(Context & test, std::string_view)
 {
     configuration_and_seed(test);
@@ -641,6 +676,7 @@ int main(int argc, char ** argv)
     formal_eskf::test::configure_backend_test();
     formal_eskf::test::Case const cases[] = {
         {"TC-R-OBSERVATION-HISTORY-01", "double", observation_scenarios},
+        {"TC-R-BAROMETRIC-ALTITUDE-04", "binary64", barometric_admission},
     };
     return formal_eskf::test::run_cases(cases, argc, argv);
 }

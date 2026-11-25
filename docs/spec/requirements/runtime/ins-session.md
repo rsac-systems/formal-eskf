@@ -136,6 +136,16 @@ reset, retained-history, feedback and publication paths, including failures afte
 a successful reset. Staged startup and optional barometer are independent targets;
 source continuation shall not silently enable either one.
 
+### Barometric ingress
+
+The session owns the configured R-BAROMETRIC-ALTITUDE converter. It admits
+supplied model altitude or converts calibrated pressure once before queueing;
+these are alternatives for the same physical observation. It passes rejection
+status with source metadata to history so invalid payloads cannot bypass source
+retirement. Invalid fixed model settings reject configuration/startup; invalid
+observations alone do not latch a core fault. Startup still follows its current
+strict geographic prerequisites; optional and staged startup remain targets.
+
 ## Acceptance and verification
 
 Compare the same explicit profile/backend/input sequence before and after owner

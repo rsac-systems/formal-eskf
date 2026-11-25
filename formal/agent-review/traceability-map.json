@@ -5859,7 +5859,7 @@
     },
     {
       "id": "R-BAROMETRIC-ALTITUDE",
-      "title": "Standalone barometric conversion/admission with native finite-partition tests; composition, uniform numerical bounds and formal evidence pending",
+      "title": "Barometric conversion and session/PX4 ingress admission with native fixtures; optional-source/receipt composition, uniform bounds and formal evidence pending",
       "references": {
         "spec": [
           {
@@ -5892,6 +5892,14 @@
           {
             "file": "include/formal_eskf/runtime/sensors/height/barometric_altitude.hpp",
             "symbol": "struct BarometricSensorLimits"
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "::receive_barometer_pressure("
+          },
+          {
+            "file": "include/formal_eskf/runtime/history/observation_history.hpp",
+            "symbol": "::push_barometer("
           }
         ],
         "esbmc": []

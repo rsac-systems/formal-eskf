@@ -10,6 +10,7 @@
 #include <formal_eskf/runtime/session/output_predictor.hpp>
 #include <formal_eskf/runtime/history/observation_history.hpp>
 #include <formal_eskf/runtime/sensors/height/height_aiding.hpp>
+#include <formal_eskf/runtime/sensors/height/barometric_altitude.hpp>
 #include <formal_eskf/runtime/sensors/gravity/accelerometer.hpp>
 #include <formal_eskf/runtime/session/tilt_alignment.hpp>
 #include <formal_eskf/runtime/sensors/magnetic/magnetic_model.hpp>
@@ -47,6 +48,7 @@ public:
     using imu_type = typename types_type::imu_sample_type;
     using status_type = formal_eskf::Status;
     using height_type = formal_eskf::runtime::HeightAiding<backend_type>;
+    using barometric_type = formal_eskf::runtime::BarometricAltitude<math_type>;
     using bias_learning_type = formal_eskf::runtime::ImuBiasInhibition<backend_type>;
     using vertical_health_type = formal_eskf::runtime::VerticalAccelerationHealth<backend_type>;
     using gravity_sampler_type = formal_eskf::runtime::AccelerometerSample<backend_type, Layout::gravity_interval_us>;
@@ -230,6 +232,8 @@ public:
         ObservationTiming observation_timing{};
         OutputParameters output{};
         typename height_type::Parameters height{};
+        typename barometric_type::parameters_type barometer_model{};
+        typename barometric_type::limits_type barometer_sensor{};
         typename bias_learning_type::Parameters bias_learning{};
         GnssQualityParameters<double> gnss_quality{};
         std::uint64_t magnetic_lookup_interval_us{};
@@ -309,6 +313,9 @@ public:
     void receive_gnss(typename observation_history_type::GnssSample const & sample, std::uint64_t arrival_us);
     void receive_magnetic(typename observation_history_type::MagneticSample const & sample, std::uint64_t arrival_us);
     void receive_barometer(typename observation_history_type::BarometerSample const & sample, std::uint64_t arrival_us);
+    /** Alternative input for calibrated pressure in Pa, never both inputs for the same observation. */
+    void receive_barometer_pressure(typename observation_history_type::SourceStamp const & stamp, double pressure_pa,
+                                    std::uint64_t arrival_us);
     bool fusion_ready() const { return m_imu_history.delayed() != nullptr && !m_fault; }
     void begin_fusion();
     [[nodiscard]] bool complete_fusion(std::optional<typename magnetic_model_type::sample_type> const & model);
@@ -440,6 +447,7 @@ private:
     bool m_initialized{}, m_fault{};
     ResetReport m_resets{};
     height_type m_height_aiding;
+    barometric_type m_barometric{};
     GroundEffect m_ground_effect{};
     TiltAlignment<backend_type> m_tilt_alignment{};
     Gravity m_gravity{};

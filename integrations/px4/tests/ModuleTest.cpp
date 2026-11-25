@@ -2078,6 +2078,38 @@ public:
                "backup expires output without advancing either timeline");
     }
 
+    static void barometric_input()
+    {
+        InsSessionTest test;
+        test.m_baro_altitude = 538.f;
+        test.warmup();
+        auto & session = test.m_filter.m_session;
+        auto const generation = session.m_observations.barometer_generation();
+        auto const rejected = session.statistics().arrival_rejections;
+        test.m_baro_altitude = 11001.f;
+        ++test.m_baro_device;
+        test.m_sample.timestamp_sample += 4000;
+        test.tick();
+        expect(!session.fault() && session.statistics().arrival_rejections > rejected &&
+                   session.m_observations.barometer_generation() == generation + 1,
+               "Run rejects out-of-model altitude while retiring the changed source");
+        test.m_baro_altitude = 538.f;
+        // 1 s covers the 212 ms history plus 51 selected events at 12 ms cadence.
+        for (unsigned i = 0; i < 250; ++i)
+        {
+            test.m_sample.timestamp_sample += 4000;
+            test.tick();
+        }
+        auto const & sample = session.m_barometer.sample;
+        expect(!session.fault() && sample.altitude_m == 538. && sample.stamp.source.device_id == test.m_baro_device &&
+                   session.m_barometer.generation == generation + 1,
+               "actual uORB ingress keeps supplied metres and new source metadata through delayed selection");
+        auto const & barometer = session.height_aiding().session(FormalEskf::height_type::Source::barometer);
+        expect(barometer.generation == generation + 1 && barometer.active,
+               "changed source recovers through ordinary delayed warmup");
+        test.snapshot("barometric_input");
+    }
+
     static void startup()
     {
         InsSessionTest test;
@@ -3870,6 +3902,7 @@ int main(int argc, char ** argv)
     InsSessionTest::alignment_interval_admission();
     InsSessionTest::startup_parameters();
     InsSessionTest::startup();
+    InsSessionTest::barometric_input();
     InsSessionTest::admission();
     InsSessionTest::gaps_and_periods();
     InsSessionTest::interval_boundaries();

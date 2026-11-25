@@ -32,7 +32,7 @@ template <typename Matrix> bool same_bits(Matrix const & a, Matrix const & b)
 
 struct Fixture
 {
-    Session session{ins_example::parameters<Session>()};
+    Session session;
     Session::StartupInput input{};
     Session::ImuInput imu{};
     Session::ContextInput context{};
@@ -40,7 +40,8 @@ struct Fixture
     Session::Innovations events{};
     unsigned step{};
     bool configured{};
-    Fixture()
+    bool send_barometer = true;
+    explicit Fixture(Session::Parameters const & parameters = ins_example::parameters<Session>()) : session(parameters)
     {
         configured = session.configure_timing(ins_example::timing) && session.configure_gravity(true) &&
                      session.configure_magnetic({true, true, 0}) && session.configure_sensor_positions({});
@@ -113,7 +114,7 @@ struct Fixture
                      input.magnetic.field_gauss * 100.},
                     now);
             }
-            if (barometer)
+            if (barometer && send_barometer)
             {
                 session.receive_barometer(input.barometer, now);
             }
@@ -242,6 +243,121 @@ void admission(Context & test, std::string_view profile)
                 "later valid IMU does not clear the restart-required fault");
 }
 
+void barometric_inputs(Context & test, std::string_view profile)
+{
+    using Source = Session::height_type::Source;
+    Fixture f;
+    test.expect(f.run(3000), profile, "initialize with an independently offset barometer");
+    f.send_barometer = false;
+    test.expect(f.run(80), profile, "drain already admitted delayed samples");
+    auto const fused = f.session.height_aiding().session(Source::barometer).fused_time;
+    auto sample = f.input.barometer;
+    auto const before = f.session.statistics().arrival_rejections;
+    for (double invalid : {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::infinity(),
+                           std::nextafter(-5000., -INFINITY), std::nextafter(11000., INFINITY)})
+    {
+        test.expect(f.tick(), profile, "advance one real IMU endpoint");
+        sample.stamp.time_us = f.imu.time_us;
+        sample.altitude_m = invalid;
+        auto const state = f.session.state();
+        auto const P = f.session.covariance();
+        f.session.receive_barometer(sample, f.imu.time_us);
+        test.expect(!f.session.fault() && same_bits(state.p_n, f.session.state().p_n) &&
+                        same_bits(P, f.session.covariance()),
+                    profile, "rejection never mutates estimator state or becomes a numerical fault");
+    }
+    test.expect(f.session.statistics().arrival_rejections == before + 4 &&
+                    f.session.height_aiding().session(Source::barometer).fused_time == fused,
+                profile, "invalid model altitudes never refresh successful barometer fusion");
+    // Physical state is near MSL 488 m, with a nonzero learned barometer offset.
+    // Both source-domain endpoints remain admissible before offset mapping.
+    for (double endpoint : {-5000., 11000.})
+    {
+        test.expect(f.run(3), profile, "respect configured observation spacing");
+        sample.stamp.time_us = f.imu.time_us;
+        sample.altitude_m = endpoint;
+        auto const rejected = f.session.statistics().arrival_rejections;
+        f.session.receive_barometer(sample, f.imu.time_us);
+        test.expect(f.session.statistics().arrival_rejections == rejected, profile,
+                    "inclusive source envelope is checked before local-height/offset conversion");
+    }
+}
+
+void pressure_inputs(Context & test, std::string_view profile)
+{
+    using Source = Session::height_type::Source;
+    Fixture raw;
+    test.expect(raw.run(3000), profile, "bootstrap real delayed session");
+    raw.send_barometer = false;
+    test.expect(raw.run(80), profile, "drain preceding barometer events");
+    Fixture converted;
+    test.expect(converted.run(3000), profile, "independent reference session with the same admitted history");
+    converted.send_barometer = false;
+    test.expect(converted.run(80), profile, "drain reference history");
+    auto const stamp = Session::observation_history_type::SourceStamp{raw.imu.time_us, {401, 0}};
+    auto const offset = raw.session.height_aiding().session(Source::barometer).bias.value;
+    auto const rejected = raw.session.statistics().arrival_rejections;
+    // Independent 100-digit Decimal atmosphere reference, also pinned in the pure converter family.
+    constexpr double altitude = 1843.00874360455737262838978289432913;
+    raw.session.receive_barometer_pressure(stamp, 81060., raw.imu.time_us);
+    converted.session.receive_barometer({stamp, altitude}, converted.imu.time_us);
+    test.expect(raw.session.statistics().arrival_rejections == rejected, profile, "calibrated Pa is admitted once");
+    for (unsigned i = 0;
+         i < 70 && raw.session.height_aiding().session(Source::barometer).sample_time < stamp.time_us - 2000; ++i)
+    {
+        test.expect(raw.tick() && converted.tick(), profile, "actual delayed selection and height fusion");
+    }
+    auto const & aid = raw.session.height_aiding().session(Source::barometer);
+    auto const & reference = converted.session.height_aiding().session(Source::barometer);
+    test.expect(aid.sample_time == stamp.time_us - 2000 && aid.fusion.diagnostics_valid &&
+                    std::abs(aid.fusion.innovation(0) - (488. - (altitude - offset))) < 2e-7 &&
+                    std::abs(aid.fusion.innovation(0) - reference.fusion.innovation(0)) < 2e-10,
+                profile, "raw path reaches owner with correct model altitude and frozen offset");
+    test.expect(formal_eskf::linalg::max_abs(raw.session.state().p_n - converted.session.state().p_n) < 1e-8 &&
+                    formal_eskf::linalg::max_abs(raw.session.covariance() - converted.session.covariance()) < 1e-10,
+                profile, "independent converted reference gives the same estimator outcome within rounding budget");
+}
+
+void pressure_boundary(Context & test, std::string_view profile)
+{
+    auto parameters = ins_example::parameters<Session>();
+    parameters.barometer_model.maximum_altitude_m = 10;
+    Fixture f{parameters};
+    f.input.barometer.altitude_m = 0;
+    test.expect(f.run(3000), profile, "narrow barometer model never narrows GNSS MSL height");
+    f.send_barometer = false;
+    test.expect(f.run(80), profile, "drain old pressure-altitude data");
+    Session::barometric_type converter;
+    test.expect(formal_eskf::succeeded(converter.configure(parameters.barometer_model)), profile,
+                "prepare producer boundary");
+    auto stamp = Session::observation_history_type::SourceStamp{f.imu.time_us, {401, 0}};
+    auto const rejected = f.session.statistics().arrival_rejections;
+    f.session.receive_barometer_pressure(stamp, converter.minimum_pressure_pa(), f.imu.time_us);
+    test.expect(f.session.statistics().arrival_rejections == rejected, profile,
+                "raw endpoint has no second exact-altitude cutoff after floating-point conversion");
+    test.expect(f.run(3), profile, "next distinct event");
+    stamp.time_us = f.imu.time_us;
+    f.session.receive_barometer_pressure(stamp, std::nextafter(converter.minimum_pressure_pa(), 0.), f.imu.time_us);
+    test.expect(f.session.statistics().arrival_rejections == rejected + 1 && !f.session.fault(), profile,
+                "adjacent exterior pressure is rejected without publishing a stale conversion output");
+}
+
+void barometric_configuration(Context & test, std::string_view profile)
+{
+    auto parameters = ins_example::parameters<Session>();
+    parameters.barometer_model.reference_pressure_pa = 0;
+    Fixture invalid{parameters};
+    test.expect(!invalid.configured && !invalid.session.initialized() &&
+                    invalid.session.failure_status() == formal_eskf::Status::domain_error,
+                profile, "invalid model settings prevent startup instead of reaching unsupported power evaluation");
+    Fixture f;
+    f.input.barometer.altitude_m = 11001;
+    test.expect(f.run(3000) && !f.session.initialized() && !f.session.fault(), profile,
+                "invalid measurement blocks the existing strict startup without a core fault");
+    f.input.barometer.altitude_m = 538;
+    test.expect(f.run(100) && f.session.initialized(), profile, "admitted input permits ordinary startup recovery");
+}
+
 void projection(Context & test, std::string_view profile)
 {
     constexpr double radius = 6371000;
@@ -271,6 +387,10 @@ int main(int argc, char ** argv)
         {"TC-R-INS-SESSION-02", "binary64", stationary},
         {"TC-R-INS-SESSION-03", "binary64", admission},
         {"TC-R-INS-SESSION-04", "binary64", projection},
+        {"TC-R-BAROMETRIC-ALTITUDE-01", "binary64", pressure_inputs},
+        {"TC-R-BAROMETRIC-ALTITUDE-02", "binary64", pressure_boundary},
+        {"TC-R-BAROMETRIC-ALTITUDE-03", "binary64", barometric_configuration},
+        {"TC-R-BAROMETRIC-ALTITUDE-04", "binary64", barometric_inputs},
     };
     return formal_eskf::test::run_cases(cases, argc, argv);
 }

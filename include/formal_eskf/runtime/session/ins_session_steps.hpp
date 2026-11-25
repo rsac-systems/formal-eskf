@@ -172,12 +172,13 @@ InsSession<Linalg, Layout>::InsSession(Parameters const & p)
     m_gnss.quality_parameters = p.gnss_quality;
     m_origin.projection = projection_type{p.settings.projection_radius_m};
     m_gnss.previous_fix = projection_type{p.settings.projection_radius_m};
+    check(m_barometric.configure(p.barometer_model, p.barometer_sensor));
 }
 
 template <typename Linalg, typename Layout>
 bool InsSession<Linalg, Layout>::configure_timing(TimingParameters const & timing)
 {
-    return m_time_us == 0 && m_imu_history.configure(timing, m_imu_timing) &&
+    return !m_fault && m_time_us == 0 && m_imu_history.configure(timing, m_imu_timing) &&
            m_observations.configure(timing, Layout::imu_capacity) && m_output.configure(timing) &&
            m_height_aiding.configure_timing(timing);
 }
@@ -275,8 +276,11 @@ void InsSession<Linalg, Layout>::process_imu(ImuInput const & sample, std::uint6
     m_gnss.input = {startup.gnss.stamp.time_us, 0, 0, 0, startup.gnss};
     m_gnss.context = startup_context(m_gnss.input.time_us, m_settings.gnss.context_maximum_age_us);
     m_barometer = {startup.barometer.stamp.time_us, 0, 0, 0, startup.barometer};
+    auto const barometer_status =
+        m_barometric.admit_altitude(startup.barometer.altitude_m, m_barometer.sample.altitude_m);
     update_gps_quality();
     if (m_fault || !m_initialization.collect(m_time_us, context.vehicle.armed, imu, startup.magnetic) ||
+        !succeeded(barometer_status) ||
         !m_initialization.ready(m_time_us, {gps_good(), startup.barometer.stamp.time_us, startup.barometer.altitude_m,
                                             startup.horizontal_speed, startup.vertical_speed}))
     {
@@ -415,7 +419,19 @@ template <typename Linalg, typename Layout>
 void InsSession<Linalg, Layout>::receive_barometer(typename observation_history_type::BarometerSample const & sample,
                                                    std::uint64_t arrival_us)
 {
-    record_admission(m_observations.push_barometer(sample, arrival_us));
+    auto admitted = sample;
+    auto const status = m_barometric.admit_altitude(sample.altitude_m, admitted.altitude_m);
+    record_admission(m_observations.push_barometer(admitted, arrival_us, status));
+}
+
+template <typename Linalg, typename Layout>
+void InsSession<Linalg, Layout>::receive_barometer_pressure(
+    typename observation_history_type::SourceStamp const & stamp, double pressure_pa, std::uint64_t arrival_us)
+{
+    typename observation_history_type::BarometerSample sample{stamp};
+    auto const status = m_barometric.from_pressure(pressure_pa, sample.altitude_m);
+    // Do not reapply the exact converted-altitude cutoff to a rounded raw-pressure endpoint.
+    record_admission(m_observations.push_barometer(sample, arrival_us, status));
 }
 
 template <typename Linalg, typename Layout>
