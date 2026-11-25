@@ -284,7 +284,7 @@ void barometric_inputs(Context & test, std::string_view profile)
     }
 }
 
-struct NoBarometer
+template <bool Enabled, std::size_t Capacity> struct BarometerLayout
 {
     // These members bind InsSession's dependent storage/interval template arguments.
     // Cppcheck does not resolve those uses for this local layout specialization.
@@ -293,16 +293,17 @@ struct NoBarometer
     static constexpr std::size_t context_capacity = ins_example::Layout::context_capacity;
     static constexpr std::size_t gnss_capacity = ins_example::Layout::gnss_capacity;
     static constexpr std::size_t magnetic_capacity = ins_example::Layout::magnetic_capacity;
-    static constexpr std::size_t barometer_capacity = ins_example::Layout::barometer_capacity;
+    static constexpr std::size_t barometer_capacity = Capacity;
     static constexpr std::uint64_t gravity_interval_us = ins_example::Layout::gravity_interval_us;
     // cppcheck-suppress-end unusedStructMember
     static constexpr bool gravity_aiding = true, ground_effect = true, magnetic_model = true;
-    static constexpr bool barometer_aiding = false;
+    static constexpr bool barometer_aiding = Enabled;
 };
 
 void optional_barometer(Context & test, std::string_view profile)
 {
-    using Runtime = formal_eskf::runtime::InsSession<Backend, NoBarometer>;
+    using Runtime =
+        formal_eskf::runtime::InsSession<Backend, BarometerLayout<false, ins_example::Layout::barometer_capacity>>;
     using Source = Runtime::height_type::Source;
     auto parameters = ins_example::parameters<Runtime>();
     parameters.barometer_model.reference_pressure_pa = 0; // Excluded converter must never configure/evaluate.
@@ -326,6 +327,28 @@ void optional_barometer(Context & test, std::string_view profile)
     test.expect(f.run(1000) && f.session.statistics().baro_updates == 0 &&
                     f.session.height_aiding().session(Source::gnss).active,
                 profile, "continued GNSS height does not acquire a hidden barometer dependency");
+}
+
+void barometric_capacity(Context & test, std::string_view profile)
+{
+    using Larger = formal_eskf::runtime::InsSession<Backend, BarometerLayout<true, 256>>;
+    Fixture baseline;
+    Fixture<Larger> larger;
+    test.expect(baseline.configured && larger.configured &&
+                    baseline.session.height_aiding().barometer_warmup_samples() == 50 &&
+                    larger.session.height_aiding().barometer_warmup_samples() == 50 && sizeof(Larger) > sizeof(Session),
+                profile, "double reserved barometer storage without changing the timing-derived event count");
+    for (unsigned n = 0; n < 3200; ++n)
+    {
+        test.expect(baseline.tick() && larger.tick(), profile, "both storage configurations run the actual session");
+        test.expect(baseline.session.initialized() == larger.session.initialized() &&
+                        baseline.session.statistics().baro_updates == larger.session.statistics().baro_updates,
+                    profile, "capacity cannot change qualification or fusion timing");
+    }
+    test.expect(baseline.session.initialized() && baseline.session.statistics().baro_updates > 0 &&
+                    same_bits(baseline.session.state().p_n, larger.session.state().p_n) &&
+                    same_bits(baseline.session.covariance(), larger.session.covariance()),
+                profile, "identical samples produce identical navigation with different reserved capacity");
 }
 
 void barometric_receipt(Context & test, std::string_view profile)
@@ -457,6 +480,7 @@ int main(int argc, char ** argv)
         {"TC-R-BAROMETRIC-ALTITUDE-03", "binary64", barometric_configuration},
         {"TC-R-BAROMETRIC-ALTITUDE-04", "binary64", barometric_inputs},
         {"TC-R-HEIGHT-AIDING-BARO-06", "binary64", barometric_receipt},
+        {"TC-R-HEIGHT-AIDING-BARO-05", "binary64", barometric_capacity},
         {"TC-R-HEIGHT-AIDING-BARO-08", "binary64", optional_barometer},
     };
     return formal_eskf::test::run_cases(cases, argc, argv);

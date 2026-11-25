@@ -785,6 +785,49 @@ public:
         test.snapshot("height-rollback");
     }
 
+    static void height_output_failure()
+    {
+        InsSessionTest test;
+        test.warmup();
+        auto & f = test.m_filter;
+        auto & session = f.m_session;
+        // Isolated caller composition: retain real seeded histories, but supply
+        // quality outcomes directly to exercise the failure between two owners.
+        session.m_gnss.quality_result.decision = formal_eskf::runtime::GnssQualityDecision::rejected;
+        test.navigation_tick();
+        expect(!session.height_aiding().session(FormalEskf::height_type::Source::gnss).active,
+               "stop height source before testing its real reset");
+        auto const output = session.m_output.current();
+        auto const resets = session.resets().height_count;
+        auto const published = f.m_last_output;
+        // The public output owner latches a numerical fault without modifying
+        // its history; the session discovers it at the next reset dependency.
+        expect(!session.m_output.apply_reset({}, {}, FormalEskf::vector3(NAN, 0., 0.)),
+               "inject a failed output participant through its checked operation");
+        clock_us += 20000;
+        session.m_time_us = clock_us;
+        session.m_gnss.sample = {clock_us, formal_eskf::runtime::GnssQualityDecision::accepted};
+        session.m_gnss.quality_result.decision = formal_eskf::runtime::GnssQualityDecision::accepted;
+        f.m_gps.timestamp_sample = f.m_baro.timestamp_sample = clock_us;
+        f.m_gps.altitude_msl_m += 3.;
+        test.select_navigation_inputs();
+        session.fuse_height(test.navigation_receipt());
+        auto const event = session.m_innovations.height[1];
+        f.update_innovations();
+        expect(session.fault() && event.reset && session.height_aiding().progress_time() == clock_us &&
+                   session.height_aiding().reference() == FormalEskf::height_type::Source::gnss,
+               "a later output failure cannot undo an already committed height-owner reset");
+        expect(session.resets().height_count == resets && f.m_last_output == published &&
+                   formal_eskf::linalg::max_abs(session.m_output.current().p_n - output.p_n) == 0 &&
+                   session.m_output.current().time_us == output.time_us && !session.output_validity(clock_us).healthy,
+               "failed output dependency preserves its history/counters and withdraws usable output");
+        expect(f.m_height_ratios[1].filtered == 0. && f.m_height_ratios[1].time_us == event.time_us,
+               "committed height diagnostic reset is consumed despite the later participant failure");
+        auto const repeated = session.take_innovations();
+        expect(!repeated.height[1].reset && !repeated.height[1].measurement,
+               "adapter consumes the committed event once");
+    }
+
     static void navigation_rejected_quality()
     {
         InsSessionTest test;
@@ -4158,6 +4201,7 @@ int main(int argc, char ** argv)
         InsSessionTest::height_admission(scenario);
     }
     InsSessionTest::height_transaction_failure();
+    InsSessionTest::height_output_failure();
     InsSessionTest::navigation_rejected_quality();
     InsSessionTest::navigation_timeout();
     InsSessionTest::height_combined_resets();

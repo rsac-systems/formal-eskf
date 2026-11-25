@@ -15,7 +15,6 @@ subscription, barometric admission and fusion, and the startup dependency on
 barometric altitude. The current INS still requires qualified GNSS and magnetic
 startup inputs. Common reserved session/history storage remains allocated.
 
-
 The supported target is **PX4 v1.16.2**, commit `54f0455ffcd755534539a7cf33a09a20bf71d29d`, on Linux with GCC 11 or newer and C++20. The dedicated `px4_sitl_formal_eskf` board replaces EKF2 with a single-instance formal-eskf INS using the PX4 matrix backend and double precision.
 
 ## Source ownership
@@ -103,8 +102,9 @@ python3 integrations/px4/scripts/install.py --px4 "$PX4_ROOT" --config .config -
 ```
 
 The menu includes generated INS arithmetic (enabled by default), exact/approximate
-prediction and reset, magnetic tilt protection, plus 64 module settings: WMM, ground-effect/gravity/bias enablement,
-GNSS and magnetic checks, lifecycle timeouts, noise, gates, bias limits and output
+prediction and reset, magnetic tilt protection, plus module settings for
+barometric height, WMM, ground-effect/gravity/bias enablement, GNSS and magnetic
+checks, lifecycle timeouts, noise, gates, bias limits and output
 tracking time constants. Decimal values are validated before packaging. See
 [configuration ownership](../../docs/guides/configuration.md#px4-deployment-menu)
 for units, defaults and retained constraints.

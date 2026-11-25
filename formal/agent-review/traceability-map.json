@@ -5938,7 +5938,7 @@
     },
     {
       "id": "R-HEIGHT-FUSION",
-      "title": "Portable height/PX4: shared preparation and effective-timing warmup have native bindings; explicit receipt clocks/generations have native history/session/Run bindings; changed process/update/caller signatures and old fixed-20 source profiles need rebinding; source exclusion, selected-sample GNSS recovery and ordinary QNH changes have native/session/PX4 bindings; complete failure/reset-report and staged attachment pending; ground-effect target pending",
+      "title": "Portable height/PX4: geographic input, timing, optional-source, recovery and transaction tests bound; staged startup/attachment and ground-effect target pending; changed source signatures and former fixed-20 ESBMC profiles require rebinding",
       "references": {
         "spec": [
           {

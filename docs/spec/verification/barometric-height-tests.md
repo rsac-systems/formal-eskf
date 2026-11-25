@@ -69,14 +69,13 @@ warmup. PX4 `ModuleTest.cpp::timing_parameters` exercises the actual startup
 overrides; the remaining adapter partitions below stay open. The height-owner family also
 binds receipt-clock/generation cases 06 and 07, with history and session fixtures;
 `ModuleTest.cpp::barometric_receipt` exercises actual uORB expiry.
-The same family binds selected GNSS recovery and ordinary QNH-change policy
-(cases 09 and 11); actual uORB fixtures are `barometric_gnss_recovery` and
+The same family binds selected GNSS recovery ordinary QNH-change policy and owner rollback
+(cases 09, 10 and 11); actual uORB fixtures are `barometric_gnss_recovery` and
 `barometric_reference_change` in `ModuleTest.cpp`.
 
 | Case ID | Name | Requirement / clause | Conditions, inputs and action | Expected result and oracle | Executable test |
 |---|---|---|---|---|---|
-| TC-R-HEIGHT-AIDING-BARO-10 | Preserve the declared failure transaction | R-HEIGHT-AIDING, complete tick; C-FAILURE | Fail preparation, correction, bias-finiteness and reset stages, including GNSS failure after a barometer candidate succeeds. | Pure helper preserves its output; failed owner tick preserves owner/state/P/results together. Rejection may commit diagnostics. Do not incorrectly demand rollback of earlier independent session phases. | Pending |
-| TC-R-HEIGHT-AIDING-BARO-12 | Deliver real reset effects coherently | R-HEIGHT-AIDING, resets and events; R-INS-ATTACHMENT | Height recovery with/without velocity aiding, offsets, delayed/current histories and preserved publication reference; fail a dependent reset participant. | Independent height/velocity reset deltas, P and offset transport; no fictitious coordinate-only reset. Correct clear/measurement/reset order, once-only delivery and owning rollback boundary. | Pending |
+| TC-R-HEIGHT-AIDING-BARO-12 | Deliver real reset effects coherently | R-HEIGHT-AIDING, resets and events; R-INS-ATTACHMENT | Height recovery with/without velocity aiding, offsets, delayed/current histories and preserved publication reference; fail a dependent reset participant. | Independent height/velocity reset deltas, P and offset transport; no fictitious coordinate-only reset. Correct clear/measurement/reset order, once-only delivery and owning rollback boundary. | Partial: existing height-owner cases 01/02 and PX4 `height_combined_resets`, `barometric_gnss_recovery`, `height_output_failure`, `delayed_resets_and_failure`; first geographic attachment remains pending |
 | TC-R-HEIGHT-AIDING-BARO-13 | Qualify model and mounting error | R-BAROMETRIC-ALTITUDE, acceptance; barometric profile applicability | Independent pressure/height truth, declared temperature/weather and mounting/attitude partitions, GNSS-to-baro reference transfer and prolonged loss. | Separate model error, sensor error and shared-reference/offset uncertainty from numerical error; assess actual height error and covariance consistency against predeclared deployment limits. Pending limits block physical acceptance. | Pending |
 
 ### PX4 adapter
@@ -84,9 +83,9 @@ The same family binds selected GNSS recovery and ordinary QNH-change policy
 | Case ID | Name | Requirement / clause | Conditions, inputs and action | Expected result and oracle | Executable test |
 |---|---|---|---|---|---|
 | TC-R-HEIGHT-FUSION-BARO-01 | Bind units and converted input once | R-HEIGHT-FUSION, optional barometric target binding | Actual air-data ingress with altitude, pressure, timestamps and identities; upstream QNH update without calibration change. | Preserve supplied metres and metadata, no second conversion/fusion or synthesized calibration event. Check the raw-pressure adapter's Pa conversion separately; plausible mislabeled values cannot all be detected by magnitude. | Native: `integrations/px4/tests/ModuleTest.cpp::barometric_input`, `barometric_reference_change` and session pressure/altitude ingress; supplied-input wiring, not physical QNH accuracy |
-| TC-R-HEIGHT-FUSION-BARO-02 | Derive effective startup settings | R-HEIGHT-FUSION, optional binding | Default and supported filter-period/delay overrides, invalid overrides and different reserved queue capacities. | N derives from validated effective T/D once, then freezes; capacity is not N. Sigma/variance and domain limits have single configuration owners, not independent literals. | Pending |
+| TC-R-HEIGHT-FUSION-BARO-02 | Derive effective startup settings | R-HEIGHT-FUSION, optional binding | Default and supported filter-period/delay overrides, invalid overrides and different reserved queue capacities. | N derives from validated effective T/D once, then freezes; capacity is not N. Sigma/variance and domain limits have single configuration owners, not independent literals. | Native: `ModuleTest.cpp::timing_parameters` tests supported/invalid overrides, 50/60 events versus 54/64 history slots and frozen running settings; `test_session.cpp::barometric_capacity` compares 128/256 reserved barometer slots through actual startup/fusion. Converter/warmup units and Kconfig package tests bind settings |
 | TC-R-HEIGHT-FUSION-BARO-03 | Exclude barometer without a hidden dependency | R-HEIGHT-FUSION, optional binding | Enabled/disabled builds; actual module startup with GNSS or IMU-only staged inputs. | Disabled path has no subscription/intake/queue/conversion/warmup/fusion or dummy-data requirement. Inspect compiled dependencies and measure storage/work; shared owner storage may remain. | Partial: native disabled session and `ModuleTest.cpp::barometer_disabled` in an actual disabled build; IMU-only staged startup remains pending |
-| TC-R-HEIGHT-FUSION-BARO-04 | Carry receipt generations through delayed execution | R-HEIGHT-FUSION, optional binding and reporting | Actual bounded intake/selection/session/publication, receipt expiry during backlog, source switch straddling horizon, rejected arrivals and numerical failure. | Independent timestamp/generation schedule reaches runtime correctly; no fresh-generation leak, future reset or report publication after failed owner transaction. Existing PX4 reset/report semantics remain intact. | Partial: `ModuleTest.cpp::barometric_receipt` and `delayed_source_changes`; full failure/report partitions remain pending |
+| TC-R-HEIGHT-FUSION-BARO-04 | Carry receipt generations through delayed execution | R-HEIGHT-FUSION, optional binding and reporting | Actual bounded intake/selection/session/publication, receipt expiry during backlog, source switch straddling horizon, rejected arrivals and numerical failure. | Independent timestamp/generation schedule reaches runtime correctly; no fresh-generation leak, future reset or report publication after failed owner transaction. Existing PX4 reset/report semantics remain intact. | Native: `ModuleTest.cpp::barometric_receipt`, `delayed_source_changes`, `height_transaction_failure`, `height_output_failure` and `delayed_resets_and_failure`; isolated owner/output faults are distinguished from actual Run paths |
 
 ## Allocation and remaining evidence
 
@@ -107,6 +106,10 @@ barometer lever-arm compensation and a QNH-specific control mechanism are exclud
 ## Review
 
 Draft allocation; the linked executable families retain their own bindings and
-limits. Rows still marked Pending are not execution results. Numerical
+limits. Rows still marked Pending are not execution results. In `height_output_failure`,
+the height tick commits before a separate output dependency fails. Its committed
+raw event remains reportable, but output history/reset counters are not partially
+updated and usable output is withdrawn. This is not a whole-cycle rollback or
+staged geographic-attachment acceptance claim. Numerical
 and physical qualification gaps remain explicit. Self-review and commit permission
 do not promote this family or its requirements to Approved.

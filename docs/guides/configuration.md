@@ -122,7 +122,7 @@ All floating inputs still require their operation's finite/arithmetic checks.
 | Gravity fusion `V`, `enabled` | Explicit effective covariance and caller enable; no innovation-gate parameter in this path | `V = (gravity_n·gravity_n) I`, ≈96.17 m²/s⁴; `FESKF_GRAV_EN` |
 | [Navigation fusion](../../include/formal_eskf/runtime/fusion/navigation.hpp): `gate_sigma`, `GnssVelocityConditions.maximum_speed_accuracy`, height `deadzone` | Positive gate/accuracy limit; deadzone finite ≥0 m, default 0 | GNSS gate 5 / speed limit 0.5 m/s; height gate 5, conditional barometer deadzone 4 m |
 | Navigation reset variances | Explicit finite nonnegative position/velocity variances; fixed floors below | Receiver-derived/reset profile; reset permission remains lifecycle-owned |
-| [Barometric altitude](../../include/formal_eskf/runtime/sensors/height/barometric_altitude.hpp): model settings, `ESKF_BARO_*` defaults and calibrated sensor limits | [Barometric profile](../spec/profiles/barometric-height.md#model-and-input-settings) owns units/defaults and the numerical envelope; positive model constants, finite ordered sensor ranges | Standalone converter; successful configuration recomputes cached limits, failure retains the old model. Not wired to PX4 or Kconfig yet |
+| [Barometric altitude](../../include/formal_eskf/runtime/sensors/height/barometric_altitude.hpp): model settings, `ESKF_BARO_*` defaults and calibrated sensor limits | [Barometric profile](../spec/profiles/barometric-height.md#model-and-input-settings) owns units/defaults and the numerical envelope; positive model constants, finite ordered sensor ranges | Standalone converter and session ingress; successful configuration recomputes cached limits, failure retains the old model. PX4 admits supplied altitude without reconversion. Kconfig controls source enablement; model/sensor limits remain explicit startup settings |
 | [RingBuffer](../../include/formal_eskf/runtime/history/ring_buffer.hpp): `Capacity`, `length`, `max_age_us` | Capacity compile-time >0; active length 1..Capacity at startup/reset; age-window argument defaults 100,000 us, strict age comparison | Fixed backing storage; histories derive supported active lengths. Age zero admits no sample |
 
 The ten GNSS selectors are `satellites`, `pdop`, `horizontal_accuracy`,
@@ -204,13 +204,18 @@ neither enables live retuning. Instructions are in the [PX4 guide](../../integra
 
 | Group | Settings | Existing defaults / behavior |
 | --- | --- | --- |
-| Features (5) | WMM, ground-effect protection, gravity aiding support, accelerometer/gyro bias learning | All enabled; required motion, health and alignment conditions remain effective |
+| Features (6) | Barometric height, WMM, ground-effect protection, gravity aiding support, accelerometer/gyro bias learning | All enabled; required motion, health and alignment conditions remain effective |
 | IMU noise and bias (10) | Sample variances, bias variance densities, fault acceleration standard deviation, learning force/rate/decay and two bias limits | Units and sampled/density scaling remain as listed above |
 | Magnetic aiding (14) | Three health selectors, strength/inclination tolerances, minimum horizontal field, heading noise/acceleration criterion, observation variance, innovation gate, health/sample/fusion/model intervals | Strength check on; inclination and require-WMM off; health 1 s, sample interval 0.5 s, fusion timeout 7 s, model lookup 10 s |
 | GNSS quality (19) | Ten check selectors, satellites/PDOP/position/speed/drift limits, speed input bound and health duration | All ten checks on; six satellites, PDOP 2.5, 3/5 m, 0.5 m/s accuracy, health 10 s |
 | GNSS fusion (5) | Horizontal timeout, velocity and position noise floors/cap, innovation gate | Timeout 7 s, velocity 0.3 m/s, position 0.5–10 m, gate 5 sigma |
 | Height / ground effect (9) | Fusion and two data timeouts, barometer variance, GNSS noise floor/variance cap, gate, deadzone and hold time | Fusion 5 s; barometer 0.4 s / GNSS 1 s; deadzone 4 m; hold 10 s |
 | Output predictor (2) | Velocity and position tracking time constants | Both 0.25 s |
+
+Barometer exclusion removes its intake, admission, warmup and fusion; shared
+reserved storage remains. The current geographic startup still requires qualified
+GNSS and heading inputs; relative startup is allocated to staged INS. Raw pressure
+and supplied-altitude calls are alternatives for a sample, never two observations.
 
 WMM disabled suppresses host lookup and geographic adoption. The existing
 measured-field/stored-declination/magnetic-north fallback remains; geographic

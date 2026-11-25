@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include <array>
+#include <bit>
+#include <cstddef>
 #include <limits>
 
 #include <formal_eskf/runtime/sensors/height/height_aiding.hpp>
@@ -1086,6 +1089,156 @@ template <typename Linalg> void reference_pressure_changes(Context & test)
     }
 }
 
+template <typename Matrix> bool same_bits(Matrix const & a, Matrix const & b)
+{
+    using bytes_type = std::array<std::byte, sizeof(typename Matrix::value_type)>;
+    for (std::size_t row = 0; row < Matrix::row_count; ++row)
+    {
+        for (std::size_t column = 0; column < Matrix::column_count; ++column)
+        {
+            if (std::bit_cast<bytes_type>(a(row, column)) != std::bit_cast<bytes_type>(b(row, column)))
+            {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+template <typename Linalg>
+void expect_height_frame(Context & test, HeightFixture<Linalg> const & actual, HeightFixture<Linalg> const & before)
+{
+    using Source = typename HeightFixture<Linalg>::Source;
+    test.expect(same_bits(actual.state.p_n, before.state.p_n) && same_bits(actual.state.v_n, before.state.v_n) &&
+                    same_bits(actual.state.q_nb.coefficients(), before.state.q_nb.coefficients()) &&
+                    same_bits(actual.state.b_a, before.state.b_a) && same_bits(actual.state.b_g, before.state.b_g) &&
+                    same_bits(actual.P, before.P) && actual.aiding.reference() == before.aiding.reference() &&
+                    actual.aiding.progress_time() == before.aiding.progress_time(),
+                "transaction", "all nominal fields, full covariance and height authority retain their prior values");
+    for (auto source : {Source::barometer, Source::gnss})
+    {
+        auto const & a = actual.aiding.session(source);
+        auto const & b = before.aiding.session(source);
+        test.expect(
+            a.sample_time == b.sample_time && a.data_time == b.data_time && a.progress_time == b.progress_time &&
+                a.fused_time == b.fused_time && a.device_id == b.device_id &&
+                a.calibration_count == b.calibration_count && a.generation == b.generation && a.active == b.active &&
+                a.fault == b.fault && a.stop_reason == b.stop_reason && a.bias.value == b.bias.value &&
+                a.bias.variance == b.bias.variance && a.bias.maximum_variance == b.bias.maximum_variance &&
+                a.bias.signed_ratio == b.bias.signed_ratio && a.bias.positive_time == b.bias.positive_time &&
+                a.bias.negative_time == b.bias.negative_time && a.bias.dt == b.bias.dt &&
+                a.fusion_reset == b.fusion_reset && a.innovation_limited == b.innovation_limited &&
+                a.fusion_innovation == b.fusion_innovation && a.fusion.status == b.fusion.status &&
+                a.fusion.decision == b.fusion.decision && a.fusion.diagnostics_valid == b.fusion.diagnostics_valid &&
+                a.fusion.innovation(0) == b.fusion.innovation(0) &&
+                a.fusion.innovation_variance(0) == b.fusion.innovation_variance(0) &&
+                a.fusion.test_ratio(0) == b.fusion.test_ratio(0),
+            "transaction", "both source histories, bias state and raw diagnostics match exactly");
+    }
+}
+
+template <typename Linalg> void height_transaction(Context & test)
+{
+    using F = HeightFixture<Linalg>;
+    using T = typename F::value_type;
+    using A = typename F::aiding_type;
+    enum class Failure
+    {
+        prediction,
+        reset,
+        offset,
+        second_correction
+    };
+    for (auto failure : {Failure::prediction, Failure::reset, Failure::offset, Failure::second_correction})
+    {
+        F f;
+        auto parameters = height_parameters<T>();
+        parameters.minimum_altitude_m = -std::numeric_limits<T>::max();
+        parameters.maximum_altitude_m = std::numeric_limits<T>::max();
+        f.aiding = A{parameters};
+        T const huge = std::numeric_limits<T>::max() * T{0.75};
+        T const origin = failure == Failure::offset ? -huge : huge;
+        test.expect(f.aiding.initialize(f.now, origin) == Status::success, "transaction",
+                    "wide finite owner domain isolates arithmetic failure; not a deployment atmosphere profile");
+        typename A::Sample baro{f.now + 20000, 1, 0, origin, T{12.25}};
+        typename A::Sample gps{baro.time_us, 2, 0, origin, T{1}};
+        switch (failure)
+        {
+        case Failure::prediction:
+            f.state.p_n(2) = -huge;
+            break;
+        case Failure::reset:
+            gps.altitude = -huge;
+            break;
+        case Failure::offset:
+            baro.altitude = huge;
+            gps = {};
+            break;
+        case Failure::second_correction:
+            f.start(test);
+            baro.time_us = gps.time_us = f.now + 20000;
+            baro.altitude = T{551};
+            gps.altitude = huge;
+            break;
+        }
+        f.state.v_n(1) = -T{0};
+        f.P(0, 1) = f.P(1, 0) = -T{0};
+        auto const before = f;
+        if (failure == Failure::second_correction)
+        {
+            auto control = before;
+            auto const first = control.update(baro.time_us, baro, {}, true, control.state, control.P);
+            test.expect(first.status == Status::success && first.fused == 1 &&
+                            control.state.p_n(2) != before.state.p_n(2),
+                        "transaction", "the first source really succeeds and changes the candidate before GNSS fails");
+        }
+        auto const failed = f.update(baro.time_us, baro, gps, true, f.state, f.P);
+        auto const expected_status = failure == Failure::reset ? Status::non_finite_input : Status::non_finite_result;
+        test.expect(failed.status == expected_status && failed.fused == 0 && failed.rejected == 0 &&
+                        failed.height_resets == 0 && failed.velocity_resets == 0 && failed.height_delta == 0 &&
+                        failed.velocity_delta == 0 && formal_eskf::linalg::max_abs(failed.position_delta_n) == 0 &&
+                        formal_eskf::linalg::max_abs(failed.velocity_delta_n) == 0,
+                    "transaction", "failure returns only its status, with no tentative success or reset");
+        for (auto const & event : failed.diagnostics)
+        {
+            test.expect(!event.source_changed && !event.measurement && !event.reset && !event.valid &&
+                            event.time_us == 0 && event.innovation == 0 && event.test_ratio == 0,
+                        "transaction", "neither source publishes a tentative diagnostic event");
+        }
+        expect_height_frame(test, f, before);
+        // Retry the failed epoch against an untouched owner, then cross the warmup
+        // boundary. This also detects leaked private tick/count/LPF state.
+        auto control = before;
+        f.state.p_n(2) = control.state.p_n(2) = 0;
+        baro.altitude = gps.altitude = failure == Failure::second_correction ? T{500} : origin;
+        gps.device_id = 2;
+        gps.variance = 1;
+        for (unsigned count = 0; count < 23; ++count)
+        {
+            gps.time_us = baro.time_us;
+            auto const retried = f.update(baro.time_us, baro, gps, true, f.state, f.P);
+            auto const fresh = control.update(baro.time_us, baro, gps, true, control.state, control.P);
+            test.expect(retried.status == Status::success && fresh.status == Status::success &&
+                            retried.fused == fresh.fused && retried.height_resets == fresh.height_resets,
+                        "transaction", "retry and subsequent warmup follow the untouched owner's outcomes");
+            expect_height_frame(test, f, control);
+            baro.time_us += 20000;
+        }
+    }
+}
+
+void transaction_case(Context & test, std::string_view profile)
+{
+    if (profile == "binary32")
+    {
+        height_transaction<formal_eskf::test::Backend<float>>(test);
+    }
+    else
+    {
+        height_transaction<formal_eskf::test::Backend<double>>(test);
+    }
+}
+
 void recovery_case(Context & test, std::string_view profile)
 {
     if (profile == "binary32")
@@ -1166,6 +1319,8 @@ int main(int argc, char ** argv)
         {"TC-R-HEIGHT-AIDING-BARO-07", "binary64", generation_case},
         {"TC-R-HEIGHT-AIDING-BARO-09", "binary32", recovery_case},
         {"TC-R-HEIGHT-AIDING-BARO-09", "binary64", recovery_case},
+        {"TC-R-HEIGHT-AIDING-BARO-10", "binary32", transaction_case},
+        {"TC-R-HEIGHT-AIDING-BARO-10", "binary64", transaction_case},
         {"TC-R-HEIGHT-AIDING-BARO-11", "binary32", reference_pressure_case},
         {"TC-R-HEIGHT-AIDING-BARO-11", "binary64", reference_pressure_case},
     };

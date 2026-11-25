@@ -84,7 +84,10 @@ allocation does not require a new class or wrapper per responsibility.
 ### Optional barometric height allocation
 
 The [barometric target profile](../profiles/barometric-height.md) extends existing
-height aiding; its implementation is pending. It does not alter core state,
+height aiding. Conversion/admission, shared observation preparation, derived
+warmup/receipt tracking and optional geographic-session fusion are implemented.
+Relative startup and first geographic attachment remain staged-INS dependencies.
+These changes do not alter core state,
 prediction, Joseph correction or quaternion conventions. Requirements are
 [R-BAROMETRIC-ALTITUDE](../requirements/runtime/barometric-altitude.md) and
 [R-HEIGHT-AIDING](../requirements/runtime/height-aiding.md).
