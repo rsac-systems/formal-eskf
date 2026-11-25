@@ -8460,7 +8460,7 @@
     },
     {
       "id": "R-INS-STARTUP",
-      "title": "Staged INS startup: Draft seed/filter/real-gravity contract; production implementation and convergence evidence pending",
+      "title": "Staged INS startup: IMU-only seed/filter and full prior component; session integration, refinement/convergence and formal evidence pending",
       "references": {
         "spec": [
           {
@@ -8474,10 +8474,19 @@
           {
             "file": "docs/spec/verification/staged-ins-tests.md",
             "symbol": "## Cases"
+          },
+          {
+            "file": "docs/spec/verification/tests/runtime/ins-startup.md",
+            "symbol": "## Cases"
           }
         ],
         "lean": [],
-        "cpp": [],
+        "cpp": [
+          {
+            "file": "include/formal_eskf/runtime/session/ins_startup.hpp",
+            "symbol": "template <typename Linalg> class InsStartup"
+          }
+        ],
         "esbmc": []
       }
     },

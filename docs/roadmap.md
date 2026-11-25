@@ -208,12 +208,13 @@ separates core algebra, runtime policy, PX4 mapping and application mode decisio
 The following order applies within this feature; it does not reorder unrelated
 functional tracks or bring optional pressure conversion into this scope.
 Each implementation item includes its allocated tests, evidence-impact review
-and refactoring before commit. No staged feature is currently implemented.
+and refactoring before commit. The IMU seed component is implemented; its
+production session migration and staged service remain in progress.
 
 | Task | Status | Completion boundary |
 |---|---|---|
 | A-03.1 — Contract and test baseline | Completed | Draft startup, capability, continuity and attachment requirements, profile, responsibility allocation and planned runtime/PX4 test families. Design selection is separate from requirement approval and execution evidence. |
-| A-03.2 — IMU seed and gravity refinement | Planned | Implement selected filters/priors, atomic history seed and real pre-alignment refinement; first test cases in R-INS-STARTUP. Do not fake alignment or change the core observation model. |
+| A-03.2 — IMU seed and gravity refinement | In progress | IMU-only filtered seed and full transported priors have native component bindings. Pending: production session/history atomic seeding, real pre-alignment refinement and the truth-based convergence cases. The strict bootstrap remains until that migration is validated. |
 | A-03.3 — Independent capability lifecycle | Planned | Expose actual source/epoch/fault/reference facts, real-aiding clocks, partial outputs and selected bias permissions. Keep full P/coupling and explicit numerical-domain limitations; flags alone do not close continuity. |
 | A-03.4 — Numerical continuity and recovery | Design | After A-02.1/A-02.2 comparisons and their retained/revised decision, implement bounded covariance-only guards, intervention provenance, nominal-velocity handling and real-source reset recovery. Validate protected marginals and actual attitude effects. |
 | A-03.5 — First geographic attachment | Planned | Implement R-INS-ATTACHMENT across state/P, sources, references and histories; validate independent transforms, uncertainty reset, once-only consumption and full rollback. Optional height cases require their qualified source contract. |

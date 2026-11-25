@@ -57,17 +57,18 @@ Keep strict-startup cases until the migration has a reviewed replacement.
 ## Cases
 
 Each row is a logical case with its stated partitions, not one execution or proof.
-All executable bindings are **Pending**. On implementation, move this family into
-the executable test-design tree without changing IDs and bind the real sources.
-Until then it is outside the native runner's registered/executed totals; that
-separation is an explicit implementation gap, not an exclusion from acceptance.
+The [startup component cases](tests/runtime/ins-startup.md) bind IMU filtering
+and local priors. Their session/caller composition is still pending. Remaining
+rows below are planned acceptance, outside native registered totals until their
+real bindings are added. Preserve IDs when moving implemented cases into the
+executable test-design tree; a partial binding does not close a composed case.
 
 | Case ID | Name | Requirement / clause | Conditions, inputs and action | Expected result and oracle | Executable test |
 |---|---|---|---|---|---|
-| TC-R-INS-STARTUP-01 | Seed without navigation sensors | R-INS-STARTUP, collection | Cold start with only calibrated IMU; test each initial magnitude/rate/integration-period boundary below, at and above. | First qualifying sample can seed; no fixed wait or GPS/mag/baro dependency; no output before full seed. Independent condition table. | Pending |
+| TC-R-INS-STARTUP-01 | Seed without navigation sensors | R-INS-STARTUP, collection | Cold start with only calibrated IMU; test each initial magnitude/rate/integration-period boundary below, at and above. | First qualifying sample can seed; no fixed wait or GPS/mag/baro dependency; no output before full seed. Independent condition table. | [Component binding](tests/runtime/ins-startup.md); session composition pending |
 | TC-R-INS-STARTUP-02 | Reject invalid startup data | R-INS-STARTUP, admission | Nonfinite rates, clipping, invalid time ordering, unknown context and source replacement during collection; then legal data. | No invalid/stale seed or false rest; source-local collection resets and required IMU faults follow their distinct contracts. | Pending |
-| TC-R-INS-STARTUP-03 | Initialize and advance startup filters | R-INS-STARTUP, filters | First sample, unequal valid angle/accel periods, variable intervals and a step input; compare gravity LPF separately. | First-sample initialization and independent scalar recurrence with 0.09 s constant; no accidental reuse of sampler LPF or fixed one-second delay. | Pending |
-| TC-R-INS-STARTUP-04 | Seed complete conditional covariance | R-INS-STARTUP, priors | Level/tilted seeds with arbitrary relative yaw, zero and nonzero calibrated residual biases. | All state/P coefficients match the profile and body-tangent transform; PSD gauge prior allowed; zero velocity/bias and yaw gauge do not grant physical certainty or navigation. | Pending |
+| TC-R-INS-STARTUP-03 | Initialize and advance startup filters | R-INS-STARTUP, filters | First sample, unequal valid angle/accel periods, variable intervals and a step input; compare gravity LPF separately. | First-sample initialization and independent scalar recurrence with 0.09 s constant; no accidental reuse of sampler LPF or fixed one-second delay. | [Component binding](tests/runtime/ins-startup.md); session composition pending |
+| TC-R-INS-STARTUP-04 | Seed complete conditional covariance | R-INS-STARTUP, priors | Level/tilted seeds with arbitrary relative yaw, zero and nonzero calibrated residual biases. | All state/P coefficients match the profile and body-tangent transform; PSD gauge prior allowed; zero velocity/bias and yaw gauge do not grant physical certainty or navigation. | [Component binding](tests/runtime/ins-startup.md); session composition pending |
 | TC-R-INS-STARTUP-05 | Seed histories and consume observations once | R-INS-STARTUP, seed transaction; R-INS-SESSION | Fail each seed participant, retry, then deliver duplicate seed observations and the next real IMU. | No partially exposed valid seed; common state/history epoch, no repeated independent fusion, correct first interval and bounded storage. | Pending |
 | TC-R-INS-STARTUP-06 | Refine tilt before alignment | R-INS-STARTUP, refinement; R-ACCELEROMETER-CONDITIONS | Start with the selected above-threshold prior; vary enable, gravity band/rest, horizontal aiding and clipping, including failed magnitude evaluation. | Eligible real correction can run while unaligned; no fake alignment flag. Rest overrides only the band. Rejection preserves the correction state/P boundary; sampling history retains its separate commits. | Pending |
 | TC-R-INS-STARTUP-07 | Meet first tilt accuracy and time target | R-INS-STARTUP, acceptance; staged seed/gravity settings | No GNSS/mag, known static/low-dynamics truth, initial error through 10 deg and unmodeled horizontal force through 0.03g including residual accel bias; continuously eligible input for 60 s. | Alignment by 60 s and actual tilt error at 60 s at most 3 deg. Compare with independent truth, not covariance or dense/generated agreement. Freeze noise/bias/timing fixtures before claiming execution coverage. | Pending |

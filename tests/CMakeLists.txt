@@ -199,6 +199,7 @@ formal_eskf_add_backend_test(test_imu_prediction runtime/imu/test_prediction for
 formal_eskf_add_backend_test(test_imu_history runtime/imu/test_history formal_eskf.imu_history.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_ins_session runtime/session/test_session formal_eskf.ins_session.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_ins_initialization runtime/session/test_initialization formal_eskf.ins_initialization.eigen formal_eskf::runtime)
+formal_eskf_add_backend_test(test_ins_startup runtime/session/test_startup formal_eskf.ins_startup.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_output_predictor runtime/session/test_output_predictor formal_eskf.output_predictor.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_observation_history runtime/history/test_observation_history formal_eskf.observation_history.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_magnetometer_fusion runtime/magnetic/test_fusion formal_eskf.magnetometer_fusion.eigen formal_eskf::runtime)
