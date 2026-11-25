@@ -8604,7 +8604,7 @@
     },
     {
       "id": "E-BIAS-RESET",
-      "title": "Selected INS bias/P reset: direct numerical reset with native unit coverage; formal evidence and source-event composition pending",
+      "title": "Selected INS bias/P reset: direct numerical reset with native unit coverage; formal evidence pending; native source-event composition is bound by R-IMU-SOURCE",
       "references": {
         "spec": [
           {
@@ -8636,7 +8636,7 @@
     },
     {
       "id": "R-SENSOR-INPUT",
-      "title": "Sensor clock/unit/frame/provenance contract: native startup consistency/capacity/freeze checks; producer, rate and physical qualification pending",
+      "title": "Sensor input: validated profile and native PX4 clock/unit/source bindings; delegated timing/history tests; external producer, physical and target qualification remain open",
       "references": {
         "spec": [
           {
@@ -8650,6 +8650,10 @@
           {
             "file": "docs/spec/verification/sensor-input-tests.md",
             "symbol": "## Input and history cases"
+          },
+          {
+            "file": "docs/spec/verification/tests/runtime/sensor-input.md",
+            "symbol": "# Sensor Input Timing Tests"
           }
         ],
         "lean": [],
@@ -8661,6 +8665,14 @@
           {
             "file": "tests/runtime/session/test_configuration.cpp",
             "symbol": "void profile_validation"
+          },
+          {
+            "file": "tests/runtime/history/test_observation_history.cpp",
+            "symbol": "void input_timing_boundaries("
+          },
+          {
+            "file": "integrations/px4/tests/ModuleTest.cpp",
+            "symbol": "static void input_decoding("
           }
         ],
         "esbmc": []

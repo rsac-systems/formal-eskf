@@ -109,3 +109,11 @@ remains Draft; native execution does not approve it.
   accepting results; these documents record design and scope, not executions.
 - Bounded copy/work inspection does not certify a deployment's WCET, total
   memory budget, single-owner enforcement or caller loss-handling policy.
+
+## Sensor-input allocation
+
+The [sensor-input timing family](sensor-input.md) delegates its timing, ordering,
+selection, overflow and causal-context obligations to the cases above. Its
+procedure binding identifies reviewed oracles; those aliases are not additional
+executions. IMU source continuation is covered by the [source family](imu-source.md),
+not by historical mismatch-rejection evidence.

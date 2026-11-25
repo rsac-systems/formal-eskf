@@ -438,6 +438,54 @@ void period_average_and_frozen_offsets(Context & test)
                 "offset", "per-source delay and half period are subtracted exactly once");
 }
 
+void input_timing_boundaries(Context & test)
+{
+    for (std::int64_t spacing : {49999, 50000, 50001})
+    {
+        Session session;
+        session.seed();
+        session.advance(1208000);
+        require(session.history.push_gnss(gnss(1210000), 1210300).decision == Admission::queued);
+        session.advance(1260000);
+        auto const raw = std::uint64_t{1210000} + static_cast<std::uint64_t>(spacing);
+        auto const result = session.history.push_gnss(gnss(raw), std::max(raw, session.time));
+        test.expect(result.decision == (spacing < 50000 ? Admission::too_fast : Admission::queued), "spacing",
+                    "GNSS effective spacing admits exactly 50 ms and above, not 49999 us");
+        auto const replay = session.history.push_gnss(gnss(raw - 1), std::max(raw, session.time));
+        test.expect(replay.decision == Admission::out_of_order, "watermark",
+                    "even a newer rate-rejected input prevents replay of an older raw event");
+    }
+    Session jitter;
+    jitter.seed();
+    for (unsigned n = 0; n < 53; ++n)
+    {
+        jitter.tick(4000, 4200, 4200);
+    }
+    require(jitter.history.half_period_us() == 2000);
+    require(jitter.history.push_gnss(gnss(1214000), 1214000).decision == Admission::queued);
+    jitter.tick(4000, 4200, 4200);
+    require(jitter.history.half_period_us() == 2001);
+    // Receipt can advance while IMU is still fresh; no new delayed period retimes the first sample.
+    test.expect(jitter.history.push_gnss(gnss(1264000), 1264000).decision == Admission::too_fast &&
+                    jitter.history.push_gnss(gnss(1264001), 1264001).decision == Admission::queued,
+                "jitter", "nominal 20 Hz raw cadence cannot waive effective-time spacing after a half-period change");
+
+    Session example;
+    example.epoch = 995000;
+    example.seed();
+    require(example.history.push_gnss(gnss(1001000), 1001300).decision == Admission::queued);
+    example.fuse_until(999000);
+    History::GnssObservation output;
+    test.expect(example.history.pop_gnss(output).decision == Selection::selected && output.time_us == 999000 &&
+                    output.sample.stamp.time_us == 1001000 && output.arrival_time_us == 1001300,
+                "centering", "the reviewed 1001 ms example selects at 999 ms without subtracting receipt delay");
+    auto odd_timing = timing_250hz;
+    odd_timing.imu.filter_interval_us = 4001;
+    History odd(odd_timing);
+    require(odd.configure({4001, 200, 0, 0, 0}, 64) && odd.seed({{1000000, {}, {}}, {}, {}, {}}));
+    test.expect(odd.half_period_us() == 2000, "centering", "odd microsecond periods use integer floor for centering");
+}
+
 void prediction_context(Context & test)
 {
     Session session;
@@ -704,6 +752,7 @@ void observation_scenarios(Context & test, std::string_view)
     clock_rejection_preserves_pending(test);
     selection_retirement(test);
     period_average_and_frozen_offsets(test);
+    input_timing_boundaries(test);
     prediction_context(test);
     historical_context(test);
     gap_context_and_unknown(test);

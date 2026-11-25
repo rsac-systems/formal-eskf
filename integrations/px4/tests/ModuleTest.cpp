@@ -4316,6 +4316,104 @@ public:
         }
     }
 
+    static void input_decoding()
+    {
+        ++scenarios;
+        vehicle_imu_s imu{};
+        imu.timestamp = 9000000;
+        imu.timestamp_sample = 8000000;
+        imu.delta_angle_dt = 3800;
+        imu.delta_velocity_dt = 4200;
+        imu.accel_device_id = 41;
+        imu.gyro_device_id = 43;
+        imu.accel_calibration_count = 17;
+        imu.gyro_calibration_count = 19;
+        imu.delta_velocity_clipping = 5;
+        for (unsigned i = 0; i < 3; ++i)
+        {
+            imu.delta_angle[i] = float(i + 1) * .125f;
+            imu.delta_velocity[i] = -float(i + 1) * .25f;
+        }
+        auto const decoded = FormalEskf::decode_imu(imu);
+        expect(decoded.time_us == 8000000 && decoded.angular_period_us == 3800 &&
+                   decoded.acceleration_period_us == 4200 && decoded.source.accelerometer_id == 41 &&
+                   decoded.source.gyroscope_id == 43 && decoded.source.accelerometer_calibration == 17 &&
+                   decoded.source.gyroscope_calibration == 19 && decoded.accelerometer_clipping == 5 &&
+                   decoded.gyroscope_clipping == 0,
+               "IMU decoding preserves sample epoch, independent periods and source/calibration provenance");
+        for (unsigned i = 0; i < 3; ++i)
+        {
+            expect(decoded.delta_angle_b(i) == double(imu.delta_angle[i]) &&
+                       decoded.delta_velocity_b(i) == double(imu.delta_velocity[i]),
+                   "already calibrated body-FRD increments preserve every axis and sign without a second rotation");
+        }
+        imu.timestamp_sample = 0;
+        expect(FormalEskf::decode_imu(imu).time_us == 0,
+               "missing IMU sample time cannot fall back to publication time");
+        sensor_gps_s gps{};
+        gps.timestamp = 9000000;
+        gps.timestamp_sample = 8001000;
+        gps.latitude_deg = 25.125;
+        gps.longitude_deg = -121.5;
+        gps.altitude_ellipsoid_m = 135;
+        gps.altitude_msl_m = 88;
+        gps.vel_n_m_s = 1.25f;
+        gps.vel_e_m_s = -2.5f;
+        gps.vel_d_m_s = .125f;
+        auto const missing = FormalEskf::decode_gnss(gps);
+        expect(missing.stamp.source.device_id == 0,
+               "unavailable/blended GNSS identity is not replaced by a fabricated ID");
+        gps.device_id = 201;
+        auto const g = FormalEskf::decode_gnss(gps);
+        expect(g.stamp.time_us == 8001000 && g.stamp.source.device_id == 201 && g.latitude_deg == 25.125 &&
+                   g.longitude_deg == -121.5 && g.altitude_ellipsoid_m == 135 && g.altitude_msl_m == 88 &&
+                   g.velocity_n(0) == 1.25 && g.velocity_n(1) == -2.5 && g.velocity_n(2) == .125,
+               "GNSS keeps degrees, both metre datums and NED velocity without another time/frame conversion");
+        vehicle_magnetometer_s magnetic{};
+        magnetic.timestamp = 9000000;
+        magnetic.timestamp_sample = 8002000;
+        magnetic.device_id = 301;
+        magnetic.calibration_count = 7;
+        magnetic.magnetometer_ga[0] = .125f;
+        magnetic.magnetometer_ga[1] = -.25f;
+        magnetic.magnetometer_ga[2] = .5f;
+        auto const m = FormalEskf::decode_magnetic(magnetic);
+        expect(m.stamp.time_us == 8002000 && m.stamp.source.device_id == 301 && m.stamp.source.calibration_count == 7 &&
+                   m.field_b(0) == 12.5 && m.field_b(1) == -25 && m.field_b(2) == 50,
+               "magnetic body-FRD gauss converts exactly once to microtesla");
+        vehicle_air_data_s barometer{};
+        barometer.timestamp = 9000000;
+        barometer.timestamp_sample = 8003000;
+        barometer.baro_device_id = 401;
+        barometer.calibration_count = 9;
+        barometer.baro_alt_meter = 123.5f;
+        auto const b = FormalEskf::decode_barometer(barometer);
+        expect(
+            b.stamp.time_us == 8003000 && b.stamp.source.device_id == 401 && b.stamp.source.calibration_count == 9 &&
+                b.altitude_m == 123.5,
+            "barometer preserves producer pressure altitude, sample epoch and calibration without re-deriving height");
+        InsSessionTest run;
+        run.tick();
+        expect(run.m_filter.m_session.initialized(), "seed the actual callback before distinct clock fields");
+        run.m_sample.timestamp_sample += 4000;
+        run.m_sample.timestamp = run.m_sample.timestamp_sample + 500;
+        clock_us = run.m_sample.timestamp_sample + 700;
+        run.m_imu_pub.publish(run.m_sample);
+        run.m_filter.Run();
+        auto const & session = run.m_filter.m_session;
+        expect(!session.fault() && session.imu_history().latest_time_us() == run.m_sample.timestamp_sample &&
+                   session.output_predictor().current().time_us == run.m_sample.timestamp_sample,
+               "actual Run preserves the measurement endpoint despite later publication and callback arrival");
+        auto const accepted = session.imu_history().latest_time_us();
+        run.m_sample.timestamp_sample = 0;
+        run.m_sample.timestamp += 4000;
+        clock_us += 4000;
+        run.m_imu_pub.publish(run.m_sample);
+        run.m_filter.Run();
+        expect(session.fault() && session.imu_history().latest_time_us() == accepted,
+               "actual Run cannot substitute a valid receipt/publication clock for missing measurement time");
+    }
+
     static void imu_source_continuation()
     {
         InsSessionTest test;
@@ -4718,6 +4816,7 @@ int main(int argc, char ** argv)
     }
     FILE * comparison_trace = trace_file;
     trace_file = nullptr; // Deliberate diagnostic/startup changes have independent assertions.
+    InsSessionTest::input_decoding();
     InsSessionTest::imu_source_continuation();
     InsSessionTest::publication_preparation();
     InsSessionTest::resource_failures();

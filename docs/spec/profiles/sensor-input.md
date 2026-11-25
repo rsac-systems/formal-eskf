@@ -32,6 +32,17 @@ and jitter on both sides; do not silently change this rule or claim every source
 sample will be fused. Retain newest-eligible selection and one shared GNSS event
 for its position/velocity/height consumers.
 
+PX4 IMU increments are already calibrated body FRD in radians and metres/second.
+The adapter converts body-FRD magnetic gauss to microtesla once; GNSS velocity is
+already NED metres/second. The monotonic microsecond clock requires no tick-scale
+or wrap converter. `DeploymentProfile` supplies initial
+bias **variances**, per-sample IMU variances and bias random-walk variance densities;
+these are different quantities. The portable input types do not carry raw sensor
+mounting rotations or an arbitrary correlated IMU-noise conversion. Such a producer
+requires an explicitly qualified adapter/profile, not a guessed transformation.
+The [test allocation](../verification/sensor-input-tests.md) identifies software
+bindings and the remaining physical/producer qualifications.
+
 ## Rate and storage qualification
 
 Keep 250 Hz as the default. Candidate 400/500 Hz profiles process each real IMU
