@@ -128,6 +128,10 @@ Pending; it does not block specification or software implementation. Existing
 native and scoped vertical-recovery proof results retain only their original
 source/configuration scope; no full target proof is established here.
 
+The [ground-effect test specification](../../../verification/barometer-ground-effect-tests.md)
+allocates runtime, actual producer/adapter and target/physical acceptance cases.
+All new executable bindings remain Pending until implementation and execution.
+
 ## References
 
 - [Request producer](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/land_detector/MulticopterLandDetector.cpp#L299).

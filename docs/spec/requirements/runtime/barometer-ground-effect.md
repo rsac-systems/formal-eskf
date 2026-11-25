@@ -116,6 +116,8 @@ clock boundaries, residual signs, failure frames and source isolation. Verify
 both feature builds, zero deadzone, production session ordering and adapter input
 binding. Reuse existing height/core tests where their actual scope still applies.
 No terrain or flight-performance claim follows from passing software cases.
+The [ground-effect test specification](../../verification/barometer-ground-effect-tests.md)
+allocates the pending runtime and composition cases.
 
 Exact residual identities, finite-state transitions and IEEE/composed execution
 are separate proof obligations. Existing vertical-recovery proofs cover their
