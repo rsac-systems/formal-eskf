@@ -5,11 +5,13 @@
 **Status:** Draft
 
 **Applies to:** Optional portable barometric input, before height-reference or
-bias adjustment. Raw conversion is target behavior, not an existing operation.
+bias adjustment. The standalone converter is implemented; source/adapter
+composition remains pending.
 
 **Parent:** [SW-NAV](../software/navigation-runtime.md).
 
-**Uses:** [C-FAILURE](../common/failure.md),
+**Uses:** [F-SCALAR](../math/scalar/operations.md),
+[C-FAILURE](../common/failure.md),
 [C-NUMERICAL-ACCEPTANCE](../common/numerical-acceptance.md).
 
 ## Basis
@@ -113,6 +115,7 @@ pressure by magnitude alone.
 Exact model identities, bounded IEEE evaluation, source/time admission and physical
 accuracy require distinct evidence. Boundary-rounding and numerical-error bounds
 must be qualified before numerical acceptance; the model envelope is not an
-accuracy guarantee. New implementation and Lean/ESBMC evidence remain pending.
+accuracy guarantee. Native standalone conversion and admission tests cover the
+declared finite partitions. Source/adapter composition and new Lean/ESBMC evidence remain pending.
 The [barometric test specification](../../verification/barometric-height-tests.md)
-allocates conversion, runtime and adapter acceptance with Pending bindings.
+links executable conversion cases and allocates pending runtime/adapter acceptance.

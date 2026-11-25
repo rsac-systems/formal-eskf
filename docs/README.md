@@ -20,7 +20,7 @@ the [specification index](spec/README.md) locates canonical requirement definiti
 | Verification policy | [Claims and traceability](spec/verification/assurance.md), [test standard and template](spec/verification/testing.md), [source inventory](spec/verification/source-inventory.md), [static analysis](spec/verification/static-analysis.md) |
 | Test design | [Core and portable runtime](spec/verification/tests/README.md): requirement-led cases, independent oracles, profiles and explicit acceptance gaps. |
 | Planned staged acceptance | [Portable INS](spec/verification/staged-ins-tests.md), [PX4 consumers](spec/verification/px4-staged-ins-tests.md): Pending implementations, outside current executable totals. |
-| Planned barometric acceptance | [Conversion, runtime and PX4](spec/verification/barometric-height-tests.md): independent oracles and Pending executable bindings. |
+| Barometric acceptance | [Converter cases](spec/verification/tests/runtime/barometric-altitude.md) have native bindings; [runtime and PX4 composition](spec/verification/barometric-height-tests.md) remains Pending. |
 | Planned sensor-input acceptance | [Input, bias reset, histories and PX4 callers](spec/verification/sensor-input-tests.md): Pending cases and physical/target qualification gaps. |
 | Planned diagnostic acceptance | [Runtime evidence and PX4 reporting](spec/verification/diagnostic-reporting-tests.md): Pending cases, reused consumer tests and target resource obligations. |
 | Planned ground-effect acceptance | [Runtime, PX4 and physical qualification](spec/verification/barometer-ground-effect-tests.md): Pending cases; software conformance and physical efficacy remain separate. |

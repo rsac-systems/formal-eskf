@@ -1,7 +1,7 @@
 # Configuration inventory and ownership
 
-F-06.2 configuration reference, reconciled with `0eb3add` on 2026-11-18. This records existing choices from numerical foundations through
-core, runtime and PX4. Kconfig now exposes build options and a packaged PX4
+F-06.2 configuration reference. This records implemented choices from numerical
+foundations through core, runtime and PX4. Kconfig now exposes build options and a packaged PX4
 deployment profile while preserving defaults. Replay retains its separate
 settings. Remaining configuration work is [F-06.2 in the roadmap](../roadmap.md#f-06--diagnostics-and-configuration).
 
@@ -122,6 +122,7 @@ All floating inputs still require their operation's finite/arithmetic checks.
 | Gravity fusion `V`, `enabled` | Explicit effective covariance and caller enable; no innovation-gate parameter in this path | `V = (gravity_n·gravity_n) I`, ≈96.17 m²/s⁴; `FESKF_GRAV_EN` |
 | [Navigation fusion](../../include/formal_eskf/runtime/fusion/navigation.hpp): `gate_sigma`, `GnssVelocityConditions.maximum_speed_accuracy`, height `deadzone` | Positive gate/accuracy limit; deadzone finite ≥0 m, default 0 | GNSS gate 5 / speed limit 0.5 m/s; height gate 5, conditional barometer deadzone 4 m |
 | Navigation reset variances | Explicit finite nonnegative position/velocity variances; fixed floors below | Receiver-derived/reset profile; reset permission remains lifecycle-owned |
+| [Barometric altitude](../../include/formal_eskf/runtime/sensors/height/barometric_altitude.hpp): model settings, `ESKF_BARO_*` defaults and calibrated sensor limits | [Barometric profile](../spec/profiles/barometric-height.md#model-and-input-settings) owns units/defaults and the numerical envelope; positive model constants, finite ordered sensor ranges | Standalone converter; successful configuration recomputes cached limits, failure retains the old model. Not wired to PX4 or Kconfig yet |
 | [RingBuffer](../../include/formal_eskf/runtime/history/ring_buffer.hpp): `Capacity`, `length`, `max_age_us` | Capacity compile-time >0; active length 1..Capacity at startup/reset; age-window argument defaults 100,000 us, strict age comparison | Fixed backing storage; histories derive supported active lengths. Age zero admits no sample |
 
 The ten GNSS selectors are `satellites`, `pdop`, `horizontal_accuracy`,

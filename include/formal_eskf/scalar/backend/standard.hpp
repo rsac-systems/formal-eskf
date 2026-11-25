@@ -68,6 +68,8 @@ public:
 
     static value_type atan2(value_type y, value_type x) { return std::atan2(y, x); }
 
+    static value_type pow(value_type base, value_type exponent) { return std::pow(base, exponent); }
+
 }; /* end class StandardMath */
 
 } /* end namespace formal_eskf::scalar */

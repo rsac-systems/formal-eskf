@@ -47,21 +47,17 @@ resource qualification; a host fixture is insufficient.
 ## Cases
 
 Each row is one logical case with multiple partitions, not one execution or proof.
-All executable bindings are **Pending**. Keep this planned family outside the
-native runner's executable design tree until real fixtures are registered; then
-retain these IDs. Existing passing height tests do not satisfy the new cases by
-name or proximity.
+The converter family is registered separately. Keep pending composition cases
+outside the native runner's executable design tree until fixtures are registered,
+retaining their stable IDs. Existing passing height tests do not satisfy the new
+cases by name or proximity.
 
 ### Conversion and admission
 
-| Case ID | Name | Requirement / clause | Conditions, inputs and action | Expected result and oracle | Executable test |
-|---|---|---|---|---|---|
-| TC-R-BAROMETRIC-ALTITUDE-01 | Evaluate the atmosphere model | R-BAROMETRIC-ALTITUDE, raw conversion | p=p0, positive/negative altitude and ordered valid pressures; default and alternate valid p0. | Independent high-precision model values, zero at p0 within qualified evaluation error and decreasing altitude with increasing pressure; output remains model altitude, not physical MSL truth. | Pending |
-| TC-R-BAROMETRIC-ALTITUDE-02 | Admit model and sensor boundaries | R-BAROMETRIC-ALTITUDE, raw conversion | Both derived pressure limits and adjacent representable values; narrower sensor limits; overlapping and empty domain intersections. | Admission follows the declared rounded inclusive model/sensor intersection; outside inputs fail unchanged, without clamping. Independent boundary construction, not copied production constants. | Pending |
-| TC-R-BAROMETRIC-ALTITUDE-03 | Reject invalid inputs without partial output | R-BAROMETRIC-ALTITUDE, raw conversion | NaN/infinity, zero/negative p or p0, invalid/nonfinite model settings, unordered bounds and nonfinite intermediate/result; valid retry. | Declared failure precedence; previous output preserved on every failure, valid retry succeeds. Invalid configuration cannot reach an unsupported power/domain evaluation. | Pending |
-| TC-R-BAROMETRIC-ALTITUDE-04 | Admit supplied model altitude unchanged | R-BAROMETRIC-ALTITUDE, already-converted input | Raw altitude at/near inclusive limits, nonfinite values, nonzero source offset and local Z; narrow sensor domain. | Check supplied altitude before offset mapping; retain accepted value without pressure reconversion; invalid input does not fuse or refresh successful-fusion time. | Pending |
-| TC-R-BAROMETRIC-ALTITUDE-05 | Keep model settings and derived limits consistent | R-BAROMETRIC-ALTITUDE, reference-pressure changes | Change explicit raw-converter p0 and supported model settings, then reuse pressures near both old/new boundaries. | Model and derived limits use the same settings; no stale cached envelope, special source fault or implicit navigation-gravity substitution. Independent recalculation of values and limits. | Pending |
-| TC-R-BAROMETRIC-ALTITUDE-06 | Bound scalar evaluation error | R-BAROMETRIC-ALTITUDE, acceptance | Binary32/binary64 over declared pressure/settings partitions, especially near zero altitude and domain limits. | Compare absolute error in metres and boundary classification against high precision; qualify rounding and cancellation with reviewed bounds. Finite sampling alone is not a uniform IEEE error proof. | Pending |
+The six stable converter case IDs now belong to the
+[executable converter family](tests/runtime/barometric-altitude.md). Its bindings
+cover the pure operations; lifecycle/adapter composition and uniform numerical
+bounds remain explicit gaps. Cases below remain Pending.
 
 ### Runtime composition
 

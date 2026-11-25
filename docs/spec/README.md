@@ -169,7 +169,7 @@ are pending; see [F-03.2](../roadmap.md#f-03--height-protection).
 | `R-INS-CAPABILITIES` | [Full and partial INS output availability](requirements/runtime/ins-capabilities.md) (Draft target) |
 | `R-INS-CONTINUITY` | [Covariance management without aiding](requirements/runtime/ins-continuity.md) (Draft target) |
 | `R-INS-ATTACHMENT` | [First geographic attachment](requirements/runtime/ins-attachment.md) (Draft target) |
-| `R-BAROMETRIC-ALTITUDE` | [Barometric altitude input and conversion](requirements/runtime/barometric-altitude.md) (Draft target) |
+| `R-BAROMETRIC-ALTITUDE` | [Barometric altitude input and conversion](requirements/runtime/barometric-altitude.md) (Draft; standalone converter implemented) |
 | `R-HEIGHT-AIDING` | [Two-source altitude coordination](requirements/runtime/height-aiding.md) |
 | `R-HEIGHT-DATUM` | [Ellipsoid and MSL height separation](requirements/runtime/height-datum.md) |
 | `R-FRAME-OBSERVATIONS` | [Observations across Cartesian navigation frames](requirements/runtime/frame-observations.md) |
@@ -234,7 +234,7 @@ are pending; see [F-03.2](../roadmap.md#f-03--height-protection).
 - [Verification and Traceability Policy](verification/assurance.md).
 - [Test Specification and Coverage Standard](verification/testing.md) (Draft), with the [core/runtime test design](verification/tests/README.md).
 - Planned staged service: [runtime test specification](verification/staged-ins-tests.md) and [PX4 consumer acceptance](verification/px4-staged-ins-tests.md), with Pending executable bindings.
-- Planned barometric height: [conversion, runtime and PX4 test specification](verification/barometric-height-tests.md), with Pending executable bindings.
+- Barometric height: [native converter cases](verification/tests/runtime/barometric-altitude.md); [runtime and PX4 composition](verification/barometric-height-tests.md) remains Pending.
 - Planned sensor input: [reset, input/history and caller test specification](verification/sensor-input-tests.md), with Pending executable bindings and physical/resource qualification.
 - Planned diagnostics: [owner evidence, snapshots and PX4 reporting tests](verification/diagnostic-reporting-tests.md), with Pending bindings and reused staged consumer cases.
 - Planned ground effect: [runtime, PX4 and physical acceptance](verification/barometer-ground-effect-tests.md), with Pending bindings and independent software/physical completion.

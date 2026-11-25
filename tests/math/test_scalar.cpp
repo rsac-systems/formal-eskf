@@ -397,12 +397,99 @@ template <typename Scalar> void controlled_results(Context & test, std::string_v
                     Math::calls == 0,
                 profile, "frontend input rejection skips the elementary backend");
 }
+
+template <typename Scalar> void positive_power(Context & test, std::string_view profile)
+{
+    using Math = formal_eskf::scalar::StandardMath<Scalar>;
+    using F = std::numeric_limits<Scalar>;
+    struct Fixture
+    {
+        Scalar base, exponent, result;
+    };
+    for (auto const & f : {Fixture{Scalar{4}, Scalar{0.5}, Scalar{2}}, Fixture{Scalar{2}, Scalar{-3}, Scalar{0.125}},
+                           Fixture{Scalar{0.5}, Scalar{0}, Scalar{1}}, Fixture{Scalar{1}, F::max(), Scalar{1}}})
+    {
+        for (unsigned alias = 0; alias < 3; ++alias)
+        {
+            Scalar base = f.base, exponent = f.exponent, separate = Scalar{7};
+            Scalar & result = alias == 1 ? base : (alias == 2 ? exponent : separate);
+            test.expect(formal_eskf::scalar::positive_pow<Math>(base, exponent, result) == Status::success &&
+                            result == f.result,
+                        profile, "independent exact powers and both input/output aliases");
+        }
+    }
+    for (Scalar base : {Scalar{0}, -Scalar{0}, Scalar{-1}, F::quiet_NaN(), F::infinity()})
+    {
+        Scalar result = -Scalar{0};
+        test.expect(formal_eskf::scalar::positive_pow<Math>(base, Scalar{2}, result) ==
+                            (std::isfinite(base) ? Status::domain_error : Status::non_finite_input) &&
+                        same(result, -Scalar{0}),
+                    profile, "positive-base domain rejects even integer powers of negative inputs");
+    }
+    for (Scalar exponent : {F::quiet_NaN(), F::infinity(), -F::infinity()})
+    {
+        Scalar result = Scalar{7};
+        test.expect(formal_eskf::scalar::positive_pow<Math>(Scalar{-1}, exponent, result) == Status::non_finite_input &&
+                        result == Scalar{7},
+                    profile, "nonfinite exponent precedes base-domain error");
+    }
+    Scalar result = -Scalar{0};
+    test.expect(formal_eskf::scalar::positive_pow<Math>(F::max(), Scalar{2}, result) == Status::non_finite_result &&
+                    same(result, -Scalar{0}),
+                profile, "overflow preserves output");
+    test.expect(formal_eskf::scalar::positive_pow<Math>(F::min(), Scalar{2}, result) == Status::success &&
+                    result == Scalar{0},
+                profile, "finite underflow follows the scalar contract");
+}
+
+template <typename Scalar> struct PowerObserver
+{
+    using value_type = Scalar;
+    static inline Scalar result{}, first{}, second{};
+    static inline unsigned calls{};
+    static bool is_finite(Scalar value) { return std::isfinite(value); }
+    static Scalar pow(Scalar base, Scalar exponent)
+    {
+        ++calls;
+        first = base;
+        second = exponent;
+        return result;
+    }
+};
+
+template <typename Scalar> void power_results(Context & test, std::string_view profile)
+{
+    using Math = PowerObserver<Scalar>;
+    using F = std::numeric_limits<Scalar>;
+    for (Scalar value : {F::quiet_NaN(), F::infinity(), -F::infinity(), Scalar{0}, Scalar{5}})
+    {
+        Math::calls = 0;
+        Math::result = value;
+        Scalar out = -Scalar{0};
+        auto const status = formal_eskf::scalar::positive_pow<Math>(Scalar{4}, Scalar{0.5}, out);
+        test.expect(status == (std::isfinite(value) ? Status::success : Status::non_finite_result) &&
+                        same(out, std::isfinite(value) ? value : -Scalar{0}) && Math::calls == 1 &&
+                        Math::first == Scalar{4} && Math::second == Scalar{0.5},
+                    profile, "observed dispatch and complete publication/rollback");
+    }
+    Math::calls = 0;
+    Scalar out{};
+    test.expect(formal_eskf::scalar::positive_pow<Math>(Scalar{0}, Scalar{2}, out) == Status::domain_error &&
+                    formal_eskf::scalar::positive_pow<Math>(Scalar{2}, F::quiet_NaN(), out) ==
+                        Status::non_finite_input &&
+                    Math::calls == 0,
+                profile, "invalid operands never enter the backend");
+}
 } // namespace
 
 int main(int argc, char ** argv)
 {
     using formal_eskf::test::Case;
     Case const cases[]{
+        {"TC-F-SCALAR-POWER", "binary32", positive_power<float>},
+        {"TC-F-SCALAR-POWER", "binary64", positive_power<double>},
+        {"TC-F-SCALAR-POWER-RESULT", "controlled.binary32", power_results<float>},
+        {"TC-F-SCALAR-POWER-RESULT", "controlled.binary64", power_results<double>},
         {"TC-F-SCALAR-BASIC", "binary32", basic<float>},
         {"TC-F-SCALAR-BASIC", "binary64", basic<double>},
         {"TC-F-SCALAR-ACOS", "binary32", inverse_cosine<float>},

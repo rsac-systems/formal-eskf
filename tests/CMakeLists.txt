@@ -25,6 +25,12 @@ formal_eskf_configure_test(test_scalar_standard)
 add_test(NAME formal_eskf.scalar.standard COMMAND test_scalar_standard)
 set_tests_properties(formal_eskf.scalar.standard PROPERTIES LABELS "plan-source:tests/math/test_scalar.cpp")
 
+add_executable(test_barometric_altitude runtime/height/test_barometric_altitude.cpp)
+target_link_libraries(test_barometric_altitude PRIVATE formal_eskf::scalar_math)
+formal_eskf_configure_test(test_barometric_altitude)
+add_test(NAME formal_eskf.barometric_altitude.standard COMMAND test_barometric_altitude)
+set_tests_properties(formal_eskf.barometric_altitude.standard PROPERTIES LABELS "plan-source:tests/runtime/height/test_barometric_altitude.cpp")
+
 add_executable(test_case_runner tools/test_case_runner.cpp)
 target_link_libraries(test_case_runner PRIVATE formal_eskf::scalar_math)
 formal_eskf_configure_test(test_case_runner)

@@ -103,4 +103,27 @@ template <typename Math>
     return Status::success;
 }
 
+/** Real power of a strictly positive base; preserve output on failure. */
+template <typename Math>
+[[nodiscard]] Status positive_pow(typename Math::value_type base, typename Math::value_type exponent,
+                                  typename Math::value_type & output)
+{
+    using value_type = typename Math::value_type;
+    if (!is_finite<Math>(base) || !is_finite<Math>(exponent))
+    {
+        return Status::non_finite_input;
+    }
+    if (base <= value_type{0})
+    {
+        return Status::domain_error;
+    }
+    value_type const candidate = Math::pow(base, exponent);
+    if (!is_finite<Math>(candidate))
+    {
+        return Status::non_finite_result;
+    }
+    output = candidate;
+    return Status::success;
+}
+
 } /* end namespace formal_eskf::scalar */

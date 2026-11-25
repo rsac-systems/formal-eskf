@@ -196,7 +196,7 @@
     },
     {
       "id": "F-SCALAR",
-      "title": "Elementary scalar semantics and checked publication",
+      "title": "Elementary scalar semantics and checked publication; positive-base power has native tests, formal evidence pending",
       "references": {
         "spec": [
           {
@@ -306,6 +306,10 @@
           {
             "file": "include/formal_eskf/scalar/math.hpp",
             "symbol": "atan2("
+          },
+          {
+            "file": "include/formal_eskf/scalar/math.hpp",
+            "symbol": "positive_pow("
           }
         ],
         "esbmc": [
@@ -5855,7 +5859,7 @@
     },
     {
       "id": "R-BAROMETRIC-ALTITUDE",
-      "title": "Barometric altitude conversion/admission: Draft target; implementation, numerical bounds and formal evidence pending",
+      "title": "Standalone barometric conversion/admission with native finite-partition tests; composition, uniform numerical bounds and formal evidence pending",
       "references": {
         "spec": [
           {
@@ -5869,10 +5873,27 @@
           {
             "file": "docs/spec/verification/barometric-height-tests.md",
             "symbol": "### Conversion and admission"
+          },
+          {
+            "file": "docs/spec/verification/tests/runtime/barometric-altitude.md",
+            "symbol": "# Barometric Altitude Tests"
           }
         ],
         "lean": [],
-        "cpp": [],
+        "cpp": [
+          {
+            "file": "include/formal_eskf/runtime/sensors/height/barometric_altitude.hpp",
+            "symbol": "class BarometricAltitude"
+          },
+          {
+            "file": "include/formal_eskf/runtime/sensors/height/barometric_altitude.hpp",
+            "symbol": "struct BarometricParameters"
+          },
+          {
+            "file": "include/formal_eskf/runtime/sensors/height/barometric_altitude.hpp",
+            "symbol": "struct BarometricSensorLimits"
+          }
+        ],
         "esbmc": []
       }
     },
