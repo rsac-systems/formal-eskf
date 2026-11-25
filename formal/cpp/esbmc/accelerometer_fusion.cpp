@@ -70,8 +70,8 @@ inline Status correct(State const & state, Covariance const & P, Vector const & 
 }
 inline bool same_conditions(Conditions const & a, Conditions const & b)
 {
-    return a.enabled == b.enabled && a.tilt_aligned == b.tilt_aligned && a.horizontal_aiding == b.horizontal_aiding &&
-           a.at_rest == b.at_rest && a.clipped == b.clipped;
+    return a.enabled == b.enabled && a.attitude_seeded == b.attitude_seeded &&
+           a.horizontal_aiding == b.horizontal_aiding && a.at_rest == b.at_rest && a.clipped == b.clipped;
 }
 } // namespace accel_fusion_proof
 namespace formal_eskf
@@ -140,7 +140,7 @@ void verify_accelerometer_fusion(accel_fusion_proof::State state, accel_fusion_p
     Call::minimum = minimum;
     Call::output = &delegated;
     Call::count = 0U;
-    unsigned const row = static_cast<unsigned>(conditions.enabled) + 2U * conditions.tilt_aligned +
+    unsigned const row = static_cast<unsigned>(conditions.enabled) + 2U * conditions.attitude_seeded +
                          4U * conditions.horizontal_aiding + 8U * conditions.at_rest +
                          16U * magnitude.within_gravity_band;
     bool const active = magnitude.status == Status::success && (row == 11U || row == 19U || row == 27U);

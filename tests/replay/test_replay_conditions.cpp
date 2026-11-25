@@ -105,7 +105,7 @@ template <typename Linalg> void test_aiding_and_flags(TestContext & test, std::s
             continue;
         }
         auto const check = formal_eskf::runtime::check_accelerometer_fusion_conditions<Linalg>(*conditions, magnitude);
-        test.expect(conditions->tilt_aligned && !conditions->horizontal_aiding && !conditions->at_rest &&
+        test.expect(conditions->attitude_seeded && !conditions->horizontal_aiding && !conditions->at_rest &&
                         conditions->clipped[0U] == ((mask & 1) != 0) && conditions->clipped[1U] == ((mask & 2) != 0) &&
                         conditions->clipped[2U] == ((mask & 4) != 0) && check.active &&
                         check.sample_eligible == (mask == 0),

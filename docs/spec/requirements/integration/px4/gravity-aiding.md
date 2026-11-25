@@ -45,7 +45,7 @@ The adapter consumes tilt history before sampling, and a completed interval/LPF
 update before correction. A later failure does not roll back those earlier
 stages. `reset_samples()` clears partial increments, LPF history and active mode,
 but preserves the tilt-alignment latch. After successful sampling, disabled,
-horizontally aided or unaligned contexts clear active mode even on partial
+horizontally aided or unseeded contexts clear active mode even on partial
 intervals; otherwise it is held until an emission. The module admits only known
 0–7 clipping masks and valid integration periods before this private phase;
 unsupported metadata rejects the IMU and resets observation history. The shared
@@ -56,8 +56,8 @@ Known clipping preserves an otherwise active mode while rejecting the sample.
 
 Under the [staged profile](../../../profiles/staged-ins.md),
 [R-INS-STARTUP](../../runtime/ins-startup.md) explicitly permits refinement
-before tilt alignment. Replace the strict profile's unaligned-context veto for
-that scope without inventing a completed-alignment flag. Keep sample epochs,
+before tilt alignment. The session uses its initialized state for that admission
+without inventing a completed-alignment flag. Keep sample epochs,
 rest/clipping admission, raw-force model, effective V and actual-success counters.
 The strict-profile evidence below does not establish this new composition or
 the staged profile's physical error/time criteria.

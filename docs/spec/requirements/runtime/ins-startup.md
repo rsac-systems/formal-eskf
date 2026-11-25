@@ -116,7 +116,9 @@ height. Source activation shall not rerun the full initialization sequence.
 ## Acceptance and verification
 
 Executable allocation is specified in the [planned staged INS cases](../../verification/staged-ins-tests.md).
-Bindings and execution evidence remain pending.
+The [startup component cases](../../verification/tests/runtime/ins-startup.md)
+bind local seeding, filters, priors and pre-alignment gravity correction. Session
+migration, source/history composition and physical convergence remain pending.
 
 Test each conjunct, exact boundaries, invalid arithmetic, clipping, duplicate
 epochs, source replacement and unknown/rest/moving context. Demonstrate no-GNSS

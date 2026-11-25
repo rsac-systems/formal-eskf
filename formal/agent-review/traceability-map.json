@@ -4642,7 +4642,7 @@
     },
     {
       "id": "R-ACCELEROMETER-CONDITIONS",
-      "title": "Gravity-fusion predicate and covariance-based tilt latch; numerical and caller obligations remain separate",
+      "title": "Gravity-fusion seed admission and independent tilt latch; native predicate coverage, changed formal binding and staged caller proofs deferred",
       "references": {
         "spec": [
           {
@@ -4740,7 +4740,7 @@
     },
     {
       "id": "R-ACCELEROMETER-FUSION",
-      "title": "Gravity fusion and 10 ms adaptive sampling transactions verified under same-type numerical contracts; adapter correspondence remains open; staged pre-alignment caller remains a Draft target without implementation evidence",
+      "title": "Gravity fusion permits seeded pre-alignment refinement; native composition coverage, migrated formal binding and staged caller proofs deferred",
       "references": {
         "spec": [
           {
@@ -8460,7 +8460,7 @@
     },
     {
       "id": "R-INS-STARTUP",
-      "title": "Staged INS startup: IMU-only seed/filter and full prior component; session integration, refinement/convergence and formal evidence pending",
+      "title": "Staged INS startup: IMU-only seed/filter, full priors and pre-alignment gravity component; session migration, convergence and formal evidence pending",
       "references": {
         "spec": [
           {

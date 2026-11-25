@@ -301,7 +301,7 @@ template <typename Linalg, typename Configuration> void test_conditions(TestCont
             fixture.conditions.enabled = false;
             break;
         case Rejection::unaligned:
-            fixture.conditions.tilt_aligned = false;
+            fixture.conditions.attitude_seeded = false;
             break;
         case Rejection::horizontal_aiding:
             fixture.conditions.horizontal_aiding = true;

@@ -6,6 +6,7 @@
 
 #include <formal_eskf/runtime/session/ins_startup.hpp>
 #include <formal_eskf/runtime/session/tilt_alignment.hpp>
+#include <formal_eskf/runtime/sensors/gravity/accelerometer.hpp>
 #include "test_backend.hpp"
 #include "test_cases.hpp"
 #include "test_support.hpp"
@@ -206,6 +207,68 @@ void seed_priors(Context & test, std::string_view profile)
                     profile, "initial covariance never masquerades as completed tilt alignment");
     }
 }
+void prealignment_refinement(Context & test, std::string_view profile)
+{
+    auto const p = parameters();
+    Startup startup{p};
+    constexpr double angle = std::numbers::pi / 18.; // Admissible 10-degree seed transient.
+    Startup::imu_type transient{Vector::from_row_major({p.gravity * std::sin(angle), 0, -p.gravity * std::cos(angle)}),
+                                {}};
+    Startup::state_type state;
+    Startup::covariance_type P;
+    test.expect(startup.update(transient, .004, .004) && startup.seed(state, P) == Status::success, profile,
+                "real admitted seed transient creates the initial tilt error");
+    formal_eskf::runtime::TiltAlignment<Backend> alignment;
+    test.expect(alignment.update(state.q_nb, P.block<6, 6, 3, 3>()) == Status::success && !alignment.aligned(), profile,
+                "the actual startup prior is above the alignment threshold");
+    auto const before = state.q_nb;
+    auto const variance_before = alignment.variance();
+    formal_eskf::runtime::AccelerometerSample<Backend, 10000> sampler;
+    Startup::imu_type real{Vector::from_row_major({0, 0, -p.gravity}), {}};
+    formal_eskf::runtime::AccelerometerSample<Backend, 10000>::Result observation;
+    for (unsigned step = 0; step < 2; ++step)
+    {
+        observation = sampler.update(real, 4000, 0, p.minimum_quaternion_norm);
+        test.expect(observation.status == Status::success && observation.ready == (step == 1), profile,
+                    "nonoverlapping 4-ms inputs produce the first interval at 8 ms");
+    }
+    formal_eskf::runtime::AccelerometerFusionConditions conditions{true, startup.ready(), false, false, {}};
+    auto const gravity = Vector::from_row_major({0, 0, p.gravity});
+    auto const V = formal_eskf::linalg::Matrix<Backend, 3, 3>::identity() * (p.gravity * p.gravity);
+    auto const result =
+        formal_eskf::runtime::fuse_accelerometer(state, P, observation.specific_force_b, gravity, V, conditions,
+                                                 observation.magnitude, p.minimum_quaternion_norm, state, P);
+    test.expect(result.status == Status::success && result.decision == formal_eskf::runtime::FusionDecision::fused &&
+                    !alignment.aligned(),
+                profile, "real gravity corrects a seeded INS without inventing completed alignment");
+    test.expect(alignment.update(state.q_nb, P.block<6, 6, 3, 3>()) == Status::success &&
+                    alignment.variance() < variance_before,
+                profile, "real correction reduces tilt uncertainty");
+    auto const R = formal_eskf::so3::to_rotation_matrix(state.q_nb);
+    double const error = std::atan2(std::hypot(R(2, 0), R(2, 1)), R(2, 2));
+    test.expect(error < angle && state.q_nb.q2() != before.q2(), profile,
+                "independent level-truth tilt error decreases, not just a covariance flag");
+
+    auto const retained = P;
+    auto const retained_q = state.q_nb.coefficients();
+    conditions.attitude_seeded = false;
+    auto const unseeded =
+        formal_eskf::runtime::fuse_accelerometer(state, P, observation.specific_force_b, gravity, V, conditions,
+                                                 observation.magnitude, p.minimum_quaternion_norm, state, P);
+    test.expect(unseeded.decision == formal_eskf::runtime::FusionDecision::rejected, profile,
+                "an uninitialized attitude still cannot use refinement");
+    for (unsigned row = 0; row < 15; ++row)
+    {
+        for (unsigned col = 0; col < 15; ++col)
+        {
+            test.expect(P(row, col) == retained(row, col), profile, "rejected refinement retains full covariance");
+        }
+    }
+    for (unsigned i = 0; i < 4; ++i)
+    {
+        test.expect(state.q_nb.coefficients()(i) == retained_q(i), profile, "rejected refinement retains attitude");
+    }
+}
 } // namespace
 
 int main(int argc, char ** argv)
@@ -215,6 +278,7 @@ int main(int argc, char ** argv)
         {"TC-R-INS-STARTUP-01", "binary64", seed_admission},
         {"TC-R-INS-STARTUP-03", "binary64", filter_sequence},
         {"TC-R-INS-STARTUP-04", "binary64", seed_priors},
+        {"TC-R-INS-STARTUP-06", "binary64", prealignment_refinement},
     };
     return formal_eskf::test::run_cases(cases, argc, argv);
 }

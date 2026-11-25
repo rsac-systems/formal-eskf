@@ -28,7 +28,7 @@ using TestContext = formal_eskf::test::Context;
 template <typename Linalg> void test_truth_table(TestContext & test, std::string_view profile)
 {
     using Magnitude = formal_eskf::runtime::AccelerometerMagnitude<Linalg>;
-    // Five logical bits: enable, tilt, horizontal aiding, rest, magnitude band.
+    // Five logical bits: enable, attitude seed, horizontal aiding, rest, magnitude band.
     for (unsigned flags = 0U; flags < 32U; ++flags)
     {
         for (unsigned clipping = 0U; clipping < 8U; ++clipping)
@@ -61,7 +61,7 @@ template <typename Linalg> void test_magnitude_integration(TestContext & test, s
     Magnitude monitor;
     AccelerometerFusionConditions conditions;
     conditions.enabled = true;
-    conditions.tilt_aligned = true;
+    conditions.attitude_seeded = true;
     auto const gravity = vector_type::from_row_major({value_type{0}, value_type{0}, static_cast<value_type>(-9.80665)});
     auto magnitude = monitor.update(gravity);
     auto result = check_accelerometer_fusion_conditions<Linalg>(conditions, magnitude);
@@ -119,7 +119,7 @@ template <typename Linalg> void test_failed_evidence(TestContext & test, std::st
             test.expect(result.status == status && !result.active && !result.sample_eligible, profile,
                         "every failed producer status inhibits both flags even at rest");
             test.expect(magnitude.status == status && magnitude.within_gravity_band &&
-                            std::isnan(magnitude.squared_norm) && conditions.enabled && conditions.tilt_aligned &&
+                            std::isnan(magnitude.squared_norm) && conditions.enabled && conditions.attitude_seeded &&
                             !conditions.horizontal_aiding && conditions.at_rest == at_rest,
                         profile, "condition and evidence inputs remain unchanged");
         }

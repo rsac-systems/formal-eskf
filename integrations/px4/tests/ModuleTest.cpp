@@ -1656,6 +1656,9 @@ public:
 
     void prepare_gravity()
     {
+        // Isolated phase fixture: supply the valid-seed premise explicitly.
+        // Public Run startup/history behavior is exercised separately.
+        m_filter.m_session.m_initialized = true;
         m_filter.m_session.m_time_us = m_sample.timestamp_sample;
         m_filter.m_session.m_covariance = FormalEskf::covariance_type::identity() * 0.0001;
         m_filter.m_land.timestamp = m_filter.m_session.m_time_us;
@@ -1686,13 +1689,22 @@ public:
         rest_override,
         stale_rest,
         clipped,
-        unaligned
+        unaligned,
+        unseeded
     };
 
     static void gravity_conditions(GravityCase scenario)
     {
         InsSessionTest test;
-        test.prepare_gravity();
+        if (scenario == GravityCase::aided)
+        {
+            test.warmup();
+            test.m_filter.m_session.m_gravity.reset_samples();
+        }
+        else
+        {
+            test.prepare_gravity();
+        }
         auto & filter = test.m_filter;
         FormalEskf::imu_type imu{-filter.m_session.m_parameters.gravity_n, {}};
         std::uint8_t clipping = 0U;
@@ -1707,8 +1719,6 @@ public:
             filter.m_session.m_gravity_enabled = false;
             break;
         case GravityCase::aided:
-            test.warmup();
-            filter.m_session.m_gravity.reset_samples();
             break;
         case GravityCase::high_force:
             imu.specific_force_b = imu.specific_force_b * 2.;
@@ -1728,6 +1738,9 @@ public:
         case GravityCase::unaligned:
             filter.m_session.m_covariance = FormalEskf::covariance_type::identity();
             break;
+        case GravityCase::unseeded:
+            filter.m_session.m_initialized = false;
+            break;
         }
         auto const before = filter.m_session.m_covariance;
         auto const before_q = filter.m_session.m_state.q_nb.coefficients();
@@ -1736,7 +1749,8 @@ public:
         {
             test.gravity_sample(imu, 5000U, 5000U, clipping);
         }
-        bool const eligible = scenario == GravityCase::eligible || scenario == GravityCase::rest_override;
+        bool const eligible = scenario == GravityCase::eligible || scenario == GravityCase::rest_override ||
+                              scenario == GravityCase::unaligned;
         expect(!filter.m_session.m_fault && (filter.m_session.m_gravity.corrections > count) == eligible,
                "production gravity conditions admit only eligible samples");
         bool const active = eligible || scenario == GravityCase::clipped;
@@ -4146,7 +4160,8 @@ int main(int argc, char ** argv)
     using GravityCase = InsSessionTest::GravityCase;
     for (auto scenario :
          {GravityCase::eligible, GravityCase::disabled, GravityCase::aided, GravityCase::high_force,
-          GravityCase::rest_override, GravityCase::stale_rest, GravityCase::clipped, GravityCase::unaligned})
+          GravityCase::rest_override, GravityCase::stale_rest, GravityCase::clipped, GravityCase::unaligned,
+          GravityCase::unseeded})
     {
         InsSessionTest::gravity_conditions(scenario);
     }

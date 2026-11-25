@@ -109,7 +109,7 @@ void verify_accelerometer_conditions(Conditions conditions, Magnitude magnitude)
     // Exhaustive truth-table rows, independently expressed from the conjunction
     // in production. All eight flags, every status and unused IEEE diagnostic
     // are symbolic; no success or finite-data premise is assumed.
-    unsigned const row = static_cast<unsigned>(conditions.enabled) + 2U * conditions.tilt_aligned +
+    unsigned const row = static_cast<unsigned>(conditions.enabled) + 2U * conditions.attitude_seeded +
                          4U * conditions.horizontal_aiding + 8U * conditions.at_rest +
                          16U * magnitude.within_gravity_band;
     bool const active = magnitude.status == Status::success && (row == 11U || row == 19U || row == 27U);
@@ -120,9 +120,9 @@ void verify_accelerometer_conditions(Conditions conditions, Magnitude magnitude)
                    "R-ACCELEROMETER-CONDITIONS: exact status, active mode and per-sample eligibility truth table");
     __ESBMC_assert(!actual.sample_eligible ||
                        (actual.active && magnitude.status == Status::success && conditions.enabled &&
-                        conditions.tilt_aligned && !conditions.horizontal_aiding),
+                        conditions.attitude_seeded && !conditions.horizontal_aiding),
                    "R-ACCELEROMETER-CONDITIONS: eligibility cannot bypass a failed evaluation or required mode");
-    __ESBMC_assert(conditions.enabled == before.enabled && conditions.tilt_aligned == before.tilt_aligned &&
+    __ESBMC_assert(conditions.enabled == before.enabled && conditions.attitude_seeded == before.attitude_seeded &&
                        conditions.horizontal_aiding == before.horizontal_aiding &&
                        conditions.at_rest == before.at_rest && conditions.clipped == before.clipped &&
                        magnitude.status == old_magnitude.status &&

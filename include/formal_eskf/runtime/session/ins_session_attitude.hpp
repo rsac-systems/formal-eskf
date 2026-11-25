@@ -41,12 +41,12 @@ void InsSession<Linalg, Layout>::fuse_gravity(ImuInput const & sample, imu_type 
     auto const & gnss = m_gnss.lifecycle.state();
     formal_eskf::runtime::AccelerometerFusionConditions const conditions{
         m_gravity_enabled,
-        m_tilt_alignment.aligned(),
+        m_initialized,
         gnss.horizontal_position.active || gnss.velocity.active,
         m_imu_context.land.known && m_imu_context.land.at_rest,
         {(observation.clipping_mask & 1) != 0, (observation.clipping_mask & 2) != 0,
          (observation.clipping_mask & 4) != 0}};
-    if (!conditions.enabled || conditions.horizontal_aiding || !conditions.tilt_aligned)
+    if (!conditions.enabled || conditions.horizontal_aiding || !conditions.attitude_seeded)
     {
         m_gravity.active = false;
     }

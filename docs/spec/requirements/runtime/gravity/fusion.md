@@ -38,7 +38,7 @@ unchanged `E-OBS-ACCEL` correction for AHRS and INS. No innovation gate is used.
 
 Native tests cover real magnitude results, current-versus-filtered measurement
 use, INS bias permissions, both configurations/scalar formats, all four alias
-arrangements, rejection and numerical failures. ESBMC checks both actual public
+arrangements, rejection and numerical failures. The ESBMC harness targets both public
 fusion overloads and their inline condition predicate, binary32/binary64 and
 all four independent whole-state/P alias modes. It composes the exact-type
 `E-OBS` / `E-BIAS-UPDATE` correction frame: arbitrary success outputs and every
@@ -48,6 +48,9 @@ status/decision, publication and all borrowed/disjoint input frames. No successf
 or finite input premise removes rejected/failed paths. This control composition
 needs no additional real-algebra theorem. Sample integration, magnitude-result
 freshness and actual module/replay wiring remain separate obligations.
+The condition input now represents an admitted attitude seed rather than
+completed alignment. Harness fields are migrated; their rerun and staged caller
+proof remain deferred. Prior execution does not cover the changed source binding.
 The composition does not establish a valid physical gravity observation,
 noise independence, tuned V, full external-estimator equivalence or flight safety.
 

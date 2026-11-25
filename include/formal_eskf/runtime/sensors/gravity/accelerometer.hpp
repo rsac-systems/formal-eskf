@@ -252,7 +252,7 @@ AccelerometerSample<Linalg, IntervalUs>::update(ImuSample<Linalg> const & imu, s
 struct AccelerometerFusionConditions
 {
     bool enabled = false;
-    bool tilt_aligned = false;
+    bool attitude_seeded = false;   // Initial attitude exists; completed tilt alignment is not required.
     bool horizontal_aiding = false; // Actual aiding activity, not availability of a GNSS fix.
     bool at_rest = false;           // Caller detection, not inferred from the magnitude check.
     std::array<bool, 3U> clipped{};
@@ -284,7 +284,7 @@ check_accelerometer_fusion_conditions(AccelerometerFusionConditions const & cond
         return result;
     }
     result.active = conditions.enabled && (magnitude.within_gravity_band || conditions.at_rest) &&
-                    !conditions.horizontal_aiding && conditions.tilt_aligned;
+                    !conditions.horizontal_aiding && conditions.attitude_seeded;
     result.sample_eligible =
         result.active && !(conditions.clipped[0U] || conditions.clipped[1U] || conditions.clipped[2U]);
     return result;

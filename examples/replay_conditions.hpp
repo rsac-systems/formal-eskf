@@ -70,6 +70,8 @@ public:
         }
         return runtime::AccelerometerFusionConditions{
             enabled,
+            // Replay retains stricter post-alignment admission; the runtime
+            // predicate also permits refinement of a seeded attitude.
             m_tilt.aligned(),
             horizontal_aiding(now_us),
             at_rest == 1,
