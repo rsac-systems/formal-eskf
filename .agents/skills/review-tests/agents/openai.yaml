@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Tests"
+  short_description: "Audit requirement coverage and test oracle quality"
+  default_prompt: "Use $review-tests to assess the required behaviors, test oracles, production paths and coverage gaps in this scope, with a justified retain, fix, add or retire list."
