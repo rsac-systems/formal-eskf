@@ -1,0 +1,50 @@
+# Barometer Ground-Effect Tests
+
+**Status:** Draft
+
+**Scope:** [R-BARO-GROUND-EFFECT](../../../requirements/runtime/barometer-ground-effect.md).
+
+**Level / purpose:** Policy unit tests and component/session composition regression.
+The [allocation](../../barometer-ground-effect-tests.md) owns the independent
+oracles, platform cases and target/physical acceptance boundaries.
+
+**Profiles:** Binary64 session on enabled backends; binary32/binary64 height-owner
+isolation. PX4 matrix and Eigen, generated/exact and dense/approximate dependencies.
+
+**Setup and oracle:** Integer timing/selection ledgers, explicit event/source clocks,
+all compact context flag patterns and an independent scalar Joseph oracle. Session
+fixtures use the real delayed owner; controlled invalid priors use the existing
+test friend. The policy receives already translated platform decisions; PX4 default
+and producer semantics are exercised separately in the actual module fixture.
+
+## Cases
+
+| Case ID | Name | Requirement / clause | Scenario | Expected result / oracle | Executable test |
+|---|---|---|---|---|---|
+| TC-R-BARO-GROUND-EFFECT-01 | Configuration and clean start | R-BARO-GROUND-EFFECT: protection transitions | OFF/ON; finite positive/zero/negative/nonfinite deadzone, zero/overflowing hold; startup and replacement. | Only valid copied settings admitted; start inactive with no inherited detection/history. OFF supplies zero deadzone and preserves ordinary height aiding. Invalid configuration preserves the prior owner. | Native: [test_ground_effect.cpp](../../../../../tests/runtime/session/test_ground_effect.cpp) |
+| TC-R-BARO-GROUND-EFFECT-02 | Positive request and flight permission | R-BARO-GROUND-EFFECT: protection transitions | Positive request with each in-air/fixed-wing decision combination. | Enable/renew only for in-air and non-fixed-wing; landing/fixed-wing takes priority over a simultaneous positive request. Use the event ledger. | Native: [test_ground_effect.cpp](../../../../../tests/runtime/session/test_ground_effect.cpp) |
+| TC-R-BARO-GROUND-EFFECT-03 | Negative request retains hold | R-BARO-GROUND-EFFECT: protection transitions | Negative request after active detection while flight decisions still permit. | Latch and detection time unchanged; no false clear or renewal. | Native: [test_ground_effect.cpp](../../../../../tests/runtime/session/test_ground_effect.cpp) |
+| TC-R-BARO-GROUND-EFFECT-04 | Hold equality and expiry | R-BARO-GROUND-EFFECT: protection transitions | Delayed age H-1, H, H+1; no new events, repeated snapshots and status reads. | Active at H; clear only after H. Reads and source age do not renew or add a 3 s timeout. | Native: [test_ground_effect.cpp](../../../../../tests/runtime/session/test_ground_effect.cpp) |
+| TC-R-BARO-GROUND-EFFECT-05 | Landing and fixed-wing exit | R-BARO-GROUND-EFFECT: protection transitions | Adopt landing/fixed-wing during an active hold, then return to permitted flight without a positive request. | Clear at adoption before height fusion; old detection epoch cannot reactivate. | Native: [test_ground_effect.cpp](../../../../../tests/runtime/session/test_ground_effect.cpp) |
+| TC-R-BARO-GROUND-EFFECT-06 | Renew, reactivate and replace | R-BARO-GROUND-EFFECT: protection transitions | New selected positive request before/after expiry; session replacement with pending events. | Renew at the actual delayed adoption epoch; reactivation requires a positive selected event. Replacement discards the old hold/events. | Native: [test_ground_effect.cpp](../../../../../tests/runtime/session/test_ground_effect.cpp) |
+| TC-R-BARO-GROUND-EFFECT-07 | Newest eligible event and loss | R-OBSERVATION-HISTORY: protection-event target | Future, multiple eligible, expired and overflowing events; age W-1/W/W+1. | Select at most the newest eligible once, retire superseded history, preserve future entries, count losses. Miss/loss alone cannot renew or invent a request. | Native: [test_ground_effect.cpp](../../../../../tests/runtime/session/test_ground_effect.cpp) |
+| TC-R-BARO-GROUND-EFFECT-08 | Invalid chronology and duplicate identity | R-BARO-GROUND-EFFECT: input and ownership | Replayed update, decreasing processing/selection time, offset underflow, inconsistent/future clock, repeated fusion phase. | Reject under the owning clock/protocol rule, preserving latch and required history frames; no wrapped future event or duplicate renewal. | Native: [test_ground_effect.cpp](../../../../../tests/runtime/session/test_ground_effect.cpp) |
+| TC-R-BARO-GROUND-EFFECT-09 | Frozen selection offset | R-PX4-BARO-GROUND-EFFECT: timing | Admit at different mean periods, then vary the mean while records wait. | Each selection epoch uses its own frozen half-period exactly once. Raw/source/processing times remain distinct; changing the mean does not retime queued events. | Native: [test_ground_effect.cpp](../../../../../tests/runtime/session/test_ground_effect.cpp) |
+| TC-R-BARO-GROUND-EFFECT-10 | Delayed ordering and IMU absence | R-INS-SESSION: ground-effect target | Different current/delayed epochs; selected event immediately before barometer fusion; no-IMU status callbacks. | Adopt/evaluate before height correction at the correct horizon. Current publication and absent IMU do not advance selection/hold time; existing output expiry still applies. | Native: [test_ground_effect.cpp](../../../../../tests/runtime/session/test_ground_effect.cpp) |
+| TC-R-BARO-GROUND-EFFECT-11 | Zero residual still updates covariance | R-BARO-GROUND-EFFECT: height correction | Admitted scalar fixture with residual inside/equal to positive deadzone. | Selected residual zero; residual-induced nominal correction zero; full covariance equals independent Joseph result, including P_DD = 3/4. No early return that skips covariance. | Native: [test_ground_effect.cpp](../../../../../tests/runtime/session/test_ground_effect.cpp) |
+| TC-R-BARO-GROUND-EFFECT-12 | Height preparation and residual direction | R-HEIGHT-AIDING: optional ground-effect composition | Relative/flat and geographic frames, nonzero prior bias, both residual signs and zero/D boundaries. | Prior-offset height helper yields the correct Down sign; only barometer receives positive deadzone. Independent height/frame oracle and scalar fixtures; never derive clearance from local Z. | Native: [test_ground_effect.cpp](../../../../../tests/runtime/session/test_ground_effect.cpp) |
+| TC-R-BARO-GROUND-EFFECT-13 | Gate and acceleration-limit composition | R-GNSS-VERTICAL-RECOVERY; R-BARO-GROUND-EFFECT: height correction | Residual-12 fixture, fault absent/present, raw rejection, deadzone 0/4. | Raw ratio preserved; no new admission from deadzone; limit then deadzone gives 6 under the authorized exception. Reuse standalone recovery cases; additionally exercise actual height/session permissions. | Native: [test_ground_effect.cpp](../../../../../tests/runtime/session/test_ground_effect.cpp) |
+| TC-R-BARO-GROUND-EFFECT-14 | Bias eligibility and original altitude | R-HEIGHT-AIDING: optional ground-effect composition | Active nonreference, reference, inactive and bias-gate-rejected barometer, with protection ON/OFF from the same prior. | No protection-specific freeze/reset. Eligible training uses original altitude/current prior, not the selected main residual; reference/inactive/scalar-rejected cases retain their existing behavior. | Native: [test_height_aiding.cpp](../../../../../tests/runtime/height/test_height_aiding.cpp) |
+| TC-R-BARO-GROUND-EFFECT-15 | Other-source and reset isolation | R-BARO-GROUND-EFFECT: height correction and isolation | GNSS correction, source stop/reference handoff and genuine timeout reset, varied protection flag with identical source premises/prior. | No deadzone on GNSS; no new reset/reference authority or spurious reset counter. Compare local decisions from matched priors, not final trajectories already changed by earlier corrections. | Native: [test_height_aiding.cpp](../../../../../tests/runtime/height/test_height_aiding.cpp) |
+| TC-R-BARO-GROUND-EFFECT-16 | Numerical failure after a protection event | R-BARO-GROUND-EFFECT: reports and failure boundaries | Valid selected event followed by rejected measurement or real numerical failure in height processing. | Preserve required state/P and height-owner frames, report actual failure/rejection; no false successful fusion. Earlier committed latch/epoch remains historical, not a rollback of the entire callback. | Native: [test_ground_effect.cpp](../../../../../tests/runtime/session/test_ground_effect.cpp) |
+| TC-R-BARO-GROUND-EFFECT-17 | Mode, residual and fusion facts | R-INS-DIAGNOSTICS; R-BARO-GROUND-EFFECT: reports | Active hold without barometer sample, deadzone 0, admitted/rejected/failed corrections, read-frequency changes. | Mode, raw gate evidence, selected residual and actual numerical commit remain distinguishable. Reads do not refresh events/counters or change estimation. | Native: [test_ground_effect.cpp](../../../../../tests/runtime/session/test_ground_effect.cpp) |
+| TC-R-BARO-GROUND-EFFECT-18 | Defaulted protection is not known context | R-BARO-GROUND-EFFECT: input and ownership | Defaulted protection decisions with unavailable status, concurrent gravity and initialization/context consumers. | Protection follows its binding while other consumers retain original unknown/stale facts and guards; no invented flight capability or common freshness reset. | Native: [test_ground_effect.cpp](../../../../../tests/runtime/session/test_ground_effect.cpp) |
+
+## Boundaries
+
+Native cases establish the declared sequences and numerical priors, not arbitrary
+input invariants, target WCET or physical pressure-disturbance rejection. Existing
+geographic-height, source lifecycle and rollback tests remain dependencies. New
+event/compact-context proof obligations remain V-01; proof runners are excluded
+from this implementation round. The PX4 build also checks the fixed whole-module
+64 KiB reservation, independently from the 60 KiB host stack execution witness.

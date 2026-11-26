@@ -117,6 +117,19 @@ class KconfigTests(unittest.TestCase):
             if SYMBOL.name.startswith("PX4_"):
                 SELF.assertIn("ESKF_CFG_" + SYMBOL.name[4:], SOURCES, SYMBOL.name)
 
+    def test_ground_effect_choices(SELF):
+        DEFAULT = FRONTEND.px4_header(SELF.read_config(), SELF.KCONFIGLIB)
+        SELF.assertIn("#define ESKF_CFG_GROUND_EFFECT 0\n", DEFAULT)
+        ENABLED = FRONTEND.px4_header(SELF.read_config('CONFIG_PX4_GROUND_EFFECT=y\nCONFIG_PX4_GROUND_DEADZONE="0"\n'), SELF.KCONFIGLIB)
+        SELF.assertIn("#define ESKF_CFG_GROUND_EFFECT 1\n", ENABLED)
+        SELF.assertIn("#define ESKF_CFG_GROUND_DEADZONE 0.0\n", ENABLED)
+        for VALUE in ('-1', 'nan', 'inf'):
+            with SELF.subTest(VALUE=VALUE), SELF.assertRaises(ValueError):
+                FRONTEND.px4_header(SELF.read_config(f'CONFIG_PX4_GROUND_DEADZONE="{VALUE}"\n'), SELF.KCONFIGLIB)
+        for VALUE in ('0', '2147483648'):
+            with SELF.subTest(VALUE=VALUE), SELF.assertRaises(ValueError):
+                FRONTEND.px4_header(SELF.read_config(f'CONFIG_PX4_GROUND_HOLD_MS={VALUE}\n'), SELF.KCONFIGLIB)
+
     def test_px4_invalid_numbers_and_dependencies(SELF):
         for TEXT in (
             'CONFIG_PX4_MAG_GATE="nan"\n',

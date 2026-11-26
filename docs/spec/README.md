@@ -124,9 +124,10 @@ remain empty: these two additional review units are proof gaps, not verified cla
 
 ## Runtime requirements
 
-The optional ground-effect target splits the reusable mode/residual contract
-from PX4 message defaults and timing. Its implementation and physical acceptance
-are pending; see [F-03.2](../roadmap.md#f-03--height-protection).
+The optional ground-effect binding separates the reusable mode/residual contract
+from PX4 message defaults and timing. Software paths have native test bindings;
+physical/target acceptance and source proofs remain open under
+[F-03.2](../roadmap.md#f-03--height-protection).
 
 | ID | Required behavior |
 |---|---|
@@ -237,7 +238,7 @@ are pending; see [F-03.2](../roadmap.md#f-03--height-protection).
 - Barometric height: [native converter](verification/tests/runtime/barometric-altitude.md) and [height-preparation cases](verification/tests/runtime/height-observation.md); [staged source/session and PX4 composition](verification/barometric-height-tests.md) remains Pending.
 - Planned sensor input: [reset, input/history and caller test specification](verification/sensor-input-tests.md), with Pending executable bindings and physical/resource qualification.
 - Planned diagnostics: [owner evidence, snapshots and PX4 reporting tests](verification/diagnostic-reporting-tests.md), with Pending bindings and reused staged consumer cases.
-- Planned ground effect: [runtime, PX4 and physical acceptance](verification/barometer-ground-effect-tests.md), with Pending bindings and independent software/physical completion.
+- Ground effect: [runtime, PX4 and physical acceptance](verification/barometer-ground-effect-tests.md), with registered native bindings and separate target/physical qualification.
 - [C++ Function Inventory and Review Boundary](verification/source-inventory.md).
 - [C++ Static Analysis Policy](verification/static-analysis.md).
 

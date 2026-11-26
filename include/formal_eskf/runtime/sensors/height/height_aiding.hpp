@@ -237,6 +237,7 @@ public:
     [[nodiscard]] bool configure_timing(TimingParameters const & timing);
     [[nodiscard]] bool can_configure(TimingParameters const & timing) const;
     bool valid_parameters() const;
+    value_type ground_effect_deadzone() const { return m_parameters.ground_effect_deadzone_m; }
 
     unsigned barometer_warmup_samples() const { return m_parameters.barometer_warmup_samples; }
 

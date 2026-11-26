@@ -146,6 +146,16 @@ typename InsSession<Linalg, Layout>::Diagnostics InsSession<Linalg, Layout>::dia
     view.height_reference = m_height_aiding.reference();
     view.gravity_conditions = m_gravity_conditions;
     view.resets = m_resets;
+    if constexpr (Layout::barometer_aiding && Layout::ground_effect)
+    {
+        view.ground_effect = m_ground_effect.state();
+        view.ground_effect_counts = m_ground_effect.counts();
+        view.ground_effect_entries = m_ground_effect.entries();
+        view.ground_effect_supported = true;
+        view.ground_effect_capacity = m_ground_effect.length();
+        view.ground_effect_hold_us = m_settings.height.ground_effect_timeout_us;
+        view.ground_effect_deadzone_m = m_height_aiding.ground_effect_deadzone();
+    }
     return view;
 }
 

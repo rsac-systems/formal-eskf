@@ -142,6 +142,7 @@ template <bool Enabled, std::size_t Capacity> struct BarometerLayout
     static constexpr std::size_t barometer_capacity = Capacity;
     static constexpr std::uint64_t gravity_interval_us = ins_example::Layout::gravity_interval_us;
     // cppcheck-suppress-end unusedStructMember
+    static constexpr std::size_t ground_effect_capacity = 64;
     static constexpr bool gravity_aiding = true, ground_effect = true, magnetic_model = true;
     static constexpr bool barometer_aiding = Enabled;
 };

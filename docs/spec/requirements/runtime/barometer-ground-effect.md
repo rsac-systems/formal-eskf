@@ -117,7 +117,7 @@ both feature builds, zero deadzone, production session ordering and adapter inpu
 binding. Reuse existing height/core tests where their actual scope still applies.
 No terrain or flight-performance claim follows from passing software cases.
 The [ground-effect test specification](../../verification/barometer-ground-effect-tests.md)
-allocates the pending runtime and composition cases.
+allocates runtime/composition cases and their native bindings.
 
 Exact residual identities, finite-state transitions and IEEE/composed execution
 are separate proof obligations. Existing vertical-recovery proofs cover their

@@ -87,8 +87,11 @@ when that adapter is selected; other bindings require their own profile.
 Reject duplicate/invalid chronology without changing the protection latch, retain
 admitted watermarks across empty buffers, and clear event history on replacement.
 Source-default decisions do not change unknown-context permission for existing
-consumers. This stream is pending implementation/evidence; current snapshot tests
-do not close its producer/selection obligations.
+consumers. The independent event owner uses the shared ring primitive. Ordinary
+context is stored losslessly in a compact internal record; its public source
+fields and lookup/freshness rules remain unchanged. Native bindings are recorded
+in the ground-effect allocation; event and compact-storage source proofs remain
+separate obligations.
 
 ### Admission and context details
 

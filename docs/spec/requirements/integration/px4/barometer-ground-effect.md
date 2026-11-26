@@ -5,8 +5,8 @@
 **Status:** Draft
 
 **Applies to:** Optional PX4 INS no-terrain protection; staged/strict service keep
-their own output admission. This target replaces the current unshifted-context,
-strict missing-vehicle guard and default-enabled binding for this feature only.
+their own output admission. This binding replaces the prior unshifted-context,
+strict missing-vehicle guard and default-enabled behavior for this feature only.
 
 **Parent:** [SW-PX4](../../software/px4-estimation.md).
 
@@ -108,10 +108,9 @@ upstream innovation field.
   These do not establish whole-EKF2 equivalence. The present healthy-output mask
   is stricter than PX4's direct control-flag publication; retain that declared
   fault/availability boundary, not a claim of identical fault-time flags.
-- Current code lacks the target event path and defaults. Its repeated context
-  checks and stale-vehicle clearing are superseded for this protection path when
-  the target is implemented. Historical tests of that guard cannot prove the
-  new behavior. Unrelated context/flight capabilities remain unchanged.
+- The event path replaces repeated-context and stale-vehicle clearing for this
+  protection policy. Unrelated context/flight capabilities retain their original
+  freshness rules; platform defaults are not promoted to known flight context.
 
 ## Acceptance and verification
 
@@ -130,7 +129,8 @@ source/configuration scope; no full target proof is established here.
 
 The [ground-effect test specification](../../../verification/barometer-ground-effect-tests.md)
 allocates runtime, actual producer/adapter and target/physical acceptance cases.
-All new executable bindings remain Pending until implementation and execution.
+The test allocation identifies native bindings and the separate target/physical
+acceptance gaps. Source proofs for the event path remain deferred.
 
 ## References
 

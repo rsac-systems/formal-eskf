@@ -13,6 +13,7 @@
 #include <formal_eskf/runtime/session/output_predictor.hpp>
 #include <formal_eskf/runtime/history/observation_history.hpp>
 #include <formal_eskf/runtime/sensors/height/height_aiding.hpp>
+#include <formal_eskf/runtime/sensors/height/ground_effect.hpp>
 #include <formal_eskf/runtime/sensors/height/barometric_altitude.hpp>
 #include <formal_eskf/runtime/sensors/gravity/accelerometer.hpp>
 #include <formal_eskf/runtime/session/tilt_alignment.hpp>
@@ -185,11 +186,10 @@ public:
         bool usable{};
     };
 
-    struct GroundEffect
-    {
-        std::uint64_t last_detection_us{}, land_time_us{}, vehicle_time_us{};
-        bool active{};
-    };
+    static constexpr std::size_t ground_effect_capacity =
+        Layout::barometer_aiding && Layout::ground_effect ? Layout::ground_effect_capacity : 1;
+    using ground_effect_type = formal_eskf::runtime::GroundEffect<ground_effect_capacity>;
+    using GroundEffect = typename ground_effect_type::State;
 
     struct OutputValidity
     {
@@ -380,6 +380,12 @@ public:
         typename height_type::Source height_reference = height_type::Source::none;
         AccelerometerFusionCheck gravity_conditions{};
         ResetReport resets{};
+        GroundEffect ground_effect{};
+        typename ground_effect_type::Counts ground_effect_counts{};
+        std::size_t ground_effect_entries{}, ground_effect_capacity{};
+        double ground_effect_deadzone_m{};
+        std::uint64_t ground_effect_hold_us{};
+        bool ground_effect_supported{};
     };
     /** Pure bounded copy at a public-operation boundary, including pending/fault phases.
      * Caller owns synchronization and the capture clock. Reads neither drain
@@ -428,7 +434,8 @@ public:
     ImuSourceChanges const & imu_source_changes() const { return m_imu_source_changes; }
     ResetReport const & resets() const { return m_resets; }
     height_type const & height_aiding() const { return m_height_aiding; }
-    GroundEffect const & ground_effect() const { return m_ground_effect; }
+    GroundEffect const & ground_effect() const { return m_ground_effect.state(); }
+    void receive_ground_effect(GroundEffectEvent const & event);
     TiltAlignment<backend_type> const & tilt_alignment() const { return m_tilt_alignment; }
     Gravity const & gravity() const { return m_gravity; }
     bool gravity_enabled() const { return m_gravity_enabled; }
@@ -568,7 +575,7 @@ private:
     ResetReport m_resets{};
     height_type m_height_aiding;
     barometric_type m_barometric{};
-    GroundEffect m_ground_effect{};
+    ground_effect_type m_ground_effect{};
     TiltAlignment<backend_type> m_tilt_alignment{};
     Gravity m_gravity{};
     bool m_gravity_enabled = true;

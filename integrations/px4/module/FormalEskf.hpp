@@ -139,10 +139,11 @@ private:
     struct InputUpdates
     {
         vehicle_imu_s sample{};
-        bool imu{}, gps{}, magnetic{}, barometer{};
+        bool imu{}, gps{}, magnetic{}, barometer{}, land{}, vehicle{};
     };
 
     InputUpdates read_inputs();
+    void receive_ground_effect(InputUpdates const & updates);
     void Run() override;
     static ImuInput decode_imu(vehicle_imu_s const & sample);
     void process_imu(ImuInput const & sample);

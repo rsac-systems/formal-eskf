@@ -64,7 +64,8 @@ uses the external PX4 land detector and the
 The adapter resolves platform freshness/defaults; runtime owns bounded event
 selection and the delayed hold. This replaces only the protection use of current
 unshifted context, keeps provenance for other consumers and defaults the feature
-OFF. Configuration, event-path and caller evidence remain pending implementation.
+OFF. Native producer/caller bindings are recorded in the ground-effect test
+allocation; source proofs and physical/target qualification remain separate.
 
 ## Requirement allocation
 

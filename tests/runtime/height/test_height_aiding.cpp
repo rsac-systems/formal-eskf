@@ -147,7 +147,141 @@ template <typename Linalg> void ground_effect(Context & test)
                         : selected.fusion_innovation == original.fusion_innovation &&
                               protected_case.state.p_n(2) == ordinary.state.p_n(2),
                     "ground-effect", "only barometer correction is protected; GNSS residual is untouched");
+        if (barometer)
+        {
+            test.expect(selected.active && selected.bias.value < baseline.aiding.session(Source::barometer).bias.value,
+                        "bias", "eligible nonreference bias training consumes the original negative altitude step");
+        }
     }
+}
+
+template <typename Linalg> void ground_bias_boundaries(Context & test)
+{
+    using F = HeightFixture<Linalg>;
+    using T = typename F::value_type;
+    using Source = typename F::Source;
+    enum class Mode
+    {
+        reference,
+        inactive,
+        bias_rejected
+    };
+    for (auto mode : {Mode::reference, Mode::inactive, Mode::bias_rejected})
+    {
+        F prior;
+        if (mode == Mode::bias_rejected)
+            prior.start(test);
+        else
+        {
+            test.expect(prior.aiding.initialize(prior.now, T{500}) == Status::success, "bias",
+                        "initialize relative barometer gauge");
+            if (mode == Mode::reference)
+            {
+                for (unsigned i = 0; i < 24; ++i)
+                    test.expect(prior.tick(true, false).status == Status::success, "bias", "qualify barometer alone");
+                test.expect(prior.aiding.reference() == Source::barometer, "bias", "barometer owns height reference");
+            }
+        }
+        auto protected_case = prior;
+        auto ordinary = prior;
+        typename F::aiding_type::Sample const sample{
+            prior.now + 20000, 1, 0, prior.baro_altitude - (mode == Mode::bias_rejected ? T{50} : T{3}), T{1}};
+        auto const a = protected_case.aiding.update(sample.time_us, sample, {}, {sample.time_us, sample.time_us, 0},
+                                                    true, protected_case.state, protected_case.P, {}, {}, true);
+        auto const b = ordinary.aiding.update(sample.time_us, sample, {}, {sample.time_us, sample.time_us, 0}, true,
+                                              ordinary.state, ordinary.P);
+        auto const & x = protected_case.aiding.session(Source::barometer);
+        auto const & y = ordinary.aiding.session(Source::barometer);
+        test.expect(a.status == Status::success && b.status == Status::success && x.bias.value == y.bias.value &&
+                        x.bias.variance == y.bias.variance && x.active == y.active &&
+                        a.height_resets == b.height_resets,
+                    "bias", "reference, inactive and scalar-gated paths receive the same original altitude");
+        if (mode == Mode::inactive)
+            test.expect(!x.active, "bias", "inactive source cannot bypass warmup");
+        if (mode == Mode::bias_rejected)
+        {
+            auto const & before = prior.aiding.session(Source::barometer).bias;
+            test.expect(x.active && x.bias.value == before.value && x.bias.signed_ratio != before.signed_ratio, "bias",
+                        "scalar gate observes the large residual but rejects its bias correction");
+        }
+    }
+}
+
+template <typename Linalg> void ground_effect_isolation(Context & test)
+{
+    using F = HeightFixture<Linalg>;
+    using T = typename F::value_type;
+    using Source = typename F::Source;
+    F baseline;
+    baseline.start(test);
+    // Same prior and sensor sequence, varied only by the protection permission.
+    // A source change, raw rejection and timeout must retain their existing authority.
+    for (auto dt : {20000ULL, 5000000ULL, 5000001ULL})
+    {
+        for (bool source_change : {false, true})
+        {
+            auto protected_case = baseline;
+            auto ordinary = baseline;
+            typename F::aiding_type::Sample const baro{baseline.now + dt, 1, std::uint8_t(source_change),
+                                                       baseline.baro_altitude - T{50}, T{1}};
+            typename F::aiding_type::Sample const gnss{baseline.now + dt, 2, 0, baseline.gnss_altitude, T{1}};
+            auto a = protected_case.aiding.update(baro.time_us, baro, gnss, {baro.time_us, baro.time_us, 0}, true,
+                                                  protected_case.state, protected_case.P, {}, {}, true);
+            auto b = ordinary.aiding.update(baro.time_us, baro, gnss, {baro.time_us, baro.time_us, 0}, true,
+                                            ordinary.state, ordinary.P);
+            test.expect(a.status == b.status && a.height_resets == b.height_resets &&
+                            a.velocity_resets == b.velocity_resets &&
+                            protected_case.aiding.reference() == ordinary.aiding.reference(),
+                        "isolation", "protection has no reset or height-reference authority");
+            for (auto source : {Source::barometer, Source::gnss})
+            {
+                auto const & x = protected_case.aiding.session(source);
+                auto const & y = ordinary.aiding.session(source);
+                test.expect(x.active == y.active && x.fault == y.fault && x.stop_reason == y.stop_reason &&
+                                x.bias.value == y.bias.value && x.bias.variance == y.bias.variance,
+                            "isolation", "source lifecycle and original-altitude bias learning unaffected");
+            }
+        }
+    }
+}
+
+template <typename Linalg> void ground_reset_authority(Context & test)
+{
+    using F = HeightFixture<Linalg>;
+    using T = typename F::value_type;
+    using Source = typename F::Source;
+    F prior;
+    test.expect(prior.aiding.initialize(prior.now, T{500}) == Status::success, "reset",
+                "initialize barometer reference");
+    for (unsigned i = 0; i < 24; ++i)
+    {
+        test.expect(prior.tick(true, false).status == Status::success, "reset", "qualify source alone");
+    }
+    auto protected_case = prior;
+    auto ordinary = prior;
+    typename F::aiding_type::Sample const sample{prior.now + 5000001, 1, 0, prior.baro_altitude - T{50}, T{1}};
+    auto const a = protected_case.aiding.update(sample.time_us, sample, {}, {sample.time_us, sample.time_us, 0}, false,
+                                                protected_case.state, protected_case.P, {}, {}, true);
+    auto const b = ordinary.aiding.update(sample.time_us, sample, {}, {sample.time_us, sample.time_us, 0}, false,
+                                          ordinary.state, ordinary.P);
+    test.expect(a.status == Status::success && b.status == Status::success && a.height_resets == 1 &&
+                    b.height_resets == 1 && a.height_delta == b.height_delta && a.velocity_resets == b.velocity_resets,
+                "reset", "genuine fusion timeout keeps its existing reset authority despite active protection");
+    prior = F{};
+    prior.start(test);
+    protected_case = prior;
+    ordinary = prior;
+    typename F::aiding_type::Sample const baro{prior.now + 20000, 1, 0, prior.baro_altitude, T{1}};
+    typename F::aiding_type::Sample const gnss{baro.time_us, 2, 0, prior.gnss_altitude, T{1}, false};
+    auto c = protected_case.aiding.update(baro.time_us, baro, gnss, {baro.time_us, baro.time_us, 0}, true,
+                                          protected_case.state, protected_case.P, {}, {}, true);
+    auto d = ordinary.aiding.update(baro.time_us, baro, gnss, {baro.time_us, baro.time_us, 0}, true, ordinary.state,
+                                    ordinary.P);
+    test.expect(c.status == Status::success && d.status == Status::success &&
+                    protected_case.aiding.reference() == Source::barometer &&
+                    ordinary.aiding.reference() == Source::barometer &&
+                    !protected_case.aiding.session(Source::gnss).active && c.height_resets == d.height_resets,
+                "handoff", "real GNSS qualification loss chooses the same barometer reference");
 }
 
 // Const observation inputs may legally name the same object. Compare that
@@ -191,7 +325,6 @@ template <typename Linalg> void shared_sample(Context & test)
 
 template <typename Linalg> void run(Context & test)
 {
-    ground_effect<Linalg>(test);
     shared_sample<Linalg>(test);
     using F = HeightFixture<Linalg>;
     using Aiding = typename F::aiding_type;
@@ -1310,6 +1443,32 @@ void management_case(Context & test, std::string_view profile)
         parameters_and_events<formal_eskf::test::Backend<double>>(test);
     }
 }
+void ground_bias_case(Context & test, std::string_view profile)
+{
+    if (profile == "binary32")
+    {
+        ground_effect<formal_eskf::test::Backend<float>>(test);
+        ground_bias_boundaries<formal_eskf::test::Backend<float>>(test);
+    }
+    else
+    {
+        ground_effect<formal_eskf::test::Backend<double>>(test);
+        ground_bias_boundaries<formal_eskf::test::Backend<double>>(test);
+    }
+}
+void ground_isolation_case(Context & test, std::string_view profile)
+{
+    if (profile == "binary32")
+    {
+        ground_effect_isolation<formal_eskf::test::Backend<float>>(test);
+        ground_reset_authority<formal_eskf::test::Backend<float>>(test);
+    }
+    else
+    {
+        ground_effect_isolation<formal_eskf::test::Backend<double>>(test);
+        ground_reset_authority<formal_eskf::test::Backend<double>>(test);
+    }
+}
 void geographic_case(Context & test, std::string_view) { geographic_height<formal_eskf::test::Backend<double>>(test); }
 } /* end namespace */
 
@@ -1317,6 +1476,10 @@ int main(int argc, char ** argv)
 {
     formal_eskf::test::configure_backend_test();
     formal_eskf::test::Case const cases[]{
+        {"TC-R-BARO-GROUND-EFFECT-14", "binary32", ground_bias_case},
+        {"TC-R-BARO-GROUND-EFFECT-14", "binary64", ground_bias_case},
+        {"TC-R-BARO-GROUND-EFFECT-15", "binary32", ground_isolation_case},
+        {"TC-R-BARO-GROUND-EFFECT-15", "binary64", ground_isolation_case},
         {"TC-R-HEIGHT-AIDING-01", "binary32", management_case},
         {"TC-R-HEIGHT-AIDING-01", "binary64", management_case},
         {"TC-R-HEIGHT-AIDING-02", "binary64", geographic_case},

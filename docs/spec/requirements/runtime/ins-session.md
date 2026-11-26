@@ -122,8 +122,8 @@ and hold use the actual delayed endpoint. Preserve the per-stage failure boundar
 and return actual phase/epoch facts through R-INS-DIAGNOSTICS. Feature exclusion
 shall leave ordinary barometer fusion and other context consumers unchanged.
 No-IMU publication cannot renew a hold or select an event; session replacement
-clears the event history and protection state. This is a target, not evidence that
-the current repeated-snapshot implementation satisfies the new input contract.
+clears the event history and protection state. Native and formal acceptance are
+recorded separately in the ground-effect test allocation.
 
 ### Sensor-input target
 

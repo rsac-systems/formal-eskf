@@ -23,7 +23,7 @@ config PX4_WMM
 
 config PX4_GROUND_EFFECT
     bool "Enable barometer ground-effect protection"
-    default y
+    default n
     help
       Allow the existing land-detector-driven barometric innovation deadzone. Enabling
       support does not force the in-ground-effect flight condition.

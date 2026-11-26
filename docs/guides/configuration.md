@@ -204,7 +204,7 @@ neither enables live retuning. Instructions are in the [PX4 guide](../../integra
 
 | Group | Settings | Existing defaults / behavior |
 | --- | --- | --- |
-| Features (6) | Barometric height, WMM, ground-effect protection, gravity aiding support, accelerometer/gyro bias learning | All enabled; required motion, health and alignment conditions remain effective |
+| Features (6) | Barometric height, WMM, ground-effect protection, gravity aiding support, accelerometer/gyro bias learning | Ground-effect protection defaults OFF; other features default ON. Required motion, health and alignment conditions remain effective |
 | IMU noise and bias (10) | Sample variances, bias variance densities, fault acceleration standard deviation, learning force/rate/decay and two bias limits | Units and sampled/density scaling remain as listed above |
 | Magnetic aiding (14) | Three health selectors, strength/inclination tolerances, minimum horizontal field, heading noise/acceleration criterion, observation variance, innovation gate, health/sample/fusion/model intervals | Strength check on; inclination and require-WMM off; health 1 s, sample interval 0.5 s, fusion timeout 7 s, model lookup 10 s |
 | GNSS quality (19) | Ten check selectors, satellites/PDOP/position/speed/drift limits, speed input bound and health duration | All ten checks on; six satellites, PDOP 2.5, 3/5 m, 0.5 m/s accuracy, health 10 s |

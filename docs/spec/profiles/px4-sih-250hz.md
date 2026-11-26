@@ -181,7 +181,8 @@ This optional target implements
 and [R-BARO-GROUND-EFFECT](../requirements/runtime/barometer-ground-effect.md).
 It replaces only the protection consumer of the unshifted context row above;
 other consumers retain the existing context history and freshness rules. The
-current implementation has not adopted this event path or default-OFF setting.
+implementation uses this event path and default-OFF packaging. Native bindings
+are listed in the ground-effect test allocation; target qualification is separate.
 
 | Setting | Target binding |
 |---|---|
@@ -252,7 +253,7 @@ generic sensor registry or buffer wrapper is required.
 | IMU | 54 / 64 | One record per real interval, including any preceding permitted held-rate segment |
 | Output | 54 / 64 | Current output state captured at each matching real IMU endpoint |
 | Context | 128 / 128 | Flight/rest and vehicle-type facts, known flags and original context timestamps, sampled at real IMU endpoints; existing protection uses this history until its target is implemented. |
-| Protection events (optional target) | 50 / 64 at default settings | Combined protection decisions and source provenance under the ground-effect binding; separate from ordinary context permission. |
+| Protection events (optional) | 50 / 64 at default settings | Combined protection decisions and source provenance under the ground-effect binding; separate from ordinary context permission. |
 | GNSS | 16 / 16 | One event shared by velocity, horizontal-position and height consumers |
 | Magnetometer | 64 / 64 | Field measurement and source/calibration metadata |
 | Barometer | 128 / 128 | Height measurement and source/calibration metadata |

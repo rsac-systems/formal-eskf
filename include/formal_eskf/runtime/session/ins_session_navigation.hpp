@@ -539,35 +539,28 @@ void InsSession<Linalg, Layout>::ResetReport::record_vertical_velocity(std::uint
     ++vertical_velocity_count;
 }
 
+template <typename Linalg, typename Layout>
+void InsSession<Linalg, Layout>::receive_ground_effect(GroundEffectEvent const & event)
+{
+    if constexpr (Layout::barometer_aiding && Layout::ground_effect)
+    {
+        auto const * latest = m_imu_history.latest();
+        if (!m_initialized || m_fault || latest == nullptr || event.time_us != latest->time_us)
+        {
+            return;
+        }
+        auto const * delayed = m_imu_history.delayed();
+        // Before history fills, the seed is the only available delayed horizon.
+        auto const horizon = delayed != nullptr ? delayed->time_us : m_time_us;
+        (void)m_ground_effect.push(event, m_observations.half_period_us(), latest->time_us - horizon);
+    }
+}
+
 template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::update_ground_effect()
 {
-    if constexpr (!Layout::barometer_aiding || !Layout::ground_effect)
+    if constexpr (Layout::barometer_aiding && Layout::ground_effect)
     {
-        m_ground_effect = {};
-        return;
-    }
-    auto const context = m_observations.context(m_time_us, m_settings.height.context_maximum_age_us);
-    bool const updated = context.land.time_us > m_ground_effect.land_time_us ||
-                         context.vehicle.time_us > m_ground_effect.vehicle_time_us;
-    m_ground_effect.land_time_us = context.land.time_us;
-    m_ground_effect.vehicle_time_us = context.vehicle.time_us;
-    bool const in_air = context.land.known ? !context.land.landed : context.vehicle.known && context.vehicle.armed;
-    // The supported module has no terrain estimate. Use PX4's land-detector
-    // fallback, requiring fresh vehicle status instead of assuming non-fixed-wing flight.
-    if (!in_air || !context.vehicle.known || context.vehicle.fixed_wing)
-    {
-        m_ground_effect.active = false;
-        return;
-    }
-    if (updated && context.land.known && context.land.in_ground_effect)
-    {
-        m_ground_effect.last_detection_us = m_time_us;
-        m_ground_effect.active = true;
-    }
-    else if (m_ground_effect.active &&
-             m_time_us - m_ground_effect.last_detection_us > m_settings.height.ground_effect_timeout_us)
-    {
-        m_ground_effect.active = false;
+        check_timing(m_ground_effect.update(m_time_us));
     }
 }
 
@@ -649,7 +642,7 @@ void InsSession<Linalg, Layout>::fuse_height(ObservationReceipt const & baromete
     auto next_covariance = m_covariance;
     auto const result = height_owner.update(
         m_time_us, barometer, gnss, barometer_receipt, m_gnss.lifecycle.state().velocity.active, next_state,
-        next_covariance, m_bias_learning_result.bias_update, acceleration, m_ground_effect.active,
+        next_covariance, m_bias_learning_result.bias_update, acceleration, m_ground_effect.state().active,
         m_navigation_frame.working().initialized() ? &geometry : nullptr, numerical_reset);
     if (!check(result.status))
     {

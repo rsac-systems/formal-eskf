@@ -13,6 +13,7 @@ struct DiagnosticsNoGravity
     static constexpr std::size_t magnetic_capacity = ins_example::Layout::magnetic_capacity;
     static constexpr std::size_t barometer_capacity = ins_example::Layout::barometer_capacity;
     static constexpr std::uint64_t gravity_interval_us = ins_example::Layout::gravity_interval_us;
+    static constexpr std::size_t ground_effect_capacity = 64;
     static constexpr bool barometer_aiding = true, gravity_aiding = false, ground_effect = true, magnetic_model = true;
     // cppcheck-suppress-end unusedStructMember
 };

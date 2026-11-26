@@ -231,7 +231,29 @@ private:
     RingBuffer<GnssObservation, GnssCapacity> m_gnss{GnssCapacity};
     RingBuffer<MagneticObservation, MagneticCapacity> m_magnetic{MagneticCapacity};
     RingBuffer<BarometerObservation, BarometerCapacity> m_barometer{BarometerCapacity};
-    RingBuffer<Context, ContextCapacity> m_context{ContextCapacity};
+    // Group equal-alignment fields in retained storage. The public context keeps
+    // source-oriented fields; this avoids per-source tail padding in every slot.
+    struct ContextRecord
+    {
+        std::uint64_t time_us{}, land_time_us{}, vehicle_time_us{};
+        bool land_known{}, landed{}, at_rest{}, in_ground_effect{}, vehicle_known{}, armed{}, fixed_wing{};
+
+        ContextRecord() = default;
+        explicit ContextRecord(Context const & c)
+            : time_us(c.time_us), land_time_us(c.land.time_us), vehicle_time_us(c.vehicle.time_us),
+              land_known(c.land.known), landed(c.land.landed), at_rest(c.land.at_rest),
+              in_ground_effect(c.land.in_ground_effect), vehicle_known(c.vehicle.known), armed(c.vehicle.armed),
+              fixed_wing(c.vehicle.fixed_wing)
+        {
+        }
+        Context context() const
+        {
+            return {time_us,
+                    {land_time_us, land_known, landed, at_rest, in_ground_effect},
+                    {vehicle_time_us, vehicle_known, armed, fixed_wing}};
+        }
+    };
+    RingBuffer<ContextRecord, ContextCapacity> m_context{ContextCapacity};
     ObservationTiming m_timing{};
     Timeline m_gnss_time{}, m_magnetic_time{}, m_barometer_time{};
     std::uint64_t m_barometer_push_time_us{};
@@ -319,7 +341,7 @@ bool ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacit
     {
         return false;
     }
-    m_context.push(snapshot({}, epoch, initial.context.land, initial.context.vehicle));
+    m_context.push(ContextRecord{snapshot({}, epoch, initial.context.land, initial.context.vehicle)});
     m_gnss_time = {initial.gnss.source, initial.gnss.time_us};
     m_magnetic_time = {initial.magnetic.source, initial.magnetic.time_us};
     m_barometer_time = {initial.barometer.source, initial.barometer.time_us};
@@ -344,7 +366,7 @@ bool ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacit
     {
         return false;
     }
-    m_context.push(snapshot(m_context.get_newest(), interval.time_us, land, vehicle));
+    m_context.push(ContextRecord{snapshot(m_context.get_newest().context(), interval.time_us, land, vehicle)});
     m_latest_time_us = interval.time_us;
     return true;
 }
@@ -646,7 +668,7 @@ ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, Co
         {
             return {};
         }
-        auto result = sample;
+        auto result = sample.context();
         result.land.known = result.land.known && time_us - result.land.time_us < maximum_age_us;
         result.vehicle.known = result.vehicle.known && time_us - result.vehicle.time_us < maximum_age_us;
         return result;

@@ -129,8 +129,8 @@ FormalEskf::InputUpdates FormalEskf::read_inputs()
     updates.barometer = m_baro_sub.update(&m_baro);
     m_generation_loss += updates.barometer ? unsigned(m_baro_sub.get_last_generation() - baro_generation - 1) : 0;
 #endif
-    m_land_sub.update(&m_land);
-    m_vehicle_status_sub.update(&m_vehicle_status);
+    updates.land = m_land_sub.update(&m_land);
+    updates.vehicle = m_vehicle_status_sub.update(&m_vehicle_status);
 
     updates.imu = m_imu_sub.update(&updates.sample);
     m_generation_loss += updates.gps ? unsigned(m_gps_sub.get_last_generation() - gps_generation - 1) : 0;
@@ -162,6 +162,7 @@ void FormalEskf::Run()
     uint64_t const now = hrt_absolute_time();
     if (was_initialized && !m_session.fault())
     {
+        receive_ground_effect(updates);
         if (updates.gps)
         {
             m_session.receive_gnss(decode_gnss(m_gps), now);
@@ -190,6 +191,41 @@ void FormalEskf::Run()
     }
     perf_end(m_cycle_perf);
     update_diagnostics(now);
+}
+
+void FormalEskf::receive_ground_effect(InputUpdates const & updates)
+{
+    if constexpr (profile::height::barometer_enabled && profile::height::ground_effect_enabled)
+    {
+        auto const * latest = m_session.imu_history().latest();
+        if ((!updates.land && !updates.vehicle) || latest == nullptr)
+        {
+            return;
+        }
+        using Event = formal_eskf::runtime::GroundEffectEvent;
+        Event event;
+        event.time_us = latest->time_us;
+        event.land_time_us = m_land.timestamp;
+        event.vehicle_time_us = m_vehicle_status.timestamp;
+        event.sources = (updates.land ? Event::land_updated : 0) | (updates.vehicle ? Event::vehicle_updated : 0);
+        auto fresh = [&](uint64_t stamp) {
+            return stamp != 0 && stamp <= event.time_us &&
+                   event.time_us - stamp < profile::height::context_maximum_age_us;
+        };
+        if (fresh(m_vehicle_status.timestamp))
+        {
+            event.sources |= Event::vehicle_available;
+            event.in_air = m_vehicle_status.arming_state == vehicle_status_s::ARMING_STATE_ARMED;
+            event.fixed_wing = m_vehicle_status.vehicle_type == vehicle_status_s::VEHICLE_TYPE_FIXED_WING;
+        }
+        if (fresh(m_land.timestamp))
+        {
+            event.sources |= Event::land_available;
+            event.in_air = !m_land.landed;
+            event.request = m_land.in_ground_effect;
+        }
+        m_session.receive_ground_effect(event);
+    }
 }
 
 FormalEskf::ImuInput FormalEskf::decode_imu(vehicle_imu_s const & sample)

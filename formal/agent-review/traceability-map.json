@@ -8750,6 +8750,70 @@
         ],
         "esbmc": []
       }
+    },
+    {
+      "id": "R-BARO-GROUND-EFFECT",
+      "title": "Bounded delayed protection events and PX4 default binding with native producer-to-correction tests; source proofs, target timing and physical tuning pending",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/runtime/barometer-ground-effect.md",
+            "symbol": "# R-BARO-GROUND-EFFECT:"
+          },
+          {
+            "file": "docs/spec/requirements/integration/px4/barometer-ground-effect.md",
+            "symbol": "# R-PX4-BARO-GROUND-EFFECT:"
+          },
+          {
+            "file": "docs/spec/verification/tests/runtime/barometer-ground-effect.md",
+            "symbol": "## Cases"
+          },
+          {
+            "file": "docs/spec/verification/barometer-ground-effect-tests.md",
+            "symbol": "## PX4 cases"
+          }
+        ],
+        "lean": [],
+        "cpp": [
+          {
+            "file": "include/formal_eskf/runtime/sensors/height/ground_effect.hpp",
+            "symbol": "class GroundEffect"
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "::receive_ground_effect("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "update_ground_effect();"
+          },
+          {
+            "file": "include/formal_eskf/runtime/history/observation_history.hpp",
+            "symbol": "struct ContextRecord"
+          },
+          {
+            "file": "include/formal_eskf/runtime/fusion/frame_navigation.hpp",
+            "symbol": "fuse_frame_height("
+          },
+          {
+            "file": "tests/runtime/session/test_ground_effect.cpp",
+            "symbol": "class InsSessionTest"
+          },
+          {
+            "file": "tests/runtime/height/test_height_aiding.cpp",
+            "symbol": "ground_effect_isolation("
+          },
+          {
+            "file": "integrations/px4/module/FormalEskf.cpp",
+            "symbol": "void FormalEskf::receive_ground_effect("
+          },
+          {
+            "file": "integrations/px4/tests/ModuleTest.cpp",
+            "symbol": "static void ground_effect_producer("
+          }
+        ],
+        "esbmc": []
+      }
     }
   ]
 }

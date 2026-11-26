@@ -181,6 +181,7 @@ struct Layout
     static constexpr std::size_t imu_capacity = Imu, context_capacity = ContextSize;
     static constexpr std::size_t gnss_capacity = Gnss, magnetic_capacity = Magnetic, barometer_capacity = Barometer;
     static constexpr std::uint64_t gravity_interval_us = ins_example::Layout::gravity_interval_us;
+    static constexpr std::size_t ground_effect_capacity = Imu;
     static constexpr bool barometer_aiding = true, gravity_aiding = true, ground_effect = true, magnetic_model = true;
     // cppcheck-suppress-end unusedStructMember
 };

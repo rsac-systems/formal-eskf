@@ -175,9 +175,23 @@ bool InsSession<Linalg, Layout>::configure_timing(TimingParameters const & timin
     {
         return false;
     }
+    if constexpr (Layout::barometer_aiding && Layout::ground_effect)
+    {
+        if (ground_effect_type::required_length(std::uint64_t(timing.fusion_delay_ms) * 1000,
+                                                static_cast<std::uint32_t>(timing.filter_interval_us)) == 0)
+        {
+            return false;
+        }
+    }
     m_configured = m_imu_history.configure(timing, m_imu_timing) &&
                    m_observations.configure(timing, Layout::imu_capacity) && m_output.configure(timing) &&
                    (!Layout::barometer_aiding || m_height_aiding.configure_timing(timing));
+    if constexpr (Layout::barometer_aiding && Layout::ground_effect)
+    {
+        m_configured = m_configured && m_ground_effect.configure(std::uint64_t(timing.fusion_delay_ms) * 1000,
+                                                                 static_cast<std::uint32_t>(timing.filter_interval_us),
+                                                                 m_settings.height.ground_effect_timeout_us);
+    }
     return m_configured;
 }
 

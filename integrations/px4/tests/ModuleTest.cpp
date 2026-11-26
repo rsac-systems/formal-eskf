@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include "FormalEskf.hpp"
+#include <modules/land_detector/MulticopterLandDetector.h>
 #include <lib/geo/geo.h>
 #include <modules/commander/HealthAndArmingChecks/checks/estimatorCheck.hpp>
 #include <modules/commander/HealthAndArmingChecks/checks/modeCheck.hpp>
@@ -2333,7 +2334,8 @@ public:
         auto & f = test.m_filter;
         expect(f.m_session.m_initialized && !f.m_session.m_fault && f.m_session.m_statistics.predictions > 0,
                "configured profile initializes and predicts on the stationary fixture");
-        expect(f.lookup_magnetic_model({true, 47.397742, 8.545594, f.m_session.navigation_origin().projection.latitude_deg(),
+        expect(f.lookup_magnetic_model({true, 47.397742, 8.545594,
+                                        f.m_session.navigation_origin().projection.latitude_deg(),
                                         f.m_session.navigation_origin().projection.longitude_deg()})
                            .has_value() == profile::magnetic::use_model &&
                    f.m_session.m_magnetic_model.available() == profile::magnetic::use_model,
@@ -2367,9 +2369,18 @@ public:
         test.m_in_ground_effect = true;
         test.m_landed = test.m_at_rest = false;
         test.m_armed = true;
-        advance(54);
-        expect(f.m_session.m_ground_effect.active == profile::height::ground_effect_enabled,
+        advance(56);
+        expect(f.m_session.m_ground_effect.state().active == profile::height::ground_effect_enabled,
                "production delayed flight context honors ground-effect build enable");
+        f.publish_status(clock_us);
+        estimator_status_flags_s ground_flags{};
+        estimator_status_s ground_status{};
+        orb_copy(ORB_ID(estimator_status_flags), test.m_outputs[5], &ground_flags);
+        orb_copy(ORB_ID(estimator_status), test.m_outputs[4], &ground_status);
+        expect(ground_flags.cs_gnd_effect == profile::height::ground_effect_enabled &&
+                   bool(ground_status.control_mode_flags & (1ULL << ground_status.CS_GND_EFFECT)) ==
+                       ground_flags.cs_gnd_effect,
+               "TC-PX4-BARO-GROUND-EFFECT-10: configured mode is independent of deadzone magnitude");
         test.m_baro_altitude -= 3.f;
         advance(60);
         auto const & baro = f.m_session.m_height_aiding.session(FormalEskf::height_type::Source::barometer);
@@ -2396,6 +2407,251 @@ public:
         }
     }
 
+    static void ground_effect_producer(bool gnss)
+    {
+        InsSessionTest test;
+        test.m_send_gps = gnss;
+        if (gnss)
+            test.warmup();
+        else
+        {
+            for (unsigned i = 0; i < 8500; ++i)
+            {
+                test.m_sample.timestamp_sample += 4000;
+                test.tick();
+            }
+            expect(test.m_filter.m_session.initialized() && !test.m_filter.m_session.fault() &&
+                       test.m_filter.m_session.height_aiding().reference() ==
+                           FormalEskf::height_type::Source::barometer,
+                   "relative barometer-only startup before actual producer composition");
+        }
+        test.m_send_land = false;
+        test.m_armed = true;
+        land_detector::MulticopterLandDetector detector;
+        uORB::Publication<actuator_armed_s> armed_pub{ORB_ID(actuator_armed)};
+        uORB::Publication<vehicle_acceleration_s> accel_pub{ORB_ID(vehicle_acceleration)};
+        uORB::Publication<vehicle_thrust_setpoint_s> thrust_pub{ORB_ID(vehicle_thrust_setpoint)};
+        uORB::Publication<vehicle_local_position_s> local_pub{ORB_ID(vehicle_local_position)};
+        uORB::Publication<vehicle_control_mode_s> mode_pub{ORB_ID(vehicle_control_mode)};
+        uORB::Publication<trajectory_setpoint_s> trajectory_pub{ORB_ID(trajectory_setpoint)};
+        uORB::Publication<takeoff_status_s> takeoff_pub{ORB_ID(takeoff_status)};
+        uORB::Subscription land_sub{ORB_ID(vehicle_land_detected)};
+        struct Scenario
+        {
+            std::uint8_t takeoff;
+            bool controlled, horizontal_valid, moving, distance_valid;
+            float command, distance;
+            bool requested;
+        };
+        // Expected truth table comes from the three pinned producer conditions,
+        // not a second implementation used to compute expectations at runtime.
+        Scenario const cases[]{{takeoff_status_s::TAKEOFF_STATE_RAMPUP, false, true, true, false, NAN, 0, true},
+                               {takeoff_status_s::TAKEOFF_STATE_FLIGHT, true, true, false, false, 2.f, 0, true},
+                               {takeoff_status_s::TAKEOFF_STATE_FLIGHT, false, true, false, false, NAN, 0, false},
+                               {takeoff_status_s::TAKEOFF_STATE_FLIGHT, true, true, true, false, 2.f, 0, false},
+                               {takeoff_status_s::TAKEOFF_STATE_FLIGHT, true, false, true, false, 2.f, 0, true},
+                               {takeoff_status_s::TAKEOFF_STATE_FLIGHT, true, true, false, false, NAN, 0, false},
+                               {takeoff_status_s::TAKEOFF_STATE_FLIGHT, false, true, true, true, NAN, .5f, true},
+                               {takeoff_status_s::TAKEOFF_STATE_FLIGHT, false, true, true, true, NAN, 50.f, false},
+                               {takeoff_status_s::TAKEOFF_STATE_FLIGHT, false, true, true, false, NAN, .5f, false}};
+        for (auto const & scenario : cases)
+        {
+            for (unsigned tick = 0; tick < 60; ++tick)
+            {
+                test.m_sample.timestamp_sample += 4000;
+                clock_us = test.m_sample.timestamp_sample;
+                actuator_armed_s armed{};
+                armed.timestamp = clock_us;
+                armed.armed = true;
+                armed_pub.publish(armed);
+                vehicle_acceleration_s accel{};
+                accel.timestamp = clock_us;
+                accel.xyz[2] = -9.80665f;
+                accel_pub.publish(accel);
+                vehicle_thrust_setpoint_s thrust{};
+                thrust.timestamp = clock_us;
+                thrust.xyz[2] = -.8f;
+                thrust_pub.publish(thrust);
+                vehicle_local_position_s local{};
+                local.timestamp = clock_us;
+                local.v_z_valid = true;
+                local.vz = 2.f;
+                local.v_xy_valid = scenario.horizontal_valid;
+                local.vx = scenario.moving ? 10.f : 0.f;
+                local.dist_bottom_valid = scenario.distance_valid;
+                local.dist_bottom = scenario.distance;
+                local_pub.publish(local);
+                vehicle_control_mode_s mode{};
+                mode.timestamp = clock_us;
+                mode.flag_control_climb_rate_enabled = scenario.controlled;
+                mode_pub.publish(mode);
+                trajectory_setpoint_s command{};
+                command.timestamp = clock_us;
+                command.velocity[2] = scenario.command;
+                trajectory_pub.publish(command);
+                takeoff_status_s takeoff{};
+                takeoff.timestamp = clock_us;
+                takeoff.takeoff_state = scenario.takeoff;
+                takeoff_pub.publish(takeoff);
+                detector.Run(); // Real pinned producer, private entry exposed only in this host fixture.
+                vehicle_land_detected_s actual{};
+                expect(land_sub.copy(&actual) && actual.in_ground_effect == scenario.requested && !actual.landed,
+                       "TC-PX4-BARO-GROUND-EFFECT-01: real land-detector request and publication truth table");
+                test.tick();
+            }
+            auto const & event = test.m_filter.m_session.ground_effect().event;
+            expect(event.request == scenario.requested && event.in_air &&
+                       (event.sources & formal_eskf::runtime::GroundEffectEvent::land_available) != 0,
+                   "TC-PX4-BARO-GROUND-EFFECT-11: actual producer message reaches delayed policy through Run");
+        }
+        // The last negative event does not clear the ten-second hold. A dip is
+        // corrected with zero residual while the real height covariance contracts.
+        test.m_baro_altitude -= 3.f;
+        for (unsigned i = 0; i < 60; ++i)
+        {
+            test.m_sample.timestamp_sample += 4000;
+            test.tick();
+        }
+        auto const & baro = test.m_filter.m_session.height_aiding().session(FormalEskf::height_type::Source::barometer);
+        expect(!test.m_filter.m_session.fault() && test.m_filter.m_session.ground_effect().active &&
+                   baro.fusion.decision == formal_eskf::runtime::FusionDecision::fused &&
+                   baro.fusion.innovation(0) > 1 && baro.fusion.innovation(0) < 4 && baro.fusion_innovation == 0,
+               "TC-PX4-BARO-GROUND-EFFECT-11: real producer to admitted barometer correction");
+    }
+
+    static void ground_effect_binding()
+    {
+        using Event = formal_eskf::runtime::GroundEffectEvent;
+        struct Scenario
+        {
+            std::uint64_t land_age, status_age;
+            bool armed, landed, fixed;
+            bool air, wing, request, land_fresh, status_fresh;
+        };
+        constexpr auto absent = std::numeric_limits<std::uint64_t>::max();
+        constexpr auto future = absent - 1;
+        Scenario const cases[]{{0, 0, false, false, false, true, false, true, true, true},
+                               {0, 0, true, true, false, false, false, true, true, true},
+                               {0, 2999999, true, false, true, true, true, true, true, true},
+                               {0, 3000000, true, false, true, true, false, true, true, false},
+                               {0, 3000001, true, false, true, true, false, true, true, false},
+                               {0, absent, true, false, true, true, false, true, true, false},
+                               {0, future, true, false, true, true, false, true, true, false},
+                               {future, 0, true, false, false, true, false, false, false, true},
+                               {2999999, 0, true, false, false, true, false, true, true, true},
+                               {3000000, 0, true, false, false, true, false, false, false, true},
+                               {3000001, 0, false, false, false, false, false, false, false, true},
+                               {absent, 0, true, false, true, true, true, false, false, true},
+                               {absent, absent, false, true, true, true, false, false, false, false}};
+        for (auto const & scenario : cases)
+        {
+            for (bool initially_active : {false, true})
+            {
+                InsSessionTest test;
+                test.warmup();
+                if (initially_active)
+                {
+                    test.m_armed = true;
+                    test.m_landed = test.m_at_rest = false;
+                    test.m_in_ground_effect = true;
+                    for (unsigned i = 0; i < 60; ++i)
+                    {
+                        test.m_sample.timestamp_sample += 4000;
+                        test.tick();
+                    }
+                    expect(test.m_filter.m_session.ground_effect().active,
+                           "active hold prior for source-default boundaries");
+                }
+                test.m_send_land = test.m_send_status = false;
+                for (unsigned i = 0; i < 3; ++i)
+                {
+                    test.m_sample.timestamp_sample += 4000;
+                    test.tick();
+                }
+                auto & f = test.m_filter;
+                auto const epoch = test.m_sample.timestamp_sample;
+                f.m_land.timestamp = scenario.land_age == absent
+                                         ? 0
+                                         : (scenario.land_age == future ? epoch + 1 : epoch - scenario.land_age);
+                f.m_land.landed = scenario.landed;
+                f.m_land.in_ground_effect = true;
+                f.m_vehicle_status.timestamp =
+                    scenario.status_age == absent
+                        ? 0
+                        : (scenario.status_age == future ? epoch + 1 : epoch - scenario.status_age);
+                f.m_vehicle_status.arming_state =
+                    scenario.armed ? vehicle_status_s::ARMING_STATE_ARMED : vehicle_status_s::ARMING_STATE_DISARMED;
+                f.m_vehicle_status.vehicle_type = scenario.fixed ? vehicle_status_s::VEHICLE_TYPE_FIXED_WING
+                                                                 : vehicle_status_s::VEHICLE_TYPE_ROTARY_WING;
+                f.receive_ground_effect({.land = true, .vehicle = true});
+                for (unsigned i = 0; i < 56; ++i)
+                {
+                    test.m_sample.timestamp_sample += 4000;
+                    test.tick();
+                }
+                auto const & state = f.m_session.ground_effect();
+                auto const & e = state.event;
+                expect(
+                    e.processing_time_us() == epoch && e.time_us == epoch - 2000 && e.in_air == scenario.air &&
+                        e.fixed_wing == scenario.wing && e.request == scenario.request &&
+                        bool(e.sources & Event::land_available) == scenario.land_fresh &&
+                        bool(e.sources & Event::vehicle_available) == scenario.status_fresh &&
+                        state.active == (scenario.air && !scenario.wing && (scenario.request || initially_active)),
+                    "TC-PX4-BARO-GROUND-EFFECT-02..07: defaults, precedence, raw-clock freshness and delayed adoption");
+                expect(e.land_time_us == f.m_land.timestamp && e.vehicle_time_us == f.m_vehicle_status.timestamp,
+                       "retain even stale/unavailable source provenance separately from protection defaults");
+            }
+        }
+    }
+
+    static void ground_effect_status_renewal()
+    {
+        InsSessionTest test;
+        test.warmup();
+        test.m_armed = true;
+        test.m_landed = test.m_at_rest = false;
+        test.m_in_ground_effect = true;
+        auto advance = [&](unsigned count)
+        {
+            for (unsigned i = 0; i < count; ++i)
+            {
+                test.m_sample.timestamp_sample += 4000;
+                test.tick();
+            }
+        };
+        advance(60);
+        test.m_send_land = false;
+        auto const initial = test.m_filter.m_session.ground_effect().last_detection_us;
+        advance(100);
+        expect(test.m_filter.m_session.ground_effect().last_detection_us > initial,
+               "TC-PX4-BARO-GROUND-EFFECT-06: new status update plus cached fresh positive land renews");
+        advance(750);
+        auto const expiry = test.m_filter.m_session.ground_effect().last_detection_us;
+        advance(100);
+        expect(test.m_filter.m_session.ground_effect().active &&
+                   test.m_filter.m_session.ground_effect().last_detection_us == expiry,
+               "expired land stops renewal but does not clear permitted hold");
+    }
+
+    static void ground_effect_disabled()
+    {
+        InsSessionTest test;
+        test.warmup();
+        test.m_in_ground_effect = true;
+        test.m_landed = test.m_at_rest = false;
+        test.m_armed = true;
+        for (unsigned i = 0; i < 60; ++i)
+        {
+            test.m_sample.timestamp_sample += 4000;
+            test.tick();
+        }
+        auto const d = test.m_filter.m_session.diagnostics(clock_us);
+        expect(!d.ground_effect_supported && !d.ground_effect.active && d.ground_effect_counts.admitted == 0 &&
+                   d.ground_effect_capacity == 0 && d.ground_effect_deadzone_m == 0 &&
+                   test.m_filter.m_session.height_aiding().session(FormalEskf::height_type::Source::barometer).active,
+               "OFF keeps barometer and land context operational without admitting protection events");
+    }
+
     static void ground_effect_in_run()
     {
         InsSessionTest test;
@@ -2410,15 +2666,22 @@ public:
             }
         };
         test.m_in_ground_effect = true;
-        advance(54);
-        expect(!f.m_session.m_ground_effect.active, "ground-effect request cannot activate while landed");
+        advance(56);
+        expect(!f.m_session.m_ground_effect.state().active, "ground-effect request cannot activate while landed");
         test.m_landed = test.m_at_rest = false;
         test.m_armed = true;
-        for (unsigned i = 1; i <= 54; ++i)
+        std::uint64_t first_admitted = 0;
+        auto admitted = f.m_session.m_ground_effect.counts().admitted;
+        for (unsigned i = 1; i <= 56; ++i)
         {
             advance(1);
-            expect(f.m_session.m_ground_effect.active == (i == 54),
-                   "ground-effect request applies at the delayed flight-context epoch, never on arrival");
+            if (first_admitted == 0 && f.m_session.m_ground_effect.counts().admitted > admitted)
+            {
+                first_admitted = test.m_sample.timestamp_sample;
+            }
+            expect(f.m_session.ground_effect().active ==
+                       (first_admitted != 0 && f.m_session.fusion_time_us() >= first_admitted - 2000),
+                   "first admitted request activates only when its frozen selection epoch reaches delayed filtering");
         }
         test.m_baro_altitude -= 3.f;
         advance(60);
@@ -2435,31 +2698,33 @@ public:
         expect(flags.cs_gnd_effect && (status.control_mode_flags & (1ULL << status.CS_GND_EFFECT)) != 0,
                "both PX4 status outputs report the active ground-effect protection");
         test.m_in_ground_effect = false;
-        advance(54);
-        auto const last_detection = f.m_session.m_ground_effect.last_detection_us;
+        advance(56);
+        auto const last_detection = f.m_session.m_ground_effect.state().last_detection_us;
         for (unsigned i = 0; i < 2500 && f.m_session.m_time_us - last_detection < 10000000U; ++i)
         {
             advance(1);
         }
-        expect(f.m_session.m_ground_effect.active && f.m_session.m_time_us - last_detection == 10000000U,
+        expect(f.m_session.m_ground_effect.state().active && f.m_session.m_time_us - last_detection == 10000000U,
                "negative requests do not clear the latch; exactly ten delayed seconds still held");
         advance(1);
-        expect(!f.m_session.m_ground_effect.active, "ground-effect hold expires strictly after ten delayed seconds");
+        expect(!f.m_session.m_ground_effect.state().active,
+               "ground-effect hold expires strictly after ten delayed seconds");
         test.m_in_ground_effect = true;
-        advance(54);
-        expect(f.m_session.m_ground_effect.active, "new positive request reactivates after expiry");
+        advance(56);
+        expect(f.m_session.m_ground_effect.state().active, "new positive request reactivates after expiry");
         test.m_fixed_wing = true;
-        advance(54);
-        expect(!f.m_session.m_ground_effect.active, "historical fixed-wing state disables protection");
+        advance(56);
+        expect(!f.m_session.m_ground_effect.state().active, "historical fixed-wing state disables protection");
         test.m_fixed_wing = false;
         test.m_in_ground_effect = false;
-        advance(54);
-        expect(!f.m_session.m_ground_effect.active, "cleared latch cannot reactivate from its old detection timestamp");
+        advance(56);
+        expect(!f.m_session.m_ground_effect.state().active,
+               "cleared latch cannot reactivate from its old detection timestamp");
         test.m_in_ground_effect = true;
-        advance(54);
+        advance(56);
         test.m_landed = true;
-        advance(54);
-        expect(!f.m_session.m_ground_effect.active && !f.m_session.m_fault,
+        advance(56);
+        expect(!f.m_session.m_ground_effect.state().active && !f.m_session.m_fault,
                "landing clears protection at the delayed epoch");
     }
 
@@ -2471,33 +2736,35 @@ public:
         test.m_in_ground_effect = true;
         test.m_armed = true;
         test.m_landed = test.m_at_rest = false;
-        for (unsigned i = 0; i < 54; ++i)
+        for (unsigned i = 0; i < 56; ++i)
         {
             test.m_sample.timestamp_sample += 4000U;
             test.tick();
         }
-        expect(f.m_session.m_ground_effect.active, "setup: known rotary-wing flight activates protection");
+        expect(f.m_session.m_ground_effect.state().active, "setup: known rotary-wing flight activates protection");
         test.m_send_status = test.m_send_land = false;
-        for (unsigned i = 0; i < 54; ++i)
+        for (unsigned i = 0; i < 56; ++i)
         {
             test.m_sample.timestamp_sample += 4000U;
             test.tick();
         }
-        auto const last_detection = f.m_session.m_ground_effect.last_detection_us;
+        auto const last_detection = f.m_session.m_ground_effect.state().last_detection_us;
         for (unsigned i = 0; i < 10; ++i)
         {
             test.m_sample.timestamp_sample += 4000U;
             test.tick();
         }
-        expect(f.m_session.m_ground_effect.active && f.m_session.m_ground_effect.last_detection_us == last_detection,
+        expect(f.m_session.m_ground_effect.state().active &&
+                   f.m_session.m_ground_effect.state().last_detection_us == last_detection,
                "repeated context snapshots cannot renew detection without a new source message");
         for (unsigned i = 0; i < 805; ++i)
         {
             test.m_sample.timestamp_sample += 4000U;
             test.tick();
         }
-        expect(!f.m_session.m_ground_effect.active && !f.m_session.m_fault,
-               "stale vehicle status is unknown, not permission to keep ground-effect protection active");
+        expect(f.m_session.m_ground_effect.state().active && !f.m_session.m_fault &&
+                   f.m_session.ground_effect().last_detection_us == last_detection,
+               "no new source event: stale input cannot impose an extra three-second latch expiry");
     }
 
     static void delayed_pipeline()
@@ -2573,7 +2840,8 @@ public:
                    session.statistics().baro_updates == 0 && session.height_aiding().barometer_warmup_samples() == 0 &&
                    session.m_observations.barometer_receipt().push_time_us == 0 && test.m_filter.m_baro.timestamp == 0,
                "disabled module has no air-data subscription/admission or startup dependency; GNSS height works");
-        std::printf("Disabled barometer: session=%zu bytes, module=%zu bytes\n", sizeof(session), sizeof(test.m_filter));
+        std::printf("Disabled barometer: session=%zu bytes, module=%zu bytes\n", sizeof(session),
+                    sizeof(test.m_filter));
         test.snapshot("barometer_disabled");
     }
 
@@ -2598,7 +2866,8 @@ public:
         test.m_sample.timestamp_sample += 4000;
         test.tick();
         expect(!session.fault() && !session.height_aiding().session(source).active &&
-                   session.height_aiding().session(source).fused_time == fused && session.m_resets.height_count == resets,
+                   session.height_aiding().session(source).fused_time == fused &&
+                   session.m_resets.height_count == resets,
                "actual Run stops at latest-clock receipt equality without a fake fusion or height reset");
         test.snapshot("barometric_receipt");
     }
@@ -2639,7 +2908,8 @@ public:
             test.m_sample.timestamp_sample += 4000;
             test.tick();
             empty_ticks += session.m_barometer.time_us == 0;
-            expect(!session.fault() && session.height_aiding().session(FormalEskf::height_type::Source::barometer).active,
+            expect(!session.fault() &&
+                       session.height_aiding().session(FormalEskf::height_type::Source::barometer).active,
                    "changed source stays active between its slower measurements");
         }
         expect(empty_ticks > 0 && session.statistics().baro_updates > corrections,
@@ -4642,9 +4912,18 @@ public:
         for (unsigned step = 0; step < 3800 && equal; ++step)
         {
             test.m_send_gps = step < 3200 || step >= 3300;
-            if (step == 3400) { ++test.m_gps_device; }
-            if (step == 3500) { ++test.m_mag_calibration; }
-            if (step == 3700) { ++test.m_sample.accel_device_id; }
+            if (step == 3400)
+            {
+                ++test.m_gps_device;
+            }
+            if (step == 3500)
+            {
+                ++test.m_mag_calibration;
+            }
+            if (step == 3700)
+            {
+                ++test.m_sample.accel_device_id;
+            }
             if (step == 3750)
             {
                 test.m_sample.delta_angle_clipping = 1;
@@ -4663,7 +4942,10 @@ public:
             (void)direct.take_innovations();
             if (active && !direct.fault())
             {
-                if (test.m_send_gps) { direct.receive_gnss(gnss, clock_us); }
+                if (test.m_send_gps)
+                {
+                    direct.receive_gnss(gnss, clock_us);
+                }
                 direct.receive_magnetic(magnetic, clock_us);
                 direct.receive_barometer(barometer, clock_us);
                 if (direct.fusion_ready())
@@ -4695,7 +4977,10 @@ public:
                     actual.gnss_state().corrections == direct.gnss_state().corrections &&
                     actual.magnetic_state().corrections == direct.magnetic_state().corrections &&
                     actual.resets().odometry_count == direct.resets().odometry_count;
-            if (!equal) { std::fprintf(stderr, "Standalone/module mismatch at tick %u\n", step); }
+            if (!equal)
+            {
+                std::fprintf(stderr, "Standalone/module mismatch at tick %u\n", step);
+            }
         }
         expect(equal && direct.initialized() && direct.statistics().predictions > 500 && direct.fault(),
                "canonical standalone/module sequence preserves exact state/P, epochs, decisions, resets and fault");
@@ -4786,10 +5071,9 @@ int main(int argc, char ** argv)
     InsSessionTest::gaps_and_periods();
     InsSessionTest::interval_boundaries();
     using GravityCase = InsSessionTest::GravityCase;
-    for (auto scenario :
-         {GravityCase::eligible, GravityCase::disabled, GravityCase::aided, GravityCase::high_force,
-          GravityCase::rest_override, GravityCase::stale_rest, GravityCase::clipped, GravityCase::unaligned,
-          GravityCase::unseeded})
+    for (auto scenario : {GravityCase::eligible, GravityCase::disabled, GravityCase::aided, GravityCase::high_force,
+                          GravityCase::rest_override, GravityCase::stale_rest, GravityCase::clipped,
+                          GravityCase::unaligned, GravityCase::unseeded})
     {
         InsSessionTest::gravity_conditions(scenario);
     }
@@ -4848,8 +5132,19 @@ int main(int argc, char ** argv)
     InsSessionTest::navigation_rejected_quality();
     InsSessionTest::navigation_timeout();
     InsSessionTest::height_combined_resets();
-    InsSessionTest::ground_effect_in_run();
-    InsSessionTest::ground_effect_missing_context();
+    if constexpr (formal_eskf::px4::profile::height::ground_effect_enabled)
+    {
+        InsSessionTest::ground_effect_producer(true);
+        InsSessionTest::ground_effect_producer(false);
+        InsSessionTest::ground_effect_binding();
+        InsSessionTest::ground_effect_status_renewal();
+        InsSessionTest::ground_effect_in_run();
+        InsSessionTest::ground_effect_missing_context();
+    }
+    else
+    {
+        InsSessionTest::ground_effect_disabled();
+    }
     InsSessionTest::navigation_context(true, true);
     InsSessionTest::navigation_context(false, true);
     InsSessionTest::navigation_context(false, false);
@@ -4912,6 +5207,10 @@ int main(int argc, char ** argv)
         int const closed = std::fclose(trace_file);
         expect(written && closed == 0, "write complete comparison trace");
     }
+    std::printf("Ground-effect resources: enabled=%d event_bytes=%zu owner_bytes=%zu module_bytes=%zu\n",
+                int(formal_eskf::px4::profile::height::ground_effect_enabled),
+                sizeof(formal_eskf::runtime::GroundEffectEvent), sizeof(FormalEskf::session_type::ground_effect_type),
+                sizeof(FormalEskf));
     std::printf("PX4 module: %u scenarios, %u failures\n", scenarios, failures);
     return failures == 0U ? 0 : 1;
 }

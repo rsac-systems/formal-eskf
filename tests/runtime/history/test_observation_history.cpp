@@ -739,6 +739,28 @@ void receipt_clock(Context & test, std::string_view profile)
                 "history reset clears receipt provenance together");
 }
 
+void context_storage(Context & test)
+{
+    // Independent public round-trip oracle for the compact retained record.
+    // Every boolean pattern and all three distinct clocks cross the ring.
+    for (unsigned bits = 0; bits < 32; ++bits)
+    {
+        Session s;
+        s.seed();
+        s.land = {s.epoch + 3900, true, bool(bits & 1), bool(bits & 2), bool(bits & 4)};
+        s.vehicle = {s.epoch + 3800, true, bool(bits & 8), bool(bits & 16)};
+        s.tick();
+        s.fuse_until(s.epoch + 4000);
+        auto c = s.history.context(s.epoch + 4000, 3000000);
+        test.expect(c.time_us == s.epoch + 4000 && c.land.time_us == s.epoch + 3900 &&
+                        c.vehicle.time_us == s.epoch + 3800 && c.land.known && c.vehicle.known &&
+                        c.land.landed == bool(bits & 1) && c.land.at_rest == bool(bits & 2) &&
+                        c.land.in_ground_effect == bool(bits & 4) && c.vehicle.armed == bool(bits & 8) &&
+                        c.vehicle.fixed_wing == bool(bits & 16),
+                    "storage", "lossless source flags and original timestamps in compact history");
+    }
+}
+
 void observation_scenarios(Context & test, std::string_view)
 {
     configuration_and_seed(test);
@@ -755,6 +777,7 @@ void observation_scenarios(Context & test, std::string_view)
     input_timing_boundaries(test);
     prediction_context(test);
     historical_context(test);
+    context_storage(test);
     gap_context_and_unknown(test);
     bounded_overflow(test);
     explicit_settings(test);

@@ -112,6 +112,9 @@ checks, lifecycle timeouts, noise, gates, bias limits and output
 tracking time constants. Decimal values are validated before packaging. See
 [configuration ownership](../../docs/guides/configuration.md#px4-deployment-menu)
 for units, defaults and retained constraints.
+Ground-effect protection defaults OFF; enable `CONFIG_PX4_GROUND_EFFECT=y` in the
+packaged Kconfig profile to exercise its delayed event policy. Land detection
+remains a separate PX4 producer in either build.
 
 `make px4-install` uses `.config` (override with `CONFIG_FILE=...`), generates the
 module's `DeploymentConfig.hpp`, and records both in the package manifest. It
@@ -176,6 +179,12 @@ target is opt-in and is not linked into the flight binary.
 stationary sensor data followed by ground effect and a GNSS outage. That fixture
 requires initialization within 12 s and a horizontal timeout of at most 10 s;
 it is not acceptance evidence for arbitrary menu values or flight conditions.
+
+The host module test links the pinned PX4 land detector and invokes its real
+private `Run` entry using fixture-only access control relaxation. Production
+module compilation retains normal C++ access checks. This exercises producer
+conditions and uORB admission into the delayed barometer path; synthetic pressure
+dips establish software behavior, not physical ground-effect efficacy.
 
 ## Delayed fusion
 

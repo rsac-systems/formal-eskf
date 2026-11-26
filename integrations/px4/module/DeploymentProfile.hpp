@@ -325,6 +325,7 @@ struct InsLayout
     static constexpr std::uint64_t gravity_interval_us = gravity::observation_interval_us;
     static constexpr bool barometer_aiding = height::barometer_enabled;
     static constexpr bool gravity_aiding = gravity::enabled;
+    static constexpr std::size_t ground_effect_capacity = 64;
     static constexpr bool ground_effect = height::ground_effect_enabled;
     static constexpr bool magnetic_model = magnetic::use_model;
 };

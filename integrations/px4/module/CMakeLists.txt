@@ -40,12 +40,13 @@ if(FORMAL_ESKF_MODULE_TESTS)
 	set_target_properties(formal_eskf_module_test PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED YES)
 	target_compile_definitions(formal_eskf_module_test PRIVATE MODULE_NAME="formal_eskf_test"
 		${FORMAL_ESKF_ALGORITHMS})
-	target_compile_options(formal_eskf_module_test PRIVATE -fno-fast-math -ffp-contract=off
+	# The fixture invokes the pinned land detector's private Run; production builds retain access checks.
+	target_compile_options(formal_eskf_module_test PRIVATE -fno-access-control -fno-fast-math -ffp-contract=off
 		-fno-exceptions -fno-rtti -Wno-float-equal)
 	target_link_libraries(formal_eskf_module_test PRIVATE modules__formal_eskf
 		px4_layer px4_platform uORB systemlib cdev px4_work_queue px4_daemon
 		work_queue parameters events perf tinybson uorb_msgs geo world_magnetic_model
-		health_and_arming_checks mode_util modules__mc_att_control)
+		health_and_arming_checks mode_util modules__mc_att_control modules__land_detector)
 	target_link_options(formal_eskf_module_test PRIVATE
 		-Wl,--wrap=hrt_absolute_time -Wl,--wrap=hrt_call_after -Wl,--wrap=hrt_cancel
 		-Wl,--wrap=pthread_mutex_init

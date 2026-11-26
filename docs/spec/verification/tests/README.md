@@ -126,6 +126,7 @@ the canonical equations.
 | [Height preparation](runtime/height-observation.md) | R-HEIGHT-AIDING, local/geographic prediction, prior offset and reference transport; attachment remains planned. |
 | [Barometric altitude](runtime/barometric-altitude.md) | R-BAROMETRIC-ALTITUDE, standalone model conversion and supplied-altitude admission; composition remains planned. |
 | [Height aiding](runtime/height-aiding.md) | R-HEIGHT-AIDING, portable GNSS/barometer owner; PX4 filtering/publication remains adapter scope. |
+| [Barometer ground effect](runtime/barometer-ground-effect.md) | R-BARO-GROUND-EFFECT; delayed events, scalar residual/covariance and height isolation. Actual PX4 producer/publication remains adapter scope. |
 | [Height datum](runtime/height-datum.md) | R-HEIGHT-DATUM. |
 | [Frame observations](runtime/frame-observations.md) | R-FRAME-OBSERVATIONS. |
 | [Gravity and IMU](runtime/gravity-imu.md) | R-ACCELEROMETER-MAGNITUDE, R-ACCELEROMETER-SAMPLING, R-ACCELEROMETER-CONDITIONS, R-ACCELEROMETER-FUSION, R-IMU-BIAS-INHIBITION, R-IMU-PROCESS-NOISE, R-BIAS-PROCESS-NOISE, R-BIAS-LIMITS, R-VERTICAL-ACCELERATION, R-IMU-PREDICTION; SW-GRAVITY, SW-IMU. |

@@ -579,6 +579,11 @@ void InsSession<Linalg, Layout>::predict_and_fuse(typename imu_history_type::int
     {
         return;
     }
+    update_ground_effect();
+    if (m_fault)
+    {
+        return;
+    }
     select_observations();
     restrict_bias_learning();
     m_operation = InsOperation::magnetic;
@@ -594,7 +599,6 @@ void InsSession<Linalg, Layout>::predict_and_fuse(typename imu_history_type::int
     {
         return;
     }
-    update_ground_effect();
     fuse_height(m_observations.barometer_receipt());
     if (m_fault)
     {

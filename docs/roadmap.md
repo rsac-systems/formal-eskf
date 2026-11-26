@@ -58,25 +58,26 @@ or acceptance decisions.
 | Task | Status | Scope and completion boundary |
 |---|---|---|
 | F-03.1 — Vertical acceleration-fault recovery | Completed | Bounded vertical-innovation exception and independent last-good reset criterion wired into GNSS/height coordination, with qualified-source checks, raw rejection diagnostics and reset notifications. |
-| F-03.2 — Barometer ground effect | Partial | Existing snapshot-based protection is integrated; the Draft PX4-aligned event/default-OFF target and acceptance plan are specified. Target admission, fallback and caller/default changes remain unimplemented. No terrain/HAGL estimate is supplied; physical tuning/landing acceptance remains F-07.1. |
+| F-03.2 — Barometer ground effect | Partial | Delayed protection events, PX4 source defaults, default-OFF packaging and native producer-to-correction tests are integrated. No terrain/HAGL estimate is supplied; target timing, event-source proofs and physical tuning/landing acceptance remain open under F-07/V-01. |
 
 Contracts: [height fusion](spec/requirements/integration/px4/height-fusion.md),
 [ground effect](spec/requirements/integration/px4/barometer-ground-effect.md).
 Dynamic-pressure compensation remains D-03; terrain remains D-06.
 The [portable protection contract](spec/requirements/runtime/barometer-ground-effect.md),
 [PX4 event/profile binding](spec/profiles/px4-sih-250hz.md#ground-effect-target-binding)
-and [planned acceptance cases](spec/verification/barometer-ground-effect-tests.md)
+and [acceptance allocation](spec/verification/barometer-ground-effect-tests.md)
 refine F-03.2, rather than adding a second feature backlog. Retain the NB-G action
 IDs and order after the shared barometer, staged-service, input and N4 reporting
-contracts. No implementation or physical acceptance follows from this Draft baseline.
+contracts. Draft specification status, native evidence and physical acceptance
+remain separate.
 
 | Action | Status | Completion boundary |
 |---|---|---|
 | NB-G1 — Contract and acceptance baseline | Completed | Draft adapter/runtime allocation, PX4 source/clock/default comparison, named configuration and Pending cases. Requirement approval, implementation and execution evidence remain separate. |
-| NB-G2 — Event and policy integration | Planned | Implement platform-default translation with retained provenance, one bounded event history/selection owner and delayed latch; synchronize default-OFF packaging. Preserve other context consumers, numerical order, failure frames and source/reset authority. Add exposing tests before changes and review/refactor each affected owner. |
-| NB-G3 — Software conformance closure | Planned | Bind and run the planned cases through actual land-detector, adapter, runtime and correction paths, including enabled/disabled builds and declared profile differences. Reuse numerical/height cases; replace only superseded snapshot-guard expectations. Qualify added target storage/work under F-07.2/F-07.3. |
+| NB-G2 — Event and policy integration | Completed | One fixed-capacity delayed event owner preserves source provenance, timing/selection losses and ordered hold transitions. PX4 translates combined source updates/defaults; packaging defaults OFF. Other context consumers and numerical correction order retain their contracts. |
+| NB-G3 — Software conformance closure | Completed (native scope) | Canonical runtime cases and actual pinned land-detector/uORB/module fixtures cover ON/OFF binding, selection, latch, raw gate, residual and failure isolation. Existing whole-module storage and host stack reservations remain enforced. Physical efficacy and target WCET remain F-07.1/F-07.2/F-07.3. |
 | NB-G4 — Physical effect and tuning | Pending | Under F-07.1, compare matched near-ground data with independent truth and predeclared bounds; separate tuning and validation. Missing physical data remains Pending and does not block unrelated survey topics or manufacture a pass from synthetic dips. |
-| NB-G5 — Evidence and refactor closure | Planned | Reconcile source/caller/test mappings after implementation, inspect remaining duplication and frame/isolation behavior, and record actual acceptance. Execute the deferred proof obligations under V-01; F-03.2 remains Partial while its applicable acceptance is open. |
+| NB-G5 — Evidence and refactor closure | Completed (implementation scope) | Source/caller/test mappings identify the new event owner and lossless compact context storage. Retired only the superseded protection snapshot policy. Formal event/storage/composition evidence remains V-01; physical/target acceptance remains open, so F-03.2 remains Partial. |
 
 ### F-04 — Timing
 
@@ -342,8 +343,8 @@ The NB-G target adds admitted event provenance/selection, delayed hold/renewal,
 checked time arithmetic, piecewise residual/covariance composition, source/bias
 isolation and actual PX4 caller obligations. Existing height/vertical-recovery
 proofs retain their named profiles; they do not cover the new event path or
-configuration merely because numerical helpers are reused. Execute the new
-allocation after implementation and source binding, retaining physical/target
+configuration merely because numerical helpers are reused. Include the compact
+context-storage representation in the deferred proof allocation, retaining physical/target
 acceptance under F-07.
 
 The N4 reporting target adds evidence/epoch association, observation-outcome and
