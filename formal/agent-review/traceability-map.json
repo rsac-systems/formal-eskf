@@ -8890,6 +8890,34 @@
         ],
         "esbmc": []
       }
+    },
+    {
+      "id": "R-INS-INITIAL-NAVIGATION",
+      "title": "Explicit initial navigation prior; native coverage, formal proof pending",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/runtime/ins-initial-navigation.md",
+            "symbol": "# R-INS-INITIAL-NAVIGATION:"
+          }
+        ],
+        "lean": [],
+        "cpp": [
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session.hpp",
+            "symbol": "struct InitialNavigation"
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::initialize_navigation("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::initialize_prior("
+          }
+        ],
+        "esbmc": []
+      }
     }
   ]
 }

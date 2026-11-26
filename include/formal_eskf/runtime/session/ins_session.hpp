@@ -266,6 +266,14 @@ public:
         quaternion_type q_nb{};             // Body FRD to true-North local NED at the seed endpoint.
         std::array<double, 3> variance_n{}; // Small-angle variances in NED, rad^2; strictly positive.
     };
+    struct InitialNavigation
+    {
+        InitialAttitude attitude{};
+        geodesy::GeodeticPosition position{}; // IMU location; degrees, ellipsoidal metres.
+        double altitude_msl_m{};
+        vector3_type velocity_n{};                                          // IMU velocity in the same local NED, m/s.
+        std::array<double, 3> position_variance_n{}, velocity_variance_n{}; // m^2, (m/s)^2.
+    };
     struct ModelRequest
     {
         bool required{};
@@ -414,6 +422,12 @@ public:
      */
     [[nodiscard]] bool initialize_attitude(InitialAttitude const & prior, ImuInput const & sample,
                                            std::uint64_t arrival_us, ContextInput const & context);
+    /** Explicit first-input navigation prior. The KITTI host adapter is the
+     * authorized caller; ordinary PX4/application startup never selects it.
+     * Does not qualify GNSS or create sensor-fusion/output-validity progress.
+     */
+    [[nodiscard]] bool initialize_navigation(InitialNavigation const & prior, ImuInput const & sample,
+                                             std::uint64_t arrival_us, ContextInput const & context);
     void receive_gnss(typename observation_history_type::GnssSample const & sample, std::uint64_t arrival_us);
     void receive_magnetic(typename observation_history_type::MagneticSample const & sample, std::uint64_t arrival_us);
     void receive_barometer(typename observation_history_type::BarometerSample const & sample, std::uint64_t arrival_us);
@@ -499,7 +513,9 @@ private:
     }
     typename observation_history_type::Context startup_context(std::uint64_t epoch, std::uint64_t maximum_age) const;
     bool seed(state_type const & seed_state, covariance_type const & seed_covariance, ImuInput const & sample,
-              std::uint64_t arrival_us);
+              std::uint64_t arrival_us, height_type const * prepared_height = nullptr);
+    bool initialize_prior(InitialAttitude const & attitude, InitialNavigation const * navigation,
+                          ImuInput const & sample, std::uint64_t arrival_us, ContextInput const & context);
     bool external_heading_valid() const;
     bool admit_imu(ImuInput const & sample, std::uint64_t arrival_us);
     bool accept_imu(ImuInput const & sample, std::uint64_t arrival_us);

@@ -400,15 +400,23 @@ void InsSession<Linalg, Layout>::process_imu(ImuInput const & sample, std::uint6
 
 template <typename Linalg, typename Layout>
 bool InsSession<Linalg, Layout>::seed(state_type const & seed_state, covariance_type const & seed_covariance,
-                                      ImuInput const & sample, std::uint64_t arrival_us)
+                                      ImuInput const & sample, std::uint64_t arrival_us,
+                                      height_type const * prepared_height)
 {
     typename observation_history_type::Seed seed;
     seed.context = m_imu_context;
     // No navigation observation was consumed. Leave their watermarks empty.
     // Publish the main seed only after every required history has accepted this epoch.
     // A failed required-history seed latches a restart fault; no partial estimate is usable.
-    if (!check(m_height_aiding.initialize(m_time_us, 0.)) ||
-        !check_timing(m_imu_history.seed(sample, arrival_us) && m_observations.seed(seed) &&
+    if (prepared_height != nullptr)
+    {
+        m_height_aiding = *prepared_height;
+    }
+    else if (!check(m_height_aiding.initialize(m_time_us, 0.)))
+    {
+        return false;
+    }
+    if (!check_timing(m_imu_history.seed(sample, arrival_us) && m_observations.seed(seed) &&
                       m_output.seed(seed_state, m_time_us) && m_continuity.seed(m_time_us)))
     {
         return false;
@@ -424,6 +432,21 @@ bool InsSession<Linalg, Layout>::seed(state_type const & seed_state, covariance_
 template <typename Linalg, typename Layout>
 bool InsSession<Linalg, Layout>::initialize_attitude(InitialAttitude const & prior, ImuInput const & sample,
                                                      std::uint64_t arrival_us, ContextInput const & context)
+{
+    return initialize_prior(prior, nullptr, sample, arrival_us, context);
+}
+
+template <typename Linalg, typename Layout>
+bool InsSession<Linalg, Layout>::initialize_navigation(InitialNavigation const & prior, ImuInput const & sample,
+                                                       std::uint64_t arrival_us, ContextInput const & context)
+{
+    return initialize_prior(prior.attitude, &prior, sample, arrival_us, context);
+}
+
+template <typename Linalg, typename Layout>
+bool InsSession<Linalg, Layout>::initialize_prior(InitialAttitude const & prior, InitialNavigation const * navigation,
+                                                  ImuInput const & sample, std::uint64_t arrival_us,
+                                                  ContextInput const & context)
 {
     if (!m_configured || !m_parameters_valid || m_fault || m_initialized || m_phase != Phase::idle ||
         m_imu_admissions != 0 || sample.source.accelerometer_id == 0 || sample.source.gyroscope_id == 0)
@@ -447,6 +470,43 @@ bool InsSession<Linalg, Layout>::initialize_attitude(InitialAttitude const & pri
     {
         return false;
     }
+    // Prepare frame, datum and height reference before publishing any owner.
+    // An initial solution is not a GNSS observation or a bypass of its qualification.
+    NavigationFrame<backend_type> frame;
+    HeightDatum<backend_type> datum;
+    auto height = m_height_aiding;
+    NavigationOrigin origin{projection_type{m_settings.projection_radius_m}};
+    if (navigation != nullptr)
+    {
+        auto const & position = navigation->position;
+        auto const speed = linalg::norm(navigation->velocity_n);
+        if (!std::isfinite(speed) || speed > m_settings.origin.maximum_speed_m_s ||
+            std::abs(position.latitude_deg) > m_settings.origin.maximum_latitude_deg ||
+            position.height_ellipsoid_m < m_settings.origin.minimum_height_m ||
+            position.height_ellipsoid_m > m_settings.origin.maximum_height_m ||
+            !succeeded(frame.initialize(position)) ||
+            !succeeded(datum.update(sample.time_us, position.height_ellipsoid_m, navigation->altitude_msl_m)) ||
+            !succeeded(height.initialize(sample.time_us, navigation->altitude_msl_m)))
+        {
+            return false;
+        }
+        for (std::size_t axis = 0; axis < 3; ++axis)
+        {
+            auto const pv = navigation->position_variance_n[axis];
+            auto const vv = navigation->velocity_variance_n[axis];
+            if (!std::isfinite(pv) || pv <= 0 || !std::isfinite(vv) || vv <= 0)
+            {
+                return false;
+            }
+            seed_covariance(axis, axis) = pv;
+            seed_covariance(3 + axis, 3 + axis) = vv;
+        }
+        seed_state.v_n = navigation->velocity_n;
+        origin.projection.set_origin(position.latitude_deg, position.longitude_deg, sample.time_us);
+        origin.time_us = sample.time_us;
+        origin.altitude_msl_m = navigation->altitude_msl_m;
+        origin.height_ellipsoid_m = position.height_ellipsoid_m;
+    }
     auto tilt = m_tilt_alignment;
     if (!succeeded(tilt.update(seed_state.q_nb, seed_covariance.template block<6, 6, 3, 3>())))
     {
@@ -461,9 +521,19 @@ bool InsSession<Linalg, Layout>::initialize_attitude(InitialAttitude const & pri
     m_imu_arrival_time_us = arrival_us;
     m_diagnostic_imu_source = sample.source;
     m_imu_admission = ImuAdmission::accepted;
-    if (!seed(seed_state, seed_covariance, sample, arrival_us))
+    if (!seed(seed_state, seed_covariance, sample, arrival_us, navigation != nullptr ? &height : nullptr))
     {
         return false;
+    }
+    if (navigation != nullptr)
+    {
+        m_navigation_frame = frame;
+        m_height_datum = datum;
+        m_origin = origin;
+        m_origin_control.datum_frame = frame.working();
+        m_origin_control.relative_height_ellipsoid_m = origin.height_ellipsoid_m;
+        m_msl_initialized = true;
+        m_velocity_seed_time_us = m_time_us;
     }
     m_tilt_alignment = tilt;
     m_heading_aligned = true;

@@ -167,6 +167,7 @@ physical/target acceptance and source proofs remain open under
 | `R-INS-DIAGNOSTICS` | [Bounded health and diagnostic reporting](requirements/runtime/diagnostics.md) (Draft target) |
 | `R-INS-INITIALIZATION` | [strict stationary INS initialization](requirements/runtime/ins-initialization.md) |
 | `R-INS-INITIAL-ATTITUDE` | [Caller-qualified initial attitude](requirements/runtime/ins-initial-attitude.md) |
+| `R-INS-INITIAL-NAVIGATION` | [Caller-qualified initial navigation solution](requirements/runtime/ins-initial-navigation.md) |
 | `R-INS-STARTUP` | [Staged INS initialization and aiding admission](requirements/runtime/ins-startup.md) (Draft target) |
 | `R-INS-CAPABILITIES` | [Full and partial INS output availability](requirements/runtime/ins-capabilities.md) (Draft target) |
 | `R-INS-CONTINUITY` | [Covariance management without aiding](requirements/runtime/ins-continuity.md) (Draft target) |
