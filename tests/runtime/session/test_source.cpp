@@ -175,7 +175,7 @@ public:
         test.expect(f.tick(false) && ins_test::same_bits(f.session.output_predictor().angular_rate_b(), cached * -1.),
                     profile, "multiple ingress events before feedback do not replace cached biases early");
         for (std::size_t n = 0;
-             n < ins_example::Layout::imu_capacity && !f.session.fusion_ready() && !f.session.fault(); ++n)
+             n < ins_test_profile::Layout::imu_capacity && !f.session.fusion_ready() && !f.session.fault(); ++n)
         {
             test.expect(f.tick(false), profile, "fill warmup without a premature feedback update");
         }
@@ -253,7 +253,7 @@ public:
                 break;
             case Invalid::prior:
             {
-                auto prior = ins_example::parameters<Session>().startup;
+                auto prior = ins_test_profile::parameters<Session>().startup;
                 prior.gyroscope_bias_variance = NAN;
                 f.session.m_startup = runtime::InsStartup<ins_test::Backend>(prior);
                 break;

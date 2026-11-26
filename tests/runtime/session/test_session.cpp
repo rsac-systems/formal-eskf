@@ -14,7 +14,7 @@ void phases(Context & test, std::string_view profile)
                     f.session.output_predictor().current().time_us == f.session.fusion_time_us() &&
                     !f.session.navigation_frame().initialized(),
                 profile, "one admitted stationary IMU seeds all histories without external navigation");
-    test.expect(!f.session.configure_timing(ins_example::timing) && !f.session.configure_gravity(false) &&
+    test.expect(!f.session.configure_timing(ins_test_profile::timing) && !f.session.configure_gravity(false) &&
                     !f.session.configure_magnetic({}) && !f.session.configure_sensor_positions({}),
                 profile, "configuration freezes after an admitted startup epoch");
     auto const state = f.session.state();
@@ -135,12 +135,12 @@ template <bool Enabled, std::size_t Capacity> struct BarometerLayout
     // These members bind InsSession's dependent storage/interval template arguments.
     // Cppcheck does not resolve those uses for this local layout specialization.
     // cppcheck-suppress-begin unusedStructMember
-    static constexpr std::size_t imu_capacity = ins_example::Layout::imu_capacity;
-    static constexpr std::size_t context_capacity = ins_example::Layout::context_capacity;
-    static constexpr std::size_t gnss_capacity = ins_example::Layout::gnss_capacity;
-    static constexpr std::size_t magnetic_capacity = ins_example::Layout::magnetic_capacity;
+    static constexpr std::size_t imu_capacity = ins_test_profile::Layout::imu_capacity;
+    static constexpr std::size_t context_capacity = ins_test_profile::Layout::context_capacity;
+    static constexpr std::size_t gnss_capacity = ins_test_profile::Layout::gnss_capacity;
+    static constexpr std::size_t magnetic_capacity = ins_test_profile::Layout::magnetic_capacity;
     static constexpr std::size_t barometer_capacity = Capacity;
-    static constexpr std::uint64_t gravity_interval_us = ins_example::Layout::gravity_interval_us;
+    static constexpr std::uint64_t gravity_interval_us = ins_test_profile::Layout::gravity_interval_us;
     // cppcheck-suppress-end unusedStructMember
     static constexpr std::size_t ground_effect_capacity = 64;
     static constexpr bool gravity_aiding = true, ground_effect = true, magnetic_model = true;
@@ -150,9 +150,9 @@ template <bool Enabled, std::size_t Capacity> struct BarometerLayout
 void optional_barometer(Context & test, std::string_view profile)
 {
     using Runtime =
-        formal_eskf::runtime::InsSession<Backend, BarometerLayout<false, ins_example::Layout::barometer_capacity>>;
+        formal_eskf::runtime::InsSession<Backend, BarometerLayout<false, ins_test_profile::Layout::barometer_capacity>>;
     using Source = Runtime::height_type::Source;
-    auto parameters = ins_example::parameters<Runtime>();
+    auto parameters = ins_test_profile::parameters<Runtime>();
     parameters.barometer_model.reference_pressure_pa = 0; // Excluded converter must never configure/evaluate.
     Fixture<Runtime> f{parameters};
     f.send_barometer = false;
@@ -255,7 +255,7 @@ void pressure_inputs(Context & test, std::string_view profile)
 
 void pressure_boundary(Context & test, std::string_view profile)
 {
-    auto parameters = ins_example::parameters<Session>();
+    auto parameters = ins_test_profile::parameters<Session>();
     parameters.barometer_model.maximum_altitude_m = 10;
     Fixture f{parameters};
     f.input.barometer.altitude_m = 0;
@@ -279,7 +279,7 @@ void pressure_boundary(Context & test, std::string_view profile)
 
 void barometric_configuration(Context & test, std::string_view profile)
 {
-    auto parameters = ins_example::parameters<Session>();
+    auto parameters = ins_test_profile::parameters<Session>();
     parameters.barometer_model.reference_pressure_pa = 0;
     Fixture invalid{parameters};
     test.expect(!invalid.configured && !invalid.session.initialized() &&

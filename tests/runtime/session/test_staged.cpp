@@ -62,7 +62,7 @@ public:
                                  Participant::continuity})
         {
             Fixture f;
-            auto settings = ins_example::parameters<Session>();
+            auto settings = ins_test_profile::parameters<Session>();
             switch (participant)
             {
             case Participant::height:
@@ -236,7 +236,7 @@ public:
             s.m_gravity.reset_samples();
             auto sample = f.imu;
             sample.delta_angle_b = {};
-            sample.delta_velocity_b = Vector::from_row_major({.05, -.04, -ins_example::gravity}) * .004;
+            sample.delta_velocity_b = Vector::from_row_major({.05, -.04, -ins_test_profile::gravity}) * .004;
             auto const corrections = s.m_gravity.corrections;
             for (unsigned i = 0; i < 3; ++i)
             {
@@ -244,8 +244,8 @@ public:
             }
             // At identity, h=(0,0,-g), H_theta=hat(h), P_theta=I,
             // V=g^2 I: K_px,x=.2/(2g), K_py,y=.3/(2g).
-            double const px = .2 * .05 / (2 * ins_example::gravity);
-            double const py = .3 * -.04 / (2 * ins_example::gravity);
+            double const px = .2 * .05 / (2 * ins_test_profile::gravity);
+            double const py = .3 * -.04 / (2 * ins_test_profile::gravity);
             test.expect(
                 !s.fault() && s.m_gravity.corrections == corrections + 1 && std::abs(s.state().p_n(0) - px) < 2e-15 &&
                     std::abs(s.state().p_n(1) - py) < 2e-15 && std::abs(s.covariance()(0, 0) - .98) < 2e-15 &&
@@ -366,7 +366,7 @@ public:
                 attempted.m_covariance(0, 1) = NAN;
                 break;
             case Failure::height:
-                attempted.m_height_aiding = Session::height_type{ins_example::parameters<Session>().height};
+                attempted.m_height_aiding = Session::height_type{ins_test_profile::parameters<Session>().height};
                 break;
             case Failure::history:
                 attempted.m_output.reset();
@@ -598,7 +598,7 @@ void seed_transaction(Context & test, std::string_view profile)
                     epoch == good.session.output_predictor().current().time_us && cap.seeded &&
                     !cap.attitude.available && !cap.horizontal_position.available,
                 profile, "one common seed epoch is not premature output readiness");
-    auto p = ins_example::parameters<Session>();
+    auto p = ins_test_profile::parameters<Session>();
     p.output.quaternion_squared_norm_tolerance = -1;
     Fixture rejected{p};
     auto const before = rejected.session.state();
@@ -612,7 +612,7 @@ void seed_transaction(Context & test, std::string_view profile)
 
 void seed_boundaries(Context & test, std::string_view profile)
 {
-    auto parameters = ins_example::parameters<Session>();
+    auto parameters = ins_test_profile::parameters<Session>();
     parameters.startup.gravity = 10.;
     parameters.estimator.gravity_n(2) = 10.;
     parameters.output.gravity_m_s2 = 10.;
@@ -637,7 +637,7 @@ void seed_boundaries(Context & test, std::string_view profile)
         {
             Fixture f;
             (angular ? f.imu.angular_period_us : f.imu.acceleration_period_us) = period;
-            f.imu.delta_velocity_b(2) = -ins_example::gravity * double(f.imu.acceleration_period_us) * 1e-6;
+            f.imu.delta_velocity_b(2) = -ins_test_profile::gravity * double(f.imu.acceleration_period_us) * 1e-6;
             test.expect(f.tick() && f.session.initialized() == (period >= 3800 && period <= 4200), profile,
                         "both distinct packet periods enforce inclusive admission endpoints");
         }
@@ -646,14 +646,14 @@ void seed_boundaries(Context & test, std::string_view profile)
 
 void seed_covariance(Context & test, std::string_view profile)
 {
-    auto const parameters = ins_example::parameters<Session>();
+    auto const parameters = ins_test_profile::parameters<Session>();
     for (auto angles : {std::array<double, 2>{0, 0}, {.3, -.2}, {-.4, .1}})
     {
         Fixture f;
         double const r = angles[0], p = angles[1];
         Vector const down =
             Vector::from_row_major({-std::sin(p), std::cos(p) * std::sin(r), std::cos(p) * std::cos(r)});
-        f.imu.delta_velocity_b = down * (-ins_example::gravity * .004);
+        f.imu.delta_velocity_b = down * (-ins_test_profile::gravity * .004);
         f.imu.delta_angle_b = Vector::from_row_major({.001, -.002, .003}) * .004;
         test.expect(f.tick() && f.session.initialized(), profile, "tilted real sample seeds a complete local INS");
         auto const & state = f.session.state();
@@ -701,10 +701,10 @@ void physical_tilt(Context & test, std::string_view profile)
             f.send_gnss = f.send_magnetic = f.send_barometer = false;
             double const angle = seed_degrees * std::acos(-1.) / 180.;
             f.imu.delta_velocity_b = Vector::from_row_major(
-                {0, -ins_example::gravity * std::sin(angle) * .004, -ins_example::gravity * std::cos(angle) * .004});
+                {0, -ins_test_profile::gravity * std::sin(angle) * .004, -ins_test_profile::gravity * std::cos(angle) * .004});
             test.expect(f.tick(), profile, "known seed transient admitted");
             f.imu.delta_velocity_b =
-                Vector::from_row_major({acceleration * ins_example::gravity * .004, 0, -ins_example::gravity * .004});
+                Vector::from_row_major({acceleration * ins_test_profile::gravity * .004, 0, -ins_test_profile::gravity * .004});
             test.expect(f.run(15000), profile,
                         "60 s real IMU-only propagation/refinement without manufactured sources");
             auto const R = formal_eskf::so3::to_rotation_matrix(f.session.state().q_nb);
@@ -727,11 +727,11 @@ void prealignment_refinement(Context & test, std::string_view profile)
     f.send_gnss = f.send_magnetic = f.send_barometer = false;
     double const angle = 10. * std::acos(-1.) / 180.;
     f.imu.delta_velocity_b = Vector::from_row_major(
-        {0, -ins_example::gravity * std::sin(angle) * .004, -ins_example::gravity * std::cos(angle) * .004});
+        {0, -ins_test_profile::gravity * std::sin(angle) * .004, -ins_test_profile::gravity * std::cos(angle) * .004});
     test.expect(f.tick() && !f.session.tilt_alignment().aligned(), profile,
                 "real seed begins above the alignment limit");
     auto const before = formal_eskf::so3::to_rotation_matrix(f.session.state().q_nb);
-    f.imu.delta_velocity_b = Vector::from_row_major({0, 0, -ins_example::gravity * .004});
+    f.imu.delta_velocity_b = Vector::from_row_major({0, 0, -ins_test_profile::gravity * .004});
     test.expect(f.run(128) && f.session.gravity().corrections > 0 && !f.session.tilt_alignment().aligned(), profile,
                 "eligible gravity is actually fused while the session remains unaligned");
     auto const after = formal_eskf::so3::to_rotation_matrix(f.session.state().q_nb);
@@ -743,7 +743,7 @@ void gravity_ambiguity(Context & test, std::string_view profile)
     Fixture f;
     f.send_gnss = f.send_magnetic = f.send_barometer = false;
     f.imu.delta_velocity_b =
-        Vector::from_row_major({.2 * ins_example::gravity * .004, 0, -ins_example::gravity * .004});
+        Vector::from_row_major({.2 * ins_test_profile::gravity * .004, 0, -ins_test_profile::gravity * .004});
     test.expect(f.run(15000), profile, "sustained accelerometer ambiguity remains a finite model input");
     auto const R = formal_eskf::so3::to_rotation_matrix(f.session.state().q_nb);
     auto const apparent_tilt = std::acos(std::clamp(R(2, 2), -1., 1.));
@@ -813,7 +813,7 @@ void aiding_clocks(Context & test, std::string_view profile)
 {
     // Isolate the accepted-fusion clock from the independently shorter default
     // GNSS reception deadline. Source-age withdrawal is covered separately.
-    auto parameters = ins_example::parameters<Session>();
+    auto parameters = ins_test_profile::parameters<Session>();
     parameters.settings.gnss.maximum_sample_age_us = 2000000;
     Fixture f(parameters);
     test.expect(f.run(8500), profile, "full real aiding established");

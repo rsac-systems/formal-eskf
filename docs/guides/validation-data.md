@@ -16,8 +16,8 @@ oracle, accepted tolerances and failed/excluded intervals. Report loss/rejection
 and validity as well as error statistics; do not silently remove failures.
 
 The repository's replay programs are examples, not a general data-ingestion or
-flight-qualification suite. Refer to `examples/replay_px4.py` and
-`examples/replay_kitti.py` for supported inputs. A new dataset adapter or batch
+flight-qualification suite. Refer to `examples/replay/px4.py` and
+`examples/replay/kitti.py` for supported inputs. A new dataset adapter or batch
 campaign needs its own reviewed scope; there is no automatic thousands-of-logs
 validation claim. Dataset availability and licensing must be checked at adoption.
 

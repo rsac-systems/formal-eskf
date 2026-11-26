@@ -56,7 +56,7 @@ and tuning values; apply those with the [PX4 installation workflow](integrations
 Replay a local ULog file and display the plots (flight logs are not bundled):
 
 ```bash
-python3 examples/replay_px4.py /path/to/flight.ulg --plot
+python3 examples/replay/px4.py /path/to/flight.ulg --plot
 ```
 
 Or download and replay a sample from [PX4 Flight Review](https://review.px4.io/plot_app?log=e8744135-8493-4f5b-bab8-625c5b287d5a):
@@ -64,7 +64,7 @@ Or download and replay a sample from [PX4 Flight Review](https://review.px4.io/p
 ```bash
 LOG_ID=e8744135-8493-4f5b-bab8-625c5b287d5a
 curl --fail --location "https://review.px4.io/download?log=${LOG_ID}" --output "${LOG_ID}.ulg"
-python3 examples/replay_px4.py "${LOG_ID}.ulg" --plot
+python3 examples/replay/px4.py "${LOG_ID}.ulg" --plot
 ```
 
 ## Run KITTI Replay
@@ -72,7 +72,7 @@ python3 examples/replay_px4.py "${LOG_ID}.ulg" --plot
 Replay a local KITTI Raw unsynced (`_extract`) drive and display the plots (datasets are not bundled):
 
 ```bash
-python3 examples/replay_kitti.py /path/to/2011_10_03_drive_0027_extract --plot
+python3 examples/replay/kitti.py /path/to/2011_10_03_drive_0027_extract --plot
 ```
 
 Or download and replay a sample from [KITTI Raw](https://www.cvlibs.net/datasets/kitti/raw_data.php) (approximately 27 GB; only OXTS is extracted):
@@ -83,7 +83,7 @@ curl --fail --location \
     "https://s3.eu-central-1.amazonaws.com/avg-kitti/raw_data/${DRIVE_ID}/${DRIVE_ID}_extract.zip" \
     --output "${DRIVE_ID}_extract.zip"
 unzip -n "${DRIVE_ID}_extract.zip" "2011_10_03/${DRIVE_ID}_extract/oxts/*"
-python3 examples/replay_kitti.py "2011_10_03/${DRIVE_ID}_extract" --plot
+python3 examples/replay/kitti.py "2011_10_03/${DRIVE_ID}_extract" --plot
 ```
 
 OXTS GPS/INS estimates initialize and correct the filter; they are not independent ground truth.

@@ -1232,7 +1232,7 @@ with tempfile.TemporaryDirectory(prefix='formal-eskf-module-source-') as TEMP:
                                   for SIGNATURE in SIGNATURES) + '\n'
         assert (OUTPUT / f'module_{GROUP}.inc').read_text() == EXPECTED
     assert len(MANIFEST['publication_prefixes']) == 7 and len(MANIFEST['reset_branches']) == 3
-    SOURCE = ORIGINALS['examples/replay_ins.cpp']
+    SOURCE = ORIGINALS['examples/replay/main.cpp']
     MAG = MODULE.method(SOURCE, 'while (has_magnetometer && timestamp(magnetic_row[0U]) <= time)')
     assert MANIFEST['source_steps']['replay_magnetic']['parent_sha256'] == hashlib.sha256(MAG.encode()).hexdigest()
     assert 'if (has_magnetometer && timestamp(magnetic_row[0U]) <= time)' in (OUTPUT / 'replay_magnetic.inc').read_text()

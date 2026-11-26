@@ -13,7 +13,7 @@
 
 ## Required behavior
 
-`examples/replay_conditions.hpp` supplies conditions for the replay's existing
+`examples/replay/conditions.hpp` supplies conditions for the replay's existing
 single navigation source. It does not change correction equations or implement
 the full GNSS qualification/reset controller. `fusion_conditions.csv` records
 raw-tick conditions; interval observations and correction outcomes are recorded

@@ -48,10 +48,10 @@ public:
         t.expect(!p.configure(100000, 4000, 1) && p.state().active, "configuration", "live reconfiguration forbidden");
         for (double d : {-1., double(NAN), double(INFINITY)})
         {
-            auto parameters = ins_example::parameters<Session>();
+            auto parameters = ins_test_profile::parameters<Session>();
             parameters.height.ground_effect_deadzone_m = d;
             Session rejected(parameters);
-            t.expect(!rejected.configure_timing(ins_example::timing), "configuration",
+            t.expect(!rejected.configure_timing(ins_test_profile::timing), "configuration",
                      "invalid D rejects session startup");
         }
     }
@@ -274,7 +274,7 @@ public:
     {
         for (double deadzone : {0., 4.})
         {
-            auto parameters = ins_example::parameters<Session>();
+            auto parameters = ins_test_profile::parameters<Session>();
             parameters.height.ground_effect_deadzone_m = deadzone;
             Fixture f(parameters);
             warm(f, t);

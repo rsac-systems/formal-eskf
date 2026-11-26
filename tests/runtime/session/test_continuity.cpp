@@ -78,7 +78,7 @@ public:
             {
                 for (double value : {std::nextafter(100., 0.), 100., std::nextafter(100., INFINITY)})
                 {
-                    auto settings = ins_example::parameters<Session>();
+                    auto settings = ins_test_profile::parameters<Session>();
                     settings.continuity.heading_variance_limit = 1e100;
                     Fixture f(settings);
                     f.send_gnss = f.send_magnetic = f.send_barometer = false;
@@ -113,7 +113,7 @@ public:
         double const down_x = std::abs(so3::to_rotation_matrix(q)(2, 0));
         for (double threshold : {std::nextafter(down_x, 0.), down_x, std::nextafter(down_x, 1.)})
         {
-            auto settings = ins_example::parameters<Session>();
+            auto settings = ins_test_profile::parameters<Session>();
             settings.continuity.bias_direction_cosine = threshold;
             Fixture f(settings);
             f.send_gnss = f.send_magnetic = false;
@@ -141,7 +141,7 @@ public:
         using namespace ins_test;
         for (bool compatible : {true, false})
         {
-            auto settings = ins_example::parameters<Session>();
+            auto settings = ins_test_profile::parameters<Session>();
             settings.continuity.heading_variance_limit = 1e100;
             Fixture f(settings);
             test.expect(f.run(8500), profile, "actual geographic state before observation-basis partition");
@@ -385,7 +385,7 @@ void endurance(Context & test, std::string_view profile)
     // differ. No claim of sensor-noise calibration or continuous flight coverage.
     for (bool protection : {false, true})
     {
-        auto settings = ins_example::parameters<Session>();
+        auto settings = ins_test_profile::parameters<Session>();
         if (!protection)
         {
             settings.continuity.position_variance_limit = 1e100;
@@ -397,7 +397,7 @@ void endurance(Context & test, std::string_view profile)
         f.at_rest = false;
         f.send_gnss = f.send_magnetic = f.send_barometer = false;
         f.imu.delta_velocity_b =
-            Vector::from_row_major({.01 * ins_example::gravity * .004, 0, -ins_example::gravity * .004});
+            Vector::from_row_major({.01 * ins_test_profile::gravity * .004, 0, -ins_test_profile::gravity * .004});
         f.imu.delta_angle_b = Vector::from_row_major({1e-4 * .004, -2e-4 * .004, 3e-4 * .004});
         test.expect(f.run(15000), profile, "real gravity refinement before forced numerical-prior partition");
         formal_eskf::testing::InsSessionTest::force_numerical_prior(f.session);

@@ -32,11 +32,11 @@ cmake --build build/runtime --target ins_runtime test_ins_session --parallel 2
 ctest --test-dir build/runtime -R formal_eskf.ins_session --output-on-failure
 ```
 
-[ins_runtime.cpp](../../examples/ins_runtime.cpp) supplies synthetic stationary
+[ins_runtime.cpp](../../examples/ins_runtime/main.cpp) supplies synthetic stationary
 IMU/GNSS/magnetic/barometer data and a known magnetic reference, using explicit
 timestamps without a wall clock or PX4/ROS dependency. It prints local NED/MSL
 output. It is an API example, not a dataset accuracy benchmark. The separate
-[example profile](../../examples/ins_runtime_profile.hpp) contains uncalibrated
+[example profile](../../examples/ins_runtime/profile.hpp) contains uncalibrated
 settings; copying them does not qualify a real sensor or vehicle.
 The layout can exclude barometer aiding at compile time; then startup requires
 no barometric sample and pressure/altitude receive calls have no effects.

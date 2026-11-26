@@ -3482,11 +3482,11 @@
             "symbol": "struct MagneticFieldChecks"
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "read_magnetic_field_parameters("
           },
           {
-            "file": "examples/replay_px4.py",
+            "file": "examples/replay/px4.py",
             "symbol": "def magnetic_field_parameters("
           },
           {
@@ -3636,7 +3636,7 @@
             "symbol": "MagnetometerFusion::select_sample_action("
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "read_magnetic_heading_parameters("
           },
           {
@@ -3786,15 +3786,15 @@
             "symbol": "MagneticReference<Linalg>::adopt("
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "read_magnetic_model("
           },
           {
-            "file": "examples/replay_px4.py",
+            "file": "examples/replay/px4.py",
             "symbol": "def geographic_magnetic_fields("
           },
           {
-            "file": "examples/px4_magnetic_model.cpp",
+            "file": "examples/replay/px4_magnetic_model.cpp",
             "symbol": "int main()"
           },
           {
@@ -3915,15 +3915,15 @@
             "symbol": "correct_magnetometer("
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "MagneticReference read_magnetic_reference("
           },
           {
-            "file": "examples/replay_px4.py",
+            "file": "examples/replay/px4.py",
             "symbol": "def magnetic_declination("
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "void replay("
           },
           {
@@ -4000,11 +4000,11 @@
             "symbol": "void restart()"
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "void replay("
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "MagneticContext read_magnetic_context("
           },
           {
@@ -4530,19 +4530,19 @@
             "symbol": "fuse_velocity("
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "read_gnss_parameters("
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "NavigationVariances navigation_variances("
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "bool record_navigation_fusion("
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "void replay("
           }
         ],
@@ -4686,11 +4686,11 @@
             "symbol": "check_accelerometer_fusion_conditions("
           },
           {
-            "file": "examples/replay_conditions.hpp",
+            "file": "examples/replay/conditions.hpp",
             "symbol": "class ReplayFusionConditions"
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "ImuFlags read_imu_flags("
           },
           {
@@ -4800,7 +4800,7 @@
             "symbol": "AccelerometerSample<Linalg, IntervalUs>::update("
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "void replay("
           },
           {
@@ -4897,19 +4897,19 @@
             "symbol": "class ImuBiasInhibition"
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "void replay("
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "BiasInhibition::Parameters read_bias_parameters("
           },
           {
-            "file": "examples/replay_px4.py",
+            "file": "examples/replay/px4.py",
             "symbol": "def bias_parameters("
           },
           {
-            "file": "examples/replay_px4.py",
+            "file": "examples/replay/px4.py",
             "symbol": "def imu_flags("
           }
         ],
@@ -5112,7 +5112,7 @@
             "symbol": "void FormalEskf::Run()"
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "void replay("
           },
           {
@@ -5120,7 +5120,7 @@
             "symbol": "InsSession<Linalg, Layout>::predict_and_fuse("
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "predict_interval("
           }
         ],
@@ -5214,7 +5214,7 @@
             "symbol": "void FormalEskf::Run()"
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "void replay("
           },
           {
@@ -5222,7 +5222,7 @@
             "symbol": "InsSession<Linalg, Layout>::predict_and_fuse("
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "predict_interval("
           }
         ],
@@ -5287,11 +5287,11 @@
             "symbol": "Status limit_bias("
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "BiasLimits read_bias_limits("
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "void limit_bias("
           },
           {
@@ -5356,11 +5356,11 @@
             "symbol": "Status VerticalAccelerationHealth<Linalg>::update("
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "void replay("
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "void write_vertical_health("
           }
         ],
@@ -5474,7 +5474,7 @@
             "symbol": "fuse_height("
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "void replay("
           },
           {
@@ -5789,23 +5789,23 @@
             "symbol": "void restart_health()"
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "void update_gnss_lifecycle("
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "void write_gnss_lifecycle("
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "void write_gnss_reset("
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "auto record_reset ="
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "auto record_fusion ="
           },
           {
@@ -6235,15 +6235,15 @@
             "symbol": "void GnssQuality<Linalg>::update_health("
           },
           {
-            "file": "examples/replay_gnss.hpp",
+            "file": "examples/replay/gnss.hpp",
             "symbol": "class ReplayGnssQuality"
           },
           {
-            "file": "examples/replay_gnss.hpp",
+            "file": "examples/replay/gnss.hpp",
             "symbol": "ReplayGnssQuality<Linalg>::Result::outcome_name()"
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "GnssQuality::Result check_gnss_quality("
           },
           {
@@ -8196,31 +8196,31 @@
         "lean": [],
         "cpp": [
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "void project_coordinates("
           },
           {
-            "file": "examples/replay_common.py",
+            "file": "examples/replay/common.py",
             "symbol": "def project_coordinates("
           },
           {
-            "file": "examples/replay_px4.py",
+            "file": "examples/replay/px4.py",
             "symbol": "def prepare("
           },
           {
-            "file": "examples/replay_px4.py",
+            "file": "examples/replay/px4.py",
             "symbol": "def geographic_magnetic_fields("
           },
           {
-            "file": "examples/replay_kitti.py",
+            "file": "examples/replay/kitti.py",
             "symbol": "def prepare("
           },
           {
-            "file": "examples/replay_kitti.py",
+            "file": "examples/replay/kitti.py",
             "symbol": "def navigation_sample("
           },
           {
-            "file": "examples/replay_ins.cpp",
+            "file": "examples/replay/main.cpp",
             "symbol": "origin_pending"
           }
         ],

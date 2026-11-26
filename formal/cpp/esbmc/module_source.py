@@ -24,7 +24,7 @@ PINS = {
     "integrations/px4/module/FormalEskfAttitude.cpp": "f3df7057b135a74fe3a045577e35fb0faaf80453ca724989b0d5c032a315bba9",
     "include/formal_eskf/runtime/history/imu_history.hpp": "4516f6d8d890625acbcdb58ed493b8c4064286212d0159d12b84241412c7bd93",
     "integrations/px4/module/DeploymentConfig.hpp": "015b515863ec85cbc1ebd4994ea6c2b6a1a8191fea825a63f48fc7a72935a8dd",
-    "examples/replay_ins.cpp": "52c8c3cfdaf2398729e150f68823ddd50358479382fed984d4b38823f0cbdd43",
+    "examples/replay/main.cpp": "52c8c3cfdaf2398729e150f68823ddd50358479382fed984d4b38823f0cbdd43",
 }
 GROUPS = {
     "callback": ("FormalEskf.cpp", ("void FormalEskf::Run()",)),
@@ -228,7 +228,7 @@ def replay_steps(SOURCE, OUTPUTS, MANIFEST):
                                   'throw ReplayFailure{};', TEXT)
         OUTPUTS[f"replay_{NAME}.inc"] = PROJECTED
         MANIFEST["source_steps"][f"replay_{NAME}"] = {
-            "file": "examples/replay_ins.cpp", "source_sha256": sha256(TEXT.encode()),
+            "file": "examples/replay/main.cpp", "source_sha256": sha256(TEXT.encode()),
             "exception_diagnostics_projected": COUNT, "boundary": BOUNDARY,
         }
 

@@ -7,12 +7,12 @@ struct DiagnosticsNoGravity
 {
     // Consumed through InsSession's dependent Layout type, which Cppcheck does not resolve here.
     // cppcheck-suppress-begin unusedStructMember
-    static constexpr std::size_t imu_capacity = ins_example::Layout::imu_capacity;
-    static constexpr std::size_t context_capacity = ins_example::Layout::context_capacity;
-    static constexpr std::size_t gnss_capacity = ins_example::Layout::gnss_capacity;
-    static constexpr std::size_t magnetic_capacity = ins_example::Layout::magnetic_capacity;
-    static constexpr std::size_t barometer_capacity = ins_example::Layout::barometer_capacity;
-    static constexpr std::uint64_t gravity_interval_us = ins_example::Layout::gravity_interval_us;
+    static constexpr std::size_t imu_capacity = ins_test_profile::Layout::imu_capacity;
+    static constexpr std::size_t context_capacity = ins_test_profile::Layout::context_capacity;
+    static constexpr std::size_t gnss_capacity = ins_test_profile::Layout::gnss_capacity;
+    static constexpr std::size_t magnetic_capacity = ins_test_profile::Layout::magnetic_capacity;
+    static constexpr std::size_t barometer_capacity = ins_test_profile::Layout::barometer_capacity;
+    static constexpr std::uint64_t gravity_interval_us = ins_test_profile::Layout::gravity_interval_us;
     static constexpr std::size_t ground_effect_capacity = 64;
     static constexpr bool barometer_aiding = true, gravity_aiding = false, ground_effect = true, magnetic_model = true;
     // cppcheck-suppress-end unusedStructMember
@@ -91,7 +91,7 @@ public:
         t.expect(f.session.configure_gravity(false), p, "disable before seed");
         t.expect(!snapshot(f).gravity_enabled, p, "disabled differs from unsupported");
         using Unsupported = runtime::InsSession<ins_test::Backend, DiagnosticsNoGravity>;
-        Unsupported unsupported(ins_example::parameters<Unsupported>());
+        Unsupported unsupported(ins_test_profile::parameters<Unsupported>());
         t.expect(!unsupported.diagnostics(0).gravity_supported, p, "compiled-out gravity is explicitly unsupported");
         warm(f, t, p);
         f.at_rest = false;
@@ -436,7 +436,7 @@ public:
     }
     static void wrap(Context & t, std::string_view p)
     {
-        auto parameters = ins_example::parameters<Session>();
+        auto parameters = ins_test_profile::parameters<Session>();
         parameters.session_id = 73;
         Fixture f(parameters);
         f.session.m_reports[0].counts.evaluations = UINT64_MAX;
@@ -478,7 +478,7 @@ public:
     {
         std::printf("Diagnostic storage: session=%zu snapshot=%zu bytes\n", sizeof(Session),
                     sizeof(Session::Diagnostics));
-        Session s(ins_example::parameters<Session>());
+        Session s(ins_test_profile::parameters<Session>());
         auto d = s.diagnostics(10);
         t.expect(!d.initialized && !d.output_ready && !d.gnss_quality_evaluated && d.completed_fusion_us == 0, p,
                  "empty report cannot imply successful startup");

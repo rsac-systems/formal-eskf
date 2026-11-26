@@ -37,8 +37,8 @@
 #include <formal_eskf/runtime/sensors/magnetic/magnetometer_lifecycle.hpp>
 #include <formal_eskf/runtime/sensors/magnetic/magnetic_reference.hpp>
 #include <formal_eskf/runtime/sensors/imu/vertical_acceleration_health.hpp>
-#include "replay_conditions.hpp"
-#include "replay_gnss.hpp"
+#include "conditions.hpp"
+#include "gnss.hpp"
 #if defined(FORMAL_ESKF_REPLAY_PX4_MATRIX)
 #include <formal_eskf/linalg/backend/px4_matrix.hpp>
 #else

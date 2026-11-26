@@ -17,7 +17,7 @@ import shutil
 import statistics
 import subprocess
 
-from replay_common import (IMU_HEADER, INITIAL_HEADER, NAVIGATION_HEADER, PROGRESS_FORMAT,
+from common import (IMU_HEADER, INITIAL_HEADER, NAVIGATION_HEADER, PROGRESS_FORMAT,
                            dot, project_coordinates, plot_replay, write_csv)
 
 

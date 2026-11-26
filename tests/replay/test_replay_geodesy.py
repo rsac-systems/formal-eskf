@@ -12,10 +12,10 @@ from types import SimpleNamespace
 import unittest
 
 REPO_DIR = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_DIR / "examples"))
-import replay_common as COMMON
-import replay_kitti as KITTI
-import replay_px4 as PX4
+sys.path.insert(0, str(REPO_DIR / "examples" / "replay"))
+import common as COMMON
+import kitti as KITTI
+import px4 as PX4
 
 
 def ulog_fixture():

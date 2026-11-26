@@ -57,7 +57,7 @@ to the requirement and profile, rather than inferred from this inventory.
 | [TiltAlignment](../../../include/formal_eskf/runtime/session/tilt_alignment.hpp) | Delayed q/P-derived tilt variance and established-alignment latch. | Recompute variance in the new basis while preserving the existing latch at the event. |
 | Vertical health / bias learning / gravity sampling | Observation-basis residuals, body clipping/rate/force history and time holds. | Preserve. Use coherent new Down-aligned gravity for subsequent prediction/aiding; no source reset, new successful sample or artificial healthy interval. |
 | Reset reports / validity / output covariances | PX4 publication convention; current state and separately declared delayed proxies. | Preserve reset records on coordinate-only events. Transform proxies at their own epoch; do not reinterpret delayed P as current covariance. |
-| [Replay](../../../examples/replay_ins.cpp) prepared navigation/magnetic inputs | Fixed seed NED and their original sample times. | Keep input/reference values; model observations in their basis and map state/P back for output. |
+| [Replay](../../../examples/replay/main.cpp) prepared navigation/magnetic inputs | Fixed seed NED and their original sample times. | Keep input/reference values; model observations in their basis and map state/P back for output. |
 
 ### Observation and recovery paths
 

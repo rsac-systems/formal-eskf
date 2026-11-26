@@ -32,7 +32,7 @@ The demo profile is uncalibrated and is not a library deployment default.
 | [ins_session.hpp](../../../../../include/formal_eskf/runtime/session/ins_session.hpp), grouped definitions and settings | TC-R-INS-SESSION-01–03 cover public phase/configuration/admission/report views. Existing component cases retain numerical/failure partitions. |
 | [spherical_projection.hpp](../../../../../include/formal_eskf/runtime/frames/spherical_projection.hpp) | TC-R-INS-SESSION-04; fixed projection is distinct from moving ellipsoidal NED. |
 | [ModuleTest.cpp](../../../../../integrations/px4/tests/ModuleTest.cpp), `portable_session_equivalence` | Real uORB/work-item path versus direct public session calls on the same decoded binary32 receiver inputs, PX4-matrix backend and explicit profile. Compare all state/P coefficients, current output, epochs, correction/admission/error counters and reset count over startup, GNSS outage/source change, magnetic calibration change and a latched IMU-source fault. Existing module scenarios separately cover publication, partial failures and rebasing. |
-| [ins_runtime.cpp](../../../../../examples/ins_runtime.cpp) | Minimal host usage demonstration; executable success alone is not an independent correctness oracle. |
+| [ins_runtime.cpp](../../../../../examples/ins_runtime/main.cpp) | Minimal host usage demonstration; executable success alone is not an independent correctness oracle. |
 
 The adapter comparison intentionally shares input decoding and numerical owners;
 it checks invocation/composition correspondence, not independent numerical truth

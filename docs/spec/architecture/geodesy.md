@@ -118,7 +118,7 @@ remain separate from target timing/stack qualification.
   is spherical azimuthal-equidistant, with module Down supplied by MSL height
   difference. F-GEO-NED is an ellipsoidal-origin Cartesian transform. Sharing
   the letters NED does not make their coordinates, derivatives or datums equal.
-- Both replay preparers use [one batch bridge](../../../examples/replay_common.py)
+- Both replay preparers use [one batch bridge](../../../examples/replay/common.py)
   to the existing `replay_ins --geodesy` executable mode. It consumes an origin
   followed by sample locations in degrees/ellipsoidal metres and returns fixed
   NED positions plus sample-to-origin rotations. The C++ path uses `LocalNed`;

@@ -5,14 +5,14 @@
 #include <cmath>
 #include <limits>
 
-#include "../../../examples/ins_runtime_profile.hpp"
+#include "profile.hpp"
 #include "test_backend.hpp"
 #include "test_cases.hpp"
 
 namespace ins_test
 {
 using Backend = formal_eskf::test::Backend<double>;
-using Session = formal_eskf::runtime::InsSession<Backend, ins_example::Layout>;
+using Session = formal_eskf::runtime::InsSession<Backend, ins_test_profile::Layout>;
 using Vector = Session::vector3_type;
 using formal_eskf::test::Context;
 
@@ -54,10 +54,10 @@ template <typename Runtime = Session> struct Fixture
     bool configured{};
     bool send_barometer = true, send_gnss = true, send_magnetic = true;
     bool at_rest = true;
-    explicit Fixture(typename Runtime::Parameters const & parameters = ins_example::parameters<Runtime>())
+    explicit Fixture(typename Runtime::Parameters const & parameters = ins_test_profile::parameters<Runtime>())
         : session(parameters)
     {
-        configured = session.configure_timing(ins_example::timing) && session.configure_gravity(true) &&
+        configured = session.configure_timing(ins_test_profile::timing) && session.configure_gravity(true) &&
                      session.configure_magnetic({true, true, 0}) && session.configure_sensor_positions({});
         input.gnss.stamp.source.device_id = 201;
         input.gnss.latitude_deg = 47.397742;

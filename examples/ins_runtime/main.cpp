@@ -2,7 +2,7 @@
 // Synthetic stationary inputs and a known magnetic reference; no device, WMM provider or wall clock.
 #include <formal_eskf/linalg/backend/eigen.hpp>
 #include <formal_eskf/runtime/session/ins_session.hpp>
-#include "ins_runtime_profile.hpp"
+#include "profile.hpp"
 #include <cstdio>
 #include <cmath>
 using Backend = formal_eskf::linalg::EigenBackend<double>;
