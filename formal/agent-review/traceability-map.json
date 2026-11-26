@@ -8814,6 +8814,42 @@
         ],
         "esbmc": []
       }
+    },
+    {
+      "id": "R-INS-INITIAL-ATTITUDE",
+      "title": "Caller-qualified one-time initial attitude, shared seed epoch and unaided reference; native session cases, formal composition deferred",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/runtime/ins-initial-attitude.md",
+            "symbol": "# R-INS-INITIAL-ATTITUDE:"
+          },
+          {
+            "file": "docs/spec/verification/tests/runtime/ins-initial-attitude.md",
+            "symbol": "## Cases"
+          }
+        ],
+        "lean": [],
+        "cpp": [
+          {
+            "file": "include/formal_eskf/runtime/session/ins_startup.hpp",
+            "symbol": "InsStartup<Linalg>::seed_attitude("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "InsSession<Linalg, Layout>::initialize_attitude("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_capabilities.hpp",
+            "symbol": "InsSession<Linalg, Layout>::capabilities("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_frames.hpp",
+            "symbol": "InsSession<Linalg, Layout>::attach_navigation()"
+          }
+        ],
+        "esbmc": []
+      }
     }
   ]
 }

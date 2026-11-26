@@ -391,6 +391,13 @@ void InsSession<Linalg, Layout>::process_imu(ImuInput const & sample, std::uint6
     {
         return;
     }
+    (void)seed(seed_state, seed_covariance, sample, arrival_us);
+}
+
+template <typename Linalg, typename Layout>
+bool InsSession<Linalg, Layout>::seed(state_type const & seed_state, covariance_type const & seed_covariance,
+                                      ImuInput const & sample, std::uint64_t arrival_us)
+{
     typename observation_history_type::Seed seed;
     seed.context = m_imu_context;
     // No navigation observation was consumed. Leave their watermarks empty.
@@ -400,13 +407,65 @@ void InsSession<Linalg, Layout>::process_imu(ImuInput const & sample, std::uint6
         !check_timing(m_imu_history.seed(sample, arrival_us) && m_observations.seed(seed) &&
                       m_output.seed(seed_state, m_time_us) && m_continuity.seed(m_time_us)))
     {
-        return;
+        return false;
     }
     m_state = seed_state;
     m_covariance = seed_covariance;
     m_seed_time_us = m_time_us;
     m_covariance_time_us = m_time_us;
     m_initialized = true;
+    return true;
+}
+
+template <typename Linalg, typename Layout>
+bool InsSession<Linalg, Layout>::initialize_attitude(InitialAttitude const & prior, ImuInput const & sample,
+                                                     std::uint64_t arrival_us, ContextInput const & context)
+{
+    if (!m_configured || !m_parameters_valid || m_fault || m_initialized || m_phase != Phase::idle ||
+        m_imu_admissions != 0 || sample.source.accelerometer_id == 0 || sample.source.gyroscope_id == 0)
+    {
+        return false;
+    }
+    auto const norm_squared = linalg::squared_norm(prior.q_nb.coefficients());
+    if (!std::isfinite(norm_squared) || std::abs(norm_squared - 1.) > m_parameters.quaternion_squared_norm_tolerance)
+    {
+        return false;
+    }
+    state_type seed_state;
+    covariance_type seed_covariance;
+    if (!succeeded(m_startup.seed_attitude(prior.q_nb, prior.variance_n, seed_state, seed_covariance)) ||
+        !accept_imu(sample, arrival_us))
+    {
+        return false;
+    }
+    auto const imu = sample.mean_rates();
+    if (!linalg::all_finite(imu.specific_force_b) || !linalg::all_finite(imu.angular_rate_b))
+    {
+        return false;
+    }
+    auto tilt = m_tilt_alignment;
+    if (!succeeded(tilt.update(seed_state.q_nb, seed_covariance.template block<6, 6, 3, 3>())))
+    {
+        return false;
+    }
+    m_operation = InsOperation::initialization;
+    m_context = context;
+    m_time_us = sample.time_us;
+    m_imu_context = startup_context(m_time_us, m_settings.imu.rest_maximum_age_us);
+    ++m_imu_admissions;
+    m_imu_raw_time_us = sample.time_us;
+    m_imu_arrival_time_us = arrival_us;
+    m_diagnostic_imu_source = sample.source;
+    m_imu_admission = ImuAdmission::accepted;
+    if (!seed(seed_state, seed_covariance, sample, arrival_us))
+    {
+        return false;
+    }
+    m_tilt_alignment = tilt;
+    m_heading_aligned = true;
+    m_external_heading = true;
+    m_heading_reference = InsCapabilities::HeadingReference::true_north;
+    return true;
 }
 
 template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::begin_fusion()
@@ -659,7 +718,10 @@ void InsSession<Linalg, Layout>::complete_magnetic(
     }
     conditions.ready = !sample.fresh || sample.usable;
     conditions.heading_consistent = m_magnetic.heading.state().consistent;
-    conditions.heading_aligned = m_heading_aligned && !m_continuity.state().heading;
+    // A qualified magnetic reference takes over through its real reset, once.
+    conditions.heading_aligned = m_heading_aligned && !m_external_heading && !m_continuity.state().heading;
+    conditions.enabled &=
+        !m_external_heading || m_magnetic_model.heading_source() != magnetic_model_type::HeadingSource::magnetic_north;
     if (!check(m_magnetic.lifecycle.update(m_time_us, conditions, m_settings.magnetic.timing, event)))
     {
         return;
@@ -670,7 +732,7 @@ void InsSession<Linalg, Layout>::complete_magnetic(
         m_magnetic.filter.reset();
         clear_innovations(m_innovations.magnetic);
     }
-    if (previous.active && !lifecycle.active && !conditions.horizontal_aiding)
+    if (previous.active && !lifecycle.active && !conditions.horizontal_aiding && !m_external_heading)
     {
         m_heading_aligned = false;
     }
@@ -699,7 +761,7 @@ void InsSession<Linalg, Layout>::complete_magnetic(
         report(Group::magnetic).record_reset(epoch, reset_status, succeeded(reset_status));
     }
     // Preserve the separate post-feedback transition, including reset failure.
-    if (previous.active && !lifecycle.active && !conditions.horizontal_aiding)
+    if (previous.active && !lifecycle.active && !conditions.horizontal_aiding && !m_external_heading)
     {
         m_heading_aligned = false;
     }

@@ -128,7 +128,7 @@ The separate four-coefficient AHRS configuration remains independently usable.
 | Layer | Staged responsibility | Retained boundary |
 |---|---|---|
 | Math / ESKF core | Existing Cartesian prediction, real observations, gain/Joseph, injection/reset and frame algebra | No source clocks, capability policy, GNSS prerequisite, flight-mode checks or new nominal states. Numerical guard algebra must have its own contract/evidence even if it reuses products. |
-| Runtime startup | IMU-only seed, conditional priors, real gravity refinement, independent source admission under R-INS-STARTUP | No false rest, heading or velocity certainty; no fixed startup wait. |
+| Runtime startup | Optional [caller-qualified initial attitude](../requirements/runtime/ins-initial-attitude.md), or IMU-only seed, conditional priors, real gravity refinement, independent source admission under R-INS-STARTUP | No false rest, heading or velocity certainty; no fixed startup wait. |
 | Runtime session / capabilities | R-INS-CAPABILITIES and R-INS-CONTINUITY: source clocks, bias permissions, support status, numerical intervention and recovery | Retain full state/P and honest intervention provenance; shared fault domain still requires valid numerical/history owners. |
 | Runtime frame / history owners | [R-INS-ATTACHMENT](../requirements/runtime/ins-attachment.md): first geographic transaction; existing R-ORIGIN-REBASE for later moves | No invented old geographic origin; all affected state/history/reference owners prepare before commit. |
 | PX4 adapter | Units, time/context, external magnetic lookup, configuration, uORB mapping and reset delivery | Existing schemas and consumer contracts; no second main state or duplicated policy. |

@@ -25,6 +25,10 @@ body-local error coordinates. Numerical continuity is separately owned by
 
 ## Required behavior
 
+The optional [caller-qualified initial attitude](ins-initial-attitude.md) is a
+separate first-input route. Its supplied uncertainty replaces the gravity-derived
+pose/gauge prior; all ordinary IMU-only startup behavior below is unchanged.
+
 ### Configuration, collection and seed
 
 Before collection, the caller shall bind a validated, frozen profile including

@@ -31,24 +31,28 @@ InsCapabilities InsSession<Linalg, Layout>::capabilities(std::uint64_t now_us) c
     result.attitude.available = result.attitude.reasons == 0;
     auto const & magnetic = m_magnetic.lifecycle.state();
     auto const heading_time = std::max(magnetic.last_fuse_time_us, magnetic.last_reset_time_us);
-    bool const reference = m_heading_reference_id != 0;
+    bool const reference = m_external_heading || m_heading_reference_id != 0;
     if (reference)
     {
         result.heading_reference = m_heading_reference;
     }
     auto age_less = [this](std::uint64_t time, std::uint64_t limit)
     { return time != 0 && m_time_us >= time && m_time_us - time < limit; };
-    result.heading.aiding_time_us = heading_time;
+    result.heading.aiding_time_us = m_external_heading ? 0 : heading_time;
     result.heading.reasons = result.attitude.reasons | (reference ? Reason::none : Reason::unreferenced);
-    result.heading.reasons |=
-        age_less(heading_time, m_settings.magnetic.maximum_heading_age_us) ? Reason::none : Reason::expired;
-    result.heading.reasons |= magnetic_heading_aiding() && m_observations.magnetic_generation() == m_magnetic.generation
-                                  ? Reason::none
-                                  : Reason::unqualified;
+    if (!m_external_heading)
+    {
+        result.heading.reasons |=
+            age_less(heading_time, m_settings.magnetic.maximum_heading_age_us) ? Reason::none : Reason::expired;
+        result.heading.reasons |=
+            magnetic_heading_aiding() && m_observations.magnetic_generation() == m_magnetic.generation
+                ? Reason::none
+                : Reason::unqualified;
+    }
     result.heading.reasons |=
         navigation_variance(6)(2) < m_settings.magnetic.maximum_heading_variance ? Reason::none : Reason::uncertainty;
     result.heading.available = result.heading.reasons == 0;
-    result.heading.aided = result.heading.available;
+    result.heading.aided = result.heading.available && !m_external_heading;
     auto translation = [&](std::uint64_t time, bool referenced)
     {
         InsCapabilities::Capability value;

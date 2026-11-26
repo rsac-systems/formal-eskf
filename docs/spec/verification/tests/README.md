@@ -91,6 +91,7 @@ replay orchestration, tool runners and the generator pipeline. Extracted portabl
 IMU/observation histories, output prediction, height aiding, magnetic-model coordination and strict INS initialization are in scope under their runtime
 contracts, with their component tests moved alongside them. Platform message conversion and publication retain separate adapter coverage.
 External linalg internals and deployment qualification have separate boundaries.
+[Initial-attitude cases](runtime/ins-initial-attitude.md) cover the optional external prior.
 [Session cases](runtime/ins-session.md) cover the extracted composition; component
 cases alone do not establish it. Full symbolic and target acceptance remain separate.
 

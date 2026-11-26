@@ -261,6 +261,11 @@ public:
         typename observation_history_type::LandState land{};
         typename observation_history_type::VehicleState vehicle{};
     };
+    struct InitialAttitude
+    {
+        quaternion_type q_nb{};             // Body FRD to true-North local NED at the seed endpoint.
+        std::array<double, 3> variance_n{}; // Small-angle variances in NED, rad^2; strictly positive.
+    };
     struct ModelRequest
     {
         bool required{};
@@ -402,6 +407,12 @@ public:
     [[nodiscard]] bool startup_valid() const { return m_parameters_valid; }
     // One writer supplies coherent snapshots; complete a pending phase before admitting another IMU.
     void process_imu(ImuInput const & sample, std::uint64_t arrival_us, ContextInput const & context);
+    /** Alternative first input, using a caller-qualified attitude at sample.time_us.
+     * Supplies neither ongoing heading aiding nor navigation position/velocity.
+     * Input rejection preserves the unseeded estimate; required-history failure latches a fault.
+     */
+    [[nodiscard]] bool initialize_attitude(InitialAttitude const & prior, ImuInput const & sample,
+                                           std::uint64_t arrival_us, ContextInput const & context);
     void receive_gnss(typename observation_history_type::GnssSample const & sample, std::uint64_t arrival_us);
     void receive_magnetic(typename observation_history_type::MagneticSample const & sample, std::uint64_t arrival_us);
     void receive_barometer(typename observation_history_type::BarometerSample const & sample, std::uint64_t arrival_us);
@@ -486,6 +497,9 @@ private:
         }
     }
     typename observation_history_type::Context startup_context(std::uint64_t epoch, std::uint64_t maximum_age) const;
+    bool seed(state_type const & seed_state, covariance_type const & seed_covariance, ImuInput const & sample,
+              std::uint64_t arrival_us);
+    bool external_heading_valid() const;
     bool admit_imu(ImuInput const & sample, std::uint64_t arrival_us);
     bool accept_imu(ImuInput const & sample, std::uint64_t arrival_us);
     void predict_and_fuse(typename imu_history_type::interval_type const & interval);
@@ -584,7 +598,7 @@ private:
     vertical_health_type m_vertical_health{};
     double m_average_imu_interval;
     Magnetic m_magnetic{};
-    bool m_heading_aligned{};
+    bool m_heading_aligned{}, m_external_heading{};
     magnetic_model_type m_magnetic_model;
     typename magnetic_model_type::Settings m_magnetic_settings{};
     std::uint64_t m_mag_model_origin_time{};

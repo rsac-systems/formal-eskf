@@ -38,6 +38,10 @@ public:
     [[nodiscard]] bool update(imu_type const & imu, value_type angular_interval, value_type force_interval);
     /** Replace both outputs on success; zero yaw is a gauge, not a North reference. */
     [[nodiscard]] Status seed(state_type & state, covariance_type & covariance) const;
+    /** One caller-qualified body-to-true-NED attitude prior; variances are in NED rad^2. */
+    [[nodiscard]] Status seed_attitude(typename state_type::quaternion_type const & attitude,
+                                       std::array<value_type, 3> const & variance_n, state_type & state,
+                                       covariance_type & covariance) const;
     void reset()
     {
         m_filtered = {};
@@ -49,6 +53,8 @@ public:
     bool ready() const { return m_ready; }
 
 private:
+    Status seed_covariance(state_type const & candidate, linalg::Matrix<Linalg, 3, 3> const & attitude_variance_n,
+                           state_type & state, covariance_type & covariance) const;
     Parameters m_parameters;
     imu_type m_filtered{};
     bool m_collected{}, m_ready{};
@@ -140,11 +146,42 @@ template <typename Linalg> Status InsStartup<Linalg>::seed(state_type & state, c
     {
         return status;
     }
-    covariance_type P;
     linalg::Matrix<Linalg, 3, 3> tilt;
     tilt(0, 0) = tilt(1, 1) = m_parameters.tilt_variance;
+    return seed_covariance(candidate, tilt, state, covariance);
+}
+
+template <typename Linalg>
+Status InsStartup<Linalg>::seed_attitude(typename state_type::quaternion_type const & attitude,
+                                         std::array<value_type, 3> const & variance_n, state_type & state,
+                                         covariance_type & covariance) const
+{
+    if (!valid() || !linalg::all_finite(attitude.coefficients()))
+    {
+        return Status::domain_error;
+    }
+    linalg::Matrix<Linalg, 3, 3> variance;
+    for (std::size_t axis = 0; axis < 3; ++axis)
+    {
+        if (!math_type::is_finite(variance_n[axis]) || variance_n[axis] <= value_type{0})
+        {
+            return Status::domain_error;
+        }
+        variance(axis, axis) = variance_n[axis];
+    }
+    state_type candidate;
+    candidate.q_nb = attitude;
+    return seed_covariance(candidate, variance, state, covariance);
+}
+
+template <typename Linalg>
+Status InsStartup<Linalg>::seed_covariance(state_type const & candidate,
+                                           linalg::Matrix<Linalg, 3, 3> const & attitude_variance_n, state_type & state,
+                                           covariance_type & covariance) const
+{
+    covariance_type P;
     auto const R = so3::to_rotation_matrix(candidate.q_nb);
-    P.template set_block<6, 6>(linalg::transpose(R) * tilt * R);
+    P.template set_block<6, 6>(linalg::transpose(R) * attitude_variance_n * R);
     for (std::size_t axis = 0; axis < 3; ++axis)
     {
         P(axis, axis) = m_parameters.position_variance[axis];

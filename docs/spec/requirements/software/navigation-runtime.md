@@ -90,6 +90,7 @@ limited to its original applicability.
 | [R-INS-SESSION](../runtime/ins-session.md) | Ordered owner phases, external model boundary, faults and raw reports. |
 | [R-INS-DIAGNOSTICS](../runtime/diagnostics.md) | Target bounded owner evidence, result epochs, coherent snapshots and event-count semantics. |
 | [R-INS-INITIALIZATION](../runtime/ins-initialization.md) | Strict stationary accumulation, tilt/heading preparation and initial state/P values. |
+| [R-INS-INITIAL-ATTITUDE](../runtime/ins-initial-attitude.md) | Optional caller-qualified one-time attitude prior, shared seed epoch and unaided reference. |
 | [R-INS-STARTUP](../runtime/ins-startup.md) | Staged target: IMU seed, pre-alignment refinement and independent aiding admission. |
 | [R-INS-CAPABILITIES](../runtime/ins-capabilities.md) | Staged target: full/partial output availability and application acceptance boundary. |
 | [R-INS-CONTINUITY](../runtime/ins-continuity.md) | Staged target: source-loss covariance propagation, constrained numerical regularization and qualified recovery. |

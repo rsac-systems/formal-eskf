@@ -23,6 +23,11 @@ from heading and translation validity. This contract adopts that separation,
 using this project's Cartesian INS and fixed-field observation models.
 It does not adopt all PX4 states, yaw estimators or synthetic observations.
 
+An optional [initial attitude prior](ins-initial-attitude.md) supplies a separate
+unaided true-North reference. Its propagated uncertainty and numerical provenance
+govern availability; it does not supply magnetic health or a successful-aiding
+clock. The ordinary source-specific rules below apply after real aiding takes over.
+
 ## Required behavior
 
 ### Fixed configuration, independent capabilities

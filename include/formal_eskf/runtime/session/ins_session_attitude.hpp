@@ -99,6 +99,12 @@ typename InsSession<Linalg, Layout>::vector3_type InsSession<Linalg, Layout>::ro
     return navigation_variance(6);
 }
 
+template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::external_heading_valid() const
+{
+    return m_external_heading && !m_continuity.state().heading &&
+           rotation_variance_n()(2) < m_settings.magnetic.maximum_heading_variance;
+}
+
 template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::magnetic_heading_valid() const
 {
     auto const & lifecycle = m_magnetic.lifecycle.state();
@@ -154,7 +160,7 @@ typename InsSession<Linalg, Layout>::MagneticSample InsSession<Linalg, Layout>::
         m_magnetic.filter.reset();
         clear_innovations(m_innovations.magnetic);
         m_magnetic.heading.reset_heading();
-        m_heading_aligned = false;
+        m_heading_aligned = m_external_heading;
     }
     m_magnetic.generation = input.generation;
     m_magnetic.sample_time_us = input.time_us;
@@ -184,7 +190,7 @@ InsSession<Linalg, Layout>::prepare_magnetic_observation(MagneticSample const & 
          (on_ground || (previous.active && !conditions.horizontal_aiding))) ||
         (previous.recovery_reason == magnetic_lifecycle_type::RecoveryReason::source_changed && on_ground))
     {
-        m_heading_aligned = false;
+        m_heading_aligned = m_external_heading;
     }
     if (sample.source.device_id != 0U)
     {
@@ -331,6 +337,7 @@ InsSession<Linalg, Layout>::reset_magnetic_heading(std::uint64_t sample_time_us)
             record_output_reset(before, after, {.attitude = true});
         }
         m_continuity.recover_heading();
+        m_external_heading = false;
         m_heading_reference_id = m_magnetic_model.reference_id();
         m_heading_reference = m_magnetic_model.heading_source() == magnetic_model_type::HeadingSource::magnetic_north
                                   ? InsCapabilities::HeadingReference::magnetic_north

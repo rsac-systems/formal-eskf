@@ -117,12 +117,14 @@ InsSession<Linalg, Layout>::frame_admission(vector3_type const & position, vecto
 
 template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::attach_navigation()
 {
-    bool const north = m_magnetic_model.heading_source() != magnetic_model_type::HeadingSource::magnetic_north;
-    if (!m_tilt_alignment.aligned() || !magnetic_heading_valid() || !north || !gps_good() ||
-        m_heading_reference_id != m_magnetic_model.reference_id() || m_gnss.sample.time_us == 0 ||
-        m_observations.gnss_generation() != m_gnss.generation ||
-        m_observations.magnetic_generation() != m_magnetic.generation ||
-        m_observations.magnetic_source().device_id != m_magnetic.source.device_id)
+    bool const magnetic_reference_valid =
+        magnetic_heading_valid() &&
+        m_magnetic_model.heading_source() != magnetic_model_type::HeadingSource::magnetic_north &&
+        m_heading_reference_id == m_magnetic_model.reference_id() &&
+        m_observations.magnetic_generation() == m_magnetic.generation &&
+        m_observations.magnetic_source().device_id == m_magnetic.source.device_id;
+    if (!m_tilt_alignment.aligned() || (!external_heading_valid() && !magnetic_reference_valid) || !gps_good() ||
+        m_gnss.sample.time_us == 0 || m_observations.gnss_generation() != m_gnss.generation)
     {
         return true;
     }

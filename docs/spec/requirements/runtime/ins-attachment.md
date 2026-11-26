@@ -36,6 +36,11 @@ a magnetic-model lookup candidate before attachment; an existing geographic
 origin shall not be required for that lookup. A single-antenna GNSS position or
 course shall not be substituted for a direct body-heading observation.
 
+A still-available [initial true-North prior](ins-initial-attitude.md) may establish
+orientation without a magnetic source/generation. It does not substitute for GNSS
+qualification or the real position/velocity resets below. A prior already fixes
+the horizontal gauge; attachment shall not add a second heading observation.
+
 Missing prerequisites shall defer attachment and preserve independently valid
 attitude/relative-height service. The operation shall not restart the INS,
 change its dimension or erase learned body-frame biases. Genuine faults still
