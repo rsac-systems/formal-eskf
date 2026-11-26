@@ -206,6 +206,7 @@ physical/target acceptance and source proofs remain open under
 | `PX4-TIME` | [timestamps and bounded history](requirements/integration/px4/timestamps.md) |
 | `R-REPLAY-GNSS-GATING` | [Replay GNSS gating](requirements/integration/replay/gnss-gating.md) |
 | `R-REPLAY-SESSION` | [Recorded sensors through an INS session](requirements/integration/replay/session.md) |
+| `R-REPLAY-KITTI` | [Segmented KITTI navigation replay](requirements/integration/replay/kitti-session.md) |
 | `R-REPLAY-GEODESY` | [Replay geodetic positions and vector frames](requirements/integration/replay/geodesy.md) |
 | `R-REPLAY-GNSS-LIFECYCLE` | [Replay GNSS lifecycle](requirements/integration/replay/gnss-lifecycle.md) |
 | `R-REPLAY-GNSS-QUALITY` | [Replay GNSS quality](requirements/integration/replay/gnss-quality.md) |

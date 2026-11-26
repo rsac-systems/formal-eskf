@@ -8918,6 +8918,26 @@
         ],
         "esbmc": []
       }
+    },
+    {
+      "id": "R-REPLAY-KITTI",
+      "title": "KITTI session binding; native coverage, formal caller proof pending",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/integration/replay/kitti-session.md",
+            "symbol": "# R-REPLAY-KITTI:"
+          }
+        ],
+        "lean": [],
+        "cpp": [
+          {
+            "file": "examples/replay/session.cpp",
+            "symbol": "void replay_session("
+          }
+        ],
+        "esbmc": []
+      }
     }
   ]
 }

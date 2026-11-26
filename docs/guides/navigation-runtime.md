@@ -10,8 +10,9 @@ The [architecture](../spec/architecture/navigation-runtime.md) and
 [R-INS-SESSION](../spec/requirements/runtime/ins-session.md) own the boundaries.
 The [PX4 adapter](../../integrations/px4/module/FormalEskf.cpp) uses the same owner.
 The [PX4-log replay](../../examples/replay/px4.py) uses standard session startup and
-delayed fusion. KITTI retains its separate runner while its external-navigation
-initialization contract is reviewed.
+delayed fusion. The [KITTI replay](../../examples/replay/kitti.py) uses the same
+session with an explicit, KITTI-only
+[initial navigation prior](../spec/requirements/runtime/ins-initial-navigation.md).
 
 The [staged INS profile](../spec/profiles/staged-ins.md) keeps one full INS and
 independently qualifies tilt, heading and navigation. IMU seed, real gravity
@@ -135,3 +136,24 @@ fixture checks, sanitizers and static analysis establish different properties.
 [Open verification boundaries](verification.md#open-boundaries) retain stale caller
 pins, incomplete solver profiles, numerical budgets and target qualification;
 extracting a session does not close those obligations.
+
+## Recorded KITTI inputs
+
+KITTI supplies one coherent OXTS attitude/position/velocity prior at the first
+usable real IMU endpoint of each continuous segment. Subsequent navigation data
+still undergoes normal ten-second GNSS qualification and innovation gating.
+The prior does not create successful fusion counts or continuously available
+heading. This exception is selected only by the KITTI host entrypoint.
+
+An IMU gap above 50 ms ends a segment; the next uses a new session, fresh bias/P
+and qualification. No synthetic IMU fills the gap. `segments/<id>/` retains each
+session's inputs/results; combined `result/` CSVs carry segment IDs, and plots
+leave breaks between segments. The aggregate summary contains both per-segment
+and summed counts. Short segments can have no usable navigation output.
+
+`input/source.json` documents independent-axis demo priors, synthetic DOP with
+its check disabled, unavailable clipping/rest and the zero geoid-offset height
+assumption. The timing profile accepts real 2..50 ms intervals at nominal 100 Hz.
+Its conservative history length can produce about one second of actual lag;
+`status.csv` reports it. OXTS supplies both inertial and fused navigation signals,
+so this is not an independent accuracy benchmark or a continuous outage solution.

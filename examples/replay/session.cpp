@@ -65,7 +65,7 @@ struct Configuration
     bool model_provider{};
 };
 
-Configuration configuration(std::filesystem::path const & input)
+Configuration configuration(std::filesystem::path const & input, bool kitti_prior)
 {
     auto settings = read_settings(input);
     Configuration result;
@@ -111,6 +111,20 @@ Configuration configuration(std::filesystem::path const & input)
     p.bias_learning.accelerometer_enabled = metadata_integer(take(settings, "accelerometer_bias_learning"), 0, 1) != 0;
     p.bias_learning.gyroscope_enabled = metadata_integer(take(settings, "gyroscope_bias_learning"), 0, 1) != 0;
     p.height.bias_limits = s.bias_limits;
+    if (kitti_prior)
+    {
+        // OXTS instantaneous samples have irregular real intervals; never synthesize
+        // gap samples to fit a nominal 100 Hz schedule. The requested 200 ms lag
+        // determines a conservative history length from the 2 ms lower bound.
+        p.observation_timing.imu = {10000, 2000, 50000, 50000, 200, 100000, 5000000, 150000, 90000, 100000};
+        p.observation_timing.gnss_spacing_us =
+            static_cast<std::uint32_t>(metadata_integer(take(settings, "gnss_spacing_us"), 10000, 10000000));
+        p.observation_timing.magnetic_spacing_us = 1000000;
+        p.observation_timing.barometer_spacing_us = 1000000;
+        p.output.timing = p.observation_timing.imu;
+        p.output.nominal_interval_s = p.settings.imu.nominal_interval_s = 0.01;
+        result.timing.filter_interval_us = 10000;
+    }
     if (!settings.empty())
     {
         throw std::runtime_error("unknown replay setting: " + settings.begin()->first);
@@ -375,9 +389,10 @@ void write_current(std::ostream & stream, Session const & session, std::uint64_t
 }
 } // namespace
 
-void replay_session(std::filesystem::path const & input, std::filesystem::path const & output, bool withdraw_magnetic)
+void replay_session(std::filesystem::path const & input, std::filesystem::path const & output, bool withdraw_magnetic,
+                    bool kitti_prior)
 {
-    auto const config = configuration(input);
+    auto const config = configuration(input, kitti_prior);
     auto const imu = read_imu(input);
     auto const gnss = read_gnss(input);
     auto const magnetic = read_magnetic(input);
@@ -405,6 +420,45 @@ void replay_session(std::filesystem::path const & input, std::filesystem::path c
         !session->configure_magnetic(config.magnetic) || !session->configure_sensor_positions({}))
     {
         throw std::runtime_error("invalid replay session profile");
+    }
+    if (kitti_prior)
+    {
+        auto prior_file =
+            open_csv(input / "initial_navigation.csv",
+                     "timestamp_us,q0,q1,q2,q3,attitude_variance_n,attitude_variance_e,attitude_variance_d,"
+                     "latitude_deg,longitude_deg,altitude_ellipsoid_m,altitude_msl_m,vn,ve,vd,"
+                     "position_variance_n,position_variance_e,position_variance_d,"
+                     "velocity_variance_n,velocity_variance_e,velocity_variance_d");
+        std::array<double, 21> row{};
+        if (!read_row(prior_file, row) || timestamp(row[0]) != imu.front().time_us)
+        {
+            throw std::runtime_error("initial navigation epoch must equal the first real IMU endpoint");
+        }
+        Session::InitialNavigation prior;
+        // The value constructor normalizes; separately reject a non-unit supplied prior.
+        check_status(Session::quaternion_type::from_coefficients(row[1], row[2], row[3], row[4],
+                                                                 parameters.estimator.minimum_quaternion_norm,
+                                                                 prior.attitude.q_nb),
+                     "initial attitude", timestamp(row[0]));
+        double const squared_norm = row[1] * row[1] + row[2] * row[2] + row[3] * row[3] + row[4] * row[4];
+        if (std::abs(squared_norm - 1.) > parameters.estimator.quaternion_squared_norm_tolerance)
+        {
+            throw std::runtime_error("initial quaternion is not unit length");
+        }
+        prior.attitude.variance_n = {row[5], row[6], row[7]};
+        prior.position = {row[8], row[9], row[10]};
+        prior.altitude_msl_m = row[11];
+        prior.velocity_n = vector3(row[12], row[13], row[14]);
+        prior.position_variance_n = {row[15], row[16], row[17]};
+        prior.velocity_variance_n = {row[18], row[19], row[20]};
+        if (read_row(prior_file, row) || !session->initialize_navigation(prior, imu.front(), imu.front().time_us, {}))
+        {
+            throw std::runtime_error("invalid or repeated initial navigation prior");
+        }
+    }
+    else if (std::filesystem::exists(input / "initial_navigation.csv"))
+    {
+        throw std::runtime_error("initial navigation is restricted to the explicit KITTI replay mode");
     }
     if (!std::filesystem::create_directories(output))
     {
@@ -437,7 +491,10 @@ void replay_session(std::filesystem::path const & input, std::filesystem::path c
         {
             context.land = land[land_index++];
         }
-        session->process_imu(sample, now, context);
+        if (!kitti_prior || &sample != &imu.front())
+        {
+            session->process_imu(sample, now, context);
+        }
         while (gps_index < gnss.size() && gnss[gps_index].stamp.time_us <= now)
         {
             session->receive_gnss(gnss[gps_index++], now);
@@ -515,7 +572,7 @@ void replay_session(std::filesystem::path const & input, std::filesystem::path c
     {
         stream->close();
     }
-    std::cout << "Standard INS session: " << stats.predictions
+    std::cout << (kitti_prior ? "KITTI seeded INS session: " : "Standard INS session: ") << stats.predictions
               << " delayed predictions; gravity=" << session->gravity().corrections
               << ", magnetic=" << session->magnetic_state().corrections
               << ", GNSS=" << session->gnss_state().corrections << '\n'

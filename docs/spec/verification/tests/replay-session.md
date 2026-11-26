@@ -3,7 +3,7 @@
 **Status:** Draft
 **Scope:** [R-REPLAY-SESSION](../../requirements/integration/replay/session.md) and
 [R-REPLAY-GEODESY](../../requirements/integration/replay/geodesy.md), excluding live hardware timing and navigation accuracy.
-**Level / purpose:** Host adapter/session integration and legacy-path regression.
+**Level / purpose:** Host adapter/session integration.
 **Profiles:** Binary64 Eigen and PX4 matrix host backends; current configured codegen/rotation variants.
 **Setup:** The [session fixture](../../../../tests/replay/test_replay_session.py)
 passes independent stationary FRD IMU, geographic GNSS and magnetic samples through
@@ -27,8 +27,11 @@ require the repository's optional replay dependencies.
 | TC-R-REPLAY-SESSION-06 | Invalid order | Host boundary rejection | Swap two GNSS rows | Nonzero exit before result directory creation; explicit ordering failure | `ReplaySession.test_unordered_input_fails_before_output` |
 | TC-R-REPLAY-SESSION-07 | History fault | No fabricated gap filling / fault output | One-second IMU timestamp hole after startup | Nonzero exit, retained fault status with unavailable attitude, no successful summary | `ReplaySession.test_imu_history_fault_is_not_success` |
 | TC-R-REPLAY-SESSION-08 | Runtime model query | Model location/basis ownership | Controlled provider and stationary known location | Provider queried at the session-requested location; normal navigation succeeds; independent equator/90-degree basis oracle in geodesy family | `ReplaySession.test_model_requests_use_real_session_locations`; `ReplayGeodesy.test_magnetic_vector_uses_same_origin` |
-
 | TC-R-REPLAY-SESSION-09 | Missing enabled check input | Input provenance | Enable spoofing quality check without its logged report | Preparation fails before input publication; no healthy substitute | `ReplaySession.test_missing_requested_spoofing_check_is_rejected` |
+| TC-R-REPLAY-KITTI-01 | Independent segment startup | R-REPLAY-KITTI / prior, gaps and qualification | Two identical stationary 15-second segments separated by a real outage | Fresh 10-second qualification in each, no gap outputs or synthetic IMU, lost prior heading does not prevent later GNSS, exact per-session/aggregate counts | `KittiSession.test_prior_qualification_and_gap_restart` |
+| TC-R-REPLAY-KITTI-02 | Short segment and invalid prior | Partial service and epoch binding | One-second segment; then mismatched prior timestamp | No invented navigation/correction; mismatched prior fails before result creation | `KittiSession.test_short_segment_and_invalid_prior` |
+| TC-R-REPLAY-KITTI-03 | Explicit scope | KITTI-only selection | Add a navigation-prior file to ordinary PX4 input | Standard mode rejects the prior instead of importing it or silently changing startup | `KittiSession.test_standard_mode_does_not_use_kitti_prior` |
+| TC-R-REPLAY-KITTI-04 | Packet meaning | Input signs, actual intervals and quality | Known FLU vectors, east-zero OXTS yaw, local Up velocity, isolated packet and bad navigation mode | Exact FRD/NED signs, isolated packet skipped, bad quality retained for runtime | `KittiSession.test_no_gap_filling_and_prior_frame_conversion` |
 
 The [geodesy/host boundary family](../../../../tests/replay/test_replay_geodesy.py)
 additionally preserves original bad fixes, dual height datums, nonfinite receiver

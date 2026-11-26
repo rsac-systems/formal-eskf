@@ -11,7 +11,7 @@ import tempfile
 from types import SimpleNamespace
 import unittest
 
-from test_replay_geodesy import COMMON, PX4, read_csv, ulog_fixture
+from test_replay_geodesy import COMMON, PX4, KITTI, read_csv, ulog_fixture
 
 
 def stationary_log(SECONDS=34, CLIPPING=None, GPS=True, MAGNETIC=True):
@@ -182,6 +182,103 @@ class ReplaySession(unittest.TestCase):
         for LAT, LON in QUERIES:
             self.assertAlmostEqual(LAT, 25, places=5)
             self.assertAlmostEqual(LON, 121, places=5)
+
+
+class KittiSession(unittest.TestCase):
+    def setUp(self):
+        self.TEMP = tempfile.TemporaryDirectory()
+        self.addCleanup(self.TEMP.cleanup)
+        self.ROOT = Path(self.TEMP.name)
+
+    @staticmethod
+    def records(START=1000000, SECONDS=15):
+        PACKET = dict.fromkeys(KITTI.OXTS_FIELDS, 0.)
+        PACKET.update(lat=25, lon=121, alt=80, yaw=math.pi / 2, az=9.80665,
+                      navstat=4, numsats=12, posmode=3, velmode=2,
+                      pos_accuracy=1, vel_accuracy=0.3)
+        return [(TIME, PACKET.copy()) for TIME in range(START, START + SECONDS * 1000000 + 1, 10000)]
+
+    def test_prior_qualification_and_gap_restart(self):
+        RECORDS = self.records(SECONDS=15) + self.records(START=20000000, SECONDS=15)
+        SEGMENTS, _, META = KITTI.prepare(RECORDS, 10, BINARY)
+        self.assertEqual(len(SEGMENTS), 2)
+        self.assertEqual(META["synthetic_imu_rows"], 0)
+        self.assertEqual(META["imu_gaps"], [[16000000, 20000000]])
+        self.assertEqual(META["settings"]["gnss_health_time_us"], 10000000)
+        self.assertEqual(META["settings"]["gnss_checks"] & 2, 0)  # Synthetic DOP never checked.
+        for SEGMENT in SEGMENTS:
+            START = SEGMENT["prior"][0]
+            self.assertEqual(SEGMENT["imu"][0][0], START)
+            self.assertTrue(all(ROW[0] > START for ROW in SEGMENT["gnss"]))
+            self.assertTrue(all(ROW[9] == -1 for ROW in SEGMENT["imu"]))  # Clipping unavailable.
+            ROOT = self.ROOT / "segments" / str(SEGMENT["segment"])
+            KITTI.write_segment(ROOT / "input", SEGMENT, META["settings"], [25, 121, 80])
+            COMMON.run_estimator(BINARY, ROOT / "input", ROOT / "result", KITTI=True)
+            SUMMARY = json.loads((ROOT / "result/summary.json").read_text())
+            STATUS = read_csv(ROOT / "result/status.csv")
+            self.assertEqual(SUMMARY["initialized_at_us"], START)
+            self.assertGreaterEqual(SUMMARY["navigation_available_at_us"], START + 10000000)
+            self.assertTrue(SUMMARY["final_navigation_available"])
+            self.assertEqual(SUMMARY["magnetic_corrections"], 0)
+            self.assertEqual(SUMMARY["imu_rejections"], 0)
+            self.assertEqual(SUMMARY["overflows"], 0)
+            self.assertTrue(any(ROW["heading"] == 0 and ROW["gnss_qualified"] == 0 for ROW in STATUS))
+            self.assertEqual(STATUS[0]["gnss_qualified"], 0)
+            self.assertEqual(STATUS[0]["lag_us"], 0)
+        TOTALS = KITTI.combine_results(self.ROOT, SEGMENTS)
+        STATUS = read_csv(self.ROOT / "result/status.csv")
+        self.assertEqual({ROW["segment"] for ROW in STATUS}, {1, 2})
+        self.assertFalse(any(16000000 < ROW["timestamp_us"] < 20010000 for ROW in STATUS))
+        self.assertGreater(TOTALS["gnss_corrections"], 0)
+        self.assertEqual(TOTALS["imu_admissions"], sum(len(S["imu"]) for S in SEGMENTS))
+        # Two identical independent segments have the same lifetime counts.
+        SUMMARY = json.loads((self.ROOT / "result/summary.json").read_text())
+        for KEY in TOTALS:
+            self.assertEqual(SUMMARY["segments"][0][KEY], SUMMARY["segments"][1][KEY])
+
+    def test_short_segment_and_invalid_prior(self):
+        SEGMENTS, _, META = KITTI.prepare(self.records(SECONDS=1), 10, BINARY)
+        INPUT = self.ROOT / "input"
+        KITTI.write_segment(INPUT, SEGMENTS[0], META["settings"], [25, 121, 80])
+        COMMON.run_estimator(BINARY, INPUT, self.ROOT / "short", KITTI=True)
+        SUMMARY = json.loads((self.ROOT / "short/summary.json").read_text())
+        self.assertFalse(SUMMARY["final_navigation_available"])
+        self.assertEqual(SUMMARY["gnss_corrections"], 0)
+        PATH = INPUT / "initial_navigation.csv"
+        ROWS = PATH.read_text().splitlines()
+        VALUES = ROWS[1].split(',')
+        VALUES[0] = str(int(VALUES[0]) + 1)
+        PATH.write_text(ROWS[0] + '\n' + ','.join(VALUES) + '\n')
+        with self.assertRaises(subprocess.CalledProcessError):
+            COMMON.run_estimator(BINARY, INPUT, self.ROOT / "bad", KITTI=True)
+        self.assertFalse((self.ROOT / "bad").exists())
+
+    def test_standard_mode_does_not_use_kitti_prior(self):
+        SEGMENTS, _, _ = KITTI.prepare(self.records(SECONDS=1), 10, BINARY)
+        INPUT = self.ROOT / "input"
+        PX4.prepare(stationary_log(SECONDS=1), INPUT, BINARY)
+        COMMON.write_csv(INPUT / "initial_navigation.csv", KITTI.INITIAL_NAVIGATION_HEADER, [SEGMENTS[0]["prior"]])
+        with self.assertRaises(subprocess.CalledProcessError):
+            COMMON.run_estimator(BINARY, INPUT, self.ROOT / "result", SESSION=True)
+        self.assertFalse((self.ROOT / "result").exists())
+
+    def test_no_gap_filling_and_prior_frame_conversion(self):
+        RECORDS = self.records(SECONDS=1)
+        # Frame sanity: body FLU -> FRD; identity orientation is east-facing KITTI yaw pi/2.
+        RECORDS[1][1].update(ax=1, ay=2, az=3, wx=4, wy=5, wz=6, vn=2, ve=3, vu=4)
+        SEGMENTS, _, _ = KITTI.prepare(RECORDS, 10, BINARY)
+        self.assertEqual(SEGMENTS[0]["prior"][1:5], [1, 0, 0, 0])
+        self.assertEqual(SEGMENTS[0]["prior"][12:15], [2, 3, -4])
+        self.assertEqual(SEGMENTS[0]["imu"][1][3:9], [1, -2, -3, 4, -5, -6])
+        # One isolated packet cannot supply a real initialization interval.
+        SEGMENTS, _, META = KITTI.prepare([(1, RECORDS[0][1]), *RECORDS], 10, BINARY)
+        self.assertEqual(META["skipped_segments_without_seed_interval"], [1])
+        self.assertEqual(len(SEGMENTS), 1)
+        # Bad navigation quality is passed onward; it is not silently discarded.
+        RECORDS[-1][1]["posmode"] = 0
+        SEGMENTS, _, _ = KITTI.prepare(RECORDS, 100, BINARY)
+        self.assertEqual(SEGMENTS[0]["gnss"][-1][14], 2)
+        self.assertEqual(SEGMENTS[0]["gnss"][-1][16], 0)
 
 
 if __name__ == "__main__":

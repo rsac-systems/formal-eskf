@@ -97,10 +97,12 @@ def magnetic_model(BINARY, PROVIDER, REQUEST):
     return [math.atan2(FIELD[1], FIELD[0]), math.atan2(FIELD[2], math.hypot(*FIELD[:2])), STRENGTH]
 
 
-def run_estimator(BINARY, INPUT, OUTPUT, MAGNETIC=True, SESSION=False, MAGNETIC_MODEL=None):
+def run_estimator(BINARY, INPUT, OUTPUT, MAGNETIC=True, SESSION=False, MAGNETIC_MODEL=None, KITTI=False):
     """Run the host estimator; optional model requests use a line protocol, never shell commands."""
     COMMAND = [str(BINARY), str(INPUT), str(OUTPUT)]
-    if SESSION:
+    if KITTI:
+        COMMAND.append("--kitti-session")
+    elif SESSION:
         COMMAND.append("--session")
     if not MAGNETIC:
         COMMAND.append("--no-mag")

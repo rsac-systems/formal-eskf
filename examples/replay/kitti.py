@@ -7,6 +7,8 @@ GNSS/IMU accuracy benchmark. No images, LiDAR, or camera calibration are used.
 """
 
 import argparse
+import csv
+import json
 from datetime import datetime
 import hashlib
 import math
@@ -14,7 +16,7 @@ from pathlib import Path
 import statistics
 import subprocess
 
-from runner import (IMU_HEADER, INITIAL_HEADER, NAVIGATION_HEADER, PROGRESS_FORMAT,
+from runner import (NAVIGATION_HEADER, PROGRESS_FORMAT,
                     check_output, dot, executable, project_coordinates, replace_output,
                     run_estimator, write_csv, write_metadata)
 from plots import plot_replay
@@ -30,8 +32,6 @@ OXTS_FIELDS = (
 NAVIGATION_STD = (1.0, 1.5, 0.3)
 # Explicit demo gap policy, not reconstructed measurements or calibrated noise.
 GAP_THRESHOLD_US = 50000
-MAX_GAP_US = 2000000
-HOLD_STEP_US = 10000
 
 
 def timestamp_ns(TEXT):
@@ -100,8 +100,6 @@ def order_records(RECORDS):
     INTERVALS = [B[0] - A[0] for A, B in zip(UNIQUE, UNIQUE[1:])]
     if not INTERVALS or not 5000 <= statistics.median(INTERVALS) <= 20000:
         raise ValueError("use Raw unsynced/extract OXTS (~100 Hz), not synced (~10 Hz)")
-    if max(INTERVALS) > MAX_GAP_US:
-        raise ValueError("OXTS gap exceeds the demo's 2 s hold limit")
     return UNIQUE, {"source_rows": len(RECORDS), "timestamp_reversals": REVERSALS,
                     "identical_duplicates_removed": DUPLICATES}
 
@@ -138,76 +136,144 @@ def inertial_sample(PACKET):
             PACKET["wx"], -PACKET["wy"], -PACKET["wz"]]
 
 
-def navigation_sample(PACKET, COORDINATES):
-    POSITION, ROTATION = COORDINATES
-    # OXTS vn/ve/vu refer to the tangent frame at the current location.
-    # Rotate velocity through ECEF so all rows use the same initial NED basis.
-    LOCAL_VELOCITY = [PACKET["vn"], PACKET["ve"], -PACKET["vu"]]
-    VELOCITY = [dot(ROW, LOCAL_VELOCITY) for ROW in ROTATION]
-    return [*POSITION, *VELOCITY]
+def session_settings(NAVIGATION_HZ):
+    # Demo-only quality/noise profile. Synthetic DOP cannot participate in a check.
+    return dict(model_provider=0, model_heading=0, saved_heading=0, declination_rad=0,
+                gnss_gate=5, position_noise=1, velocity_noise=0.3, position_noise_limit=10,
+                gnss_checks=29, minimum_satellites=6, maximum_pdop=2.5, maximum_eph=3,
+                maximum_epv=5, maximum_sacc=0.5, maximum_hdrift=0.1, maximum_vdrift=0.2,
+                gnss_health_time_us=10000000, magnetic_checks=1, field_strength_tolerance=20,
+                field_inclination_tolerance=math.radians(20), heading_noise=0.3,
+                heading_acceleration_limit=0.5, magnetic_noise_variance=25, magnetic_gate=3,
+                bias_force_limit=25, bias_rate_limit=3, bias_decay_time=0.5,
+                accelerometer_bias_learning=1, gyroscope_bias_learning=1,
+                accelerometer_bias_limit=0.4, gyroscope_bias_limit=0.15,
+                gnss_spacing_us=round(1000000 / NAVIGATION_HZ))
+
+
+def navigation_row(TIME, PACKET):
+    VALID = navigation_valid(PACKET)
+    return [TIME, 1, PACKET["lat"], PACKET["lon"], PACKET["alt"], PACKET["alt"],
+            PACKET["vn"], PACKET["ve"], -PACKET["vu"],
+            max(PACKET["pos_accuracy"], NAVIGATION_STD[0]),
+            max(PACKET["pos_accuracy"], NAVIGATION_STD[1]),
+            max(PACKET["vel_accuracy"], NAVIGATION_STD[2]),
+            1, 1, 3 if VALID else 2, int(PACKET["numsats"]), int(VALID), 0]
 
 
 def prepare(RECORDS, NAVIGATION_HZ, BINARY):
-    SEED_INDEX = next((INDEX for INDEX, (_, PACKET) in enumerate(RECORDS) if navigation_valid(PACKET)), None)
-    if SEED_INDEX is None:
-        raise ValueError("no locked OXTS solution with position and velocity aiding for initialization")
-    RECORDS = RECORDS[SEED_INDEX:]
-    START, SEED = RECORDS[0]
-    # The first row initializes the runner; its interval is not integrated.
-    IMU_ROWS = [[START, 1, *inertial_sample(SEED)]]
-    NAVIGATION_PACKETS = []
+    """One independent session per continuous sequence; no interpolation over outages."""
+    GROUPS = [[]]
     GAPS = []
-    SKIPPED_UPDATES = 0
+    for TIME, PACKET in RECORDS:
+        if GROUPS[-1] and TIME - GROUPS[-1][-1][0] > GAP_THRESHOLD_US:
+            GAPS.append([GROUPS[-1][-1][0], TIME])
+            GROUPS.append([])
+        GROUPS[-1].append((TIME, PACKET))
+    SEGMENTS, SKIPPED, ALL_GPS = [], [], []
     PERIOD = round(1000000 / NAVIGATION_HZ)
-    NEXT_UPDATE = START + PERIOD
-    for (PREVIOUS_TIME, PREVIOUS), (TIME, PACKET) in zip(RECORDS, RECORDS[1:]):
-        # OXTS gives instantaneous samples, not PX4-style interval averages.
-        # Explicit left-endpoint hold over each observed timestamp interval.
-        DELTA = TIME - PREVIOUS_TIME
-        STEPS = (DELTA + HOLD_STEP_US - 1) // HOLD_STEP_US if DELTA > GAP_THRESHOLD_US else 1
-        if STEPS > 1:
-            GAPS.append({"start_timestamp_us": PREVIOUS_TIME, "end_timestamp_us": TIME,
-                         "held_interval_us": DELTA, "synthetic_rows": STEPS - 1})
-        SAMPLE = inertial_sample(PREVIOUS)
-        TICK = PREVIOUS_TIME
-        for STEP in range(1, STEPS + 1):
-            NEXT_TICK = PREVIOUS_TIME + DELTA * STEP // STEPS
-            IMU_ROWS.append([NEXT_TICK, NEXT_TICK - TICK, *SAMPLE])
-            TICK = NEXT_TICK
-        if TIME >= NEXT_UPDATE:
-            if navigation_valid(PACKET):
-                NAVIGATION_PACKETS.append((TIME, PACKET))
-            else:
-                SKIPPED_UPDATES += 1
-            NEXT_UPDATE += ((TIME - NEXT_UPDATE) // PERIOD + 1) * PERIOD
-    if not NAVIGATION_PACKETS:
-        raise ValueError("drive is too short for a navigation correction at the requested rate")
-    POSITIONS = [[PACKET["lat"], PACKET["lon"], PACKET["alt"]] for _, PACKET in [(START, SEED), *NAVIGATION_PACKETS]]
-    COORDINATES = project_coordinates(BINARY, POSITIONS[0], POSITIONS)
-    INITIAL = [START, *initial_quaternion(SEED), *navigation_sample(SEED, COORDINATES[0])[3:], *NAVIGATION_STD]
-    NAVIGATION_ROWS = [[TIME, *navigation_sample(PACKET, COORDINATE), *NAVIGATION_STD]
-                       for (TIME, PACKET), COORDINATE in zip(NAVIGATION_PACKETS, COORDINATES[1:])]
-    META = {
-        "dataset": "KITTI Raw unsynced OXTS", "imu_rows": len(IMU_ROWS),
-        "navigation_rows": len(NAVIGATION_ROWS), "navigation_hz": NAVIGATION_HZ,
-        "initial_rows_skipped": SEED_INDEX, "navigation_events_skipped": SKIPPED_UPDATES,
-        "gap_holds": GAPS, "synthetic_imu_rows": sum(GAP["synthetic_rows"] for GAP in GAPS),
-        "origin_lat_deg": SEED["lat"], "origin_lon_deg": SEED["lon"], "origin_alt_m": SEED["alt"],
-        "frame": "body FRD, fixed initial local NED; geodetic via WGS84 ECEF",
-        "coordinate_conversion": "formal_eskf::geodesy via replay_ins --geodesy; binary64 WGS84, fixed origin",
-        "height": "OXTS altitude used as WGS84 altitude; no geoid/datum correction",
-        "initialization": "first locked OXTS solution with position/velocity aiding; position zero; biases zero",
-        "timestamp": "offline timestamp sort; identical duplicates removed; rebased then truncated to microseconds",
-        "imu_sampling": "hold previous body specific force/angular rate to the next timestamp",
-        "navigation_source": "decimated OXTS fused navigation estimates, not independent raw GNSS",
-        "navigation_std_m_m_mps": NAVIGATION_STD,
-        "noise": "fixed demo observation stds; shared C++ replay process/initial covariance settings",
-        "timing": "navigation fused at its OXTS/IMU tick; no latency compensation",
-        "gap_policy": "hold previous IMU over gaps >50 ms, substeps <=10 ms; reject gaps >2 s or interpolated (-1) records",
-        "gap_noise": "same demo per-sample noise per held substep, not independent measurements or a calibrated outage covariance",
-        "claim": "replay demonstration only; OXTS inputs are not independent ground truth",
-    }
-    return INITIAL, IMU_ROWS, NAVIGATION_ROWS, META
+    for INDEX, GROUP in enumerate(GROUPS, 1):
+        PAIRS = list(zip(GROUP, GROUP[1:]))
+        FIRST = next((I for I, (_, (_, P)) in enumerate(PAIRS) if navigation_valid(P)), None)
+        if FIRST is None:
+            SKIPPED.append(INDEX)
+            continue
+        PAIRS = PAIRS[FIRST:]
+        TIME, SEED = PAIRS[0][1]
+        GPS_SEED = navigation_row(TIME, SEED)
+        PRIOR = [TIME, *initial_quaternion(SEED), math.radians(1)**2, math.radians(1)**2,
+                 math.radians(5)**2, SEED["lat"], SEED["lon"], SEED["alt"], SEED["alt"],
+                 SEED["vn"], SEED["ve"], -SEED["vu"],
+                 GPS_SEED[9]**2, GPS_SEED[9]**2, GPS_SEED[10]**2, *([GPS_SEED[11]**2] * 3)]
+        IMU, GPS = [], []
+        NEXT_UPDATE = TIME + PERIOD  # The prior packet is not fused again.
+        for (PREVIOUS_TIME, PREVIOUS), (TIME, PACKET) in PAIRS:
+            DT = TIME - PREVIOUS_TIME
+            if not 2000 <= DT <= GAP_THRESHOLD_US:
+                raise ValueError(f"OXTS interval {DT} us is outside the replay timing profile")
+            IMU.append([TIME, DT, DT, *inertial_sample(PREVIOUS), -1, 1, 2, 0, 0])
+            if TIME >= NEXT_UPDATE:
+                GPS.append(navigation_row(TIME, PACKET))
+                NEXT_UPDATE = TIME + PERIOD
+        SEGMENTS.append(dict(segment=INDEX, prior=PRIOR, imu=IMU, gnss=GPS))
+        ALL_GPS.extend(GPS)
+    if not SEGMENTS:
+        raise ValueError("no locked OXTS navigation solution at a real IMU endpoint")
+    ORIGIN = SEGMENTS[0]["prior"][8:11]
+    COORDINATES = project_coordinates(BINARY, ORIGIN, [[*ROW[2:4], ROW[5]] for ROW in ALL_GPS]) if ALL_GPS else []
+    NAVIGATION = [[ROW[0], *P, *[dot(AXIS, ROW[6:9]) for AXIS in R], *ROW[9:12]]
+                  for ROW, (P, R) in zip(ALL_GPS, COORDINATES)]
+    META = dict(dataset="KITTI Raw unsynced OXTS", imu_rows=sum(len(S["imu"]) for S in SEGMENTS),
+                navigation_rows=len(ALL_GPS), navigation_hz=NAVIGATION_HZ,
+                segments=[dict(segment=S["segment"], seed_timestamp_us=S["prior"][0],
+                               end_timestamp_us=S["imu"][-1][0]) for S in SEGMENTS],
+                skipped_segments_without_seed_interval=SKIPPED, imu_gaps=GAPS, synthetic_imu_rows=0,
+                origin_lat_deg=ORIGIN[0], origin_lon_deg=ORIGIN[1], origin_alt_m=ORIGIN[2],
+                initialization="one coherent OXTS attitude/position/velocity prior per segment; zero local position; "
+                    "tilt std 1 deg/yaw std 5 deg are demo priors; startup bias uncertainty unchanged; no fabricated aiding",
+                gap_policy="new session after >50 ms; no IMU/output in gap; no bias/P/quality history carried over",
+                imu_sampling="left-endpoint hold over actual observed intervals, FLU to FRD; seed interval not integrated twice",
+                navigation_source="decimated fused OXTS navigation, not independent raw GNSS; locked aiding maps to fix type 3",
+                synthetic_dop="HDOP=VDOP=1 placeholders; PDOP check disabled",
+                height="OXTS alt interpreted as ellipsoid and MSL: explicit zero geoid-offset demo assumption",
+                source_identity="fixed IDs for one OXTS stream; no hardware/calibration identity evidence",
+                clipping="unavailable; not reported as known clear", rest="unavailable; never asserted",
+                coordinate_conversion="formal_eskf::geodesy; fixed display frame, session-owned working/navigation frames",
+                timing="nominal 10 ms, actual intervals 2..50 ms; 200 ms requested lag determines conservative "
+                    "101-sample history; actual lag is reported, typically about 1 s; sensor delay zero",
+                uncertainty="positive OXTS pos/vel accuracy with demo std floors; independent axis priors, no upstream cross covariance",
+                settings=session_settings(NAVIGATION_HZ), claim="demonstration, not independent accuracy evidence")
+    return SEGMENTS, NAVIGATION, META
+
+
+INITIAL_NAVIGATION_HEADER = (
+    "timestamp_us,q0,q1,q2,q3,attitude_variance_n,attitude_variance_e,attitude_variance_d,"
+    "latitude_deg,longitude_deg,altitude_ellipsoid_m,altitude_msl_m,vn,ve,vd,"
+    "position_variance_n,position_variance_e,position_variance_d,velocity_variance_n,velocity_variance_e,velocity_variance_d"
+)
+
+
+def write_segment(INPUT, SEGMENT, SETTINGS, ORIGIN):
+    INPUT.mkdir(parents=True, exist_ok=False)
+    write_csv(INPUT / "settings.csv", "name,value", SETTINGS.items())
+    write_csv(INPUT / "initial_navigation.csv", INITIAL_NAVIGATION_HEADER, [SEGMENT["prior"]])
+    write_csv(INPUT / "imu.csv", "timestamp_us,gyro_dt_us,accel_dt_us,fx,fy,fz,wx,wy,wz,clipping,accel_id,gyro_id,accel_calibration,gyro_calibration", SEGMENT["imu"])
+    write_csv(INPUT / "gnss.csv", "timestamp_us,device_id,latitude_deg,longitude_deg,altitude_msl_m,altitude_ellipsoid_m,vn,ve,vd,eph,epv,sacc,hdop,vdop,fix_type,satellites,velocity_valid,spoofed", SEGMENT["gnss"])
+    write_csv(INPUT / "magnetometer.csv", "timestamp_us,device_id,calibration_count,mx,my,mz", [])
+    write_csv(INPUT / "land.csv", "timestamp_us,landed,at_rest", [])
+    write_csv(INPUT / "origin.csv", "latitude_deg,longitude_deg,height_ellipsoid_m", [ORIGIN])
+
+
+def combine_results(OUTPUT, SEGMENTS):
+    """Concatenate labelled outputs; counters remain per session and are also summed."""
+    RESULT = OUTPUT / "result"
+    RESULT.mkdir(exist_ok=False)
+    SUMMARIES = []
+    for NAME in ("state.csv", "status.csv", "fusion.csv"):
+        with (RESULT / NAME).open("x", newline="") as TARGET:
+            WRITER = None
+            for SEGMENT in SEGMENTS:
+                ID = SEGMENT["segment"]
+                with (OUTPUT / "segments" / str(ID) / "result" / NAME).open() as SOURCE:
+                    READER = csv.DictReader(SOURCE)
+                    FIELDS = list(READER.fieldnames)
+                    if "segment" not in FIELDS:
+                        FIELDS.insert(1, "segment")
+                    if WRITER is None:
+                        WRITER = csv.DictWriter(TARGET, fieldnames=FIELDS)
+                        WRITER.writeheader()
+                    for ROW in READER:
+                        ROW["segment"] = ID
+                        WRITER.writerow(ROW)
+    for SEGMENT in SEGMENTS:
+        ID = SEGMENT["segment"]
+        SUMMARY = json.loads((OUTPUT / "segments" / str(ID) / "result/summary.json").read_text())
+        SUMMARIES.append(dict(segment=ID, **SUMMARY))
+    TOTALS = {KEY: sum(S[KEY] for S in SUMMARIES) for KEY in (
+        "predictions", "gnss_corrections", "gravity_corrections", "magnetic_corrections",
+        "imu_admissions", "imu_rejections", "arrival_rejections", "rate_rejections", "overflows")}
+    write_metadata(RESULT / "summary.json", dict(**TOTALS, segments=SUMMARIES))
+    return TOTALS
 
 
 def run_replay(DRIVE, BINARY, NAVIGATION_HZ):
@@ -219,34 +285,25 @@ def run_replay(DRIVE, BINARY, NAVIGATION_HZ):
     OUTPUT = Path("output") / ("kitti-" + DRIVE.name)
     check_output(OUTPUT, [DRIVE, DRIVE / "oxts", BINARY])
     RECORDS, HASH, TIMING = read_oxts(DRIVE)
-    INITIAL, IMU_ROWS, NAVIGATION_ROWS, META = prepare(RECORDS, NAVIGATION_HZ, BINARY)
-    # Validate the entire selected drive before replacing a previous result.
-    with TQDM(total=2, desc="Prepare CSV / metadata", dynamic_ncols=True, bar_format=PROGRESS_FORMAT) as PROGRESS:
-        if replace_output(OUTPUT):
-            PROGRESS.write(f"Removed previous replay output: {OUTPUT}")
-        INPUT = OUTPUT / "input"
-        INPUT.mkdir(parents=True, exist_ok=False)
-        write_csv(INPUT / "initial.csv", INITIAL_HEADER, [INITIAL])
-        write_csv(INPUT / "origin.csv", "latitude_deg,longitude_deg,height_ellipsoid_m",
-                  [[META["origin_lat_deg"], META["origin_lon_deg"], META["origin_alt_m"]]])
-        write_csv(INPUT / "imu.csv", IMU_HEADER, IMU_ROWS)
-        write_csv(INPUT / "navigation.csv", NAVIGATION_HEADER, NAVIGATION_ROWS)
-        META.update(source=str(DRIVE), oxts_sha256=HASH, **TIMING)
-        write_metadata(INPUT / "source.json", META)
-        PROGRESS.write(f"Prepared {len(IMU_ROWS)} IMU rows, {len(NAVIGATION_ROWS)} OXTS navigation events")
-        PROGRESS.write(f"Timestamp reversals: {TIMING['timestamp_reversals']}; "
-                       f"identical duplicates removed: {TIMING['identical_duplicates_removed']}")
-        GAP_SECONDS = sum(GAP["held_interval_us"] for GAP in META["gap_holds"]) * 1e-6
-        PROGRESS.write(f"Adapter IMU gap holds: {len(META['gap_holds'])} ({GAP_SECONDS:.3f} s); "
-                       f"{META['synthetic_imu_rows']} synthetic rows, not new measurements")
-        PROGRESS.write(f"Navigation events skipped (receiver position/velocity unavailable): "
-                       f"{META['navigation_events_skipped']}")
-        PROGRESS.update(1)
-        PROGRESS.set_description_str("Run C++ replay")
-        RESULT = run_estimator(BINARY, INPUT, OUTPUT / "result")
-        PROGRESS.update(1)
-        PROGRESS.set_description_str("Replay complete")
-    print(RESULT, end="", flush=True)
+    SEGMENTS, NAVIGATION, META = prepare(RECORDS, NAVIGATION_HZ, BINARY)
+    if replace_output(OUTPUT):
+        print(f"Removed previous replay output: {OUTPUT}")
+    INPUT = OUTPUT / "input"
+    INPUT.mkdir(parents=True, exist_ok=False)
+    write_csv(INPUT / "navigation.csv", NAVIGATION_HEADER, NAVIGATION)
+    META.update(source=str(DRIVE), oxts_sha256=HASH, **TIMING)
+    write_metadata(INPUT / "source.json", META)
+    ORIGIN = [META["origin_lat_deg"], META["origin_lon_deg"], META["origin_alt_m"]]
+    with TQDM(total=len(SEGMENTS), desc="Replay independent segments", dynamic_ncols=True,
+              bar_format=PROGRESS_FORMAT) as PROGRESS:
+        for SEGMENT in SEGMENTS:
+            ROOT = OUTPUT / "segments" / str(SEGMENT["segment"])
+            write_segment(ROOT / "input", SEGMENT, META["settings"], ORIGIN)
+            run_estimator(BINARY, ROOT / "input", ROOT / "result", KITTI=True)
+            PROGRESS.update(1)
+    TOTALS = combine_results(OUTPUT, SEGMENTS)
+    print(f"{len(SEGMENTS)} independent sessions; {len(META['imu_gaps'])} IMU gaps; no synthetic IMU rows")
+    print(f"Delayed predictions: {TOTALS['predictions']}; GNSS corrections: {TOTALS['gnss_corrections']}")
     print(f"Output: {OUTPUT}", flush=True)
     return OUTPUT
 
@@ -258,7 +315,7 @@ def main():
     PARSER.add_argument("--binary", type=Path, default=Path("build/demo/replay_ins"),
                         help="prebuilt C++ executable (default: build/demo/replay_ins)")
     PARSER.add_argument("--navigation-hz", type=float, default=10.0,
-                        help="OXTS position/velocity aiding rate, 0.1 to 100 Hz (default: 10 Hz)")
+                        help="Maximum OXTS position/velocity input rate, 0.1 to 100 Hz (default: 10 Hz)")
     PARSER.add_argument("--plot", action="store_true", help="save PNG plots and display them with matplotlib")
     ARGS = PARSER.parse_args()
     if not math.isfinite(ARGS.navigation_hz) or not 0.1 <= ARGS.navigation_hz <= 100:

@@ -1406,6 +1406,11 @@ int main(int argc, char ** argv)
             replay_demo::project_coordinates(std::cin, std::cout);
             return 0;
         }
+        if (argc == 4 && std::string_view(argv[3]) == "--kitti-session")
+        {
+            replay_demo::replay_session(argv[1], argv[2], false, true);
+            return 0;
+        }
         if ((argc == 4 || (argc == 5 && std::string_view(argv[4]) == "--no-mag")) &&
             std::string_view(argv[3]) == "--session")
         {

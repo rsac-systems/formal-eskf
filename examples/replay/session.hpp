@@ -4,5 +4,5 @@
 namespace replay_demo
 {
 void replay_session(std::filesystem::path const & input, std::filesystem::path const & output,
-                    bool withdraw_magnetic = false);
+                    bool withdraw_magnetic = false, bool kitti_prior = false);
 }

@@ -74,6 +74,13 @@ def plot_replay(OUTPUT, SOURCE_LABEL="GNSS"):
               bar_format=PROGRESS_FORMAT) as PROGRESS:
         STATE = NP.genfromtxt(OUTPUT / "result/state.csv", delimiter=",", names=True, ndmin=1)
         NAVIGATION = NP.genfromtxt(OUTPUT / "input/navigation.csv", delimiter=",", names=True, ndmin=1)
+        if "segment" in STATE.dtype.names:
+            # The CSV retains every output; only plotting suppresses the first point
+            # of each new segment so no curve implies continuity across a restart.
+            BREAKS = NP.flatnonzero(NP.diff(STATE["segment"]) != 0) + 1
+            for FIELD in STATE.dtype.names:
+                if FIELD not in ("timestamp_us", "segment"):
+                    STATE[FIELD][BREAKS] = NP.nan
         START = STATE["timestamp_us"][0]
         TIME = (STATE["timestamp_us"] - START) * 1e-6
         NAVIGATION_TIME = (NAVIGATION["timestamp_us"] - START) * 1e-6

@@ -119,12 +119,12 @@ class ReplayGeodesy(unittest.TestCase):
                     az=9.80665, navstat=4, posmode=3, velmode=2)
         MOVED = {**SEED, "lon": 90}
         UNAVAILABLE = {**SEED, "lon": 120, "posmode": 0}
-        INITIAL, _, NAVIGATION, META = KITTI.prepare(
-            [(1000000, SEED), (1100000, MOVED), (1200000, UNAVAILABLE)], 10, BINARY)
-        self.assertEqual(INITIAL[5:8], [2, 3, 4])
-        self.assertEqual(len(NAVIGATION), 1)
-        self.assertEqual(NAVIGATION[0][:7], [1100000, 0, 6378237, 6378237, 2, -4, 3])
-        self.assertEqual(META["navigation_events_skipped"], 1)
+        SEGMENTS, NAVIGATION, META = KITTI.prepare(
+            [(1000000, SEED), (1010000, SEED), (1020000, MOVED), (1030000, UNAVAILABLE)], 100, BINARY)
+        self.assertEqual(SEGMENTS[0]["prior"][12:15], [2, 3, 4])
+        self.assertEqual(len(NAVIGATION), 2)  # Bad quality remains a runtime decision.
+        self.assertEqual(NAVIGATION[0][:7], [1020000, 0, 6378237, 6378237, 2, -4, 3])
+        self.assertEqual(SEGMENTS[0]["gnss"][1][14], 2)
         self.assertIn("formal_eskf::geodesy", META["coordinate_conversion"])
 
     def test_px4_preparation_preserves_quality_domain(self):

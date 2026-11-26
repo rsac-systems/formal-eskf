@@ -31,10 +31,11 @@ implementation of the ellipsoid/basis maps.
   original samples in session input. A failed conversion of a selected plot point
   or malformed converter response shall fail preparation. No Python fallback,
   clipping or partial converter-batch acceptance is permitted.
-- KITTI/same-horizon preparation retains its fixed seed frame and explicit
-  assumption that OXTS altitude is ellipsoidal height. Rotate sample-local velocity
-  into that frame, including KITTI Up-to-Down conversion. These inputs are not
-  independent raw GNSS observations or evidence of a measured vertical datum.
+- KITTI shall also pass geodetic points and receiver-local velocity to runtime.
+  Its [explicit initial-navigation exception](kitti-session.md) supplies a working
+  origin per segment. The display frame remains fixed at the first retained prior.
+  Retain Up-to-Down conversion and the explicit zero-geoid-offset assumption;
+  these inputs are not independent raw GNSS or a measured vertical datum.
 - Geographic magnetic-model vectors shall use the session-requested sample-to-origin
   basis before deriving declination/inclination. The same shared C++ bridge supplies
   that basis; provider values do not establish WMM accuracy.
@@ -77,7 +78,7 @@ the actual C++ bridge; it does not substitute the geodesy computation.
 |---|---|
 | Axes and transport | Analytic equator/90-degree fixtures detect degrees/radians, NED signs, translation and omitted velocity rotation. |
 | Invalid batch | Malformed, nonfinite and out-of-domain coordinates fail, including a bad row after a valid output row. |
-| KITTI preparation | Real preparer uses the fixed origin, Up-to-Down conversion and selected navigation cadence; unavailable navigation remains skipped. |
+| KITTI preparation | Real preparer uses the fixed origin, Up-to-Down conversion and selected navigation cadence; bad quality remains present in runtime input. |
 | PX4-log preparation | Distinct ellipsoid/MSL fixtures preserve both trajectory and quality meanings, bad fixes, nonfinite raw velocity and exact row timestamps. |
 | Invalid PX4 height | Preserve the original session input; exclude it only from plot conversion. |
 | Geographic magnetic field | A controlled provider result passed through the real bridge rotates consistently; session requests determine the location and basis. This does not test WMM accuracy. |

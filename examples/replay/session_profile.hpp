@@ -6,10 +6,12 @@
 namespace replay_session
 {
 inline constexpr auto timing = ins_example::timing;
+// Host storage covers both legacy PX4 timing and irregular ~100 Hz OXTS intervals.
+// Logical history lengths still come from each profile; this is not a target layout.
 struct Layout
 {
-    static constexpr std::size_t imu_capacity = 128, context_capacity = 512;
-    static constexpr std::size_t gnss_capacity = 16, magnetic_capacity = 128, barometer_capacity = 16;
+    static constexpr std::size_t imu_capacity = 128, context_capacity = 4096;
+    static constexpr std::size_t gnss_capacity = 1024, magnetic_capacity = 128, barometer_capacity = 16;
     static constexpr std::uint64_t gravity_interval_us = 10000;
     static constexpr std::size_t ground_effect_capacity = 64;
     static constexpr bool barometer_aiding = false, gravity_aiding = true, ground_effect = false, magnetic_model = true;
