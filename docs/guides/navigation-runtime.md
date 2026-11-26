@@ -9,7 +9,9 @@ core's scalar support.
 The [architecture](../spec/architecture/navigation-runtime.md) and
 [R-INS-SESSION](../spec/requirements/runtime/ins-session.md) own the boundaries.
 The [PX4 adapter](../../integrations/px4/module/FormalEskf.cpp) uses the same owner.
-Legacy log replay retains its separate scheduling; it has not been migrated.
+The [PX4-log replay](../../examples/replay/px4.py) uses standard session startup and
+delayed fusion. KITTI retains its separate runner while its external-navigation
+initialization contract is reviewed.
 
 The [staged INS profile](../spec/profiles/staged-ins.md) keeps one full INS and
 independently qualifies tilt, heading and navigation. IMU seed, real gravity
@@ -36,12 +38,37 @@ ctest --test-dir build/runtime -R formal_eskf.ins_session --output-on-failure
 IMU/GNSS/magnetic/barometer data and a known magnetic reference, using explicit
 timestamps without a wall clock or PX4/ROS dependency. It prints local NED/MSL
 output. It is an API example, not a dataset accuracy benchmark. The separate
-[example profile](../../examples/ins_runtime/profile.hpp) contains uncalibrated
+[host numerical profile](../../examples/common/profile.hpp) contains uncalibrated
 settings; copying them does not qualify a real sensor or vehicle.
 The layout can exclude barometer aiding at compile time; then startup requires
 no barometric sample and pressure/altitude receive calls have no effects.
 IMU seeding requires neither GNSS nor magnetic input. Geographic attachment
 waits for qualified true-North and GNSS evidence; MSL also requires its own datum.
+
+## Recorded PX4 inputs
+
+The [PX4 replay](../../examples/replay/px4.py) uses the same session call sequence
+with an explicit [host profile](../../examples/replay/session_profile.hpp).
+It starts from recorded IMU, magnetic and GNSS measurements; it does not import
+PX4's estimated attitude. Source metadata documents old-log limitations, numerical
+assumptions and disabled physical sensor-delay compensation.
+
+`result/status.csv` records startup, capabilities, failure and delayed/current
+epochs. `result/fusion.csv` records the last group evaluation/reset at each public
+boundary with cumulative runtime counters; it is not an exhaustive trace of every
+internal call. Outcome/status/reason values follow
+[session diagnostics](../../include/formal_eskf/runtime/session/ins_diagnostics.hpp)
+and [capabilities](../../include/formal_eskf/runtime/session/ins_capabilities.hpp).
+`summary.json` reports counts, startup milestones and final availability. Missing
+sensors may leave a successful execution with only partial service. A runtime fault
+fails the process and does not produce a successful summary.
+
+`--compare-mag` now withdraws magnetic input after the first available heading;
+it exercises normal source expiry as well as the resulting estimator trajectory.
+Plots mask unavailable state/heading intervals. Run the
+[session caller tests](../spec/verification/tests/replay-session.md) through
+`ctest --test-dir build/demo -R formal_eskf.replay_session --output-on-failure`.
+This host path does not establish live-PX4 timing or independent accuracy.
 
 ## Application responsibilities
 

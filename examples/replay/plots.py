@@ -3,6 +3,30 @@
 from runner import PROGRESS_FORMAT
 
 
+def unwrap_available(VALUES):
+    """Unwrap each finite run independently; unavailable output stays a plot gap."""
+    import numpy as NP
+    RESULT = NP.array(VALUES, copy=True)
+    INDICES = NP.flatnonzero(NP.isfinite(RESULT))
+    for RUN in NP.split(INDICES, NP.flatnonzero(NP.diff(INDICES) != 1) + 1):
+        if RUN.size:
+            RESULT[RUN] = NP.unwrap(RESULT[RUN])
+    return RESULT
+
+
+def heading_yaw(STATE, RESULT_DIR):
+    import numpy as NP
+    Q0, Q1, Q2, Q3 = (STATE[KEY] for KEY in ("q0", "q1", "q2", "q3"))
+    YAW = NP.arctan2(2 * (Q0 * Q3 + Q1 * Q2), 1 - 2 * (Q2 * Q2 + Q3 * Q3))
+    STATUS_FILE = RESULT_DIR / "status.csv"
+    if STATUS_FILE.is_file():
+        STATUS = NP.genfromtxt(STATUS_FILE, delimiter=",", names=True, ndmin=1)
+        if not NP.array_equal(STATE["timestamp_us"], STATUS["timestamp_us"]):
+            raise ValueError("status/state timestamp mismatch")
+        YAW[STATUS["heading"] == 0] = NP.nan
+    return unwrap_available(YAW)
+
+
 def plot_magnetic_comparison(OUTPUT, STATE):
     """Same-input A/B differences, not accuracy against an independent truth."""
     import matplotlib.pyplot as PLOT
@@ -13,11 +37,12 @@ def plot_magnetic_comparison(OUTPUT, STATE):
         raise ValueError("magnetometer comparison requires identical state timestamps")
     TIME = (STATE["timestamp_us"] - STATE["timestamp_us"][0]) * 1e-6
     FIGURE, AXES = PLOT.subplots(2, 2, figsize=(12, 8), constrained_layout=True)
-    FIGURE.suptitle("Mag correction on / off — same initialization and inputs; not ground truth")
+    FIGURE.suptitle("Magnetic input retained / withdrawn after alignment — not ground truth")
     YAWS = []
-    for DATA, LABEL, STYLE in ((BASELINE, "No mag correction", "--"), (STATE, "Mag correction", "-")):
-        Q0, Q1, Q2, Q3 = (DATA[KEY] for KEY in ("q0", "q1", "q2", "q3"))
-        YAW = NP.unwrap(NP.arctan2(2 * (Q0 * Q3 + Q1 * Q2), 1 - 2 * (Q2 * Q2 + Q3 * Q3)))
+    for DATA, LABEL, STYLE, RESULT_DIR in (
+            (BASELINE, "Magnetic input withdrawn", "--", OUTPUT / "result_no_mag"),
+            (STATE, "Magnetic input retained", "-", OUTPUT / "result")):
+        YAW = heading_yaw(DATA, RESULT_DIR)
         YAWS.append(YAW)
         AXES[0, 0].plot(TIME, NP.degrees(YAW), STYLE, label=LABEL, linewidth=1)
         AXES[0, 1].plot(DATA["pe"], DATA["pn"], STYLE, label=LABEL, linewidth=1)
@@ -77,7 +102,7 @@ def plot_replay(OUTPUT, SOURCE_LABEL="GNSS"):
         Q0, Q1, Q2, Q3 = (STATE[KEY] for KEY in ("q0", "q1", "q2", "q3"))
         ROLL = NP.arctan2(2 * (Q0 * Q1 + Q2 * Q3), 1 - 2 * (Q1 * Q1 + Q2 * Q2))
         PITCH = NP.arcsin(NP.clip(2 * (Q0 * Q2 - Q3 * Q1), -1, 1))
-        YAW = NP.unwrap(NP.arctan2(2 * (Q0 * Q3 + Q1 * Q2), 1 - 2 * (Q2 * Q2 + Q3 * Q3)))
+        YAW = heading_yaw(STATE, OUTPUT / "result")
         FIGURE, AXES = PLOT.subplots(3, 1, sharex=True, figsize=(10, 7), constrained_layout=True)
         FIGURE.suptitle("Estimated attitude - no independent attitude reference")
         for AX, VALUES, LABEL in zip(AXES, (ROLL, PITCH, YAW), ("Roll", "Pitch", "Yaw (unwrapped)")):
@@ -106,6 +131,10 @@ def plot_replay(OUTPUT, SOURCE_LABEL="GNSS"):
         # whose internals are incompatible across some Matplotlib installations.
         POINTS = NP.vstack((NP.column_stack((STATE["pe"], STATE["pn"], -STATE["pd"])),
                             NP.column_stack((NAVIGATION["pe"], NAVIGATION["pn"], -NAVIGATION["pd"]))))
+        POINTS = POINTS[NP.all(NP.isfinite(POINTS), axis=1)]
+        if not len(POINTS):
+            POINTS = NP.zeros((1, 3))
+            AX.text2D(0.05, 0.95, "No available geographic trajectory", transform=AX.transAxes)
         LOWER, UPPER = POINTS.min(axis=0), POINTS.max(axis=0)
         CENTER = (LOWER + UPPER) / 2
         RADIUS = max(float(NP.max(UPPER - LOWER)) * 0.55, 0.5)

@@ -202,6 +202,12 @@ It does not reorder V-01 proofs or bring integration tests into the current scop
 Retained tests are reviewed against this design; historical tests are not a
 second authoritative allocation.
 
+## Additional caller tests
+
+The [recorded sensor session family](replay-session.md) covers the host PX4 replay
+binding outside this core/runtime allocation. Its CTest cases and caller coverage
+are counted separately; they do not expand the core/runtime plan's totals.
+
 ## Review
 
 Pending owner review. Independent core/runtime design and cross-checking can

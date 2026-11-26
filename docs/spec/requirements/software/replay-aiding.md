@@ -4,7 +4,7 @@
 
 **Status:** Draft
 
-**Applies to:** Host PX4-log replay sensor-policy bindings and shared PX4/KITTI coordinate preparation within their declared input capabilities; no live PX4 timing equivalence is implied.
+**Applies to:** Host PX4-session replay, retained KITTI/same-horizon fixtures, and shared coordinate preparation; no live PX4 timing equivalence is implied.
 
 **Uses:** [SW-CORE](core-estimation.md), [R-MEASUREMENT-FUSION](../runtime/measurement-fusion.md). Each child declares its portable-policy dependencies.
 
@@ -24,9 +24,10 @@ not fabricate metadata to make a correction execute.
 Recorded outcomes shall distinguish permission, attempted correction, rejection,
 successful correction and reset, retaining the child-defined timestamps and
 diagnostics. A numerical failure shall follow the replay failure policy without
-erasing earlier completed operations or reporting a successful run. Replay's
-seed assumptions and same-horizon scheduling shall remain distinct from PX4
-initialization and delayed/current-output behavior.
+erasing earlier completed operations or reporting a successful run. The PX4 host
+path shall use portable session startup and delayed/current-output
+behavior. The retained same-horizon runner's seed assumptions shall not be
+presented as that startup or scheduling path.
 
 ## Decomposition
 
@@ -37,6 +38,7 @@ checks required by the selected profile.
 
 | Child requirement | Allocated obligation |
 |---|---|
+| [R-REPLAY-SESSION](../integration/replay/session.md) | Bind recorded sensors to standard session startup, delayed fusion and capability output. |
 | [R-REPLAY-GEODESY](../integration/replay/geodesy.md) | Bind checked geodetic positions and vector bases to one fixed replay origin. |
 | [R-REPLAY-GNSS-QUALITY](../integration/replay/gnss-quality.md) | Convert and qualify available receiver metadata. |
 | [R-REPLAY-GNSS-LIFECYCLE](../integration/replay/gnss-lifecycle.md) | Bind ordered GNSS permissions, operations, feedback and reset records. |

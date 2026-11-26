@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+#include "session.hpp"
 #include "io.hpp"
 #include <algorithm>
 #include <cmath>
@@ -1405,9 +1406,15 @@ int main(int argc, char ** argv)
             replay_demo::project_coordinates(std::cin, std::cout);
             return 0;
         }
+        if ((argc == 4 || (argc == 5 && std::string_view(argv[4]) == "--no-mag")) &&
+            std::string_view(argv[3]) == "--session")
+        {
+            replay_demo::replay_session(argv[1], argv[2], argc == 5);
+            return 0;
+        }
         if (argc != 3 && !(argc == 4 && std::string_view(argv[3]) == "--no-mag"))
         {
-            std::cerr << "Usage: replay_ins INPUT_DIR NEW_OUTPUT_DIR [--no-mag]\n"
+            std::cerr << "Usage: replay_ins INPUT_DIR NEW_OUTPUT_DIR [--session] [--no-mag]\n"
                          "       replay_ins --geodesy < GEODETIC_ROWS\n";
             return 2;
         }

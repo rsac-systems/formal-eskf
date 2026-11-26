@@ -80,9 +80,50 @@ def write_metadata(PATH, METADATA):
         STREAM.write("\n")
 
 
-def run_estimator(BINARY, INPUT, OUTPUT, MAGNETIC=True):
-    """Execute the shared C++ runner, propagating its nonzero exit and diagnostics."""
+def magnetic_model(BINARY, PROVIDER, REQUEST):
+    """Query at the session's requested point, then express the field in its requested NED basis."""
+    LATITUDE, LONGITUDE, ORIGIN_LATITUDE, ORIGIN_LONGITUDE = REQUEST
+    RESULT = subprocess.run([str(PROVIDER)], input=f"{LATITUDE:.17g} {LONGITUDE:.17g}\n",
+                            text=True, capture_output=True, check=True, timeout=30)
+    VALUES = [float(VALUE) for VALUE in RESULT.stdout.split()]
+    if (len(VALUES) != 3 or not all(math.isfinite(VALUE) for VALUE in VALUES)
+            or not -180 <= VALUES[0] <= 180 or not -90 <= VALUES[1] <= 90 or VALUES[2] <= 0):
+        raise ValueError("invalid magnetic provider result")
+    DECLINATION, INCLINATION, STRENGTH = math.radians(VALUES[0]), math.radians(VALUES[1]), VALUES[2]
+    FIELD = [STRENGTH * math.cos(INCLINATION) * math.cos(DECLINATION),
+             STRENGTH * math.cos(INCLINATION) * math.sin(DECLINATION), STRENGTH * math.sin(INCLINATION)]
+    _, ROTATION = project_coordinates(BINARY, [ORIGIN_LATITUDE, ORIGIN_LONGITUDE, 0], [[LATITUDE, LONGITUDE, 0]])[0]
+    FIELD = [dot(ROW, FIELD) for ROW in ROTATION]
+    return [math.atan2(FIELD[1], FIELD[0]), math.atan2(FIELD[2], math.hypot(*FIELD[:2])), STRENGTH]
+
+
+def run_estimator(BINARY, INPUT, OUTPUT, MAGNETIC=True, SESSION=False, MAGNETIC_MODEL=None):
+    """Run the host estimator; optional model requests use a line protocol, never shell commands."""
     COMMAND = [str(BINARY), str(INPUT), str(OUTPUT)]
+    if SESSION:
+        COMMAND.append("--session")
     if not MAGNETIC:
         COMMAND.append("--no-mag")
-    return subprocess.run(COMMAND, check=True, stdout=subprocess.PIPE, text=True).stdout
+    LINES = []
+    with subprocess.Popen(COMMAND, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True) as PROCESS:
+        try:
+            for LINE in PROCESS.stdout:
+                if LINE.startswith("@MODEL "):
+                    REQUEST = [float(VALUE) for VALUE in LINE.split()[1:]]
+                    if len(REQUEST) != 4 or not all(math.isfinite(VALUE) for VALUE in REQUEST):
+                        raise ValueError("invalid session magnetic-model request")
+                    VALUES = magnetic_model(BINARY, MAGNETIC_MODEL, REQUEST) if MAGNETIC_MODEL is not None else None
+                    PROCESS.stdin.write((",".join(format(VALUE, ".17g") for VALUE in VALUES)
+                                         if VALUES is not None else "unavailable") + "\n")
+                    PROCESS.stdin.flush()
+                else:
+                    LINES.append(LINE)
+            PROCESS.stdin.close()
+            STATUS = PROCESS.wait()
+            if STATUS:
+                raise subprocess.CalledProcessError(STATUS, COMMAND, output="".join(LINES))
+        except BaseException:
+            PROCESS.kill()
+            PROCESS.wait()
+            raise
+    return "".join(LINES)

@@ -132,32 +132,32 @@ class ReplayGeodesy(unittest.TestCase):
             OUTPUT = Path(DIRECTORY) / "input"
             META = PX4.prepare(ulog_fixture(), OUTPUT, BINARY)
             NAVIGATION = read_csv(OUTPUT / "navigation.csv")
-            QUALITY = read_csv(OUTPUT / "gnss_quality.csv")
-            INITIAL = read_csv(OUTPUT / "initial.csv")[0]
-            self.assertEqual([ROW["timestamp_us"] for ROW in NAVIGATION], [1250000, 1270000])
-            self.assertEqual([ROW["timestamp_us"] for ROW in QUALITY], [1250000, 1270000])
-            self.assertEqual([INITIAL[KEY] for KEY in ("vn", "ve", "vd")], [2, 3, 4])
-            self.assertEqual([NAVIGATION[0][KEY] for KEY in ("pn", "pe", "pd", "vn", "ve", "vd")],
+            GNSS = read_csv(OUTPUT / "gnss.csv")
+            IMU = read_csv(OUTPUT / "imu.csv")
+            self.assertFalse((OUTPUT / "initial.csv").exists())
+            self.assertEqual(len(IMU), 31)  # No Python alignment window is discarded.
+            self.assertTrue(all(ROW["clipping"] == -1 for ROW in IMU))
+            self.assertEqual([ROW["timestamp_us"] for ROW in GNSS], [1190000, 1250000, 1270000])
+            self.assertEqual([ROW["timestamp_us"] for ROW in NAVIGATION], [1190000, 1250000])
+            self.assertEqual([GNSS[1][KEY] for KEY in ("vn", "ve", "vd")], [2, 3, 4])
+            self.assertEqual(GNSS[1]["altitude_ellipsoid_m"], 100)
+            self.assertEqual(GNSS[1]["altitude_msl_m"], 10)
+            self.assertEqual(GNSS[2]["fix_type"], 2)
+            self.assertTrue(math.isnan(GNSS[2]["vn"]))
+            self.assertEqual([NAVIGATION[1][KEY] for KEY in ("pn", "pe", "pd", "vn", "ve", "vd")],
                              [0, 6378237, 6378237, 2, -4, 3])
-            self.assertEqual(QUALITY[1]["fix_type"], 2)
-            self.assertTrue(math.isnan(QUALITY[1]["vn"]))
-            self.assertTrue(math.isnan(NAVIGATION[1]["vn"]))
-            # Quality retains receiver-local velocity, adjacent spherical displacement
-            # and MSL Down. It must not consume the new trajectory coordinates.
-            self.assertEqual([QUALITY[0][KEY] for KEY in ("vn", "ve", "vd")], [2, 3, 4])
-            self.assertAlmostEqual(QUALITY[1]["de"], 6371000 * math.pi / 2, delta=1e-6)
-            self.assertEqual(QUALITY[1]["dd"], 5)
-            self.assertEqual(META["origin_alt_ellipsoid_m"], 100)
-            self.assertEqual(META["gnss_rows"], 2)
+            self.assertEqual(META["gnss_rows"], 3)
 
-    def test_px4_invalid_height_stops_preparation(self):
+    def test_px4_invalid_height_reaches_runtime(self):
         ULOG = ulog_fixture()
         PX4.topic(ULOG, "vehicle_gps_position")["alt_ellipsoid"][1] = 100001000
         with tempfile.TemporaryDirectory() as DIRECTORY:
             OUTPUT = Path(DIRECTORY) / "input"
-            with self.assertRaisesRegex(ValueError, "coordinate conversion failed"):
-                PX4.prepare(ULOG, OUTPUT, BINARY)
-            self.assertFalse(OUTPUT.exists())
+            PX4.prepare(ULOG, OUTPUT, BINARY)
+            # The plot is not a receiver-quality gate. Preserve the original input
+            # for InsSession's admission/quality policy; omit it from plot conversion.
+            self.assertEqual(read_csv(OUTPUT / "gnss.csv")[1]["altitude_ellipsoid_m"], 100001)
+            self.assertEqual(len(read_csv(OUTPUT / "navigation.csv")), 1)
 
     def test_magnetic_vector_uses_same_origin(self):
         # Controlled external model values test the adapter, not WMM accuracy.
@@ -168,14 +168,11 @@ class ReplayGeodesy(unittest.TestCase):
             MODEL = Path(DIRECTORY) / "model"
             MODEL.write_text(f"#!/bin/sh\nwhile read -r LAT LON; do printf '%s\\n' '{DECLINATION} {INCLINATION} {STRENGTH}'; done\n")
             MODEL.chmod(0o755)
-            PROJECTED = COMMON.project_coordinates(BINARY, [0, 0, 0], [[0, 90, 100]])
-            FIELD = PX4.geographic_magnetic_fields(MODEL, [(7, (0, math.pi / 2, 100))], {7: PROJECTED[0]})[7]
+            FIELD = COMMON.magnetic_model(BINARY, MODEL, [0, 90, 0, 0])
             OUTPUT = Path(DIRECTORY) / "input"
-            PX4.prepare(ulog_fixture(), OUTPUT, BINARY, MODEL)
-            MODEL_ROWS = read_csv(OUTPUT / "magnetic_model.csv")
-            self.assertEqual([ROW["timestamp_us"] for ROW in MODEL_ROWS], [1200000, 1250000, 1270000])
-            self.assertEqual([ROW["available"] for ROW in MODEL_ROWS], [1, 1, 0])
-            self.assertAlmostEqual(MODEL_ROWS[1]["declination_rad"], FIELD[0], delta=1e-14)
+            META = PX4.prepare(ulog_fixture(), OUTPUT, BINARY, MODEL)
+            self.assertFalse((OUTPUT / "magnetic_model.csv").exists())
+            self.assertEqual(META["settings"]["model_provider"], 1)
         self.assertAlmostEqual(FIELD[0], math.atan2(-4, 2), delta=1e-14)
         self.assertAlmostEqual(FIELD[1], math.atan2(3, math.hypot(2, 4)), delta=1e-14)
         self.assertAlmostEqual(FIELD[2], STRENGTH, delta=1e-14)

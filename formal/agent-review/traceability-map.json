@@ -3790,8 +3790,8 @@
             "symbol": "read_magnetic_model("
           },
           {
-            "file": "examples/replay/px4.py",
-            "symbol": "def geographic_magnetic_fields("
+            "file": "examples/replay/runner.py",
+            "symbol": "def magnetic_model("
           },
           {
             "file": "examples/replay/px4_magnetic_model.cpp",
@@ -4910,7 +4910,7 @@
           },
           {
             "file": "examples/replay/px4.py",
-            "symbol": "def imu_flags("
+            "symbol": "def prepare("
           }
         ],
         "esbmc": [
@@ -8208,8 +8208,8 @@
             "symbol": "def prepare("
           },
           {
-            "file": "examples/replay/px4.py",
-            "symbol": "def geographic_magnetic_fields("
+            "file": "examples/replay/runner.py",
+            "symbol": "def magnetic_model("
           },
           {
             "file": "examples/replay/kitti.py",
@@ -8858,6 +8858,34 @@
           {
             "file": "include/formal_eskf/runtime/session/ins_session_frames.hpp",
             "symbol": "InsSession<Linalg, Layout>::attach_navigation()"
+          }
+        ],
+        "esbmc": []
+      }
+    },
+    {
+      "id": "R-REPLAY-SESSION",
+      "title": "Recorded sensors through an INS session; native caller coverage, formal proof pending",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/integration/replay/session.md",
+            "symbol": "# R-REPLAY-SESSION:"
+          }
+        ],
+        "lean": [],
+        "cpp": [
+          {
+            "file": "examples/replay/session.cpp",
+            "symbol": "void replay_session("
+          },
+          {
+            "file": "examples/replay/px4.py",
+            "symbol": "def prepare("
+          },
+          {
+            "file": "examples/replay/runner.py",
+            "symbol": "def run_estimator("
           }
         ],
         "esbmc": []

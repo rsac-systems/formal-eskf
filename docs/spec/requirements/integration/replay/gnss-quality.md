@@ -4,7 +4,9 @@
 
 **Status:** Draft
 
-**Applies to:** Host replay input preparation and same-horizon execution.
+**Applies to:** Retained same-horizon CSV runner and its policy fixtures.
+The PX4 ULog entrypoint uses [R-REPLAY-SESSION](session.md); these seed,
+sidecar and scheduling rules do not describe that session path.
 
 **Parent:** [SW-REPLAY](../../software/replay-aiding.md).
 
@@ -12,7 +14,7 @@
 
 ## Required behavior
 
-PX4 replay evaluates the existing monitor before its independent navigation
+The same-horizon fixture runner evaluates the existing monitor before its independent navigation
 gates. Follow [v1.16.2 GNSS checks](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/aid_sources/gnss/gps_checks.cpp)
 and [health qualification](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/aid_sources/gnss/gps_control.cpp).
 The separate [GNSS lifecycle](gnss-lifecycle.md) consumes these quality results and orchestrates

@@ -4,7 +4,9 @@
 
 **Status:** Draft
 
-**Applies to:** Host replay input preparation and same-horizon execution.
+**Applies to:** Retained same-horizon CSV runner and its policy fixtures.
+The PX4 ULog entrypoint uses [R-REPLAY-SESSION](session.md); these seed,
+sidecar and scheduling rules do not describe that session path.
 
 **Parent:** [SW-REPLAY](../../software/replay-aiding.md).
 
