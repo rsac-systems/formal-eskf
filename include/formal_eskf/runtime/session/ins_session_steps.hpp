@@ -216,9 +216,12 @@ bool InsSession<Linalg, Layout>::update_imu_bias(ImuInput const & sample, imu_ty
     return check(m_bias_learning_result.status);
 }
 
-template <typename Linalg, typename Layout>
-bool InsSession<Linalg, Layout>::update_imu_health(std::uint8_t accelerometer_clipping)
+template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::update_imu_health(ImuInput const & sample)
 {
+    if (!sample.accelerometer_clipping_available)
+    {
+        return true; // The previous verdict was invalidated before prediction/bias evaluation.
+    }
     typename vertical_health_type::Observations observations;
     observations.barometer_height = m_height_aiding.vertical_innovation(height_type::Source::barometer);
     observations.gnss_height = m_height_aiding.vertical_innovation(height_type::Source::gnss);
@@ -230,7 +233,7 @@ bool InsSession<Linalg, Layout>::update_imu_health(std::uint8_t accelerometer_cl
     health_sample.clipping_available = true;
     for (size_t axis = 0; axis < 3; ++axis)
     {
-        health_sample.clipped[axis] = (accelerometer_clipping & (1U << axis)) != 0;
+        health_sample.clipped[axis] = (sample.accelerometer_clipping & (1U << axis)) != 0;
     }
     // Current GNSS velocity, preceding height attempts: evaluate before current height correction.
     return check(m_vertical_health.update(health_sample, observations));
@@ -247,7 +250,7 @@ InsSession<Linalg, Layout>::startup_context(std::uint64_t epoch, std::uint64_t m
 }
 
 template <typename Linalg, typename Layout>
-bool InsSession<Linalg, Layout>::accept_imu(ImuInput const & sample, std::uint64_t arrival_us)
+bool InsSession<Linalg, Layout>::accept_imu(ImuInput const & sample, std::uint64_t arrival_us, bool require_clipping)
 {
     if (sample.time_us <= m_time_us || sample.time_us > arrival_us ||
         arrival_us - sample.time_us > m_settings.output.maximum_age_us ||
@@ -255,6 +258,7 @@ bool InsSession<Linalg, Layout>::accept_imu(ImuInput const & sample, std::uint64
         sample.angular_period_us > m_imu_timing.maximum_period_us ||
         sample.acceleration_period_us < m_imu_timing.minimum_period_us ||
         sample.acceleration_period_us > m_imu_timing.maximum_period_us ||
+        (!sample.accelerometer_clipping_available && (require_clipping || sample.accelerometer_clipping != 0)) ||
         !imu_clipping_acceptable(sample.accelerometer_clipping, sample.gyroscope_clipping, false))
     {
         ++m_statistics.rejections;
@@ -434,7 +438,7 @@ bool InsSession<Linalg, Layout>::initialize_attitude(InitialAttitude const & pri
     state_type seed_state;
     covariance_type seed_covariance;
     if (!succeeded(m_startup.seed_attitude(prior.q_nb, prior.variance_n, seed_state, seed_covariance)) ||
-        !accept_imu(sample, arrival_us))
+        !accept_imu(sample, arrival_us, false))
     {
         return false;
     }
@@ -593,6 +597,7 @@ void InsSession<Linalg, Layout>::predict_and_fuse(typename imu_history_type::int
         {
             report(Group::gravity).change_source();
             m_gravity_source = {};
+            m_gravity_clipping_available = false;
             m_gravity_conditions = {};
         }
         if (interval.hold_period_us == 0)
@@ -603,6 +608,10 @@ void InsSession<Linalg, Layout>::predict_and_fuse(typename imu_history_type::int
         m_filtered_imu_source = sample.source;
     }
     m_imu_context = m_observations.prediction_context(interval, m_settings.imu.rest_maximum_age_us);
+    if (!sample.accelerometer_clipping_available)
+    {
+        m_vertical_health.reset();
+    }
     if (interval.hold_period_us != 0)
     {
         ++m_statistics.gaps;
@@ -654,7 +663,7 @@ void InsSession<Linalg, Layout>::predict_and_fuse(typename imu_history_type::int
     fuse_gps(imu);
     // Current delayed GNSS velocity and preceding height evidence feed health.
     m_operation = InsOperation::vertical_health;
-    if (m_fault || !update_imu_health(sample.accelerometer_clipping))
+    if (m_fault || !update_imu_health(sample))
     {
         return;
     }

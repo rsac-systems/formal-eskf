@@ -35,6 +35,7 @@ EvaluationEpoch InsSession<Linalg, Layout>::gravity_epoch(ImuInput const & input
     epoch.order = ++m_evaluation_order;
     epoch.interval_us = interval_us;
     m_gravity_source = input.source;
+    m_gravity_clipping_available = input.accelerometer_clipping_available;
     epoch.device_id = input.source.accelerometer_id;
     epoch.calibration_count = input.source.accelerometer_calibration;
     return epoch;
@@ -117,6 +118,7 @@ typename InsSession<Linalg, Layout>::Diagnostics InsSession<Linalg, Layout>::dia
     view.output_ready = m_output.ready();
     view.gravity_supported = Layout::gravity_aiding;
     view.gravity_enabled = m_gravity_enabled;
+    view.gravity_clipping_available = m_gravity_clipping_available;
     view.barometer_supported = Layout::barometer_aiding;
     view.phase = m_phase;
     view.failure_operation = m_failure_operation;

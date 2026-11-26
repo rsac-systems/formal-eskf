@@ -361,6 +361,7 @@ public:
         std::size_t imu_entries{}, imu_capacity{};
         std::array<std::size_t, 3> observation_entries{}, observation_capacity{};
         bool initialized{}, fault{}, output_ready{}, gravity_supported{}, gravity_enabled{}, barometer_supported{};
+        bool gravity_clipping_available{}; // Last evaluated delayed gravity input, not the latest arrival.
         Phase phase = Phase::idle;
         InsOperation failure_operation = InsOperation::none;
         status_type failure_status = status_type::success;
@@ -501,7 +502,7 @@ private:
               std::uint64_t arrival_us);
     bool external_heading_valid() const;
     bool admit_imu(ImuInput const & sample, std::uint64_t arrival_us);
-    bool accept_imu(ImuInput const & sample, std::uint64_t arrival_us);
+    bool accept_imu(ImuInput const & sample, std::uint64_t arrival_us, bool require_clipping = true);
     void predict_and_fuse(typename imu_history_type::interval_type const & interval);
     bool attach_navigation();
     void prepare_magnetic_model();
@@ -525,7 +526,7 @@ private:
     void record_output_reset(BodyOutput const & before, BodyOutput const & after, OutputReset request,
                              bool current_output = true);
     bool update_imu_bias(ImuInput const & sample, imu_type const & imu);
-    bool update_imu_health(std::uint8_t accelerometer_clipping);
+    bool update_imu_health(ImuInput const & sample);
     bool record_gps_fusion(gnss_lifecycle_type::Group group, formal_eskf::runtime::FusionDecision decision,
                            status_type status);
     void update_gps_quality();
@@ -593,6 +594,7 @@ private:
     TiltAlignment<backend_type> m_tilt_alignment{};
     Gravity m_gravity{};
     bool m_gravity_enabled = true;
+    bool m_gravity_clipping_available{};
     bias_learning_type m_bias_learning;
     typename bias_learning_type::Result m_bias_learning_result{};
     vertical_health_type m_vertical_health{};

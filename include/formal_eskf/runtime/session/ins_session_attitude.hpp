@@ -26,6 +26,14 @@ void InsSession<Linalg, Layout>::fuse_gravity(ImuInput const & sample, imu_type 
     {
         return;
     }
+    if (!sample.accelerometer_clipping_available)
+    {
+        m_gravity.reset_samples();
+        m_gravity_conditions = {};
+        report(Group::gravity)
+            .evaluate(gravity_epoch(sample, 0), FusionDiagnostic::Outcome::inhibited, status_type::success, false);
+        return;
+    }
     // The sampler uses the acceleration period; retain the independently
     // measured angle integral when the two integration periods differ.
     auto interval_imu = imu;

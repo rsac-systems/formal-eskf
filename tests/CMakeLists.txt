@@ -203,6 +203,7 @@ formal_eskf_add_backend_test(test_ins_initialization runtime/session/test_initia
 formal_eskf_add_backend_test(test_ins_initial_attitude runtime/session/test_initial_attitude formal_eskf.ins_initial_attitude.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_ins_startup runtime/session/test_startup formal_eskf.ins_startup.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_ins_staged runtime/session/test_staged formal_eskf.ins_staged.eigen formal_eskf::runtime)
+formal_eskf_add_backend_test(test_ins_input_metadata runtime/session/test_input_metadata formal_eskf.ins_input_metadata.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_ins_source runtime/session/test_source formal_eskf.ins_source.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_ins_diagnostics runtime/session/test_diagnostics formal_eskf.ins_diagnostics.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_ground_effect runtime/session/test_ground_effect formal_eskf.ground_effect.eigen formal_eskf::runtime)

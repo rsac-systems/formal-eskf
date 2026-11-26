@@ -48,6 +48,8 @@ template <typename Linalg> struct ImuInput
     std::uint8_t accelerometer_clipping{};
     std::uint8_t gyroscope_clipping{};
     ImuSource source{};
+    // Unknown is distinct from a measured clear mask. The numeric fallback is zero.
+    bool accelerometer_clipping_available = true;
 
     value_type angular_interval_s() const
     {
@@ -171,6 +173,7 @@ bool ImuHistory<Linalg, Capacity>::valid_input(input_type const & sample, std::u
         sample.angular_period_us < timing.minimum_period_us || sample.angular_period_us > timing.maximum_period_us ||
         sample.acceleration_period_us < timing.minimum_period_us ||
         sample.acceleration_period_us > timing.maximum_period_us ||
+        (!sample.accelerometer_clipping_available && sample.accelerometer_clipping != 0) ||
         !imu_clipping_acceptable(sample.accelerometer_clipping, sample.gyroscope_clipping, true))
     {
         return false;

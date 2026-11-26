@@ -101,6 +101,9 @@ Source-prior and target-qualification partitions remain explicitly scoped there.
 | TC-R-IMU-SOURCE-09 | Quantify physical source-change transient | [Ordering](../requirements/runtime/imu/source-change.md#current-and-delayed-ordering), [Physical acceptance](../profiles/sensor-input.md#noise-and-physical-timing-acceptance) | Known old/new bias/calibration shifts at different lag/warmup phases; old-source history retained; declare allowable transition error first. | Independent truth bounds transient attitude/position/velocity error and recovery. Correct reset algebra/order alone is insufficient. Real-source error limits/data currently pending. | Pending |
 | TC-PX4-SENSOR-INPUT-04 | Qualify bounded target work and storage | [Rate/storage](../profiles/sensor-input.md#rate-and-storage-qualification) | Actual target/production build with worst admissible simultaneous sources, reset, gaps, full scans and background workload. | Full object/staging/stack budget and response deadlines met, measured with wall time and recorded configuration. Host/SIH lockstep timing cannot substitute. New-rate target budgets currently pending. | Pending |
 
+Case TC-R-SENSOR-INPUT-21 is allocated by the [metadata/session tests](tests/runtime/sensor-input.md)
+for missing clipping and delayed availability; physical qualification remains separate.
+
 ## Coverage allocation and adoption
 
 | Obligation group | Cases / alternate evidence |

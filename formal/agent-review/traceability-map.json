@@ -8200,7 +8200,7 @@
             "symbol": "void project_coordinates("
           },
           {
-            "file": "examples/replay/common.py",
+            "file": "examples/replay/runner.py",
             "symbol": "def project_coordinates("
           },
           {
@@ -8702,6 +8702,18 @@
           {
             "file": "integrations/px4/tests/ModuleTest.cpp",
             "symbol": "static void input_decoding("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "bool InsSession<Linalg, Layout>::update_imu_health("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_gravity("
+          },
+          {
+            "file": "tests/runtime/session/test_input_metadata.cpp",
+            "symbol": "void clipping_availability("
           }
         ],
         "esbmc": []

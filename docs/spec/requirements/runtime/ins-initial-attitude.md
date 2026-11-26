@@ -37,7 +37,9 @@ Unsupported correlations or a different attitude-error convention shall not be
 silently interpreted as this diagonal NED prior.
 
 Admission shall retain configured IMU timing, source, finite-payload and clipping
-checks. The supplied attitude replaces only the gravity-derived attitude and its
+checks. Unavailable accelerometer clipping follows the explicit
+[R-SENSOR-INPUT fallback](sensor-input.md#unavailable-accelerometer-clipping);
+it does not supply gravity or physical-health evidence. The supplied attitude replaces only the gravity-derived attitude and its
 uncertainty. It may initialize on a moving platform; it does not require the
 IMU-only startup motion predicate or infer rest, velocity or gyro bias.
 Position, velocity and bias seeds shall retain the existing startup meanings and

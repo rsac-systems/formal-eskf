@@ -91,6 +91,31 @@ requalification retain R-OBSERVATION-HISTORY and source-lifecycle ownership.
 The producer binding shall qualify counter reset/wrap and missed-update behavior;
 equal metadata alone cannot prove that no unobserved change occurred.
 
+### Unavailable accelerometer clipping
+
+An input shall retain whether its accelerometer clipping mask is available.
+Unknown shall use a zero numeric fallback with availability false; this does not
+assert unclipped data. The history shall retain both fields at the original
+interval, and reject unknown availability combined with nonzero clipping bits.
+Gyroscope clipping and all finite/timing/source checks remain unchanged.
+
+IMU-only gravity-derived startup shall defer until clipping is known and clear.
+The separately qualified [initial attitude](ins-initial-attitude.md) may seed
+with unavailable accelerometer clipping. After seeding, the session may propagate
+these admitted real intervals without treating them as gravity observations.
+Unknown intervals shall clear pending gravity accumulation and invalidate the
+vertical-health verdict before prediction/bias evaluation. They shall not enter
+the standalone health monitor, whose input still requires known clipping.
+Diagnostics shall identify availability for the delayed gravity evaluation.
+Later known data shall resume sampling from a fresh accumulator.
+
+The explicit zero fallback retains the existing replay compatibility behavior
+for nominal process noise and bias learning: no clipping/fault override is added
+solely because the flag is unknown. Other bias/motion and numerical restrictions
+still apply. This is not evidence that a sensor was healthy or unclipped. A
+deployment requiring measured clipping availability shall reject such input in
+its producer binding; missing metadata does not establish physical qualification.
+
 ### Uncertainty and qualification
 
 The source profile shall state whether values and uncertainty describe raw

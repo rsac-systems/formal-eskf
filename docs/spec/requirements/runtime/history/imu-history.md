@@ -11,6 +11,10 @@ monotonic microsecond timestamps and an explicit timing profile.
 
 **Uses:** [R-RING-BUFFER](../ring-buffer.md).
 
+Accelerometer clipping availability is part of each retained input under
+[R-SENSOR-INPUT](../sensor-input.md#unavailable-accelerometer-clipping). Storage
+shall not replace the delayed value with the latest arrival's metadata.
+
 ## Required behavior
 
 The history shall own retained intervals, the preceding input and the completed
