@@ -3482,7 +3482,7 @@
             "symbol": "struct MagneticFieldChecks"
           },
           {
-            "file": "examples/replay/main.cpp",
+            "file": "examples/replay/io.cpp",
             "symbol": "read_magnetic_field_parameters("
           },
           {
@@ -3636,7 +3636,7 @@
             "symbol": "MagnetometerFusion::select_sample_action("
           },
           {
-            "file": "examples/replay/main.cpp",
+            "file": "examples/replay/io.cpp",
             "symbol": "read_magnetic_heading_parameters("
           },
           {
@@ -3786,7 +3786,7 @@
             "symbol": "MagneticReference<Linalg>::adopt("
           },
           {
-            "file": "examples/replay/main.cpp",
+            "file": "examples/replay/io.cpp",
             "symbol": "read_magnetic_model("
           },
           {
@@ -4530,7 +4530,7 @@
             "symbol": "fuse_velocity("
           },
           {
-            "file": "examples/replay/main.cpp",
+            "file": "examples/replay/io.cpp",
             "symbol": "read_gnss_parameters("
           },
           {
@@ -4538,7 +4538,7 @@
             "symbol": "NavigationVariances navigation_variances("
           },
           {
-            "file": "examples/replay/main.cpp",
+            "file": "examples/replay/io.hpp",
             "symbol": "bool record_navigation_fusion("
           },
           {
@@ -4901,7 +4901,7 @@
             "symbol": "void replay("
           },
           {
-            "file": "examples/replay/main.cpp",
+            "file": "examples/replay/io.cpp",
             "symbol": "BiasInhibition::Parameters read_bias_parameters("
           },
           {
@@ -5287,7 +5287,7 @@
             "symbol": "Status limit_bias("
           },
           {
-            "file": "examples/replay/main.cpp",
+            "file": "examples/replay/io.cpp",
             "symbol": "BiasLimits read_bias_limits("
           },
           {
@@ -5360,7 +5360,7 @@
             "symbol": "void replay("
           },
           {
-            "file": "examples/replay/main.cpp",
+            "file": "examples/replay/io.cpp",
             "symbol": "void write_vertical_health("
           }
         ],
@@ -5793,11 +5793,11 @@
             "symbol": "void update_gnss_lifecycle("
           },
           {
-            "file": "examples/replay/main.cpp",
+            "file": "examples/replay/io.cpp",
             "symbol": "void write_gnss_lifecycle("
           },
           {
-            "file": "examples/replay/main.cpp",
+            "file": "examples/replay/io.hpp",
             "symbol": "void write_gnss_reset("
           },
           {
@@ -6243,7 +6243,7 @@
             "symbol": "ReplayGnssQuality<Linalg>::Result::outcome_name()"
           },
           {
-            "file": "examples/replay/main.cpp",
+            "file": "examples/replay/io.cpp",
             "symbol": "GnssQuality::Result check_gnss_quality("
           },
           {
@@ -8196,7 +8196,7 @@
         "lean": [],
         "cpp": [
           {
-            "file": "examples/replay/main.cpp",
+            "file": "examples/replay/io.cpp",
             "symbol": "void project_coordinates("
           },
           {

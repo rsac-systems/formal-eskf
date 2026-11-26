@@ -293,7 +293,7 @@ The complete supported menu and defaults are in `Kconfig` and
 `DeploymentProfile.hpp` binds it to typed module values. The 2026-11-18
 configuration tests check that menu symbols reach production consumers.
 Use the source declarations for exhaustive values rather than a second copied
-profile table. Replay macros remain in `examples/replay/main.cpp` and are not
+profile table. Replay macros remain in `examples/replay/profile.hpp` and are not
 controlled by the PX4 menu.
 
 The [Cartesian origin profile](../spec/profiles/px4-origin-rebasing.md) is enabled

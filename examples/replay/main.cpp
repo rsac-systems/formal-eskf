@@ -1,347 +1,13 @@
-/*
- * formal-eskf is freely redistributable under the BSD 3-Clause License.
- * See the file "LICENSE" for information on usage and redistribution of this
- * file.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
+// SPDX-License-Identifier: BSD-3-Clause
+#include "io.hpp"
 #include <algorithm>
-#include <array>
-#include <charconv>
 #include <cmath>
-#include <cstdint>
-#include <exception>
-#include <filesystem>
-#include <fstream>
 #include <iomanip>
-#include <initializer_list>
 #include <iostream>
-#include <limits>
-#include <numbers>
-#include <optional>
-#include <span>
 #include <stdexcept>
-#include <string>
-#include <string_view>
-#include <system_error>
 
-#include <formal_eskf/eskf/eskf.hpp>
-#include <formal_eskf/geodesy/local_ned.hpp>
-#include <formal_eskf/runtime/sensors/gravity/accelerometer.hpp>
-#include <formal_eskf/runtime/sensors/imu/imu.hpp>
-#include <formal_eskf/runtime/fusion/navigation.hpp>
-#include <formal_eskf/runtime/fusion/frame_navigation.hpp>
-#include <formal_eskf/runtime/frames/navigation_frame.hpp>
-#include <formal_eskf/runtime/sensors/magnetic/magnetometer.hpp>
-#include <formal_eskf/runtime/sensors/magnetic/magnetometer_lifecycle.hpp>
-#include <formal_eskf/runtime/sensors/magnetic/magnetic_reference.hpp>
-#include <formal_eskf/runtime/sensors/imu/vertical_acceleration_health.hpp>
-#include "conditions.hpp"
-#include "gnss.hpp"
-#if defined(FORMAL_ESKF_REPLAY_PX4_MATRIX)
-#include <formal_eskf/linalg/backend/px4_matrix.hpp>
-#else
-#include <formal_eskf/linalg/backend/eigen.hpp>
-#endif
-
-// Replay settings, not calibrated deployment parameters or certified bounds.
-#define GRAVITY 9.80665 // m/s^2, positive Down in NED.
-#define QUAT_MIN_NORM 1e-6
-#define QUAT_SQUARED_NORM_TOL 1e-12
-#define DT_MIN 1e-6 // s.
-#define DT_MAX 0.05 // s.
-
-// Isotropic per-sample variances; the core scales these by dt^2.
-#define ACCEL_VAR 1.0     // m^2/s^4.
-#define GYRO_VAR 4e-4     // rad^2/s^2.
-#define BAD_ACCEL_STD 4.9 // m/s^2; sampled accelerometer noise during faults/clipping.
-// Bias random-walk variance densities; the core scales these by dt.
-#define ACCEL_BIAS_RW_VAR_DENSITY 1e-6 // m^2/s^5.
-#define GYRO_BIAS_RW_VAR_DENSITY 1e-8  // rad^2/s^3.
-
-// Fallback for CSV inputs without logged bias parameters.
-#define BIAS_MAX_SPECIFIC_FORCE 25.0 // m/s^2, including gravity response.
-#define BIAS_MAX_ANGULAR_RATE 3.0    // rad/s.
-#define BIAS_DECAY_TIME_CONSTANT 0.5 // s.
-#define ACCEL_BIAS_LIMIT 0.4         // m/s^2, per axis.
-#define GYRO_BIAS_LIMIT 0.15         // rad/s, per axis.
-
-// Gravity observation settings; independent of prediction's ACCEL_VAR.
-#define ACCEL_OBS_STD GRAVITY      // m/s^2; effective pseudo-observation weight.
-#define ACCEL_OBS_PERIOD_US 10000U // Nominal; accumulate whole IMU samples.
-
-// Replay field checks; not calibrated disturbance-detection guarantees.
-#define MAG_STRENGTH_TOL 20.0    // microtesla.
-#define MAG_INCLINATION_TOL 20.0 // degrees.
-#define MAG_MIN_HORIZONTAL 5.0   // microtesla; weak-heading guard, not an observability proof.
-#define MAG_HEALTH_TIME_US 1000000U
-#define MAG_MAX_INTERVAL_US 500000U // Startup freshness; no-data stop uses twice this.
-#define MAG_FUSION_TIMEOUT_US 7000000U
-#define MAG_HEADING_STD 0.3 // rad; legacy input default, also used for heading consistency.
-#define MAG_ACCEL_LIMIT 0.5 // m/s^2; legacy input default.
-
-// GNSS-only lifecycle profile: separate horizontal and height deadlines.
-#define GNSS_HORIZONTAL_TIMEOUT_US 7000000U
-#define GNSS_HEIGHT_DATA_TIMEOUT_US 1000000U
-#define GNSS_HEIGHT_FUSION_TIMEOUT_US 5000000U
-
-// Legacy/KITTI floors; PX4 replay supplies gnss_parameters.csv instead.
-#define POS_XY_STD_MIN 1.0 // m.
-#define POS_Z_STD_MIN 1.5  // m.
-#define VEL_STD_MIN 0.3    // m/s.
-
-// Initial local attitude-error and bias variances (already squared).
-#define INIT_ATTITUDE_XY_VAR 0.04 // rad^2, body X/Y.
-#define INIT_ATTITUDE_Z_VAR 0.25  // rad^2, body Z.
-#define INIT_ACCEL_BIAS_VAR 0.25  // m^2/s^4.
-#define INIT_GYRO_BIAS_VAR 0.0025 // rad^2/s^2.
-
-namespace
+namespace replay_demo
 {
-
-#if defined(FORMAL_ESKF_REPLAY_PX4_MATRIX)
-using Linalg = formal_eskf::linalg::Px4MatrixBackend<double>;
-constexpr std::string_view backend_name = "px4_matrix";
-#else
-using Linalg = formal_eskf::linalg::EigenBackend<double>;
-constexpr std::string_view backend_name = "eigen";
-#endif
-using Types = formal_eskf::EskfTypes<Linalg, formal_eskf::configuration::Ins>;
-using State = Types::nominal_state_type;
-using Covariance = Types::error_covariance_type;
-using Vector3 = formal_eskf::linalg::Vector<Linalg, 3U>;
-using Imu = Types::imu_sample_type;
-using formal_eskf::Status;
-using FusionConditions = formal_eskf::example::ReplayFusionConditions<Linalg>;
-using BiasInhibition = formal_eskf::runtime::ImuBiasInhibition<Linalg>;
-using BiasLimits = formal_eskf::runtime::BiasLimits<double>;
-using Accelerometer = formal_eskf::runtime::AccelerometerSample<Linalg, ACCEL_OBS_PERIOD_US>;
-using MagneticLifecycle = formal_eskf::runtime::MagnetometerFusion;
-using GnssQuality = formal_eskf::example::ReplayGnssQuality<Linalg>;
-using GnssLifecycle = formal_eskf::runtime::GnssFusion;
-using VerticalHealth = formal_eskf::runtime::VerticalAccelerationHealth<Linalg>;
-using NavigationFrame = formal_eskf::runtime::NavigationFrame<Linalg>;
-using NavigationReset = formal_eskf::runtime::NavigationReset;
-
-struct ImuFlags
-{
-    int at_rest = -1;
-    int accelerometer_clipping = -1;
-};
-
-struct VerticalAccelerationEvidence
-{
-    VerticalHealth::Observations observations{};
-    std::uint64_t height_time_us{};
-    std::uint64_t velocity_time_us{};
-};
-
-void write_vertical_health(std::ostream & stream, std::uint64_t time, bool available, double average_interval,
-                           VerticalHealth::State const & health, VerticalAccelerationEvidence const & evidence)
-{
-    stream << time << ',' << available << ',' << average_interval;
-    for (auto count : health.clip_count)
-    {
-        stream << ',' << count;
-    }
-    stream << ',' << static_cast<int>(health.likelihood) << ',' << health.bad_clipping << ',' << health.bad_sample
-           << ',' << health.bad_vertical_acceleration << ',' << health.last_bad_time_us << ','
-           << health.last_good_time_us;
-    auto const & height = evidence.observations.gnss_height;
-    auto const & velocity = evidence.observations.gnss_velocity_down;
-    stream << ',' << height.active << ',' << evidence.height_time_us << ',' << height.innovation << ','
-           << height.variance << ',' << velocity.active << ',' << evidence.velocity_time_us << ','
-           << velocity.innovation << ',' << velocity.variance << '\n';
-}
-
-std::ifstream open_csv(std::filesystem::path const & path, std::string_view expected_header)
-{
-    std::ifstream stream(path);
-    std::string header;
-    std::getline(stream, header);
-    if (!header.empty() && header.back() == '\r')
-    {
-        header.pop_back();
-    }
-    if (!stream || header != expected_header)
-    {
-        throw std::runtime_error("cannot read expected CSV header: " + path.string());
-    }
-    return stream;
-}
-
-bool read_row(std::istream & stream, std::span<double> output, bool allow_non_finite = false)
-{
-    std::string line;
-    if (!std::getline(stream, line))
-    {
-        if (!stream.eof())
-        {
-            throw std::runtime_error("CSV read failed");
-        }
-        return false;
-    }
-    if (!line.empty() && line.back() == '\r')
-    {
-        line.pop_back();
-    }
-    std::string_view remaining(line);
-    for (std::size_t index = 0U; index < output.size(); ++index)
-    {
-        auto const comma = remaining.find(',');
-        if ((comma == std::string_view::npos) != (index + 1U == output.size()))
-        {
-            throw std::runtime_error("wrong CSV column count");
-        }
-        auto const field = remaining.substr(0U, comma);
-        auto const result = std::from_chars(field.data(), field.data() + field.size(), output[index]);
-        if (result.ec != std::errc{} || result.ptr != field.data() + field.size() ||
-            (!allow_non_finite && !std::isfinite(output[index])))
-        {
-            throw std::runtime_error("invalid CSV number");
-        }
-        if (comma != std::string_view::npos)
-        {
-            remaining.remove_prefix(comma + 1U);
-        }
-    }
-    return true;
-}
-
-// Host preparation bridge: one geodetic origin, followed by geodetic sample
-// locations (degrees, degrees, ellipsoidal metres). Each output row contains
-// position_n and the row-major rotation from sample NED to origin NED.
-void project_coordinates(std::istream & input, std::ostream & output)
-{
-    using LocalNed = formal_eskf::geodesy::LocalNed<Linalg>;
-    std::array<double, 3U> row{};
-    LocalNed origin;
-    if (!read_row(input, row) || !formal_eskf::succeeded(origin.set_origin({row[0U], row[1U], row[2U]})))
-    {
-        throw std::runtime_error(
-            "invalid geodetic origin: expected degrees and WGS84 ellipsoidal height in [-12000,100000] m");
-    }
-    LocalNed::matrix_type C_0e;
-    if (!formal_eskf::succeeded(origin.rotation_from_ecef(C_0e)))
-    {
-        throw std::runtime_error("cannot retrieve origin NED basis");
-    }
-    output << std::setprecision(std::numeric_limits<double>::max_digits10);
-    while (read_row(input, row))
-    {
-        LocalNed sample;
-        Vector3 position_e, position_n;
-        LocalNed::matrix_type C_se;
-        // The sample location is the zero position of its own local frame.
-        if (!formal_eskf::succeeded(sample.set_origin({row[0U], row[1U], row[2U]})) ||
-            !formal_eskf::succeeded(sample.ned_to_ecef(Vector3{}, position_e)) ||
-            !formal_eskf::succeeded(origin.ecef_to_ned(position_e, position_n)) ||
-            !formal_eskf::succeeded(sample.rotation_from_ecef(C_se)))
-        {
-            throw std::runtime_error(
-                "geodetic sample conversion failed: check latitude, longitude and ellipsoidal height");
-        }
-        auto const T_0s = C_0e * formal_eskf::linalg::transpose(C_se);
-        output << position_n(0U) << ',' << position_n(1U) << ',' << position_n(2U);
-        for (std::size_t axis = 0U; axis < 3U; ++axis)
-        {
-            for (std::size_t column = 0U; column < 3U; ++column)
-            {
-                output << ',' << T_0s(axis, column);
-            }
-        }
-        output << '\n';
-    }
-    if (!output)
-    {
-        throw std::runtime_error("coordinate output failed");
-    }
-}
-
-std::uint64_t timestamp(double value)
-{
-    // The CSV reader uses doubles; integers below 2^53 are represented exactly.
-    if (!std::isfinite(value) || value < 1.0 || value >= 9007199254740992.0 || std::trunc(value) != value)
-    {
-        throw std::runtime_error("timestamp/interval must be a positive exact integer in microseconds");
-    }
-    return static_cast<std::uint64_t>(value);
-}
-
-void check_status(Status status, std::string_view operation, std::uint64_t time)
-{
-    if (!formal_eskf::succeeded(status))
-    {
-        throw std::runtime_error(std::string(operation) + " failed at " + std::to_string(time) +
-                                 " us (Status=" + std::to_string(static_cast<int>(status)) + ")");
-    }
-}
-
-Vector3 vector3(double x, double y, double z) { return Vector3::from_row_major({x, y, z}); }
-
-int metadata_integer(double value, int minimum, int maximum)
-{
-    if (!std::isfinite(value) || std::trunc(value) != value || value < minimum || value > maximum)
-    {
-        throw std::runtime_error("invalid integer metadata");
-    }
-    return static_cast<int>(value);
-}
-
-Imu imu_sample(std::array<double, 8U> const & row)
-{
-    return {vector3(row[2U], row[3U], row[4U]), vector3(row[5U], row[6U], row[7U])};
-}
-
-ImuFlags read_imu_flags(std::ifstream & stream, std::uint64_t time)
-{
-    if (!stream.is_open())
-    {
-        return {};
-    }
-    std::array<double, 3U> row{};
-    if (!read_row(stream, row) || timestamp(row[0U]) != time || row[1U] < -1.0 || row[1U] > 1.0 ||
-        std::trunc(row[1U]) != row[1U] || row[2U] < -1.0 || row[2U] > 7.0 || std::trunc(row[2U]) != row[2U])
-    {
-        throw std::runtime_error("IMU flags must match the sample timestamp and flag domains");
-    }
-    return {static_cast<int>(row[1U]), static_cast<int>(row[2U])};
-}
-
-BiasInhibition::Parameters read_bias_parameters(std::filesystem::path const & input)
-{
-    if (!std::filesystem::exists(input / "bias_parameters.csv"))
-    {
-        return {BIAS_MAX_SPECIFIC_FORCE, BIAS_MAX_ANGULAR_RATE, BIAS_DECAY_TIME_CONSTANT, true, true};
-    }
-    auto stream = open_csv(
-        input / "bias_parameters.csv",
-        "maximum_specific_force,maximum_angular_rate,decay_time_constant,accelerometer_enabled,gyroscope_enabled");
-    std::array<double, 5U> row{}, extra{};
-    if (!read_row(stream, row) || read_row(stream, extra) || !(row[0U] > 0.0) || !(row[1U] > 0.0) || !(row[2U] > 0.0) ||
-        (row[3U] != 0.0 && row[3U] != 1.0) || (row[4U] != 0.0 && row[4U] != 1.0))
-    {
-        throw std::runtime_error("invalid bias parameters");
-    }
-    return {row[0U], row[1U], row[2U], row[3U] == 1.0, row[4U] == 1.0};
-}
-
-BiasLimits read_bias_limits(std::filesystem::path const & input)
-{
-    if (!std::filesystem::exists(input / "bias_limits.csv"))
-    {
-        return {ACCEL_BIAS_LIMIT, GYRO_BIAS_LIMIT};
-    }
-    auto stream = open_csv(input / "bias_limits.csv", "accelerometer,gyroscope");
-    std::array<double, 2U> row{}, extra{};
-    if (!read_row(stream, row) || read_row(stream, extra) || row[0U] < 0.0 || row[1U] < 0.0)
-    {
-        throw std::runtime_error("invalid bias limits");
-    }
-    return {row[0U], row[1U]};
-}
-
 void limit_bias(State & state, BiasLimits const & limits, std::array<std::size_t, 6U> & counts, std::uint64_t time)
 {
     auto const b_a = state.b_a;
@@ -352,174 +18,6 @@ void limit_bias(State & state, BiasLimits const & limits, std::array<std::size_t
         counts[axis] += b_a(axis) != state.b_a(axis) ? 1U : 0U;
         counts[3U + axis] += b_g(axis) != state.b_g(axis) ? 1U : 0U;
     }
-}
-
-double variance(double accuracy, double floor)
-{
-    if (!std::isfinite(accuracy) || !(accuracy > 0.0))
-    {
-        throw std::runtime_error("Navigation accuracy must be positive");
-    }
-    double const sigma = std::max(accuracy, floor);
-    double const result = sigma * sigma;
-    if (!std::isfinite(result) || result < std::numeric_limits<double>::min())
-    {
-        throw std::runtime_error("unsafe navigation variance");
-    }
-    return result;
-}
-
-struct GnssParameters
-{
-    double position_gate{};
-    double velocity_gate{};
-    double position_noise{};       // Standard deviation, m.
-    double velocity_noise{};       // Standard deviation, m/s.
-    double position_noise_limit{}; // Sole horizontal aiding source, m.
-};
-
-std::optional<GnssParameters> read_gnss_parameters(std::filesystem::path const & input)
-{
-    if (!std::filesystem::exists(input / "gnss_parameters.csv"))
-    {
-        return std::nullopt;
-    }
-    auto stream = open_csv(input / "gnss_parameters.csv",
-                           "position_gate,velocity_gate,position_noise,velocity_noise,position_noise_limit");
-    std::array<double, 5U> row{}, extra{};
-    if (!read_row(stream, row) || read_row(stream, extra))
-    {
-        throw std::runtime_error("expected exactly one GNSS parameter row");
-    }
-    auto const & [position_gate, velocity_gate, position_noise, velocity_noise, position_noise_limit] = row;
-    // A source-specific clamp belongs here, not in the generic innovation gate.
-    GnssParameters result{std::max(position_gate, 1.0), std::max(velocity_gate, 1.0), position_noise, velocity_noise,
-                          position_noise_limit};
-    for (double value :
-         {result.position_gate, result.velocity_gate, position_noise, velocity_noise, position_noise_limit})
-    {
-        (void)variance(value, 0.0);
-    }
-    return result;
-}
-
-std::optional<GnssQuality::monitor_type::parameters_type>
-read_gnss_quality_parameters(std::filesystem::path const & input)
-{
-    bool const supplied = std::filesystem::exists(input / "gnss_quality_parameters.csv");
-    if (supplied != std::filesystem::exists(input / "gnss_quality.csv") ||
-        (supplied && !std::filesystem::exists(input / "gnss_parameters.csv")))
-    {
-        throw std::runtime_error("GNSS quality data/parameters must be paired with GNSS fusion parameters");
-    }
-    if (!supplied)
-    {
-        return std::nullopt;
-    }
-    auto stream =
-        open_csv(input / "gnss_quality_parameters.csv",
-                 "check_mask,minimum_satellites,maximum_pdop,maximum_horizontal_accuracy,maximum_vertical_accuracy,"
-                 "maximum_speed_accuracy,maximum_horizontal_drift,maximum_vertical_drift,minimum_health_time_us");
-    std::array<double, 9U> row{}, extra{};
-    if (!read_row(stream, row) || read_row(stream, extra))
-    {
-        throw std::runtime_error("expected exactly one GNSS quality parameter row");
-    }
-    GnssQuality::monitor_type::parameters_type result;
-    result.enabled_checks =
-        formal_eskf::example::gnss_quality_checks(static_cast<unsigned>(metadata_integer(row[0U], 0, 1023)));
-    result.minimum_satellites = static_cast<std::uint8_t>(metadata_integer(row[1U], 1, 255));
-    result.maximum_pdop = row[2U];
-    result.maximum_horizontal_accuracy = row[3U];
-    result.maximum_vertical_accuracy = row[4U];
-    result.maximum_speed_accuracy = row[5U];
-    result.maximum_horizontal_drift = row[6U];
-    result.maximum_vertical_drift = row[7U];
-    result.minimum_health_time_us = timestamp(row[8U]);
-    // Validate through the production monitor even if every replay row later has
-    // unavailable metadata. This temporary monitor is not replay health history.
-    GnssQuality::monitor_type validator;
-    GnssQuality::monitor_type::sample_type sample;
-    sample.time_us = 1U;
-    check_status(validator.update(sample, {true, false}, 1U, result).status, "GNSS quality parameters", 1U);
-    return result;
-}
-
-GnssQuality::Result check_gnss_quality(std::ifstream & stream, GnssQuality & monitor,
-                                       GnssQuality::monitor_type::parameters_type const & parameters,
-                                       std::array<double, 10U> const & navigation, std::uint64_t time)
-{
-    std::array<double, 15U> row{};
-    // Numerical sensor errors reach the monitor; structural metadata remains strict.
-    if (!read_row(stream, row, true) || timestamp(row[0U]) != timestamp(navigation[0U]))
-    {
-        throw std::runtime_error("GNSS quality rows must match navigation timestamps");
-    }
-    GnssQuality::monitor_type::sample_type sample;
-    sample.time_us = timestamp(row[0U]);
-    sample.fix_type = static_cast<std::uint8_t>(metadata_integer(row[1U], 0, 255));
-    sample.satellites = static_cast<std::uint8_t>(metadata_integer(row[2U], 0, 255));
-    sample.pdop = row[3U];
-    sample.horizontal_accuracy = navigation[7U];
-    sample.vertical_accuracy = navigation[8U];
-    sample.speed_accuracy = navigation[9U];
-    sample.velocity_n = vector3(row[8U], row[9U], row[10U]);
-    sample.position_delta_n = vector3(row[11U], row[12U], row[13U]);
-    sample.position_reference_time_us = row[14U] == 0.0 ? 0U : timestamp(row[14U]);
-    GnssQuality::Metadata const metadata{metadata_integer(row[5U], 0, 1) == 1, metadata_integer(row[6U], -1, 1),
-                                         metadata_integer(row[7U], -1, 1), metadata_integer(row[4U], -1, 1)};
-    return monitor.update(sample, metadata, time, parameters);
-}
-
-void write_gnss_quality(std::ostream & stream, GnssQuality::Result const & result, std::uint64_t source_time,
-                        std::uint64_t time)
-{
-    auto const & quality = result.quality;
-    auto const & failures = quality.failures;
-    stream << source_time << ',' << time << ',' << result.outcome_name() << ',' << static_cast<int>(quality.status)
-           << ',' << result.evaluated() << ',' << result.motion_available << ',' << result.spoofing_available << ','
-           << quality.qualified << ',' << quality.invalid_fix;
-    for (bool failed : {failures.satellites, failures.pdop, failures.horizontal_accuracy, failures.vertical_accuracy,
-                        failures.speed_accuracy, failures.horizontal_drift, failures.vertical_drift,
-                        failures.horizontal_speed, failures.vertical_speed, failures.spoofed})
-    {
-        stream << ',' << failed;
-    }
-    stream << ',' << quality.drift_valid << ',' << quality.horizontal_drift << ',' << quality.vertical_drift << ','
-           << quality.horizontal_speed << ',' << quality.vertical_speed << ',' << quality.last_fail_us << ','
-           << quality.last_pass_us << '\n';
-}
-
-std::string_view gnss_stop_reason(GnssLifecycle::StopReason reason)
-{
-    switch (reason)
-    {
-    case GnssLifecycle::StopReason::none:
-        return "none";
-    case GnssLifecycle::StopReason::disabled:
-        return "disabled";
-    case GnssLifecycle::StopReason::not_ready:
-        return "not_ready";
-    case GnssLifecycle::StopReason::waiting_for_quality:
-        return "waiting_for_quality";
-    case GnssLifecycle::StopReason::data_timeout:
-        return "data_timeout";
-    case GnssLifecycle::StopReason::poor_quality:
-        return "poor_quality";
-    case GnssLifecycle::StopReason::initialization_required:
-        return "initialization_required";
-    case GnssLifecycle::StopReason::fusion_timeout:
-        return "fusion_timeout";
-    case GnssLifecycle::StopReason::bad_vertical_acceleration:
-        return "bad_vertical_acceleration";
-    case GnssLifecycle::StopReason::fusion_failed:
-        return "fusion_failed";
-    case GnssLifecycle::StopReason::reset_failed:
-        return "reset_failed";
-    case GnssLifecycle::StopReason::numerical_intervention:
-        return "numerical_intervention";
-    }
-    return "invalid_call";
 }
 
 bool gnss_recovery_required(GnssLifecycle::State const & state)
@@ -543,373 +41,6 @@ void update_gnss_lifecycle(GnssLifecycle & lifecycle, GnssQuality & quality, Gns
     {
         quality.restart_health();
     }
-}
-
-void write_gnss_lifecycle(std::ostream & stream, GnssLifecycle::State const & previous,
-                          GnssLifecycle::State const & state, std::uint64_t source_time, std::uint64_t time)
-{
-    struct Entry
-    {
-        std::string_view name;
-        GnssLifecycle::GroupState GnssLifecycle::State::*group{};
-    };
-    for (auto const & entry : {Entry{"velocity", &GnssLifecycle::State::velocity},
-                               Entry{"horizontal_position", &GnssLifecycle::State::horizontal_position},
-                               Entry{"vertical_position", &GnssLifecycle::State::vertical_position}})
-    {
-        auto const & current = state.*entry.group;
-        auto const & before = previous.*entry.group;
-        if (source_time != 0U || current.active != before.active || current.stop_reason != before.stop_reason ||
-            current.recovery_required != before.recovery_required)
-        {
-            stream << source_time << ',' << time << ',' << entry.name << ',' << current.active << ','
-                   << gnss_stop_reason(current.stop_reason) << ',' << current.recovery_required << ','
-                   << current.start_time_us << ',' << current.last_fuse_time_us << ',' << state.restart_quality << ','
-                   << current.last_reset_time_us << '\n';
-        }
-    }
-    if (gnss_recovery_required(state))
-    {
-        throw std::runtime_error("GNSS recovery is unsupported or failed; see gnss_lifecycle.csv and gnss_resets.csv");
-    }
-}
-
-template <typename Vector>
-void write_gnss_reset(std::ostream & stream, std::string_view group, GnssLifecycle::StopReason reason, Status status,
-                      Vector const & delta, std::uint64_t source_time, std::uint64_t time)
-{
-    for (std::size_t axis = 0U; axis < Vector::row_count; ++axis)
-    {
-        stream << source_time << ',' << time << ',' << group << ',' << axis << ',' << gnss_stop_reason(reason) << ','
-               << (status == Status::success ? "reset" : "failed") << ',' << static_cast<int>(status) << ','
-               << (status == Status::success);
-        // A failed checked reset has no valid delta; do not invent a zero reset.
-        stream << ',';
-        if (status == Status::success)
-        {
-            stream << delta(axis);
-        }
-        stream << '\n';
-    }
-}
-
-struct NavigationVariances
-{
-    double position_xy{};
-    double position_z{};
-    double velocity_xy{};
-    double velocity_z{};
-};
-
-NavigationVariances navigation_variances(double horizontal_accuracy, double vertical_accuracy, double speed_accuracy,
-                                         std::optional<GnssParameters> const & gnss)
-{
-    if (!gnss)
-    {
-        double const velocity = variance(speed_accuracy, VEL_STD_MIN);
-        return {variance(horizontal_accuracy, POS_XY_STD_MIN), variance(vertical_accuracy, POS_Z_STD_MIN), velocity,
-                velocity};
-    }
-    if (!std::isfinite(horizontal_accuracy) || horizontal_accuracy <= 0.0)
-    {
-        throw std::runtime_error("Navigation accuracy must be positive and finite");
-    }
-    // This replay has no other horizontal aid and uses GNSS as its sole height
-    // reference: cap horizontal noise only; no height bias or bias variance.
-    double const position_std =
-        std::min(std::max(horizontal_accuracy, gnss->position_noise), gnss->position_noise_limit);
-    double const velocity_std = std::max(speed_accuracy, std::max(gnss->velocity_noise, 0.01));
-    double const velocity_xy = variance(speed_accuracy, std::max(gnss->velocity_noise, 0.01));
-    return {variance(position_std, 0.01), variance(vertical_accuracy, 1.5 * gnss->position_noise), velocity_xy,
-            variance(1.5 * velocity_std, 0.0)};
-}
-
-struct MagneticReference
-{
-    Vector3 m_n{};
-    formal_eskf::linalg::Matrix<Linalg, 3U, 3U> V{};
-    double gate_sigma{};
-    bool use_model_heading = true; // Legacy model inputs use the geographic field for both roles.
-};
-
-MagneticReference read_magnetic_reference(std::filesystem::path const & input)
-{
-    std::ifstream stream(input / "magnetic_reference.csv");
-    std::string header;
-    std::getline(stream, header);
-    if (!header.empty() && header.back() == '\r')
-    {
-        header.pop_back();
-    }
-    bool const explicit_source = header == "mn,me,md,noise_std,gate_sigma,use_model_heading";
-    if (!stream || (!explicit_source && header != "mn,me,md,noise_std,gate_sigma"))
-    {
-        throw std::runtime_error("cannot read expected magnetic reference header");
-    }
-    std::array<double, 6U> row{0.0, 0.0, 0.0, 0.0, 0.0, 1.0}, extra{};
-    auto const columns = explicit_source ? 6U : 5U;
-    if (!read_row(stream, std::span{row}.first(columns)) || read_row(stream, std::span{extra}.first(columns)))
-    {
-        throw std::runtime_error("expected exactly one magnetic reference");
-    }
-    auto const & [mn, me, md, noise_std, gate_sigma, use_model_heading] = row;
-    double const noise_variance = noise_std * noise_std;
-    if (!(noise_std > 0.0) || !(gate_sigma > 0.0) || !std::isfinite(noise_variance) ||
-        noise_variance < std::numeric_limits<double>::min() || std::hypot(mn, me) < MAG_MIN_HORIZONTAL)
-    {
-        throw std::runtime_error("invalid magnetic reference/noise/gate or insufficient horizontal field");
-    }
-    return {vector3(mn, me, md), formal_eskf::linalg::Matrix<Linalg, 3U, 3U>::identity() * noise_variance, gate_sigma,
-            metadata_integer(use_model_heading, 0, 1) != 0};
-}
-
-formal_eskf::runtime::MagneticHeading<Linalg>::Parameters
-read_magnetic_heading_parameters(std::filesystem::path const & input)
-{
-    std::array<double, 2U> row{MAG_HEADING_STD, MAG_ACCEL_LIMIT};
-    if (std::filesystem::exists(input / "magnetic_heading_parameters.csv"))
-    {
-        auto stream = open_csv(input / "magnetic_heading_parameters.csv", "heading_noise,acceleration_limit");
-        std::array<double, 2U> extra{};
-        if (!read_row(stream, row) || read_row(stream, extra))
-        {
-            throw std::runtime_error("expected exactly one magnetic heading parameter row");
-        }
-    }
-    if (!(row[0U] > 0.0) || row[0U] > std::numbers::pi || row[1U] < 0.0)
-    {
-        throw std::runtime_error("invalid magnetic heading parameters");
-    }
-    return {row[0U], row[1U], MAG_MIN_HORIZONTAL};
-}
-
-using ReferenceModel = formal_eskf::runtime::MagneticReference<Linalg>;
-
-struct MagneticFieldConfiguration
-{
-    formal_eskf::runtime::MagneticFieldParameters<double> parameters{
-        MAG_STRENGTH_TOL, MAG_INCLINATION_TOL * std::numbers::pi / 180.0, 0.0, MAG_MIN_HORIZONTAL};
-    formal_eskf::runtime::MagneticFieldChecks checks{};
-    bool configured = false;
-};
-
-MagneticFieldConfiguration read_magnetic_field_parameters(std::filesystem::path const & input)
-{
-    MagneticFieldConfiguration result;
-    if (!std::filesystem::exists(input / "magnetic_field_parameters.csv"))
-    {
-        return result; // Legacy prepared inputs use their supplied field for both checks.
-    }
-    auto stream =
-        open_csv(input / "magnetic_field_parameters.csv", "check_mask,strength_tolerance_ut,inclination_tolerance_rad");
-    std::array<double, 3U> row{}, extra{};
-    if (!read_row(stream, row) || read_row(stream, extra))
-    {
-        throw std::runtime_error("expected exactly one magnetic field parameter row");
-    }
-    auto const mask = metadata_integer(row[0U], 0, 7);
-    if (row[1U] < 0.0 || row[1U] > 100.0 || row[2U] < 0.0 || row[2U] > std::numbers::pi / 2.0)
-    {
-        throw std::runtime_error("invalid magnetic field tolerances");
-    }
-    result.parameters.strength_tolerance = row[1U];
-    result.parameters.inclination_tolerance = row[2U];
-    result.checks = {(mask & 1) != 0, (mask & 2) != 0, (mask & 4) != 0};
-    result.configured = true;
-    return result;
-}
-
-std::optional<ReferenceModel::Sample> read_magnetic_model(std::ifstream & stream, std::uint64_t time)
-{
-    if (!stream.is_open())
-    {
-        return std::nullopt;
-    }
-    std::array<double, 5U> row{};
-    if (!read_row(stream, row) || timestamp(row[0U]) != time)
-    {
-        throw std::runtime_error("magnetic model must match the seed and each navigation sample");
-    }
-    if (metadata_integer(row[1U], 0, 1) == 0)
-    {
-        return std::nullopt;
-    }
-    return ReferenceModel::Sample{row[2U], row[3U], row[4U]};
-}
-
-void write_magnetic_reference(std::ostream & stream, std::uint64_t source_time, std::uint64_t time,
-                              ReferenceModel::State const & state, bool changed)
-{
-    stream << source_time << ',' << time << ',' << changed << ',' << state.reference_id << ','
-           << state.model.declination << ',' << state.model.inclination << ',' << state.model.strength;
-    for (std::size_t axis = 0U; axis < 3U; ++axis)
-    {
-        stream << ',' << state.field_n(axis);
-    }
-    stream << '\n';
-}
-
-struct MagneticContext
-{
-    MagneticLifecycle::Source source{1U, 0U, 0U};
-    MagneticLifecycle::FlightState flight_state = MagneticLifecycle::FlightState::unknown;
-    Vector3 m_n{};
-};
-
-MagneticContext read_magnetic_context(std::ifstream & stream, std::uint64_t time, MagneticContext const & previous)
-{
-    if (!stream.is_open())
-    {
-        return previous;
-    }
-    std::array<double, 8U> row{};
-    if (!read_row(stream, row) || timestamp(row[0U]) != time)
-    {
-        throw std::runtime_error("magnetic context must match the seed and each magnetic sample");
-    }
-    if (std::any_of(row.begin() + 1, row.begin() + 4,
-                    [](double value) {
-                        return value < 0.0 || value > std::numeric_limits<std::uint32_t>::max() ||
-                               std::trunc(value) != value;
-                    }))
-    {
-        throw std::runtime_error("invalid magnetic identity/revision");
-    }
-    auto const flight = metadata_integer(row[4U], -1, 1);
-    MagneticContext result{
-        {static_cast<std::uint32_t>(row[1U]), static_cast<std::uint32_t>(row[2U]), static_cast<std::uint32_t>(row[3U])},
-        flight == -1  ? MagneticLifecycle::FlightState::unknown
-        : flight == 0 ? MagneticLifecycle::FlightState::on_ground
-                      : MagneticLifecycle::FlightState::in_air,
-        vector3(row[5U], row[6U], row[7U])};
-    if (result.source.device_id == 0U || std::hypot(row[5U], row[6U]) < MAG_MIN_HORIZONTAL)
-    {
-        throw std::runtime_error("invalid magnetic source or reference");
-    }
-    if (result.source.reference_id == previous.source.reference_id &&
-        formal_eskf::linalg::max_abs(result.m_n - previous.m_n) != 0.0)
-    {
-        throw std::runtime_error("changed magnetic reference requires a new revision");
-    }
-    return result;
-}
-
-std::string_view fusion_outcome(formal_eskf::runtime::FusionDecision decision)
-{
-    switch (decision)
-    {
-    case formal_eskf::runtime::FusionDecision::fused:
-        return "fused";
-    case formal_eskf::runtime::FusionDecision::rejected:
-        return "rejected";
-    default:
-        return "failed";
-    }
-}
-
-std::string_view magnetic_stop_reason(MagneticLifecycle::StopReason reason)
-{
-    switch (reason)
-    {
-    case MagneticLifecycle::StopReason::none:
-        return "none";
-    case MagneticLifecycle::StopReason::disabled:
-        return "disabled";
-    case MagneticLifecycle::StopReason::not_ready:
-        return "not_ready";
-    case MagneticLifecycle::StopReason::waiting_for_health:
-        return "waiting_for_health";
-    case MagneticLifecycle::StopReason::field_rejected:
-        return "field_rejected";
-    case MagneticLifecycle::StopReason::innovation_rejected:
-        return "innovation_rejected";
-    case MagneticLifecycle::StopReason::heading_inconsistent:
-        return "heading_inconsistent";
-    case MagneticLifecycle::StopReason::data_timeout:
-        return "data_timeout";
-    case MagneticLifecycle::StopReason::fusion_timeout:
-        return "fusion_timeout";
-    case MagneticLifecycle::StopReason::recovery_required:
-        return "recovery_required";
-    default:
-        return "invalid_call";
-    }
-}
-
-std::string_view magnetic_recovery_reason(MagneticLifecycle::RecoveryReason reason)
-{
-    switch (reason)
-    {
-    case MagneticLifecycle::RecoveryReason::none:
-        return "none";
-    case MagneticLifecycle::RecoveryReason::fusion_timeout:
-        return "fusion_timeout";
-    case MagneticLifecycle::RecoveryReason::fusion_failed:
-        return "fusion_failed";
-    case MagneticLifecycle::RecoveryReason::reset_failed:
-        return "reset_failed";
-    case MagneticLifecycle::RecoveryReason::reference_changed:
-        return "reference_changed";
-    default:
-        return "source_changed";
-    }
-}
-
-void write_magnetic_update(std::ostream & stream, std::uint64_t source_time, std::uint64_t time,
-                           std::string_view outcome,
-                           formal_eskf::runtime::MagnetometerFusionResult<Linalg> const & result,
-                           MagneticLifecycle::State const & lifecycle,
-                           formal_eskf::runtime::MagneticHeading<Linalg>::State const & heading)
-{
-    auto const & field = result.field;
-    auto const & fusion = result.fusion;
-    auto const status = formal_eskf::succeeded(field.status) ? fusion.status : field.status;
-    stream << source_time << ',' << time << ',' << outcome << ',' << static_cast<int>(status) << ','
-           << field.diagnostics_valid << ',' << field.failures.strength << ',' << field.failures.inclination << ','
-           << field.failures.horizontal_field << ',' << fusion.diagnostics_valid << ',' << fusion.test_ratio(0U) << ','
-           << fusion.test_ratio(1U) << ',' << fusion.test_ratio(2U) << ',' << lifecycle.active << ','
-           << magnetic_stop_reason(lifecycle.stop_reason) << ',' << magnetic_recovery_reason(lifecycle.recovery_reason)
-           << ',' << lifecycle.last_field_failure_time_us << ',' << lifecycle.start_time_us << ','
-           << lifecycle.last_fuse_time_us << ',' << lifecycle.last_reset_time_us << ',' << heading.innovation_valid
-           << ',' << heading.innovation << ',' << heading.filtered_innovation << ',' << heading.horizontal_acceleration
-           << ',' << heading.observable << ',' << heading.consistent << ',' << field.failures.reference << ','
-           << field.strength_checked << ',' << field.inclination_checked << ',' << field.strength << ','
-           << field.reference_strength << ',' << field.inclination_error << '\n';
-}
-
-/** One row per observed axis; the outcome applies to the whole group. */
-template <std::size_t Size>
-bool record_navigation_fusion(std::ostream & stream, formal_eskf::runtime::FusionResult<Linalg, Size> const & result,
-                              formal_eskf::linalg::Matrix<Linalg, Size, Size> const & V, std::string_view group,
-                              std::uint64_t source_time, std::uint64_t time,
-                              formal_eskf::linalg::Matrix<Linalg, Size, 1U> const & fusion_innovation,
-                              bool innovation_limited)
-{
-    for (std::size_t axis = 0U; axis < Size; ++axis)
-    {
-        stream << source_time << ',' << time << ',' << group << ',' << axis << ',' << fusion_outcome(result.decision)
-               << ',' << static_cast<int>(result.status) << ',' << result.diagnostics_valid << ','
-               << result.innovation(axis) << ',' << result.innovation_variance(axis) << ',' << result.test_ratio(axis)
-               << ',' << V(axis, axis) << ',' << fusion_innovation(axis) << ',' << innovation_limited << '\n';
-    }
-    return result.decision == formal_eskf::runtime::FusionDecision::fused;
-}
-
-Types::parameter_type parameters()
-{
-    Types::parameter_type result;
-    result.gravity_n = vector3(0.0, 0.0, GRAVITY);
-    result.minimum_quaternion_norm = QUAT_MIN_NORM;
-    result.quaternion_squared_norm_tolerance = QUAT_SQUARED_NORM_TOL;
-    result.dt_min = DT_MIN;
-    result.dt_max = DT_MAX;
-    result.process_noise.specific_force_variance = vector3(ACCEL_VAR, ACCEL_VAR, ACCEL_VAR);
-    result.process_noise.angular_rate_variance = vector3(GYRO_VAR, GYRO_VAR, GYRO_VAR);
-    result.process_noise.accelerometer_bias_random_walk_variance_density =
-        vector3(ACCEL_BIAS_RW_VAR_DENSITY, ACCEL_BIAS_RW_VAR_DENSITY, ACCEL_BIAS_RW_VAR_DENSITY);
-    result.process_noise.gyroscope_bias_random_walk_variance_density =
-        vector3(GYRO_BIAS_RW_VAR_DENSITY, GYRO_BIAS_RW_VAR_DENSITY, GYRO_BIAS_RW_VAR_DENSITY);
-    return result;
 }
 
 Covariance initial_covariance(NavigationVariances const & noise)
@@ -966,29 +97,30 @@ formal_eskf::runtime::FrameObservation<Linalg, 3> velocity_observation(Navigatio
 }
 
 void correct_navigation(NavigationFrame const & frame, State & state, Covariance & covariance,
-                        std::array<double, 10U> const & row, std::uint64_t time,
+                        NavigationRow const & row, std::uint64_t time,
                         formal_eskf::configuration::Ins::BiasUpdate const & bias_update, BiasLimits const & limits,
                         std::array<std::size_t, 6U> & limit_counts)
 {
     // Adapter-provided standard deviations use independent axes and fixed
     // floors (m, m/s), not a full joint 6x6 observation covariance.
-    auto const position = formal_eskf::linalg::Vector<Linalg, 2U>::from_row_major({row[1U], row[2U]});
-    double const horizontal_variance = variance(row[7U], POS_XY_STD_MIN);
+    auto const position = formal_eskf::linalg::Vector<Linalg, 2U>::from_row_major({row.pn, row.pe});
+    double const horizontal_variance = variance(row.horizontal_accuracy, POS_XY_STD_MIN);
     auto const position_noise = formal_eskf::linalg::Matrix<Linalg, 2U, 2U>::identity() * horizontal_variance;
     auto observation_xy = horizontal_observation(frame, state, position);
     check_status(formal_eskf::correct(state, covariance, observation_xy.innovation, observation_xy.H, position_noise,
                                       QUAT_MIN_NORM, state, covariance, bias_update),
                  "horizontal position", time);
     limit_bias(state, limits, limit_counts, time);
-    auto observation_z = height_observation(frame, state, row[3U]);
-    auto const V_z = formal_eskf::linalg::Matrix<Linalg, 1, 1>::from_row_major({variance(row[8U], POS_Z_STD_MIN)});
+    auto observation_z = height_observation(frame, state, row.pd);
+    auto const V_z =
+        formal_eskf::linalg::Matrix<Linalg, 1, 1>::from_row_major({variance(row.vertical_accuracy, POS_Z_STD_MIN)});
     check_status(formal_eskf::correct(state, covariance, observation_z.innovation, observation_z.H, V_z, QUAT_MIN_NORM,
                                       state, covariance, bias_update),
                  "vertical position", time);
     limit_bias(state, limits, limit_counts, time);
     auto const velocity_noise =
-        formal_eskf::linalg::Matrix<Linalg, 3U, 3U>::identity() * variance(row[9U], VEL_STD_MIN);
-    auto observation_v = velocity_observation(frame, state, vector3(row[4U], row[5U], row[6U]));
+        formal_eskf::linalg::Matrix<Linalg, 3U, 3U>::identity() * variance(row.speed_accuracy, VEL_STD_MIN);
+    auto observation_v = velocity_observation(frame, state, vector3(row.vn, row.ve, row.vd));
     check_status(formal_eskf::correct(state, covariance, observation_v.innovation, observation_v.H, velocity_noise,
                                       QUAT_MIN_NORM, state, covariance, bias_update),
                  "velocity", time);
@@ -1013,49 +145,6 @@ void check_state(State const & state, Covariance const & covariance)
     }
     // Finite entries and nonnegative diagonals are NOT a complete PSD proof.
 }
-
-void write_state(std::ostream & stream, std::uint64_t time, State const & input_state,
-                 Covariance const & input_covariance, NavigationFrame const & frame)
-{
-    State state = input_state;
-    Covariance covariance = input_covariance;
-    if (frame.generation() != 0)
-    {
-        check_status(formal_eskf::runtime::rebase_origin(input_state, input_covariance, frame.to_reference(),
-                                                         QUAT_MIN_NORM, state, covariance),
-                     "fixed-frame output", time);
-    }
-
-    stream << time;
-    for (auto const & vector : {state.p_n, state.v_n})
-    {
-        for (std::size_t axis = 0U; axis < 3U; ++axis)
-        {
-            stream << ',' << vector(axis);
-        }
-    }
-    stream << ',' << state.q_nb.q0() << ',' << state.q_nb.q1() << ',' << state.q_nb.q2() << ',' << state.q_nb.q3();
-    for (auto const & vector : {state.b_a, state.b_g})
-    {
-        for (std::size_t axis = 0U; axis < 3U; ++axis)
-        {
-            stream << ',' << vector(axis);
-        }
-    }
-    for (std::size_t axis = 0U; axis < 15U; ++axis)
-    {
-        stream << ',' << covariance(axis, axis);
-    }
-    stream << '\n';
-}
-
-struct PredictionStatistics
-{
-    std::array<std::size_t, 3U> accel_noise_overridden{};
-    std::array<std::size_t, 3U> accel_bias_noise_inhibited{};
-    std::array<std::size_t, 3U> gyro_bias_noise_inhibited{};
-    std::size_t accel_noise_unavailable = 0U;
-};
 
 // Keep replay-specific unknown-input accounting beside the prediction it describes.
 formal_eskf::configuration::Ins::ProcessNoise<Linalg>
@@ -1158,15 +247,15 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
     {
         flags = open_csv(input / "imu_flags.csv", "timestamp_us,at_rest,accelerometer_clipping");
     }
-    std::array<double, 11U> seed{};
-    std::array<double, 8U> imu_row{};
-    std::array<double, 10U> navigation_row{};
-    std::array<double, 4U> magnetic_row{};
+    InitialRow seed{};
+    ImuRow imu_row{};
+    NavigationRow navigation_row{};
+    MagneticRow magnetic_row{};
     if (!read_row(initial, seed) || !read_row(imu, imu_row))
     {
         throw std::runtime_error("empty initial state or IMU input");
     }
-    std::array<double, 11U> extra_seed{};
+    InitialRow extra_seed{};
     if (read_row(initial, extra_seed))
     {
         throw std::runtime_error("expected exactly one initial state");
@@ -1174,7 +263,7 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
     auto const & [seed_time, q0, q1, q2, q3, vn, ve, vd, horizontal_accuracy, vertical_accuracy, speed_accuracy] = seed;
     std::uint64_t time = timestamp(seed_time);
     std::uint64_t const start_time = time;
-    if (timestamp(imu_row[0U]) != time)
+    if (timestamp(imu_row.time_us) != time)
     {
         throw std::runtime_error("initial state must correspond to the first IMU row");
     }
@@ -1222,7 +311,7 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
     VerticalHealth vertical_health;
     VerticalAccelerationEvidence vertical_cache;
     // This replay predicts at the logged IMU cadence, not EKF2's downsampled cadence.
-    double const nominal_interval = static_cast<double>(timestamp(imu_row[1U])) * 1e-6;
+    double const nominal_interval = static_cast<double>(timestamp(imu_row.period_us)) * 1e-6;
     double average_interval = nominal_interval;
     auto const bias_limits = read_bias_limits(input);
     // Fixed valid limits + finite successful corrections make post-correction
@@ -1283,109 +372,10 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
         !field_checks.strength && !field_checks.inclination && !field_checks.require_reference;
     MagneticLifecycle::Parameters const magnetic_timing{field_checks_disabled ? 0U : MAG_HEALTH_TIME_US,
                                                         MAG_MAX_INTERVAL_US, MAG_FUSION_TIMEOUT_US};
-    if (!std::filesystem::create_directory(output))
-    {
-        throw std::runtime_error("output directory already exists: " + output.string());
-    }
-    std::ofstream states(output / "state.csv");
-    std::ofstream updates(output / "navigation_updates.csv");
-    std::ofstream gnss_updates;
-    std::ofstream quality_updates;
-    std::ofstream lifecycle_updates;
-    std::ofstream gnss_resets;
-    if (quality_parameters)
-    {
-        lifecycle_updates.open(output / "gnss_lifecycle.csv");
-        lifecycle_updates.exceptions(std::ios::failbit | std::ios::badbit);
-        lifecycle_updates << "source_timestamp_us,fusion_timestamp_us,group,active,stop_reason,recovery_required,"
-                             "start_timestamp_us,last_fuse_timestamp_us,restart_quality,last_reset_timestamp_us\n";
-        gnss_resets.open(output / "gnss_resets.csv");
-        gnss_resets.exceptions(std::ios::failbit | std::ios::badbit);
-        gnss_resets << std::setprecision(17);
-        gnss_resets << "source_timestamp_us,fusion_timestamp_us,group,axis,reason,outcome,status,delta_valid,delta\n";
-        quality_updates.open(output / "gnss_quality.csv");
-        quality_updates.exceptions(std::ios::failbit | std::ios::badbit);
-        quality_updates << std::setprecision(17);
-        quality_updates
-            << "source_timestamp_us,fusion_timestamp_us,outcome,status,evaluated,motion_available,spoofing_available,"
-               "qualified,invalid_fix,satellites,pdop,horizontal_accuracy,vertical_accuracy,speed_accuracy,"
-               "horizontal_drift,vertical_drift,horizontal_speed,vertical_speed,spoofed,drift_valid,"
-               "horizontal_drift_mps,vertical_drift_mps,horizontal_speed_mps,vertical_speed_mps,last_fail_us,last_pass_"
-               "us\n";
-    }
-    if (gnss)
-    {
-        gnss_updates.open(output / "gnss_updates.csv");
-        gnss_updates.exceptions(std::ios::failbit | std::ios::badbit);
-        gnss_updates << std::setprecision(17);
-        gnss_updates
-            << "source_timestamp_us,fusion_timestamp_us,group,axis,outcome,status,diagnostics_valid,"
-               "innovation,innovation_variance,test_ratio,observation_variance,fusion_innovation,innovation_limited\n";
-    }
-    std::ofstream condition_log(output / "fusion_conditions.csv");
-    std::ofstream vertical_log(output / "vertical_acceleration_health.csv");
-    vertical_log.exceptions(std::ios::failbit | std::ios::badbit);
-    vertical_log << std::setprecision(17);
-    vertical_log << "timestamp_us,available,average_interval_s,clip_count_x,clip_count_y,clip_count_z,"
-                    "likelihood,bad_clipping,bad_sample,bad_vertical_acceleration,last_bad_timestamp_us,"
-                    "last_good_timestamp_us,height_active,height_source_timestamp_us,height_innovation,"
-                    "height_innovation_variance,velocity_active,velocity_source_timestamp_us,"
-                    "velocity_innovation,velocity_innovation_variance\n";
-    std::ofstream bias_log(output / "bias_learning.csv");
-    bias_log.exceptions(std::ios::failbit | std::ios::badbit);
-    bias_log << std::setprecision(17);
-    bias_log
-        << "timestamp_us,at_rest,accelerometer_clipping,clipping_assumed_clear,specific_force_peak,"
-           "angular_rate_peak,high_dynamics,bax_enabled,bay_enabled,baz_enabled,bgx_enabled,bgy_enabled,bgz_enabled,"
-           "bax_process_noise_selected,bay_process_noise_selected,baz_process_noise_selected,"
-           "bgx_process_noise_selected,bgy_process_noise_selected,bgz_process_noise_selected,"
-           "vertical_acceleration_available,bad_vertical_acceleration,"
-           "accel_variance_x,accel_variance_y,accel_variance_z\n";
-    std::ofstream accel_updates(output / "accelerometer_updates.csv");
-    std::ofstream mag_updates(output / "magnetometer_updates.csv");
-    std::ofstream mag_resets(output / "magnetometer_resets.csv");
-    std::ofstream reference_updates;
-    if (has_magnetic_model)
-    {
-        reference_updates.open(output / "magnetic_reference_updates.csv");
-        reference_updates.exceptions(std::ios::failbit | std::ios::badbit);
-        reference_updates << std::setprecision(17)
-                          << "source_timestamp_us,fusion_timestamp_us,changed,reference_id,declination_rad,"
-                             "inclination_rad,strength_ut,mn,me,md\n";
-        write_magnetic_reference(reference_updates, time, time, reference_model.state(), true);
-    }
-    states.exceptions(std::ios::failbit | std::ios::badbit);
-    updates.exceptions(std::ios::failbit | std::ios::badbit);
-    condition_log.exceptions(std::ios::failbit | std::ios::badbit);
-    accel_updates.exceptions(std::ios::failbit | std::ios::badbit);
-    mag_updates.exceptions(std::ios::failbit | std::ios::badbit);
-    mag_resets.exceptions(std::ios::failbit | std::ios::badbit);
-    mag_resets
-        << std::setprecision(17)
-        << "source_timestamp_us,fusion_timestamp_us,status,delta_q0,delta_q1,delta_q2,delta_q3,yaw_variance,reason\n";
-    mag_updates << std::setprecision(17);
-    mag_updates << "source_timestamp_us,fusion_timestamp_us,outcome,status,field_valid,strength_rejected,"
-                   "inclination_rejected,horizontal_rejected,innovation_valid,ratio_x,ratio_y,ratio_z,"
-                   "active,stop_reason,recovery_reason,last_field_failure_timestamp_us,start_timestamp_us,last_fuse_"
-                   "timestamp_us,last_reset_timestamp_us,heading_valid,heading_innovation,heading_innovation_lpf,"
-                   "horizontal_acceleration,heading_observable,heading_consistent,reference_unavailable,"
-                   "strength_checked,inclination_checked,strength_ut,reference_strength_ut,inclination_error_rad\n";
-    accel_updates << std::setprecision(17);
-    accel_updates << "timestamp_us,interval_us,fx,fy,fz,clipping_mask,lpf_squared_norm,within_gravity_band,"
-                     "tilt_aligned,horizontal_aiding,at_rest,outcome\n";
-    condition_log << std::setprecision(17);
-    condition_log << "timestamp_us,tilt_variance,tilt_aligned,horizontal_aiding,at_rest,accelerometer_clipping,"
-                     "conditions_available\n";
-    states << std::setprecision(17);
-    states << "timestamp_us,pn,pe,pd,vn,ve,vd,q0,q1,q2,q3,bax,bay,baz,bgx,bgy,bgz";
-    for (std::size_t index = 0U; index < 15U; ++index)
-    {
-        states << ",P" << index;
-    }
-    states << '\n';
-    updates << "source_timestamp_us,fusion_timestamp_us\n";
+    ReplayOutput files(output, quality_parameters.has_value(), gnss.has_value(), has_magnetic_model, time,
+                       reference_model.state());
     check_state(state, covariance);
-    write_state(states, time, state, covariance, frame);
+    write_state(files.states, time, state, covariance, frame);
     std::size_t predictions = 0U, navigation_events = 0U, gaps = 0U;
     std::size_t position_xy_fused = 0U, position_z_fused = 0U, velocity_fused = 0U;
     std::size_t position_xy_resets = 0U, position_z_resets = 0U, velocity_resets = 0U;
@@ -1412,8 +402,8 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
     std::uint64_t mag_max_alignment_us = 0U;
     while (read_row(imu, imu_row))
     {
-        auto const next_time = timestamp(imu_row[0U]);
-        auto const period = timestamp(imu_row[1U]);
+        auto const next_time = timestamp(imu_row.time_us);
+        auto const period = timestamp(imu_row.period_us);
         if (next_time <= time || period > next_time - time || next_time - time > 50000U)
         {
             throw std::runtime_error("IMU timestamp is nonmonotonic, intervals overlap, or gap exceeds 50 ms");
@@ -1489,31 +479,31 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
         previous_imu = sample;
         ++predictions;
         check_state(state, covariance);
-        bias_log << time << ',' << sample_flags.at_rest << ',' << sample_flags.accelerometer_clipping << ','
-                 << (sample_flags.accelerometer_clipping < 0) << ',' << learning.specific_force_peak << ','
-                 << learning.angular_rate_peak << ',' << learning.high_dynamics;
+        files.bias_log << time << ',' << sample_flags.at_rest << ',' << sample_flags.accelerometer_clipping << ','
+                       << (sample_flags.accelerometer_clipping < 0) << ',' << learning.specific_force_peak << ','
+                       << learning.angular_rate_peak << ',' << learning.high_dynamics;
         for (auto const enabled : bias_update.accelerometer)
         {
-            bias_log << ',' << enabled;
+            files.bias_log << ',' << enabled;
         }
         for (auto const enabled : bias_update.gyroscope)
         {
-            bias_log << ',' << enabled;
+            files.bias_log << ',' << enabled;
         }
         for (std::size_t axis = 0U; axis < 3U; ++axis)
         {
-            bias_log << ',' << (selected_noise.accelerometer_bias_random_walk_variance_density(axis) > 0.0);
+            files.bias_log << ',' << (selected_noise.accelerometer_bias_random_walk_variance_density(axis) > 0.0);
         }
         for (std::size_t axis = 0U; axis < 3U; ++axis)
         {
-            bias_log << ',' << (selected_noise.gyroscope_bias_random_walk_variance_density(axis) > 0.0);
+            files.bias_log << ',' << (selected_noise.gyroscope_bias_random_walk_variance_density(axis) > 0.0);
         }
-        bias_log << ',' << prior_health_available << ',' << bias_conditions.bad_vertical_acceleration;
+        files.bias_log << ',' << prior_health_available << ',' << bias_conditions.bad_vertical_acceleration;
         for (std::size_t axis = 0U; axis < 3U; ++axis)
         {
-            bias_log << ',' << selected_noise.specific_force_variance(axis);
+            files.bias_log << ',' << selected_noise.specific_force_variance(axis);
         }
-        bias_log << '\n';
+        files.bias_log << '\n';
         for (std::size_t axis = 0U; axis < 3U; ++axis)
         {
             accel_bias_enabled[axis] += bias_update.accelerometer[axis] ? 1U : 0U;
@@ -1558,9 +548,9 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
             }
             vertical_snapshot_taken = true;
         };
-        while (has_navigation && timestamp(navigation_row[0U]) <= time)
+        while (has_navigation && timestamp(navigation_row.time_us) <= time)
         {
-            auto const source_time = timestamp(navigation_row[0U]);
+            auto const source_time = timestamp(navigation_row.time_us);
             if (source_time <= last_navigation_time)
             {
                 throw std::runtime_error("Navigation timestamps must increase after initialization");
@@ -1574,7 +564,7 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
             {
                 auto const result =
                     check_gnss_quality(quality_samples, quality_monitor, *quality_parameters, navigation_row, time);
-                write_gnss_quality(quality_updates, result, source_time, time);
+                write_gnss_quality(files.quality_updates, result, source_time, time);
                 if (result.outcome == GnssQuality::Outcome::invalid_call)
                 {
                     check_status(result.quality.status, "GNSS quality input", time);
@@ -1590,15 +580,16 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                 if (!result.accepted() && result.evaluated() && gnss_lifecycle.state().velocity.active)
                 {
                     auto const noise =
-                        navigation_variances(navigation_row[7U], navigation_row[8U], navigation_row[9U], gnss);
+                        navigation_variances(navigation_row.horizontal_accuracy, navigation_row.vertical_accuracy,
+                                             navigation_row.speed_accuracy, gnss);
                     auto V = formal_eskf::linalg::Matrix<Linalg, 3U, 3U>::identity() * noise.velocity_xy;
                     V(2U, 2U) = noise.velocity_z;
                     auto const evidence = formal_eskf::runtime::check_frame_velocity(
                         state, covariance,
                         velocity_observation(frame, state,
-                                             vector3(navigation_row[4U], navigation_row[5U], navigation_row[6U])),
+                                             vector3(navigation_row.vn, navigation_row.ve, navigation_row.vd)),
                         V, QUAT_MIN_NORM, gnss->velocity_gate,
-                        {bias_conditions.bad_vertical_acceleration, navigation_row[9U],
+                        {bias_conditions.bad_vertical_acceleration, navigation_row.speed_accuracy,
                          quality_parameters->maximum_speed_accuracy});
                     check_status(evidence.gate.status, "GNSS velocity diagnostics", time);
                     vertical_cache.observations.gnss_velocity_down = {evidence.gate.diagnostics_valid,
@@ -1626,14 +617,14 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                          (lifecycle.horizontal_position.action != GnssLifecycle::Action::reset)))
                     {
                         // Record the request before any group mutates the estimate.
-                        write_gnss_lifecycle(lifecycle_updates, previous_lifecycle, gnss_lifecycle.state(), source_time,
-                                             time);
+                        write_gnss_lifecycle(files.lifecycle_updates, previous_lifecycle, gnss_lifecycle.state(),
+                                             source_time, time);
                     }
                 }
             }
             // Every message advances the input cursor, including quality failures.
             // Skips do not invoke a correction or refresh horizontal-aiding time.
-            updates << source_time << ',' << time << '\n';
+            files.updates << source_time << ',' << time << '\n';
             max_alignment_us = std::max(max_alignment_us, time - source_time);
             last_navigation_time = source_time;
             ++navigation_events;
@@ -1642,8 +633,8 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                 capture_vertical_evidence(previous_lifecycle.vertical_position.active);
                 if (lifecycle_sample_consumed)
                 {
-                    write_gnss_lifecycle(lifecycle_updates, previous_lifecycle, gnss_lifecycle.state(), source_time,
-                                         time);
+                    write_gnss_lifecycle(files.lifecycle_updates, previous_lifecycle, gnss_lifecycle.state(),
+                                         source_time, time);
                 }
                 has_navigation = read_row(navigation, navigation_row, true);
                 continue;
@@ -1654,13 +645,13 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                 auto record_fusion = [&](auto const & result, auto const & V, std::string_view group,
                                          auto const & fusion_innovation, bool innovation_limited)
                 {
-                    bool const fused = record_navigation_fusion(gnss_updates, result, V, group, source_time, time,
+                    bool const fused = record_navigation_fusion(files.gnss_updates, result, V, group, source_time, time,
                                                                 fusion_innovation, innovation_limited);
                     if (quality_parameters && result.status != Status::success)
                     {
                         // Preserve the recovery request before stopping on numerical failure.
-                        write_gnss_lifecycle(lifecycle_updates, previous_lifecycle, gnss_lifecycle.state(), source_time,
-                                             time);
+                        write_gnss_lifecycle(files.lifecycle_updates, previous_lifecycle, gnss_lifecycle.state(),
+                                             source_time, time);
                     }
                     check_status(result.status, group, time);
                     return fused;
@@ -1670,11 +661,11 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                 {
                     check_status(gnss_lifecycle.record_reset(group, source_time, status == Status::success),
                                  "GNSS reset feedback", time);
-                    write_gnss_reset(gnss_resets, name, reason, status, delta, source_time, time);
+                    write_gnss_reset(files.gnss_resets, name, reason, status, delta, source_time, time);
                     if (status != Status::success)
                     {
-                        write_gnss_lifecycle(lifecycle_updates, previous_lifecycle, gnss_lifecycle.state(), source_time,
-                                             time);
+                        write_gnss_lifecycle(files.lifecycle_updates, previous_lifecycle, gnss_lifecycle.state(),
+                                             source_time, time);
                     }
                     check_status(status, "GNSS reset", time);
                     if (group != GnssLifecycle::Group::vertical_position)
@@ -1683,12 +674,13 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                     }
                 };
                 auto const noise =
-                    navigation_variances(navigation_row[7U], navigation_row[8U], navigation_row[9U], gnss);
+                    navigation_variances(navigation_row.horizontal_accuracy, navigation_row.vertical_accuracy,
+                                         navigation_row.speed_accuracy, gnss);
                 // Each group gates and corrects its own latest prior. A rejected
                 // group does not block the others or refresh horizontal aiding.
                 auto velocity_V = formal_eskf::linalg::Matrix<Linalg, 3U, 3U>::identity() * noise.velocity_xy;
                 velocity_V(2U, 2U) = noise.velocity_z;
-                auto const velocity = vector3(navigation_row[4U], navigation_row[5U], navigation_row[6U]);
+                auto const velocity = vector3(navigation_row.vn, navigation_row.ve, navigation_row.vd);
                 if (quality_parameters && (gnss_lifecycle.state().velocity.action == GnssLifecycle::Action::reset))
                 {
                     Vector3 delta;
@@ -1710,7 +702,7 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                         measurement = formal_eskf::runtime::fuse_frame_velocity(
                             state, covariance, velocity_observation(frame, state, velocity), velocity_V, QUAT_MIN_NORM,
                             gnss->velocity_gate,
-                            {bias_conditions.bad_vertical_acceleration, navigation_row[9U],
+                            {bias_conditions.bad_vertical_acceleration, navigation_row.speed_accuracy,
                              quality_parameters->maximum_speed_accuracy},
                             state, covariance, bias_update);
                     }
@@ -1759,13 +751,13 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                         vector3(0, 0, noise.velocity_z), QUAT_MIN_NORM, delta);
                     check_status(gnss_lifecycle.record_vertical_velocity_reset(source_time, status == Status::success),
                                  "GNSS vertical velocity reset feedback", time);
-                    write_gnss_reset(gnss_resets, "vertical_velocity", reason, status,
+                    write_gnss_reset(files.gnss_resets, "vertical_velocity", reason, status,
                                      formal_eskf::linalg::Vector<Linalg, 1U>::from_row_major({delta(2)}), source_time,
                                      time);
                     if (status != Status::success)
                     {
-                        write_gnss_lifecycle(lifecycle_updates, previous_lifecycle, gnss_lifecycle.state(), source_time,
-                                             time);
+                        write_gnss_lifecycle(files.lifecycle_updates, previous_lifecycle, gnss_lifecycle.state(),
+                                             source_time, time);
                     }
                     check_status(status, "GNSS vertical velocity reset", time);
                     ++vertical_velocity_resets;
@@ -1775,7 +767,7 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
 
                 auto const position_V = formal_eskf::linalg::Matrix<Linalg, 2U, 2U>::identity() * noise.position_xy;
                 auto const position =
-                    formal_eskf::linalg::Vector<Linalg, 2U>::from_row_major({navigation_row[1U], navigation_row[2U]});
+                    formal_eskf::linalg::Vector<Linalg, 2U>::from_row_major({navigation_row.pn, navigation_row.pe});
                 if (quality_parameters &&
                     (gnss_lifecycle.state().horizontal_position.action == GnssLifecycle::Action::reset))
                 {
@@ -1826,7 +818,7 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                 {
                     ++position_z_attempts;
                     auto const measurement = formal_eskf::runtime::fuse_frame_height(
-                        state, covariance, height_observation(frame, state, navigation_row[3U]), noise.position_z,
+                        state, covariance, height_observation(frame, state, navigation_row.pd), noise.position_z,
                         QUAT_MIN_NORM, gnss->position_gate,
                         vertical_available && vertical_health.state().bad_vertical_acceleration, state, covariance,
                         bias_update);
@@ -1868,7 +860,7 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                     auto const reason = gnss_lifecycle.state().vertical_position.stop_reason;
                     auto const status = formal_eskf::runtime::reset_navigation_in_frame(
                         state, covariance, frame.to_reference(), NavigationReset::vertical_position,
-                        vector3(0, 0, navigation_row[3U]), vector3(0, 0, noise.position_z), QUAT_MIN_NORM, delta);
+                        vector3(0, 0, navigation_row.pd), vector3(0, 0, noise.position_z), QUAT_MIN_NORM, delta);
                     record_reset(GnssLifecycle::Group::vertical_position, "vertical_position", reason, status,
                                  formal_eskf::linalg::Vector<Linalg, 1U>::from_row_major({delta(2)}));
                     ++position_z_resets;
@@ -1898,7 +890,8 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
             }
             if (quality_parameters)
             {
-                write_gnss_lifecycle(lifecycle_updates, previous_lifecycle, gnss_lifecycle.state(), source_time, time);
+                write_gnss_lifecycle(files.lifecycle_updates, previous_lifecycle, gnss_lifecycle.state(), source_time,
+                                     time);
             }
             check_state(state, covariance);
             has_navigation = read_row(navigation, navigation_row, quality_parameters.has_value());
@@ -1907,7 +900,7 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
         {
             auto const previous = gnss_lifecycle.state();
             update_gnss_lifecycle(gnss_lifecycle, quality_monitor, {}, time, prior_health_times);
-            write_gnss_lifecycle(lifecycle_updates, previous, gnss_lifecycle.state(), 0U, time);
+            write_gnss_lifecycle(files.lifecycle_updates, previous, gnss_lifecycle.state(), 0U, time);
             capture_vertical_evidence(previous.vertical_position.active);
         }
         if (!vertical_snapshot_taken)
@@ -1930,16 +923,17 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
             vertical_cache.observations.gnss_height = {};
             vertical_cache.height_time_us = 0U;
         }
-        write_vertical_health(vertical_log, time, vertical_available, average_interval, vertical_health.state(),
+        write_vertical_health(files.vertical_log, time, vertical_available, average_interval, vertical_health.state(),
                               vertical_evidence);
         // Retain raw-tick diagnostics; fusion uses the whole observation's clipping below.
         auto const conditions =
             fusion_conditions.conditions(time, true, sample_flags.at_rest, sample_flags.accelerometer_clipping);
         unknown_clipping_samples += sample_flags.accelerometer_clipping == -1 ? 1U : 0U;
         available_condition_samples += conditions.has_value() ? 1U : 0U;
-        condition_log << time << ',' << fusion_conditions.tilt_variance() << ',' << fusion_conditions.tilt_aligned()
-                      << ',' << fusion_conditions.horizontal_aiding(time) << ',' << sample_flags.at_rest << ','
-                      << sample_flags.accelerometer_clipping << ',' << conditions.has_value() << '\n';
+        files.condition_log << time << ',' << fusion_conditions.tilt_variance() << ','
+                            << fusion_conditions.tilt_aligned() << ',' << fusion_conditions.horizontal_aiding(time)
+                            << ',' << sample_flags.at_rest << ',' << sample_flags.accelerometer_clipping << ','
+                            << conditions.has_value() << '\n';
         if (observation.ready)
         {
             ++accel_observations;
@@ -1970,21 +964,21 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
             {
                 ++accel_unavailable;
             }
-            accel_updates << time << ',' << observation.interval_us << ',' << observation.specific_force_b(0U) << ','
-                          << observation.specific_force_b(1U) << ',' << observation.specific_force_b(2U) << ','
-                          << observation.clipping_mask << ',' << observation.magnitude.squared_norm << ','
-                          << observation.magnitude.within_gravity_band << ',' << fusion_conditions.tilt_aligned() << ','
-                          << fusion_conditions.horizontal_aiding(time) << ',' << sample_flags.at_rest << ',' << outcome
-                          << '\n';
+            files.accel_updates << time << ',' << observation.interval_us << ',' << observation.specific_force_b(0U)
+                                << ',' << observation.specific_force_b(1U) << ',' << observation.specific_force_b(2U)
+                                << ',' << observation.clipping_mask << ',' << observation.magnitude.squared_norm << ','
+                                << observation.magnitude.within_gravity_band << ',' << fusion_conditions.tilt_aligned()
+                                << ',' << fusion_conditions.horizontal_aiding(time) << ',' << sample_flags.at_rest
+                                << ',' << outcome << '\n';
         }
         // Select the newest available sample once per tick. Older samples from
         // the same tick are superseded, not repeatedly fused at one horizon.
         auto const previous_magnetic_source = magnetic_context.source;
         std::uint64_t magnetic_time = 0U;
         Vector3 magnetic_sample;
-        while (has_magnetometer && timestamp(magnetic_row[0U]) <= time)
+        while (has_magnetometer && timestamp(magnetic_row.time_us) <= time)
         {
-            auto const source_time = timestamp(magnetic_row[0U]);
+            auto const source_time = timestamp(magnetic_row.time_us);
             if (source_time <= last_magnetic_time)
             {
                 throw std::runtime_error("Magnetometer timestamps must increase after initialization");
@@ -1992,7 +986,7 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
             ++mag_events;
             mag_superseded += magnetic_time != 0U ? 1U : 0U;
             magnetic_time = source_time;
-            magnetic_sample = vector3(magnetic_row[1U], magnetic_row[2U], magnetic_row[3U]);
+            magnetic_sample = vector3(magnetic_row.mx, magnetic_row.my, magnetic_row.mz);
             magnetic_context = read_magnetic_context(magnetic_context_stream, source_time, magnetic_context);
             if (model_heading)
             {
@@ -2022,8 +1016,8 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                     check_status(update.status, "geographic magnetic field", time);
                     if (update.checked)
                     {
-                        write_magnetic_reference(reference_updates, model_source_time, time, reference_model.state(),
-                                                 update.changed);
+                        write_magnetic_reference(files.reference_updates, model_source_time, time,
+                                                 reference_model.state(), update.changed);
                     }
                     magnetic_model_checks += update.checked ? 1U : 0U;
                     magnetic_model_changes += update.changed ? 1U : 0U;
@@ -2122,14 +1116,14 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                 }
                 check_status(magnetic_lifecycle.record_reset(magnetic_time, reset_succeeded),
                              "magnetometer reset feedback", time);
-                mag_resets << magnetic_time << ',' << time << ',' << static_cast<int>(reset_status);
+                files.mag_resets << magnetic_time << ',' << time << ',' << static_cast<int>(reset_status);
                 for (std::size_t axis = 0U; axis < 4U; ++axis)
                 {
                     // A failed transaction has no applied rotation.
-                    mag_resets << ',' << (reset_succeeded ? delta.coefficients()(axis) : 0.0);
+                    files.mag_resets << ',' << (reset_succeeded ? delta.coefficients()(axis) : 0.0);
                 }
-                mag_resets << ',' << heading_parameters.heading_noise * heading_parameters.heading_noise << ','
-                           << magnetic_recovery_reason(reason) << '\n';
+                files.mag_resets << ',' << heading_parameters.heading_noise * heading_parameters.heading_noise << ','
+                                 << magnetic_recovery_reason(reason) << '\n';
                 mag_heading_resets += reset_succeeded ? 1U : 0U;
                 outcome = reset_succeeded ? "reset" : "reset_failed";
             }
@@ -2144,7 +1138,7 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                 lifecycle.recovery_reason != previous.recovery_reason)
             {
                 // Include no-data transitions so dropouts/timeouts remain visible.
-                write_magnetic_update(mag_updates, magnetic_time, time, outcome, result, lifecycle,
+                write_magnetic_update(files.mag_updates, magnetic_time, time, outcome, result, lifecycle,
                                       magnetic_heading.state());
             }
             if (magnetic_time != 0U)
@@ -2194,7 +1188,7 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
                 throw std::runtime_error("origin requests must be strictly increasing");
             }
         }
-        write_state(states, time, state, covariance, frame);
+        write_state(files.states, time, state, covariance, frame);
     }
     if (origin_pending || has_navigation || has_magnetometer || predictions == 0U || navigation_events == 0U)
     {
@@ -2220,24 +1214,24 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
     {
         throw std::runtime_error("unconsumed GNSS quality data");
     }
-    if (quality_updates.is_open())
+    if (files.quality_updates.is_open())
     {
-        quality_updates.close();
-        lifecycle_updates.close();
-        gnss_resets.close();
+        files.quality_updates.close();
+        files.lifecycle_updates.close();
+        files.gnss_resets.close();
     }
-    states.close();
-    updates.close();
-    if (gnss_updates.is_open())
+    files.states.close();
+    files.updates.close();
+    if (files.gnss_updates.is_open())
     {
-        gnss_updates.close();
+        files.gnss_updates.close();
     }
-    condition_log.close();
-    bias_log.close();
-    vertical_log.close();
-    accel_updates.close();
-    mag_updates.close();
-    mag_resets.close();
+    files.condition_log.close();
+    files.bias_log.close();
+    files.vertical_log.close();
+    files.accel_updates.close();
+    files.mag_updates.close();
+    files.mag_resets.close();
     std::ofstream summary(output / "summary.json");
     summary.exceptions(std::ios::failbit | std::ios::badbit);
     summary << std::setprecision(17) << "{\n  \"result\": \"smoke_pass\",\n  \"accuracy_validated\": false,"
@@ -2400,7 +1394,7 @@ void replay(std::filesystem::path const & input, std::filesystem::path const & o
               << "; recovery: " << magnetic_recovery_reason(magnetic_lifecycle.state().recovery_reason) << '\n';
 }
 
-} /* namespace */
+} /* end namespace replay_demo */
 
 int main(int argc, char ** argv)
 {
@@ -2408,7 +1402,7 @@ int main(int argc, char ** argv)
     {
         if (argc == 2 && std::string_view(argv[1]) == "--geodesy")
         {
-            project_coordinates(std::cin, std::cout);
+            replay_demo::project_coordinates(std::cin, std::cout);
             return 0;
         }
         if (argc != 3 && !(argc == 4 && std::string_view(argv[3]) == "--no-mag"))
@@ -2417,7 +1411,7 @@ int main(int argc, char ** argv)
                          "       replay_ins --geodesy < GEODETIC_ROWS\n";
             return 2;
         }
-        replay(argv[1], argv[2], argc == 3);
+        replay_demo::replay(argv[1], argv[2], argc == 3);
     }
     catch (std::exception const & error)
     {
