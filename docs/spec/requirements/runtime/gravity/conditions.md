@@ -60,6 +60,9 @@ neither owns a `TiltAlignment` object nor infers convergence from covariance.
 
 The session's seeded state permits pre-alignment refinement under
 [R-INS-STARTUP](../ins-startup.md), without falsely setting completed tilt.
+Optional session clipping metadata follows [R-SENSOR-INPUT](../sensor-input.md#unavailable-accelerometer-clipping).
+Reported clipped axes remain a veto; absence alone does not veto gravity refinement
+and shall remain distinguishable from confirmed clear data in diagnostics.
 Legacy replay may retain stricter post-alignment admission. Predicate tests do
 not establish session startup composition or its physical convergence.
 

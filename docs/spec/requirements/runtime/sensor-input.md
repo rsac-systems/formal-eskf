@@ -99,15 +99,19 @@ assert unclipped data. The history shall retain both fields at the original
 interval, and reject unknown availability combined with nonzero clipping bits.
 Gyroscope clipping and all finite/timing/source checks remain unchanged.
 
-IMU-only gravity-derived startup shall defer until clipping is known and clear.
-The separately qualified [initial attitude](ins-initial-attitude.md) may seed
-with unavailable accelerometer clipping. After seeding, the session may propagate
-these admitted real intervals without treating them as gravity observations.
-Unknown intervals shall clear pending gravity accumulation and invalidate the
-vertical-health verdict before prediction/bias evaluation. They shall not enter
-the standalone health monitor, whose input still requires known clipping.
-Diagnostics shall identify availability for the delayed gravity evaluation.
-Later known data shall resume sampling from a fresh accumulator.
+Clipping reports are supplemental input quality evidence, not a mandatory
+hardware output. Their absence alone shall not prevent IMU-only startup or
+gravity refinement. Apply the ordinary timing, source, finite-value, startup
+motion and gravity-magnitude conditions. A reported clipped axis shall still
+block gravity-derived startup and any accumulated gravity observation containing
+that report. An unavailable report shall not be labeled confirmed unclipped.
+
+Unknown intervals shall invalidate the clipping-dependent vertical-health
+verdict before prediction/bias evaluation. They shall not enter the standalone
+health monitor, whose input still requires known clipping. Diagnostics shall
+retain availability for the delayed gravity input. Later known metadata shall
+not backfill earlier intervals. This does not establish sensor health, absence
+of saturation, or physical validity of the gravity approximation.
 
 The explicit zero fallback retains the existing replay compatibility behavior
 for nominal process noise and bias learning: no clipping/fault override is added

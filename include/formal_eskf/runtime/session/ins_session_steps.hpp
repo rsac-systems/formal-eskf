@@ -250,7 +250,7 @@ InsSession<Linalg, Layout>::startup_context(std::uint64_t epoch, std::uint64_t m
 }
 
 template <typename Linalg, typename Layout>
-bool InsSession<Linalg, Layout>::accept_imu(ImuInput const & sample, std::uint64_t arrival_us, bool require_clipping)
+bool InsSession<Linalg, Layout>::accept_imu(ImuInput const & sample, std::uint64_t arrival_us)
 {
     if (sample.time_us <= m_time_us || sample.time_us > arrival_us ||
         arrival_us - sample.time_us > m_settings.output.maximum_age_us ||
@@ -258,7 +258,7 @@ bool InsSession<Linalg, Layout>::accept_imu(ImuInput const & sample, std::uint64
         sample.angular_period_us > m_imu_timing.maximum_period_us ||
         sample.acceleration_period_us < m_imu_timing.minimum_period_us ||
         sample.acceleration_period_us > m_imu_timing.maximum_period_us ||
-        (!sample.accelerometer_clipping_available && (require_clipping || sample.accelerometer_clipping != 0)) ||
+        (!sample.accelerometer_clipping_available && sample.accelerometer_clipping != 0) ||
         !imu_clipping_acceptable(sample.accelerometer_clipping, sample.gyroscope_clipping, false))
     {
         ++m_statistics.rejections;
@@ -438,7 +438,7 @@ bool InsSession<Linalg, Layout>::initialize_attitude(InitialAttitude const & pri
     state_type seed_state;
     covariance_type seed_covariance;
     if (!succeeded(m_startup.seed_attitude(prior.q_nb, prior.variance_n, seed_state, seed_covariance)) ||
-        !accept_imu(sample, arrival_us, false))
+        !accept_imu(sample, arrival_us))
     {
         return false;
     }

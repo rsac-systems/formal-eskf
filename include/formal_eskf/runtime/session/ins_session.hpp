@@ -502,7 +502,7 @@ private:
               std::uint64_t arrival_us);
     bool external_heading_valid() const;
     bool admit_imu(ImuInput const & sample, std::uint64_t arrival_us);
-    bool accept_imu(ImuInput const & sample, std::uint64_t arrival_us, bool require_clipping = true);
+    bool accept_imu(ImuInput const & sample, std::uint64_t arrival_us);
     void predict_and_fuse(typename imu_history_type::interval_type const & interval);
     bool attach_navigation();
     void prepare_magnetic_model();

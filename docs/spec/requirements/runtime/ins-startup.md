@@ -36,11 +36,14 @@ sample timing, source selections, initialization priors, bounds and storage.
 The session shall distinguish collecting, seeded/alignment-pending, running and
 restart-required fault. These phases shall not encode every sensor combination.
 
-Initial tilt shall require admitted finite, unclipped calibrated IMU data, valid
+Initial tilt shall require admitted finite calibrated IMU data without reported
+clipping, valid
 sample/arrival chronology and the [staged profile](../../profiles/staged-ins.md)
 integration-period and filtered-motion limits. Passing permits a seed; failing
 shall defer startup without reporting an estimator fault or reusing stale data.
 GNSS, magnetometer and barometer shall not be prerequisites for this seed.
+Optional clipping-report availability follows [R-SENSOR-INPUT](sensor-input.md#unavailable-accelerometer-clipping);
+missing metadata alone shall not defer startup.
 The first profile excludes initialization on an unqualified moving platform.
 Acceleration magnitude and low angular rate alone shall not assert true rest.
 
