@@ -58,7 +58,7 @@ jobs:
   cppcheck:
     name: Cppcheck
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -71,7 +71,7 @@ jobs:
   build_and_test:
     name: Build and test (${{ matrix.cxx }}, ${{ matrix.build_type }}, quat=${{ matrix.quat_approx }}, reset=${{ matrix.reset_approx }}, mag_tilt=${{ matrix.mag_tilt }}, codegen=${{ matrix.codegen }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -134,7 +134,7 @@ jobs:
   asan:
     name: ASan and UBSan
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     env:
       CXX: g++-11
     steps:

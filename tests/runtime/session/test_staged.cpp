@@ -700,11 +700,11 @@ void physical_tilt(Context & test, std::string_view profile)
             Fixture f;
             f.send_gnss = f.send_magnetic = f.send_barometer = false;
             double const angle = seed_degrees * std::acos(-1.) / 180.;
-            f.imu.delta_velocity_b = Vector::from_row_major(
-                {0, -ins_test_profile::gravity * std::sin(angle) * .004, -ins_test_profile::gravity * std::cos(angle) * .004});
+            f.imu.delta_velocity_b = Vector::from_row_major({0, -ins_test_profile::gravity * std::sin(angle) * .004,
+                                                             -ins_test_profile::gravity * std::cos(angle) * .004});
             test.expect(f.tick(), profile, "known seed transient admitted");
-            f.imu.delta_velocity_b =
-                Vector::from_row_major({acceleration * ins_test_profile::gravity * .004, 0, -ins_test_profile::gravity * .004});
+            f.imu.delta_velocity_b = Vector::from_row_major(
+                {acceleration * ins_test_profile::gravity * .004, 0, -ins_test_profile::gravity * .004});
             test.expect(f.run(15000), profile,
                         "60 s real IMU-only propagation/refinement without manufactured sources");
             auto const R = formal_eskf::so3::to_rotation_matrix(f.session.state().q_nb);

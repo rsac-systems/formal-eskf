@@ -5818,37 +5818,6 @@
       }
     },
     {
-      "id": "R-BARO-GROUND-EFFECT",
-      "title": "Optional barometer ground-effect event/latch and height composition: Draft target; implementation, executable acceptance, physical tuning and formal source evidence pending",
-      "references": {
-        "spec": [
-          {
-            "file": "docs/spec/requirements/runtime/barometer-ground-effect.md",
-            "symbol": "# R-BARO-GROUND-EFFECT:"
-          },
-          {
-            "file": "docs/spec/architecture/navigation-runtime.md",
-            "symbol": "### Ground-effect protection allocation"
-          },
-          {
-            "file": "docs/spec/profiles/px4-sih-250hz.md",
-            "symbol": "## Ground-effect target binding"
-          },
-          {
-            "file": "docs/spec/verification/barometer-ground-effect-tests.md",
-            "symbol": "## Runtime cases"
-          },
-          {
-            "file": "docs/spec/verification/barometer-ground-effect-tests.md",
-            "symbol": "## Target and physical cases"
-          }
-        ],
-        "lean": [],
-        "cpp": [],
-        "esbmc": []
-      }
-    },
-    {
       "id": "R-HEIGHT-FUSION",
       "title": "Portable height/PX4 geographic and staged relative operation, source recovery and prepared reset transactions have native bindings; uniform numerical/target qualification, ground-effect implementation and changed source-proof rebinding remain open",
       "references": {
@@ -8683,6 +8652,22 @@
           {
             "file": "docs/spec/verification/barometer-ground-effect-tests.md",
             "symbol": "## PX4 cases"
+          },
+          {
+            "file": "docs/spec/architecture/navigation-runtime.md",
+            "symbol": "### Ground-effect protection allocation"
+          },
+          {
+            "file": "docs/spec/profiles/px4-sih-250hz.md",
+            "symbol": "## Ground-effect target binding"
+          },
+          {
+            "file": "docs/spec/verification/barometer-ground-effect-tests.md",
+            "symbol": "## Runtime cases"
+          },
+          {
+            "file": "docs/spec/verification/barometer-ground-effect-tests.md",
+            "symbol": "## Target and physical cases"
           }
         ],
         "lean": [],

@@ -161,7 +161,12 @@ void input_and_motion(Context & test, std::string_view profile)
                 "caller-qualified moving-platform attitude does not require gravity-only startup assumptions");
     test.expect(moving.run(70), profile, "actual next intervals propagate through both histories");
     auto const q = moving.session.output_predictor().current().q_nb;
+#if ESKF_QUAT_APPROX
+    // Normalized [1, 0, 0, delta_angle/2] has half-angle atan(delta_angle/2).
+    double const angle = 70 * 2 * std::atan(.004 / 2);
+#else
     double const angle = 70 * .004;
+#endif
     test.expect(std::abs(q.q0() - std::cos(angle / 2)) < 1e-12 && std::abs(q.q3() - std::sin(angle / 2)) < 1e-12,
                 profile, "analytic constant-rate rotation; no repeated seed or duplicated first interval");
 }

@@ -96,6 +96,16 @@ tests is not a pass. Run relevant build, unit/regression, formatting, static-ana
 and sanitizer checks. Broaden coverage when dependencies or findings justify it,
 not by unconditionally running every tool. Record exact configurations and outcomes.
 
+Use the [CI workflow](../../../.github/workflows/ci.yml) to select the actual
+commands, tool versions and affected compile-time profiles. Derive test oracles
+from the selected mathematical method; do not assume the default formulation also
+applies to an alternate mode or loosen tolerances to hide that mismatch.
+C++ changes need the repository formatting check, including tests and examples.
+Traceability edits need `tests/tools/test_agent_review.sh`; source-extraction or
+verifier-routing changes need the offline `tests/tools/test_esbmc.sh`. These offline
+tests do not run proofs.
+Keep stale proof bindings fail-closed; never refresh hashes merely to pass CI.
+
 Review the complete task diff against requirements and sources after implementation.
 For applicable changes, check:
 
@@ -137,7 +147,12 @@ explicit exclusions, not reasons to invent additional implementation work.
 Follow the agreed commit granularity; otherwise prefer a coherent behavior change
 with its tests and necessary documentation. Stage or commit only with existing
 authorization. Review the exact staged diff and ensure the commit does not depend
-on unrelated unstaged or untracked work. Do not include local logs or trial files.
+on unrelated unstaged or untracked work. When the worktree contains unrelated
+changes, validate an isolated checkout of the candidate files with fresh build
+configuration for the affected CI jobs. A passing dirty-worktree run is not
+acceptance of that candidate. Inspect every selected job result; a failure that
+stops a sequential script does not validate the commands after it. Report known
+baseline failures explicitly. Do not include local logs or trial files.
 
 Report concise, supported answers to these questions:
 

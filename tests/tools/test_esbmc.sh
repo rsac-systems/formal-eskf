@@ -999,6 +999,19 @@ RELATIVE = Path('formal/cpp/esbmc/output_steps.py')
 SPEC = importlib.util.spec_from_file_location('output_steps', ROOT / RELATIVE)
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
+BODY = 'void step() { if (ready) { update(); } }'
+assert MODULE.body(BODY, 'void step()') == ' if (ready) { update(); } '
+for TEXT in ('', BODY + BODY):
+    try:
+        MODULE.body(TEXT, 'void step()')
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('missing or ambiguous method accepted')
+sys.path.insert(0, str(ROOT / 'tests/tools'))
+from source_binding import check_source_binding
+if not check_source_binding(ROOT, RELATIVE, MODULE, 'requires review'):
+    sys.exit(0)
 with tempfile.TemporaryDirectory(prefix='formal-eskf-output-steps-') as TEMP:
     FIXTURE = Path(TEMP) / 'repo'
     for NAME in [*MODULE.PINS, str(RELATIVE)]:
@@ -1050,6 +1063,19 @@ RELATIVE = Path('formal/cpp/esbmc/ring_steps.py')
 SPEC = importlib.util.spec_from_file_location('ring_steps', ROOT / RELATIVE)
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
+BODY = 'void step() { if (ready) { update(); } }'
+assert MODULE.extract_body(BODY, 'void step()') == ' if (ready) { update(); } '
+for TEXT in ('', BODY + BODY):
+    try:
+        MODULE.extract_body(TEXT, 'void step()')
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('missing or ambiguous method accepted')
+sys.path.insert(0, str(ROOT / 'tests/tools'))
+from source_binding import check_source_binding
+if not check_source_binding(ROOT, RELATIVE, MODULE, 'requires review'):
+    sys.exit(0)
 with tempfile.TemporaryDirectory(prefix='formal-eskf-ring-steps-') as TEMP:
     FIXTURE = Path(TEMP) / 'repo'
     for NAME in [*MODULE.PINS, str(RELATIVE)]:
@@ -1209,6 +1235,20 @@ RELATIVE = Path('formal/cpp/esbmc/module_source.py')
 SPEC = importlib.util.spec_from_file_location('module_source', ROOT / RELATIVE)
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
+# Check extraction primitives independently of a live proof binding.
+BODY = 'void Example::step()\n{\n    if (ready) { update(); }\n} '
+assert MODULE.method(BODY, 'void Example::step()') == BODY.rstrip()
+for TEXT in ('', BODY + BODY):
+    try:
+        MODULE.method(TEXT, 'void Example::step()')
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('missing or ambiguous method accepted')
+sys.path.insert(0, str(ROOT / 'tests/tools'))
+from source_binding import check_source_binding
+if not check_source_binding(ROOT, RELATIVE, MODULE, 'requires review'):
+    sys.exit(0)
 with tempfile.TemporaryDirectory(prefix='formal-eskf-module-source-') as TEMP:
     FIXTURE = Path(TEMP) / 'repo'
     ORIGINALS = {}
@@ -1270,6 +1310,19 @@ RELATIVE = Path('formal/cpp/esbmc/height_source.py')
 SPEC = importlib.util.spec_from_file_location('height_source', ROOT / RELATIVE)
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
+# Check extraction primitives independently of a live proof binding.
+assert MODULE.replace_once('before target after', 'target', 'replacement') == 'before replacement after'
+for TEXT in ('absent', 'target target'):
+    try:
+        MODULE.replace_once(TEXT, 'target', 'replacement')
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('missing or ambiguous replacement accepted')
+sys.path.insert(0, str(ROOT / 'tests/tools'))
+from source_binding import check_source_binding
+if not check_source_binding(ROOT, RELATIVE, MODULE, 'source changed'):
+    sys.exit(0)
 with tempfile.TemporaryDirectory(prefix='formal-eskf-height-source-') as TEMP:
     FIXTURE = Path(TEMP) / 'repo'
     ORIGINALS = {}

@@ -9,12 +9,15 @@ including its actual session, capability and attachment callers.
 backends. The ordinary staged startup family remains the regression control.
 
 **Setup and oracle:** Use a quarter-turn roll to exchange known covariance axes;
-inspect all 225 entries and nominal state fields. Constant yaw rate has the
-analytic quaternion [cos(t/2), 0, 0, sin(t/2)]. Allow 1e-15 absolute covariance
-error for the short rotation and 1e-12 quaternion coefficient error for the
-bounded 70-step propagation; clocks, flags, counters and preserved values are
-exact. GNSS/compass sequences exercise real qualification and reset owners;
-no private member injection supplies fake support.
+inspect all 225 entries and nominal state fields. For a constant yaw increment
+`d = 0.004 rad` over `N = 70` intervals, use the analytic quaternion
+`[cos(a/2), 0, 0, sin(a/2)]`. The total angle is `a = N*d` for Exp prediction
+and `a = 2*N*atan(d/2)` for normalized Euler (`ESKF_QUAT_APPROX=1`). This closed-form
+oracle does not call the production prediction or quaternion composition routines.
+Allow 1e-15 absolute covariance error for the short rotation and 1e-12 quaternion
+coefficient error for either selected method; clocks, flags, counters and
+preserved values are exact. GNSS/compass sequences exercise real qualification
+and reset owners; no private member injection supplies fake support.
 
 ## Cases
 
