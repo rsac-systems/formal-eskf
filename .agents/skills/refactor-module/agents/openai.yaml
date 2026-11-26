@@ -1,0 +1,4 @@
+interface:
+  display_name: "Module Refactor and Review"
+  short_description: "Review module structure and preserve behavior in refactors"
+  default_prompt: "Use $refactor-module to review this module, plan justified structural changes, and carry out the authorized refactor with behavioral regression checks."

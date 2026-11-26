@@ -1,6 +1,6 @@
 ---
 name: implement-feature
-description: Implement agreed formal-eskf behavior or refactor an existing implementation, including requirement-based tests, structural review, and evidence-backed handoff. Use for implementation tasks; specification design belongs to specify-feature.
+description: Implement agreed formal-eskf features with requirement-based tests, scoped structural cleanup and self-review. Use for feature delivery; module-wide reviews or refactors start with refactor-module, and specification design belongs to specify-feature.
 ---
 
 # Implement a Feature
