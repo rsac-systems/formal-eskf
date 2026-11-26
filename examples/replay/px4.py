@@ -11,15 +11,14 @@ GNSS quality qualifies lifecycle, position/velocity resets and independent veloc
 
 import argparse
 import hashlib
-import json
 import math
-import os
 from pathlib import Path
-import shutil
 import subprocess
 
-from common import (IMU_HEADER, INITIAL_HEADER, NAVIGATION_HEADER, PROGRESS_FORMAT,
-                           dot, project_coordinates, plot_replay, write_csv)
+from runner import (IMU_HEADER, INITIAL_HEADER, NAVIGATION_HEADER, PROGRESS_FORMAT,
+                    check_output, dot, executable, project_coordinates, replace_output,
+                    run_estimator, write_csv, write_metadata)
+from plots import plot_replay
 
 
 def topic(ULOG, NAME):
@@ -568,24 +567,17 @@ def prepare(ULOG, OUTPUT, BINARY, MAGNETIC_MODEL=None):
 
 
 def run_replay(LOG_FILE, BINARY, COMPARE_MAG=False, MAGNETIC_MODEL=None):
-    BINARY = BINARY.resolve()
-    if not BINARY.is_file() or not os.access(BINARY, os.X_OK):
-        raise ValueError(f"replay executable not found or not executable: {BINARY}; build it with CMake first")
+    BINARY = executable(BINARY)
     if MAGNETIC_MODEL is not None:
-        MAGNETIC_MODEL = MAGNETIC_MODEL.resolve()
-        if not MAGNETIC_MODEL.is_file() or not os.access(MAGNETIC_MODEL, os.X_OK):
-            raise ValueError(f"magnetic model executable not found or not executable: {MAGNETIC_MODEL}")
+        MAGNETIC_MODEL = executable(MAGNETIC_MODEL)
     if not LOG_FILE.is_file():
         raise ValueError(f"ULog file not found: {LOG_FILE}")
     if LOG_FILE.stem in ("", ".", ".."):
         raise ValueError("ULog filename must have a nonempty name before the extension")
     OUTPUT = Path("output") / LOG_FILE.stem
     LOG_FILE = LOG_FILE.resolve()
-    if OUTPUT.is_symlink() or OUTPUT.parent.is_symlink():
-        raise ValueError(f"replay output path must not be a symlink: {OUTPUT}")
     INPUT_PATHS = [LOG_FILE, BINARY] + ([MAGNETIC_MODEL] if MAGNETIC_MODEL is not None else [])
-    if any(PATH.is_relative_to(OUTPUT.resolve()) for PATH in INPUT_PATHS):
-        raise ValueError("ULog and replay executable must be outside the replay output directory")
+    check_output(OUTPUT, INPUT_PATHS)
     from pyulog import ULog
     from tqdm import tqdm as TQDM
     with TQDM(total=3 + int(COMPARE_MAG), desc="Read ULog", dynamic_ncols=True, bar_format=PROGRESS_FORMAT) as PROGRESS:
@@ -593,10 +585,8 @@ def run_replay(LOG_FILE, BINARY, COMPARE_MAG=False, MAGNETIC_MODEL=None):
             "sensor_combined", "vehicle_gps_position", "vehicle_magnetometer", "vehicle_land_detected", "sensor_selection"])
         PROGRESS.update(1)
         PROGRESS.set_description_str("Prepare CSV / metadata")
-        if OUTPUT.exists():
-            shutil.rmtree(OUTPUT)
+        if replace_output(OUTPUT):
             PROGRESS.write(f"Removed previous replay output: {OUTPUT}")
-        OUTPUT.mkdir(parents=True, exist_ok=False)
         META = prepare(ULOG, OUTPUT / "input", BINARY, MAGNETIC_MODEL)
         with LOG_FILE.open("rb") as STREAM:
             HASH = hashlib.sha256()
@@ -605,26 +595,22 @@ def run_replay(LOG_FILE, BINARY, COMPARE_MAG=False, MAGNETIC_MODEL=None):
         META.update(source=str(LOG_FILE.resolve()), sha256=HASH.hexdigest(),
                     px4_version=ULOG.msg_info_dict.get("ver_sw"), hardware=ULOG.msg_info_dict.get("ver_hw"),
                     logged_dropout_count=len(ULOG.dropouts))
-        with (OUTPUT / "input/source.json").open("x") as STREAM:
-            json.dump(META, STREAM, indent=2, allow_nan=False)
-            STREAM.write("\n")
+        write_metadata(OUTPUT / "input/source.json", META)
         PROGRESS.write(f"Prepared {META['imu_rows']} IMU rows, {META['gnss_rows']} GNSS events, "
                        f"{META['magnetometer_rows']} magnetometer events")
         PROGRESS.update(1)
         PROGRESS.set_description_str("Run C++ replay")
-        RESULT = subprocess.run([str(BINARY), str(OUTPUT / "input"), str(OUTPUT / "result")],
-                                check=True, stdout=subprocess.PIPE, text=True)
+        RESULT = run_estimator(BINARY, OUTPUT / "input", OUTPUT / "result")
         PROGRESS.update(1)
         if COMPARE_MAG:
             PROGRESS.set_description_str("Run without mag correction")
-            BASELINE = subprocess.run([str(BINARY), str(OUTPUT / "input"), str(OUTPUT / "result_no_mag"), "--no-mag"],
-                                      check=True, stdout=subprocess.PIPE, text=True)
+            BASELINE = run_estimator(BINARY, OUTPUT / "input", OUTPUT / "result_no_mag", MAGNETIC=False)
             PROGRESS.update(1)
         PROGRESS.set_description_str("Replay complete")
-    print(RESULT.stdout, end="", flush=True)
+    print(RESULT, end="", flush=True)
     if COMPARE_MAG:
         print("Without mag correction (same inputs and initialization):", flush=True)
-        print(BASELINE.stdout, end="", flush=True)
+        print(BASELINE, end="", flush=True)
     print(f"Output: {OUTPUT}", flush=True)
     return OUTPUT
 

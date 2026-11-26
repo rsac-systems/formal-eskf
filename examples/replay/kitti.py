@@ -9,16 +9,15 @@ GNSS/IMU accuracy benchmark. No images, LiDAR, or camera calibration are used.
 import argparse
 from datetime import datetime
 import hashlib
-import json
 import math
-import os
 from pathlib import Path
-import shutil
 import statistics
 import subprocess
 
-from common import (IMU_HEADER, INITIAL_HEADER, NAVIGATION_HEADER, PROGRESS_FORMAT,
-                           dot, project_coordinates, plot_replay, write_csv)
+from runner import (IMU_HEADER, INITIAL_HEADER, NAVIGATION_HEADER, PROGRESS_FORMAT,
+                    check_output, dot, executable, project_coordinates, replace_output,
+                    run_estimator, write_csv, write_metadata)
+from plots import plot_replay
 
 
 OXTS_FIELDS = (
@@ -214,26 +213,16 @@ def prepare(RECORDS, NAVIGATION_HZ, BINARY):
 def run_replay(DRIVE, BINARY, NAVIGATION_HZ):
     from tqdm import tqdm as TQDM
 
-    DRIVE, BINARY = DRIVE.resolve(), BINARY.resolve()
-    if not BINARY.is_file() or not os.access(BINARY, os.X_OK):
-        raise ValueError(f"replay executable not found or not executable: {BINARY}; build it with CMake first")
+    DRIVE, BINARY = DRIVE.resolve(), executable(BINARY)
     if not DRIVE.is_dir() or not (DRIVE / "oxts").is_dir():
         raise ValueError(f"expected a KITTI drive directory containing oxts/: {DRIVE}")
     OUTPUT = Path("output") / ("kitti-" + DRIVE.name)
-    if OUTPUT.is_symlink() or OUTPUT.parent.is_symlink():
-        raise ValueError(f"replay output path must not be a symlink: {OUTPUT}")
-    if (DRIVE.is_relative_to(OUTPUT.resolve()) or OUTPUT.resolve().is_relative_to(DRIVE)
-            or (DRIVE / "oxts").resolve().is_relative_to(OUTPUT.resolve())
-            or BINARY.is_relative_to(OUTPUT.resolve())):
-        raise ValueError("dataset, executable and replay output paths must not overlap")
+    check_output(OUTPUT, [DRIVE, DRIVE / "oxts", BINARY])
     RECORDS, HASH, TIMING = read_oxts(DRIVE)
     INITIAL, IMU_ROWS, NAVIGATION_ROWS, META = prepare(RECORDS, NAVIGATION_HZ, BINARY)
     # Validate the entire selected drive before replacing a previous result.
     with TQDM(total=2, desc="Prepare CSV / metadata", dynamic_ncols=True, bar_format=PROGRESS_FORMAT) as PROGRESS:
-        if OUTPUT.exists():
-            if not OUTPUT.is_dir():
-                raise ValueError(f"replay output already exists and is not a directory: {OUTPUT}")
-            shutil.rmtree(OUTPUT)
+        if replace_output(OUTPUT):
             PROGRESS.write(f"Removed previous replay output: {OUTPUT}")
         INPUT = OUTPUT / "input"
         INPUT.mkdir(parents=True, exist_ok=False)
@@ -243,9 +232,7 @@ def run_replay(DRIVE, BINARY, NAVIGATION_HZ):
         write_csv(INPUT / "imu.csv", IMU_HEADER, IMU_ROWS)
         write_csv(INPUT / "navigation.csv", NAVIGATION_HEADER, NAVIGATION_ROWS)
         META.update(source=str(DRIVE), oxts_sha256=HASH, **TIMING)
-        with (INPUT / "source.json").open("x") as STREAM:
-            json.dump(META, STREAM, indent=2, allow_nan=False)
-            STREAM.write("\n")
+        write_metadata(INPUT / "source.json", META)
         PROGRESS.write(f"Prepared {len(IMU_ROWS)} IMU rows, {len(NAVIGATION_ROWS)} OXTS navigation events")
         PROGRESS.write(f"Timestamp reversals: {TIMING['timestamp_reversals']}; "
                        f"identical duplicates removed: {TIMING['identical_duplicates_removed']}")
@@ -256,11 +243,10 @@ def run_replay(DRIVE, BINARY, NAVIGATION_HZ):
                        f"{META['navigation_events_skipped']}")
         PROGRESS.update(1)
         PROGRESS.set_description_str("Run C++ replay")
-        RESULT = subprocess.run([str(BINARY), str(INPUT), str(OUTPUT / "result")],
-                                check=True, stdout=subprocess.PIPE, text=True)
+        RESULT = run_estimator(BINARY, INPUT, OUTPUT / "result")
         PROGRESS.update(1)
         PROGRESS.set_description_str("Replay complete")
-    print(RESULT.stdout, end="", flush=True)
+    print(RESULT, end="", flush=True)
     print(f"Output: {OUTPUT}", flush=True)
     return OUTPUT
 

@@ -13,7 +13,7 @@ import unittest
 
 REPO_DIR = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_DIR / "examples" / "replay"))
-import common as COMMON
+import runner as COMMON
 import kitti as KITTI
 import px4 as PX4
 
@@ -179,6 +179,57 @@ class ReplayGeodesy(unittest.TestCase):
         self.assertAlmostEqual(FIELD[0], math.atan2(-4, 2), delta=1e-14)
         self.assertAlmostEqual(FIELD[1], math.atan2(3, math.hypot(2, 4)), delta=1e-14)
         self.assertAlmostEqual(FIELD[2], STRENGTH, delta=1e-14)
+
+
+class ReplayExecution(unittest.TestCase):
+    def test_source_overlap_preserves_existing_output(self):
+        with tempfile.TemporaryDirectory() as DIRECTORY:
+            OUTPUT = Path(DIRECTORY) / "output"
+            OUTPUT.mkdir()
+            SOURCE = OUTPUT / "source.ulg"
+            SOURCE.write_bytes(b"source")
+            with self.assertRaises(ValueError):
+                COMMON.check_output(OUTPUT, [SOURCE, BINARY])
+            self.assertEqual(SOURCE.read_bytes(), b"source")
+
+    def test_output_inside_dataset_is_rejected(self):
+        with tempfile.TemporaryDirectory() as DIRECTORY:
+            SOURCE = Path(DIRECTORY)
+            with self.assertRaises(ValueError):
+                COMMON.check_output(SOURCE / "output", [SOURCE, BINARY])
+            self.assertFalse((SOURCE / "output").exists())
+
+    def test_symlink_output_is_rejected(self):
+        with tempfile.TemporaryDirectory() as DIRECTORY:
+            ROOT = Path(DIRECTORY)
+            TARGET = ROOT / "target"
+            TARGET.mkdir()
+            OUTPUT = ROOT / "output"
+            OUTPUT.symlink_to(TARGET, target_is_directory=True)
+            with self.assertRaises(ValueError):
+                COMMON.check_output(OUTPUT, [BINARY])
+            self.assertTrue(TARGET.is_dir())
+
+    def test_replacement_is_limited_to_run_directory(self):
+        with tempfile.TemporaryDirectory() as DIRECTORY:
+            ROOT = Path(DIRECTORY)
+            OUTPUT = ROOT / "output"
+            (ROOT / "keep").write_text("keep")
+            self.assertFalse(COMMON.replace_output(OUTPUT))
+            (OUTPUT / "old.csv").write_text("old")
+            self.assertTrue(COMMON.replace_output(OUTPUT))
+            self.assertEqual(list(OUTPUT.iterdir()), [])
+            self.assertEqual((ROOT / "keep").read_text(), "keep")
+
+    def test_estimator_failure_is_not_reported_as_success(self):
+        with tempfile.TemporaryDirectory() as DIRECTORY:
+            ROOT = Path(DIRECTORY)
+            INPUT = ROOT / "input"
+            INPUT.mkdir()
+            with self.assertRaises(subprocess.CalledProcessError) as FAILURE:
+                COMMON.run_estimator(BINARY, INPUT, ROOT / "result")
+            self.assertEqual(FAILURE.exception.returncode, 1)
+            self.assertFalse((ROOT / "result").exists())
 
 
 if __name__ == "__main__":
