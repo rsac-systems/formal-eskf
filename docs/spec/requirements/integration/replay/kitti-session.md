@@ -62,6 +62,6 @@ Use the actual Python preparer, C++ initializer and session. Check signs/bases,
 coherent seed epoch, no repeated prior observation, real interval preservation,
 invalid prior rejection, fresh qualification after gaps, short partial segments,
 and unavailable output. An explicit KITTI prior shall fail in ordinary PX4 mode.
-The [replay test plan](../../../verification/tests/replay-session.md) owns the cases.
+The [replay test plan](../../../verification/replay-session-tests.md) owns the cases.
 Recorded OXTS replay and plots establish execution only; formal caller proofs,
 physical calibration, independent navigation accuracy and target timing are excluded.

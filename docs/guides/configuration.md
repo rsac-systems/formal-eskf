@@ -293,12 +293,14 @@ The complete supported menu and defaults are in `Kconfig` and
 `DeploymentProfile.hpp` binds it to typed module values. The 2026-11-18
 configuration tests check that menu symbols reach production consumers.
 Use the source declarations for exhaustive values rather than a second copied
-profile table. Replay macros remain in `examples/replay/profile.hpp` and are not
-controlled by the PX4 menu.
+profile table. Replay uses `examples/common/profile.hpp`,
+`examples/replay/session_profile.hpp` and validated dataset settings. These host
+profiles are not controlled by the PX4 menu.
 
 The [Cartesian origin profile](../spec/profiles/px4-origin-rebasing.md) is enabled
 in the live PX4 module. Its displacement/axis, dwell/retry, datum and geographic
 limits are fixed typed values in `DeploymentProfile.hpp`, like the admitted
 history envelope. They are not unrestricted menu tuning controls: changing them
 requires reassessing that profile and its boundary/resource evidence. Replay
-continues to use explicit events rather than inheriting this deployment policy.
+uses the session's automatic origin owner with its declared host bounds; it does
+not expose the retired explicit-event CSV interface.

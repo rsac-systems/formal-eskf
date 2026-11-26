@@ -2392,14 +2392,6 @@
           {
             "file": "formal/cpp/esbmc/step.cpp",
             "symbol": "void verify_nominal_prediction_transaction("
-          },
-          {
-            "file": "formal/cpp/esbmc/module/replay_prediction.cpp",
-            "symbol": "void verify_replay_prediction("
-          },
-          {
-            "file": "formal/cpp/esbmc/module/replay_imu.cpp",
-            "symbol": "void verify_replay_imu("
           }
         ]
       }
@@ -3482,16 +3474,16 @@
             "symbol": "struct MagneticFieldChecks"
           },
           {
-            "file": "examples/replay/io.cpp",
-            "symbol": "read_magnetic_field_parameters("
-          },
-          {
             "file": "examples/replay/px4.py",
             "symbol": "def magnetic_field_parameters("
           },
           {
             "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
             "symbol": "InsSession<Linalg, Layout>::prepare_magnetic_observation("
+          },
+          {
+            "file": "examples/replay/session.cpp",
+            "symbol": "void replay_session("
           }
         ],
         "esbmc": [
@@ -3636,10 +3628,6 @@
             "symbol": "MagnetometerFusion::select_sample_action("
           },
           {
-            "file": "examples/replay/io.cpp",
-            "symbol": "read_magnetic_heading_parameters("
-          },
-          {
             "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
             "symbol": "InsSession<Linalg, Layout>::prepare_magnetic_observation("
           },
@@ -3654,6 +3642,10 @@
           {
             "file": "include/formal_eskf/runtime/sensors/magnetic/magnetometer.hpp",
             "symbol": "Status MagneticHeading<Linalg>::rebase("
+          },
+          {
+            "file": "examples/replay/session.cpp",
+            "symbol": "void replay_session("
           }
         ],
         "esbmc": [
@@ -3786,10 +3778,6 @@
             "symbol": "MagneticReference<Linalg>::adopt("
           },
           {
-            "file": "examples/replay/io.cpp",
-            "symbol": "read_magnetic_model("
-          },
-          {
             "file": "examples/replay/runner.py",
             "symbol": "def magnetic_model("
           },
@@ -3816,6 +3804,10 @@
           {
             "file": "include/formal_eskf/runtime/sensors/magnetic/magnetic_model.hpp",
             "symbol": "MagneticModel<Linalg>::to_origin_frame("
+          },
+          {
+            "file": "examples/replay/session.cpp",
+            "symbol": "void replay_session("
           }
         ],
         "esbmc": [
@@ -3915,20 +3907,16 @@
             "symbol": "correct_magnetometer("
           },
           {
-            "file": "examples/replay/main.cpp",
-            "symbol": "MagneticReference read_magnetic_reference("
-          },
-          {
             "file": "examples/replay/px4.py",
             "symbol": "def magnetic_declination("
           },
           {
-            "file": "examples/replay/main.cpp",
-            "symbol": "void replay("
-          },
-          {
             "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
             "symbol": "InsSession<Linalg, Layout>::fuse_magnetic_observation("
+          },
+          {
+            "file": "examples/replay/session.cpp",
+            "symbol": "void replay_session("
           }
         ],
         "esbmc": [
@@ -4000,20 +3988,16 @@
             "symbol": "void restart()"
           },
           {
-            "file": "examples/replay/main.cpp",
-            "symbol": "void replay("
-          },
-          {
-            "file": "examples/replay/main.cpp",
-            "symbol": "MagneticContext read_magnetic_context("
-          },
-          {
             "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
             "symbol": "InsSession<Linalg, Layout>::begin_magnetic("
           },
           {
             "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
             "symbol": "InsSession<Linalg, Layout>::complete_magnetic("
+          },
+          {
+            "file": "examples/replay/session.cpp",
+            "symbol": "void replay_session("
           }
         ],
         "esbmc": [
@@ -4032,10 +4016,6 @@
           {
             "file": "formal/cpp/esbmc/magnetometer_lifecycle.cpp",
             "symbol": "void verify_mag_lifecycle_reset("
-          },
-          {
-            "file": "formal/cpp/esbmc/module/replay_events.cpp",
-            "symbol": "void verify_replay_magnetic("
           }
         ]
       }
@@ -4530,20 +4510,8 @@
             "symbol": "fuse_velocity("
           },
           {
-            "file": "examples/replay/io.cpp",
-            "symbol": "read_gnss_parameters("
-          },
-          {
-            "file": "examples/replay/main.cpp",
-            "symbol": "NavigationVariances navigation_variances("
-          },
-          {
-            "file": "examples/replay/io.hpp",
-            "symbol": "bool record_navigation_fusion("
-          },
-          {
-            "file": "examples/replay/main.cpp",
-            "symbol": "void replay("
+            "file": "examples/replay/session.cpp",
+            "symbol": "void replay_session("
           }
         ],
         "esbmc": [
@@ -4686,14 +4654,6 @@
             "symbol": "check_accelerometer_fusion_conditions("
           },
           {
-            "file": "examples/replay/conditions.hpp",
-            "symbol": "class ReplayFusionConditions"
-          },
-          {
-            "file": "examples/replay/main.cpp",
-            "symbol": "ImuFlags read_imu_flags("
-          },
-          {
             "file": "include/formal_eskf/runtime/session/tilt_alignment.hpp",
             "symbol": "class TiltAlignment"
           },
@@ -4708,6 +4668,10 @@
           {
             "file": "include/formal_eskf/runtime/session/tilt_alignment.hpp",
             "symbol": "Status TiltAlignment<Linalg>::rebase("
+          },
+          {
+            "file": "examples/replay/session.cpp",
+            "symbol": "void replay_session("
           }
         ],
         "esbmc": [
@@ -4800,10 +4764,6 @@
             "symbol": "AccelerometerSample<Linalg, IntervalUs>::update("
           },
           {
-            "file": "examples/replay/main.cpp",
-            "symbol": "void replay("
-          },
-          {
             "file": "include/formal_eskf/runtime/session/ins_session.hpp",
             "symbol": "struct Gravity"
           },
@@ -4814,6 +4774,10 @@
           {
             "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
             "symbol": "InsSession<Linalg, Layout>::fuse_gravity("
+          },
+          {
+            "file": "examples/replay/session.cpp",
+            "symbol": "void replay_session("
           }
         ],
         "esbmc": [
@@ -4862,7 +4826,7 @@
     },
     {
       "id": "R-REPLAY-BIAS",
-      "title": "Replay bias inhibition: portable permission invariants and source-composed tick ordering; decoded-input provenance and physical validity remain separate",
+      "title": "Replay delegates bias policy to InsSession; portable producer evidence retained, current caller proof pending",
       "references": {
         "spec": [
           {
@@ -4897,20 +4861,16 @@
             "symbol": "class ImuBiasInhibition"
           },
           {
-            "file": "examples/replay/main.cpp",
-            "symbol": "void replay("
-          },
-          {
-            "file": "examples/replay/io.cpp",
-            "symbol": "BiasInhibition::Parameters read_bias_parameters("
-          },
-          {
             "file": "examples/replay/px4.py",
             "symbol": "def bias_parameters("
           },
           {
             "file": "examples/replay/px4.py",
             "symbol": "def prepare("
+          },
+          {
+            "file": "examples/replay/session.cpp",
+            "symbol": "void replay_session("
           }
         ],
         "esbmc": [
@@ -4937,10 +4897,6 @@
           {
             "file": "formal/cpp/esbmc/imu_inhibition.cpp",
             "symbol": "void verify_imu_inhibition("
-          },
-          {
-            "file": "formal/cpp/esbmc/module/replay_imu.cpp",
-            "symbol": "void verify_replay_imu("
           }
         ]
       }
@@ -5056,7 +5012,7 @@
     },
     {
       "id": "R-IMU-PROCESS-NOISE",
-      "title": "Portable fault-noise policy and module/replay prediction ordering under producer contracts; input provenance and target behavior remain separate",
+      "title": "Portable fault-noise policy under producer contracts; current session/adapter ordering and input provenance remain separate",
       "references": {
         "spec": [
           {
@@ -5112,16 +5068,12 @@
             "symbol": "void FormalEskf::Run()"
           },
           {
-            "file": "examples/replay/main.cpp",
-            "symbol": "void replay("
-          },
-          {
             "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
             "symbol": "InsSession<Linalg, Layout>::predict_and_fuse("
           },
           {
-            "file": "examples/replay/main.cpp",
-            "symbol": "predict_interval("
+            "file": "examples/replay/session.cpp",
+            "symbol": "void replay_session("
           }
         ],
         "esbmc": [
@@ -5148,17 +5100,13 @@
           {
             "file": "formal/cpp/esbmc/step.cpp",
             "symbol": "void verify_prediction_step("
-          },
-          {
-            "file": "formal/cpp/esbmc/module/replay_prediction.cpp",
-            "symbol": "void verify_replay_prediction("
           }
         ]
       }
     },
     {
       "id": "R-BIAS-PROCESS-NOISE",
-      "title": "Portable bias-noise policy and module/replay prediction ordering under producer contracts; target numerical behavior remains separate",
+      "title": "Portable bias-noise policy under producer contracts; current session/adapter ordering and target numerical behavior remain separate",
       "references": {
         "spec": [
           {
@@ -5214,16 +5162,12 @@
             "symbol": "void FormalEskf::Run()"
           },
           {
-            "file": "examples/replay/main.cpp",
-            "symbol": "void replay("
-          },
-          {
             "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
             "symbol": "InsSession<Linalg, Layout>::predict_and_fuse("
           },
           {
-            "file": "examples/replay/main.cpp",
-            "symbol": "predict_interval("
+            "file": "examples/replay/session.cpp",
+            "symbol": "void replay_session("
           }
         ],
         "esbmc": [
@@ -5250,10 +5194,6 @@
           {
             "file": "formal/cpp/esbmc/step.cpp",
             "symbol": "void verify_prediction_step("
-          },
-          {
-            "file": "formal/cpp/esbmc/module/replay_prediction.cpp",
-            "symbol": "void verify_replay_prediction("
           }
         ]
       }
@@ -5287,14 +5227,6 @@
             "symbol": "Status limit_bias("
           },
           {
-            "file": "examples/replay/io.cpp",
-            "symbol": "BiasLimits read_bias_limits("
-          },
-          {
-            "file": "examples/replay/main.cpp",
-            "symbol": "void limit_bias("
-          },
-          {
             "file": "integrations/px4/module/DeploymentProfile.hpp",
             "symbol": "runtime::BiasLimits<Scalar> bias_limits()"
           },
@@ -5313,6 +5245,10 @@
           {
             "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
             "symbol": "InsSession<Linalg, Layout>::fuse_gravity("
+          },
+          {
+            "file": "examples/replay/session.cpp",
+            "symbol": "void replay_session("
           }
         ],
         "esbmc": [
@@ -5356,12 +5292,8 @@
             "symbol": "Status VerticalAccelerationHealth<Linalg>::update("
           },
           {
-            "file": "examples/replay/main.cpp",
-            "symbol": "void replay("
-          },
-          {
-            "file": "examples/replay/io.cpp",
-            "symbol": "void write_vertical_health("
+            "file": "examples/replay/session.cpp",
+            "symbol": "void replay_session("
           }
         ],
         "esbmc": [
@@ -5474,10 +5406,6 @@
             "symbol": "fuse_height("
           },
           {
-            "file": "examples/replay/main.cpp",
-            "symbol": "void replay("
-          },
-          {
             "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
             "symbol": "InsSession<Linalg, Layout>::fuse_gps("
           },
@@ -5492,6 +5420,10 @@
           {
             "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
             "symbol": "InsSession<Linalg, Layout>::check_gnss_velocity_observation("
+          },
+          {
+            "file": "examples/replay/session.cpp",
+            "symbol": "void replay_session("
           }
         ],
         "esbmc": [
@@ -5789,26 +5721,6 @@
             "symbol": "void restart_health()"
           },
           {
-            "file": "examples/replay/main.cpp",
-            "symbol": "void update_gnss_lifecycle("
-          },
-          {
-            "file": "examples/replay/io.cpp",
-            "symbol": "void write_gnss_lifecycle("
-          },
-          {
-            "file": "examples/replay/io.hpp",
-            "symbol": "void write_gnss_reset("
-          },
-          {
-            "file": "examples/replay/main.cpp",
-            "symbol": "auto record_reset ="
-          },
-          {
-            "file": "examples/replay/main.cpp",
-            "symbol": "auto record_fusion ="
-          },
-          {
             "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
             "symbol": "InsSession<Linalg, Layout>::fuse_gps("
           },
@@ -5819,6 +5731,10 @@
           {
             "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
             "symbol": "InsSession<Linalg, Layout>::fuse_gps_position("
+          },
+          {
+            "file": "examples/replay/session.cpp",
+            "symbol": "void replay_session("
           }
         ],
         "esbmc": [
@@ -6235,18 +6151,6 @@
             "symbol": "void GnssQuality<Linalg>::update_health("
           },
           {
-            "file": "examples/replay/gnss.hpp",
-            "symbol": "class ReplayGnssQuality"
-          },
-          {
-            "file": "examples/replay/gnss.hpp",
-            "symbol": "ReplayGnssQuality<Linalg>::Result::outcome_name()"
-          },
-          {
-            "file": "examples/replay/io.cpp",
-            "symbol": "GnssQuality::Result check_gnss_quality("
-          },
-          {
             "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
             "symbol": "InsSession<Linalg, Layout>::update_gps_quality("
           },
@@ -6257,6 +6161,10 @@
           {
             "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
             "symbol": "InsSession<Linalg, Layout>::gnss_motion("
+          },
+          {
+            "file": "examples/replay/session.cpp",
+            "symbol": "void replay_session("
           }
         ],
         "esbmc": [
@@ -6287,10 +6195,6 @@
           {
             "file": "formal/cpp/esbmc/gnss_quality.cpp",
             "symbol": "void verify_gnss_transition("
-          },
-          {
-            "file": "formal/cpp/esbmc/module/replay_events.cpp",
-            "symbol": "void verify_replay_navigation("
           }
         ]
       }
@@ -8216,12 +8120,8 @@
             "symbol": "def prepare("
           },
           {
-            "file": "examples/replay/kitti.py",
-            "symbol": "def navigation_sample("
-          },
-          {
-            "file": "examples/replay/main.cpp",
-            "symbol": "origin_pending"
+            "file": "examples/replay/session.cpp",
+            "symbol": "void replay_session("
           }
         ],
         "esbmc": []

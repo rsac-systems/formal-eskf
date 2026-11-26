@@ -4,9 +4,8 @@
 
 **Status:** Draft
 
-**Applies to:** Retained same-horizon CSV runner and its policy fixtures.
-The PX4 ULog entrypoint uses [R-REPLAY-SESSION](session.md); these seed,
-sidecar and scheduling rules do not describe that session path.
+**Applies to:** Host replay through InsSession. The legacy same-horizon estimator,
+its seed/sidecar formats and independent policy ownership are retired.
 
 **Parent:** [SW-REPLAY](../../software/replay-aiding.md).
 
@@ -15,49 +14,23 @@ sidecar and scheduling rules do not describe that session path.
 
 ## Required behavior
 
-`examples/replay/conditions.hpp` supplies conditions for the replay's existing
-single navigation source. It does not change correction equations or implement
-the full GNSS qualification/reset controller. `fusion_conditions.csv` records
-raw-tick conditions; interval observations and correction outcomes are recorded
-separately as specified in [R-REPLAY-GRAVITY-SAMPLING](gravity-sampling.md).
+The host shall provide available raw clipping metadata and causal land/rest
+context, preserving original timestamps and unavailable provenance. Missing rest
+shall not assert rest; landed, speed and a gravity-sized vector are not substitutes.
+Missing optional clipping shall remain unavailable while known clipping retains
+its veto, as defined by the session input contract.
 
-- Derive tilt uncertainty from this estimator through R-TILT-ALIGNMENT, never
-  a logged EKF status, using INS covariance rows/columns 6..8.
-  Evaluate tilt on the predicted prior before that tick's navigation corrections.
-  A new replay resets the latch; subsequent variance growth does not clear it.
-  A constructed quaternion alone is not alignment. Unit attitude and PSD
-  covariance remain caller premises; non-finite/negative computed tilt variance
-  is a replay error, not permission to fuse.
-- Horizontal aiding starts only after horizontal position/velocity correction
-  or a permitted full horizontal-position/velocity reset succeeds,
-  remains active between navigation events and expires when elapsed time since
-  the last successful event reaches 7 seconds. A resumed successful event
-  reactivates it. Height and Down-only velocity resets do not refresh this timer;
-  the initial seed is not a fusion event. With the quality/lifecycle profile,
-  each navigation group may reject independently. Legacy ungated input retains
-  fail-fast correction behavior. This successful-progress timer is not a substitute for
-  independent source lifecycle, quality qualification or recovery in deployment.
-- PX4 preparation takes explicit `vehicle_land_detected.at_rest` at or before
-  each IMU timestamp, with age strictly below 3 seconds. Absent/stale data is
-  unknown (`-1`) and disables only the rest override; `landed`, constant speed
-  and a gravity-sized acceleration are not substitutes. Unlike the delayed
-  system-flag buffer, this undelayed demo checks freshness on each IMU tick.
-  The external detector's flag is not independent physical ground truth.
-- Decode `sensor_combined.accelerometer_clipping` bits X/Y/Z from that sample.
-  Missing clipping stays unknown (`-1`), not zero. No complete fusion conditions
-  are returned until clipping is known. Optional `imu_flags.csv` must match
-  every IMU timestamp exactly, including the seed; malformed/missing/extra rows
-  are errors. An absent sidecar leaves flags unknown, preserving legacy/KITTI
-  input compatibility without inventing metadata.
+InsSession shall derive its own tilt alignment, horizontal-aiding progress,
+clipping/magnitude conditions and readiness. Logged PX4 estimator status and a
+constructed initial quaternion shall not substitute for those decisions. The
+adapter shall not maintain a second alignment latch or successful-aiding timer.
+Output capability and gravity correction counts shall come from the session.
 
-Behavior references at PX4 `e1c28e2`:
-[tilt latch](https://github.com/PX4/PX4-Autopilot/blob/e1c28e27550114e85ddb8760ab3355eaa7a89d8a/src/modules/ekf2/EKF/control.cpp#L72),
-[NED tilt variance](https://github.com/PX4/PX4-Autopilot/blob/e1c28e27550114e85ddb8760ab3355eaa7a89d8a/src/modules/ekf2/EKF/ekf_helper.cpp#L932),
-[active horizontal sources](https://github.com/PX4/PX4-Autopilot/blob/e1c28e27550114e85ddb8760ab3355eaa7a89d8a/src/modules/ekf2/EKF/estimator_interface.cpp#L675),
-[GNSS missing-data stop](https://github.com/PX4/PX4-Autopilot/blob/e1c28e27550114e85ddb8760ab3355eaa7a89d8a/src/modules/ekf2/EKF/aid_sources/gnss/gps_control.cpp#L115),
-[7-second limit](https://github.com/PX4/PX4-Autopilot/blob/e1c28e27550114e85ddb8760ab3355eaa7a89d8a/src/modules/ekf2/EKF/common.h#L512),
-[rest metadata](https://github.com/PX4/PX4-Autopilot/blob/e1c28e27550114e85ddb8760ab3355eaa7a89d8a/src/modules/ekf2/EKF2.cpp#L2849),
-[clipping metadata](https://github.com/PX4/PX4-Autopilot/blob/e1c28e27550114e85ddb8760ab3355eaa7a89d8a/src/modules/ekf2/EKF2.cpp#L737).
-The local-error covariance transformation and missing-metadata refusal are
-project integration behavior, not copied estimator status. This is native-tested
-condition preparation, not proof of physical alignment or full PX4 equivalence.
+## Acceptance and verification
+
+Apply [R-REPLAY-SESSION](session.md) and the
+[host test plan](../../../verification/replay-session-tests.md). The linked
+runtime requirements own policy/component tests and proofs. Host tests establish
+only their exercised caller paths; old same-horizon fixtures and proof source
+bindings are not evidence for the session migration. New complete caller proofs,
+physical calibration and live-target timing remain open.

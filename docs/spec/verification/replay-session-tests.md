@@ -1,11 +1,11 @@
 # Recorded sensor session tests
 
 **Status:** Draft
-**Scope:** [R-REPLAY-SESSION](../../requirements/integration/replay/session.md) and
-[R-REPLAY-GEODESY](../../requirements/integration/replay/geodesy.md), excluding live hardware timing and navigation accuracy.
+**Scope:** [R-REPLAY-SESSION](../requirements/integration/replay/session.md) and
+[R-REPLAY-GEODESY](../requirements/integration/replay/geodesy.md), excluding live hardware timing and navigation accuracy.
 **Level / purpose:** Host adapter/session integration.
 **Profiles:** Binary64 Eigen and PX4 matrix host backends; current configured codegen/rotation variants.
-**Setup:** The [session fixture](../../../../tests/replay/test_replay_session.py)
+**Setup:** The [session fixture](../../../tests/replay/test_replay_session.py)
 passes independent stationary FRD IMU, geographic GNSS and magnetic samples through
 the real Python decoder and compiled `replay_ins --session`. No estimator outputs
 or substituted runtime owners supply expected results. Fixed field-provider fixtures
@@ -33,19 +33,42 @@ require the repository's optional replay dependencies.
 | TC-R-REPLAY-KITTI-03 | Explicit scope | KITTI-only selection | Add a navigation-prior file to ordinary PX4 input | Standard mode rejects the prior instead of importing it or silently changing startup | `KittiSession.test_standard_mode_does_not_use_kitti_prior` |
 | TC-R-REPLAY-KITTI-04 | Packet meaning | Input signs, actual intervals and quality | Known FLU vectors, east-zero OXTS yaw, local Up velocity, isolated packet and bad navigation mode | Exact FRD/NED signs, isolated packet skipped, bad quality retained for runtime | `KittiSession.test_no_gap_filling_and_prior_frame_conversion` |
 
-The [geodesy/host boundary family](../../../../tests/replay/test_replay_geodesy.py)
+| TC-R-REPLAY-SESSION-10 | GNSS outage and recovery | R-REPLAY-GNSS-LIFECYCLE | Normal startup and aiding, then 15-second GNSS loss with IMU/magnetic input continuing | Navigation becomes unavailable; existing historical qualification is retained while current health must recover; navigation returns without fabricated gap inputs | `ReplaySession.test_gnss_outage_and_recovery` |
+| TC-R-REPLAY-SESSION-11 | Magnetic calibration replacement | R-REPLAY-MAGNETIC-LIFECYCLE | Change calibration revision after normal heading/navigation startup | New generation reaches real session diagnostics; it consumes only new-generation epochs, remains fault-free and restores usable heading | `ReplaySession.test_magnetic_calibration_change_reaches_session` |
+| TC-R-REPLAY-KITTI-05 | Session-owned origin migration | R-REPLAY-GEODESY | Equatorial eastward 20 m/s fixture crosses the host origin trigger | Actual frame epoch advances; fixed display position does not return to zero; adjacent 10 ms display steps stay below 1 m (detects origin jumps, not an accuracy bound) | `KittiSession.test_session_rebase_keeps_display_frame` |
+
+The [geodesy/host boundary family](../../../tests/replay/test_replay_geodesy.py)
 additionally preserves original bad fixes, dual height datums, nonfinite receiver
 velocity and all IMU rows, and tests converter failure and output-path protections.
 Actual-log plots shall show unavailable intervals as gaps, including heading loss;
 manual plot inspection is separate from the standard-library CTest cases.
 
+## Responsibility and fixture retirement
+
+The same-horizon estimator and its policy wrappers are removed. Their CMake CSV
+fixtures and wrapper-only native tests do not exercise a retained production path
+and are retired with that owner. This does not count as equivalent test coverage
+or transfer their proof claims to InsSession.
+
+| Obligation | Retained owner and evidence |
+|---|---|
+| GNSS quality, lifecycle, gates and resets | [GNSS component tests](../../../tests/runtime/gnss), [fusion tests](../../../tests/runtime/test_measurement_fusion.cpp), session integration and host bad-quality/outage cases above |
+| Tilt, gravity conditions and interval sampling | [Gravity component tests](../../../tests/runtime/gravity), [tilt tests](../../../tests/runtime/test_tilt_alignment.cpp), [startup/staged service](../../../tests/runtime/session), host known/unknown clipping and partial-service cases |
+| Bias/noise/vertical-health rules | [IMU component tests](../../../tests/runtime/imu), session staged/input-metadata cases; host decoded controls are separate from numerical policy proofs |
+| Magnetic health, model, source and recovery | [Magnetic component tests](../../../tests/runtime/magnetic), session source cases, host provider/source-loss/calibration cases |
+| Origin transaction and output continuity | [Origin tests](../../../tests/runtime/test_origin_rebase.cpp), [staged attachment/rebase](../../../tests/runtime/session/test_staged.cpp), actual host migration case above; the old explicit-request CSV API is retired |
+| CSV/ULog/OXTS boundary and reporting | This host family and [geodesy preparation tests](../../../tests/replay/test_replay_geodesy.py); native policy tests alone do not establish adapter wiring |
+
+Complete combinations of host settings, failed-operation injection and temporal
+source composition remain coverage gaps. Pinned legacy replay extraction/proofs
+are stale and must continue to fail closed; they cannot certify the new caller.
+New proof work is tracked by V-01, not run as part of this refactor.
+
 ## Gaps and exclusions
 
 No independent truth, calibrated sensor uncertainty, full live-PX4 equivalence,
 complete option/real-time coverage or caller-level Lean/ESBMC proof is claimed.
-The retained KITTI/same-horizon path keeps its independent fixture regressions;
-these do not establish KITTI session migration. Real-log execution and sanitizer
-results belong to run evidence, not this specification.
+Real-log execution and sanitizer results belong to run evidence, not this specification.
 
 ## Review
 

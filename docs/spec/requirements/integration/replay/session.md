@@ -5,8 +5,7 @@
 **Status:** Draft
 
 **Applies to:** The PX4 ULog host entrypoint using `replay_ins --session`.
-KITTI has an explicit [initial-navigation exception](kitti-session.md); the
-retained same-horizon fixture runner has a separate startup and scheduling contract.
+KITTI has an explicit [initial-navigation exception](kitti-session.md).
 
 **Parent:** [SW-REPLAY](../../software/replay-aiding.md).
 

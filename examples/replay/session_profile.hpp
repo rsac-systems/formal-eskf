@@ -2,6 +2,22 @@
 #pragma once
 
 #include "../common/profile.hpp"
+#if defined(FORMAL_ESKF_REPLAY_PX4_MATRIX)
+#include <formal_eskf/linalg/backend/px4_matrix.hpp>
+#else
+#include <formal_eskf/linalg/backend/eigen.hpp>
+#endif
+
+namespace replay_demo
+{
+#if defined(FORMAL_ESKF_REPLAY_PX4_MATRIX)
+using Linalg = formal_eskf::linalg::Px4MatrixBackend<double>;
+#else
+using Linalg = formal_eskf::linalg::EigenBackend<double>;
+#endif
+using Vector3 = formal_eskf::linalg::Vector<Linalg, 3>;
+inline Vector3 vector3(double x, double y, double z) { return Vector3::from_row_major({x, y, z}); }
+} // namespace replay_demo
 
 namespace replay_session
 {

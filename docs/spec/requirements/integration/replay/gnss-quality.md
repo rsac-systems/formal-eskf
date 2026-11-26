@@ -4,9 +4,8 @@
 
 **Status:** Draft
 
-**Applies to:** Retained same-horizon CSV runner and its policy fixtures.
-The PX4 ULog entrypoint uses [R-REPLAY-SESSION](session.md); these seed,
-sidecar and scheduling rules do not describe that session path.
+**Applies to:** Host replay through InsSession. The legacy same-horizon estimator,
+its seed/sidecar formats and independent policy ownership are retired.
 
 **Parent:** [SW-REPLAY](../../software/replay-aiding.md).
 
@@ -14,53 +13,27 @@ sidecar and scheduling rules do not describe that session path.
 
 ## Required behavior
 
-The same-horizon fixture runner evaluates the existing monitor before its independent navigation
-gates. Follow [v1.16.2 GNSS checks](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/aid_sources/gnss/gps_checks.cpp)
-and [health qualification](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/aid_sources/gnss/gps_control.cpp).
-The separate [GNSS lifecycle](gnss-lifecycle.md) consumes these quality results and orchestrates
-checked GNSS resets. Delayed buffering remains absent. The seed is an
-initialization assumption, not qualified fusion.
+PX4 preparation shall translate recorded quality masks/thresholds and receiver
+metadata without importing logged estimator acceptance. Keep unavailable velocity,
+bad fixes and nonfinite payloads for runtime admission/quality decisions. Malformed
+identity/time/configuration fields shall fail preparation. A missing enabled
+spoofing report shall fail, rather than become a healthy indication.
 
-- Read `EKF2_GPS_CHECK` and `EKF2_REQ_*` thresholds from the log. Map the ten
-  mask bits to named checks; do not silently enable/disable checks. Support the
-  legacy `EKF2_REQ_GDOP` name for PDOP. Use recorded `EKF2_REQ_GPS_H`, or explicitly
-  record the reference's 10 s default when that parameter is absent in old logs.
-  Raw speed limit remains 100 m/s. Reject known parameter/receiver changes;
-  absent identity metadata does not prove receiver continuity.
-- Preserve every post-seed message, including bad fixes. Pair navigation and
-  quality CSV rows by exact timestamp. Fix, satellite count, reported accuracies,
-  `hypot(hdop, vdop)` and receiver-local NED velocity feed the monitor. Malformed
-  quality numerics must be rejected, not sanitized into valid data. Invalid
-  geographic coordinates stop preparation rather than fabricate a position.
-- Match the source adapter's `vel_ned_valid=false` skip before monitor evaluation.
-  Such a row cannot authorize fusion or refresh health. Position-reference history
-  advances only for velocity-valid messages. Drift uses the preceding fix's
-  spherical azimuthal-equidistant projection (radius 6371000 m); Down uses the
-  MSL altitude difference. This is separate from the trajectory's fixed-origin
-  ECEF/NED projection. The first displacement after monitor reset is ignored.
-- Obtain `in_air = !landed` and `at_rest` causally from land-detector messages
-  less than 3 s old, not estimator outputs or GNSS velocity. Never infer rest
-  from landed. In air, rest is unnecessary; on ground, selected motion checks
-  require known rest. Missing required motion metadata blocks quality and resets
-  qualification; this explicit incomplete-log policy is not an EKF2 transition.
-- Map reported spoofing state `MULTIPLE(3)` to the spoofed flag as in EKF2.
-  Missing spoofing metadata blocks qualification only when that check is enabled.
-  Preserve availability diagnostics; missing metadata is not a measured healthy
-  receiver. No jamming detection is added.
-- Only quality `accepted` enters the existing gate/correction calls. Waiting,
-  rejection, unavailable metadata and invalid velocity do not change state/P
-  through GNSS or refresh horizontal aiding. Prediction and other sensors still
-  run. Numerical quality rejection continues; malformed configuration/time/CSV
-  or numerical correction failure stops replay. Count quality skips separately
-  from innovation rejections. Log outcomes, failure flags, diagnostic validity
-  and health times in `result/gnss_quality.csv`.
+Supply causal land context with its original epoch; do not infer rest from landed
+or speed. InsSession shall own the quality monitor, drift preparation, qualification
+clock and lifecycle feedback under the linked runtime contract. The adapter shall
+not run a parallel monitor or shorten qualification. Report quality separately
+from innovation acceptance and successful correction.
 
-Replay control flow uses the named `ReplayGnssQuality::Outcome` values. Convert
-them to the existing CSV labels only when writing output. `evaluated()` derives
-whether the monitor consumed the sample from its quality decision; this is
-separate from receiver receipt, so unavailable metadata and invalid velocity
-retain their different lifecycle meanings.
+KITTI synthetic DOP and initial-navigation exceptions are limited to
+[R-REPLAY-KITTI](kitti-session.md); other missing data does not authorize new
+fabrication or disabling required checks.
 
-Without both quality files, legacy/KITTI input retains its previous behavior
-and reports quality OFF. A partial pair is an error. Native and replay checks
-support this integration; new Lean/ESBMC proofs and flight tuning remain pending.
+## Acceptance and verification
+
+Apply [R-REPLAY-SESSION](session.md) and the
+[host test plan](../../../verification/replay-session-tests.md). The linked
+runtime requirements own policy/component tests and proofs. Host tests establish
+only their exercised caller paths; old same-horizon fixtures and proof source
+bindings are not evidence for the session migration. New complete caller proofs,
+physical calibration and live-target timing remain open.

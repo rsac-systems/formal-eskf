@@ -299,7 +299,7 @@ def run_replay(DRIVE, BINARY, NAVIGATION_HZ):
         for SEGMENT in SEGMENTS:
             ROOT = OUTPUT / "segments" / str(SEGMENT["segment"])
             write_segment(ROOT / "input", SEGMENT, META["settings"], ORIGIN)
-            run_estimator(BINARY, ROOT / "input", ROOT / "result", KITTI=True)
+            run_estimator(BINARY, ROOT / "input", ROOT / "result", MODE="kitti")
             PROGRESS.update(1)
     TOTALS = combine_results(OUTPUT, SEGMENTS)
     print(f"{len(SEGMENTS)} independent sessions; {len(META['imu_gaps'])} IMU gaps; no synthetic IMU rows")

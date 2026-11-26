@@ -4,9 +4,8 @@
 
 **Status:** Draft
 
-**Applies to:** Retained same-horizon CSV runner and its policy fixtures.
-The PX4 ULog entrypoint uses [R-REPLAY-SESSION](session.md); these seed,
-sidecar and scheduling rules do not describe that session path.
+**Applies to:** Host replay through InsSession. The legacy same-horizon estimator,
+its seed/sidecar formats and independent policy ownership are retired.
 
 **Parent:** [SW-REPLAY](../../software/replay-aiding.md).
 
@@ -14,46 +13,23 @@ sidecar and scheduling rules do not describe that session path.
 
 ## Required behavior
 
-| Setting | Selected replay baseline |
-|---|---|
-| Gravity magnitude | `g = 9.80665 m/s^2` |
-| Effective per-axis observation standard deviation | `sigma = g` |
-| Observation covariance | `V = g^2 * I_3 = 96.1703842225 * I_3 m^2/s^4` |
-| Nominal observation/LPF interval | `10,000 us`; actual intervals must be reported |
+Supply each real interval and body-frame integrated input to InsSession.
+PX4 interval averages shall use their own angular/acceleration periods; KITTI
+instantaneous samples use the explicit approximation in R-REPLAY-KITTI.
+The session owns rotation-aware accumulation, LPF, readiness and correction.
+No synthetic end-of-log samples or outage filling shall force an observation.
 
-PX4 `e1c28e2` uses normalized observations, defaults
-[`EKF2_GRAV_NOISE`](https://github.com/PX4/PX4-Autopilot/blob/e1c28e27550114e85ddb8760ab3355eaa7a89d8a/src/modules/ekf2/params_gravity.yaml)
-to `1.0`, and squares it for observation variance. Multiplying that variance by
-`g^2` matches the local tangential information scale near gravity-sized specific
-force, not the complete normalized nonlinear update. This is an effective
-pseudo-observation weight, not measured hardware noise or validated flight tuning.
-It is separate from prediction's `ACCEL_VAR`; do not multiply V by `dt` or `dt^2`.
-The MATLAB reference's enabled `accel_correct1` uses normalized observations and
-`V_accel = 0.7 * I_3`, corresponding to `67.31926895575 * I_3` on this same scale;
-its cross-product preprocessing is not part of the current model.
+The host profile uses a nominal 10000 us gravity interval and SI-specific-force
+model with effective variance g² on each axis, g = 9.80665 m/s². These are explicit
+demo settings, not calibrated sensor noise or independent observations at each
+prediction. Runtime conditions still decide whether correction is allowed.
+Count actual corrected observations separately from prediction and reception.
 
-The PX4 [nominal EKF period](https://github.com/PX4/PX4-Autopilot/blob/e1c28e27550114e85ddb8760ab3355eaa7a89d8a/src/modules/ekf2/module.yaml#L15)
-is 10 ms. Its [IMU downsampler](https://github.com/PX4/PX4-Autopilot/blob/e1c28e27550114e85ddb8760ab3355eaa7a89d8a/src/modules/ekf2/EKF/imu_down_sampler/imu_down_sampler.cpp)
-accumulates rotation-aware increments over whole input samples; it does not just
-select the latest raw sample every 10 ms. The selected target is not a promise of
-exactly 100 Hz or an instruction to fuse each roughly 250 Hz raw input. Fixed LPF
-alpha remains `0.1`; its effective time constant depends on actual update intervals.
+## Acceptance and verification
 
-Use [R-ACCELEROMETER-SAMPLING](../../runtime/gravity/sampling.md) for every real
-IMU interval. Reset it on gaps and new sessions; do not supply held predictions.
-A sampling failure ends replay. Record actual emitted durations rather than
-assuming exactly 100 Hz.
-
-- After that tick's navigation corrections, call `runtime::fuse_accelerometer`
-  only when interval clipping is known; its conditions decide whether to correct.
-  This uses the agreed V and the current replay bias-learning permissions. A failed
-  correction ends replay. Record each observation, actual duration, aggregated
-  clipping, LPF diagnostic and outcome (`fused`, `rejected`, `metadata_unavailable`)
-  in `accelerometer_updates.csv`; report counts and actual interval statistics.
-
-Missing clipping still blocks correction, unknown rest disables only its override,
-and innovation gating remains deferred. The existing legacy ULog and KITTI inputs
-lack clipping and therefore do not exercise successful accel correction. These
-starting settings and native tests are not calibrated flight parameters or new
-Lean/ESBMC evidence. Prediction/measurement reuse correlation, interval-averaging
-model error and full PX4 estimator equivalence remain outside the claim.
+Apply [R-REPLAY-SESSION](session.md) and the
+[host test plan](../../../verification/replay-session-tests.md). The linked
+runtime requirements own policy/component tests and proofs. Host tests establish
+only their exercised caller paths; old same-horizon fixtures and proof source
+bindings are not evidence for the session migration. New complete caller proofs,
+physical calibration and live-target timing remain open.

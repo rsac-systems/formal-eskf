@@ -42,66 +42,6 @@ formal_eskf_configure_test(test_ring_buffer)
 add_test(NAME formal_eskf.runtime.ring_buffer COMMAND test_ring_buffer)
 set_tests_properties(formal_eskf.runtime.ring_buffer PROPERTIES LABELS "plan-source:tests/runtime/test_ring_buffer.cpp")
 
-if(TARGET replay_ins)
-    foreach(CASE IN ITEMS known missing clipped disabled gap limits zero_limits invalid_limits)
-        add_test(
-            NAME formal_eskf.replay_bias.${CASE}
-            COMMAND ${CMAKE_COMMAND}
-                -DREPLAY=$<TARGET_FILE:replay_ins>
-                -DOUTPUT_DIR=${PROJECT_BINARY_DIR}
-                -DCASE=${CASE}
-                -P ${CMAKE_CURRENT_SOURCE_DIR}/replay/test_replay_bias.cmake
-        )
-    endforeach()
-    foreach(CASE IN ITEMS fault height activation reset_quality reset_gap reset_metadata_gap horizontal speed_accuracy negative clear missing gap metadata_gap quality batch outage)
-        add_test(
-            NAME formal_eskf.replay_vertical_acceleration.${CASE}
-            COMMAND ${CMAKE_COMMAND}
-                -DREPLAY=$<TARGET_FILE:replay_ins>
-                -DOUTPUT_DIR=${PROJECT_BINARY_DIR}
-                -DCASE=${CASE}
-                -P ${CMAKE_CURRENT_SOURCE_DIR}/replay/test_replay_vertical_acceleration.cmake
-        )
-    endforeach()
-    foreach(CASE IN ITEMS timeout disturbed aided data_gap_unaided data_gap_aided
-                          disturbed_aiding_recovery rejected_aiding_recovery
-                          source_ground source_air source_unaided
-                          source_unknown calibration source_disturbed reference_unaided reference_aided context_invalid
-                          model_aided model_rejected_position model_unavailable
-                          model_health_only model_health_disturbed
-                          field_required field_fallback field_disabled field_force_only model_required)
-        add_test(
-            NAME formal_eskf.replay_magnetometer.reset.${CASE}
-            COMMAND ${CMAKE_COMMAND}
-                -DREPLAY=$<TARGET_FILE:replay_ins>
-                -DOUTPUT_DIR=${PROJECT_BINARY_DIR}
-                -DCASE=${CASE}
-                -P ${CMAKE_CURRENT_SOURCE_DIR}/replay/test_replay_magnetometer_reset.cmake
-        )
-    endforeach()
-    foreach(GROUP IN ITEMS velocity horizontal_position vertical_position)
-        add_test(
-            NAME formal_eskf.replay_gnss.failure.${GROUP}
-            COMMAND ${CMAKE_COMMAND}
-                -DREPLAY=$<TARGET_FILE:replay_ins>
-                -DOUTPUT_DIR=${PROJECT_BINARY_DIR}
-                -DGROUP=${GROUP}
-                -P ${CMAKE_CURRENT_SOURCE_DIR}/replay/test_replay_gnss_failure.cmake
-        )
-    endforeach()
-    foreach(CASE IN ITEMS startup both_timeout position_timeout reset_failure position_reset_failure
-            height_reset_failure height_reentry height_timeout height_overdue_success full_outage all_timeout
-            vertical_velocity_reset)
-        add_test(
-            NAME formal_eskf.replay_gnss.reset.${CASE}
-            COMMAND ${CMAKE_COMMAND}
-                -DREPLAY=$<TARGET_FILE:replay_ins>
-                -DOUTPUT_DIR=${PROJECT_BINARY_DIR}
-                -DCASE=${CASE}
-                -P ${CMAKE_CURRENT_SOURCE_DIR}/replay/test_replay_gnss_reset.cmake
-        )
-    endforeach()
-endif()
 
 if(FORMAL_ESKF_BUILD_EIGEN_BACKEND OR FORMAL_ESKF_BUILD_PX4_MATRIX_BACKEND OR
    FORMAL_ESKF_BUILD_CMSIS_DSP_BACKEND)
@@ -188,9 +128,7 @@ formal_eskf_add_backend_test(test_vertical_acceleration_health runtime/imu/test_
 formal_eskf_add_backend_test(test_accelerometer_magnitude runtime/gravity/test_magnitude formal_eskf.accelerometer_magnitude.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_accelerometer_conditions runtime/gravity/test_conditions formal_eskf.accelerometer_conditions.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_accelerometer_fusion runtime/gravity/test_fusion formal_eskf.accelerometer_fusion.eigen formal_eskf::runtime)
-formal_eskf_add_backend_test(test_replay_conditions replay/test_replay_conditions formal_eskf.replay_conditions.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_imu_bias_inhibition runtime/imu/test_bias_inhibition formal_eskf.imu_bias_inhibition.eigen formal_eskf::runtime)
-formal_eskf_add_backend_test(test_replay_gnss replay/test_replay_gnss formal_eskf.replay_gnss.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_accelerometer_sample runtime/gravity/test_sampling formal_eskf.accelerometer_sample.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_measurement_fusion runtime/test_measurement_fusion formal_eskf.measurement_fusion.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_magnetic_model runtime/magnetic/test_model formal_eskf.magnetic_model.eigen formal_eskf::runtime)

@@ -67,7 +67,7 @@ fails the process and does not produce a successful summary.
 `--compare-mag` now withdraws magnetic input after the first available heading;
 it exercises normal source expiry as well as the resulting estimator trajectory.
 Plots mask unavailable state/heading intervals. Run the
-[session caller tests](../spec/verification/tests/replay-session.md) through
+[session caller tests](../spec/verification/replay-session-tests.md) through
 `ctest --test-dir build/demo -R formal_eskf.replay_session --output-on-failure`.
 This host path does not establish live-PX4 timing or independent accuracy.
 

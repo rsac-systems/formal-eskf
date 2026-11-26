@@ -65,43 +65,6 @@ class ReplayGeodesy(unittest.TestCase):
         VELOCITY = [COMMON.dot(ROW, [2, 3, 4]) for ROW in PROJECTED[1][1]]
         self.assertEqual(VELOCITY, [2, -4, 3])
 
-    def test_explicit_origin_events(self):
-        with tempfile.TemporaryDirectory() as DIRECTORY:
-            ROOT = Path(DIRECTORY)
-            INPUT = ROOT / "input"
-            INPUT.mkdir()
-            COMMON.write_csv(INPUT / "initial.csv", "timestamp_us,q0,q1,q2,q3,vn,ve,vd,eph,epv,speed_accuracy",
-                             [[1000000, 1, 0, 0, 0, 100, 0, 0, 1, 1, 0.3]])
-            COMMON.write_csv(INPUT / "origin.csv", "latitude_deg,longitude_deg,height_ellipsoid_m", [[25, 121, 120]])
-            COMMON.write_csv(INPUT / "imu.csv", "timestamp_us,integral_dt_us,fx,fy,fz,wx,wy,wz",
-                             [[1000000 + I * 10000, 10000, 0, 0, -9.80665, 0, 0, 0] for I in range(31)])
-            COMMON.write_csv(INPUT / "navigation.csv", "timestamp_us,pn,pe,pd,vn,ve,vd,eph,epv,speed_accuracy",
-                             [[1000000 + I * 10000, I, 0, 0, 100, 0, 0, 1, 1, 0.3] for I in range(5, 31, 5)])
-            BASE = ROOT / "baseline"
-            RESULT = subprocess.run([str(BINARY), str(INPUT), str(BASE)], text=True, capture_output=True)
-            self.assertEqual(RESULT.returncode, 0, RESULT.stderr)
-            COMMON.write_csv(INPUT / "origin_requests.csv", "timestamp_us", [[1050000], [1100000], [1200000]])
-            MOVED = ROOT / "moved"
-            RESULT = subprocess.run([str(BINARY), str(INPUT), str(MOVED)], text=True, capture_output=True)
-            self.assertEqual(RESULT.returncode, 0, RESULT.stderr)
-            self.assertEqual(RESULT.stdout.count("Origin migration:"), 3)
-            BEFORE, AFTER = read_csv(BASE / "state.csv"), read_csv(MOVED / "state.csv")
-            self.assertEqual(len(BEFORE), len(AFTER))
-            for A, B in zip(BEFORE, AFTER):
-                self.assertEqual(A["timestamp_us"], B["timestamp_us"])
-                for KEY in ("pn", "pe", "pd", "vn", "ve", "vd"):
-                    # Post-event gravity is refreshed; trajectories need not be bitwise equal.
-                    self.assertLess(abs(A[KEY] - B[KEY]), 1e-4, (KEY, A, B))
-            # The first event itself must preserve the physical estimate more tightly.
-            for KEY in ("pn", "pe", "pd", "vn", "ve", "vd"):
-                self.assertLess(abs(BEFORE[5][KEY] - AFTER[5][KEY]), 1e-7)
-            self.assertEqual((BASE / "navigation_updates.csv").read_text(),
-                             (MOVED / "navigation_updates.csv").read_text())
-            (INPUT / "origin.csv").unlink()
-            RESULT = subprocess.run([str(BINARY), str(INPUT), str(ROOT / "invalid")], text=True, capture_output=True)
-            self.assertNotEqual(RESULT.returncode, 0)
-            self.assertIn("origin requests require origin.csv", RESULT.stderr)
-
     def test_invalid_batch(self):
         for TEXT in ("", "0,0\n", "0,0,0,1\n", "nan,0,0\n", "0,0,100001\n",
                      "0,0,0\n91,0,0\n", "0,0,0\n0,181,0\n", "0,0,0\n0,0,-12001\n"):

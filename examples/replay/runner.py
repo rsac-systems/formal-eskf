@@ -9,9 +9,7 @@ import shutil
 import subprocess
 
 
-IMU_HEADER = "timestamp_us,integral_dt_us,fx,fy,fz,wx,wy,wz"
 NAVIGATION_HEADER = "timestamp_us,pn,pe,pd,vn,ve,vd,eph,epv,speed_accuracy"
-INITIAL_HEADER = "timestamp_us,q0,q1,q2,q3,vn,ve,vd,eph,epv,speed_accuracy"
 PROGRESS_FORMAT = "{desc}: {bar} {n_fmt}/{total_fmt} stages [{elapsed}]"
 
 
@@ -97,13 +95,12 @@ def magnetic_model(BINARY, PROVIDER, REQUEST):
     return [math.atan2(FIELD[1], FIELD[0]), math.atan2(FIELD[2], math.hypot(*FIELD[:2])), STRENGTH]
 
 
-def run_estimator(BINARY, INPUT, OUTPUT, MAGNETIC=True, SESSION=False, MAGNETIC_MODEL=None, KITTI=False):
+def run_estimator(BINARY, INPUT, OUTPUT, MAGNETIC=True, MAGNETIC_MODEL=None, MODE="px4"):
     """Run the host estimator; optional model requests use a line protocol, never shell commands."""
-    COMMAND = [str(BINARY), str(INPUT), str(OUTPUT)]
-    if KITTI:
-        COMMAND.append("--kitti-session")
-    elif SESSION:
-        COMMAND.append("--session")
+    if MODE not in ("px4", "kitti"):
+        raise ValueError("replay mode must be px4 or kitti")
+    COMMAND = [str(BINARY), str(INPUT), str(OUTPUT),
+               "--kitti-session" if MODE == "kitti" else "--session"]
     if not MAGNETIC:
         COMMAND.append("--no-mag")
     LINES = []

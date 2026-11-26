@@ -4,7 +4,7 @@
 
 **Status:** Draft
 
-**Applies to:** Host PX4-session replay, retained KITTI/same-horizon fixtures, and shared coordinate preparation; no live PX4 timing equivalence is implied.
+**Applies to:** Host PX4/KITTI session replay and shared coordinate preparation; no live PX4 timing equivalence is implied.
 
 **Uses:** [SW-CORE](core-estimation.md), [R-MEASUREMENT-FUSION](../runtime/measurement-fusion.md). Each child declares its portable-policy dependencies.
 
@@ -26,13 +26,13 @@ successful correction and reset, retaining the child-defined timestamps and
 diagnostics. A numerical failure shall follow the replay failure policy without
 erasing earlier completed operations or reporting a successful run. The PX4 host
 path shall use portable session startup and delayed/current-output
-behavior. The retained same-horizon runner's seed assumptions shall not be
-presented as that startup or scheduling path.
+behavior. KITTI uses only its explicit one-time navigation-prior exception;
+there is no parallel same-horizon estimator.
 
 ## Decomposition
 
 Child applicability follows the selected replay options and available input
-metadata. Legacy/KITTI fallbacks remain limited to the cases explicitly permitted
+metadata. KITTI exceptions remain limited to the cases explicitly permitted
 by the child contracts; missing metadata does not authorize silently disabling
 checks required by the selected profile.
 

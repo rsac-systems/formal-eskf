@@ -42,34 +42,13 @@ implementation of the ellipsoid/basis maps.
 - Bind conversions to the selected executable and record their implementation in
   metadata. Host batch subprocesses are not embedded APIs or real-time execution claims.
 
-## Explicit origin-event input
-
-The retained same-horizon runner writes `origin.csv` with one row under
-`latitude_deg,longitude_deg,height_ellipsoid_m`. Existing fixtures without it
-remain fixed-frame inputs; do not invent geographic coordinates for them.
-For an explicit event run, add `origin_requests.csv` to the prepared input
-directory with header `timestamp_us` and strictly increasing absolute replay
-epochs after the seed. Invoke the existing `replay_ins INPUT_DIR NEW_OUTPUT_DIR`.
-Each request executes at the first completed fusion tick at or after its epoch.
-Requests require the geographic origin; empty, nonincreasing or unconsumed
-requests are errors. No event is implied merely by providing an origin.
-
-Prepare the new geographic frame/state/P and direction-history candidates before
-committing any owner. On a preparation failure the replay stops with the preceding
-bundle intact; this host failure policy is distinct from a live optional-event
-retry. Position, velocity, attitude and covariance in `state.csv` remain in the
-fixed input frame. Magnetic references retain their source identity and basis;
-transform them only at consumption. GNSS corrections and recovery resets act in
-the declared input axes. Gravity remains `[0,0,+g]` in the working frame, so later
-dynamics need not equal a run permanently tied to the old gravity direction.
-
 ## Acceptance and verification
 
-Explicit working-frame events shall use the state/P transaction, consistent
-gravity/reference refresh and observation-frame models. Publish trajectories in
-the fixed seed frame, preserve event ordering and compare against independent
-geographic expectations. An automatic policy additionally requires its declared
-operating limits; a replay-only switch is not live-PX4 acceptance.
+The session owns automatic origin events under R-ORIGIN-REBASE; the host shall
+not maintain a separate migration trigger/transaction or expose the retired
+origin_requests.csv control. Keep output in the fixed display frame while the
+session's working frame changes. Component/session tests own transaction,
+state/P, gravity/reference and continuous-output obligations.
 
 [test_replay_geodesy.py](../../../../../tests/replay/test_replay_geodesy.py) invokes
 the actual C++ bridge; it does not substitute the geodesy computation.
@@ -84,7 +63,7 @@ the actual C++ bridge; it does not substitute the geodesy computation.
 | Geographic magnetic field | A controlled provider result passed through the real bridge rotates consistently; session requests determine the location and basis. This does not test WMM accuracy. |
 
 The CTest binding is conditional on replay examples being built and runs in the
-existing CI's additional-test selection. Unchanged legacy paths retain recorded-input regression checks; the intentional
-PX4 startup/timing migration is assessed against the session contract. Such runs are regression evidence, not independent navigation truth
-or a uniform error bound. Component numerical/source proof gaps remain those of
-F-GEO-ECEF/F-GEO-NED; this caller binding has no Lean/ESBMC proof yet.
+existing CI additional-test selection. Recorded runs are execution evidence, not
+independent navigation truth or a uniform error bound. Component numerical/source
+proof gaps remain those of F-GEO-ECEF/F-GEO-NED; the new session caller binding has
+no Lean/ESBMC proof yet.

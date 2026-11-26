@@ -2,6 +2,7 @@
 """Standard-session host binding: real entrypoints and independent stationary inputs."""
 
 import argparse
+import csv
 import json
 import math
 from pathlib import Path
@@ -59,7 +60,7 @@ class ReplaySession(unittest.TestCase):
             PX4.prepare(LOG, INPUT, BINARY, PROVIDER)
         OUTPUT = self.ROOT / ("withdrawn" if WITHDRAW else "result")
         COMMON.run_estimator(BINARY, INPUT, OUTPUT, MAGNETIC=not WITHDRAW,
-                             SESSION=True, MAGNETIC_MODEL=PROVIDER)
+                             MAGNETIC_MODEL=PROVIDER)
         return json.loads((OUTPUT / "summary.json").read_text()), read_csv(OUTPUT / "status.csv"), read_csv(OUTPUT / "state.csv")
 
     def test_standard_startup_and_magnetic_loss(self):
@@ -162,7 +163,7 @@ class ReplaySession(unittest.TestCase):
         IMU["timestamp"][-1] += 1000000
         PX4.prepare(LOG, self.ROOT / "input", BINARY)
         with self.assertRaises(subprocess.CalledProcessError):
-            COMMON.run_estimator(BINARY, self.ROOT / "input", self.ROOT / "result", SESSION=True)
+            COMMON.run_estimator(BINARY, self.ROOT / "input", self.ROOT / "result")
         STATUS = read_csv(self.ROOT / "result/status.csv")
         self.assertEqual(STATUS[-1]["fault"], 1)
         self.assertEqual(STATUS[-1]["attitude"], 0)
@@ -182,6 +183,37 @@ class ReplaySession(unittest.TestCase):
         for LAT, LON in QUERIES:
             self.assertAlmostEqual(LAT, 25, places=5)
             self.assertAlmostEqual(LON, 121, places=5)
+
+
+    def test_gnss_outage_and_recovery(self):
+        LOG = stationary_log(SECONDS=90)
+        GPS = PX4.topic(LOG, "vehicle_gps_position")
+        KEEP = [I for I, TIME in enumerate(GPS["timestamp"]) if TIME < 50000000 or TIME >= 65000000]
+        for KEY in GPS:
+            GPS[KEY] = [GPS[KEY][I] for I in KEEP]
+        SUMMARY, STATUS, _ = self.run_session(LOG)
+        self.assertTrue(any(ROW["global_position"] == 1 and ROW["timestamp_us"] < 50000000 for ROW in STATUS))
+        self.assertTrue(all(ROW["global_position"] == 0 for ROW in STATUS if 60000000 <= ROW["timestamp_us"] <= 65000000))
+        # Existing session retains historical initial qualification; recovery
+        # must still wait for current quality/health, unlike a new KITTI session.
+        self.assertTrue(all(ROW["global_position"] == 0 for ROW in STATUS if 65000000 <= ROW["timestamp_us"] <= 66000000))
+        self.assertTrue(any(ROW["gnss_qualified"] == 1 and ROW["global_position"] == 0 for ROW in STATUS))
+        self.assertTrue(SUMMARY["final_navigation_available"])
+        self.assertEqual(SUMMARY["overflows"], 0)
+
+    def test_magnetic_calibration_change_reaches_session(self):
+        LOG = stationary_log(SECONDS=65)
+        MAG = PX4.topic(LOG, "vehicle_magnetometer")
+        MAG["calibration_count"] = [int(T >= 50000000) for T in MAG["timestamp"]]
+        SUMMARY, STATUS, _ = self.run_session(LOG)
+        with (self.ROOT / "result/fusion.csv").open() as STREAM:
+            ROWS = [ROW for ROW in csv.DictReader(STREAM) if ROW["group"] == "magnetic"]
+        GENERATIONS = {int(ROW["source_generation"]) for ROW in ROWS}
+        self.assertGreater(len(GENERATIONS), 1)
+        self.assertTrue(all(ROW["fault"] == 0 for ROW in STATUS))
+        self.assertTrue(SUMMARY["final_heading_available"])
+        LAST = max(GENERATIONS)
+        self.assertTrue(all(int(ROW["raw_time_us"]) >= 50000000 for ROW in ROWS if int(ROW["source_generation"]) == LAST))
 
 
 class KittiSession(unittest.TestCase):
@@ -213,7 +245,7 @@ class KittiSession(unittest.TestCase):
             self.assertTrue(all(ROW[9] == -1 for ROW in SEGMENT["imu"]))  # Clipping unavailable.
             ROOT = self.ROOT / "segments" / str(SEGMENT["segment"])
             KITTI.write_segment(ROOT / "input", SEGMENT, META["settings"], [25, 121, 80])
-            COMMON.run_estimator(BINARY, ROOT / "input", ROOT / "result", KITTI=True)
+            COMMON.run_estimator(BINARY, ROOT / "input", ROOT / "result", MODE="kitti")
             SUMMARY = json.loads((ROOT / "result/summary.json").read_text())
             STATUS = read_csv(ROOT / "result/status.csv")
             self.assertEqual(SUMMARY["initialized_at_us"], START)
@@ -240,7 +272,7 @@ class KittiSession(unittest.TestCase):
         SEGMENTS, _, META = KITTI.prepare(self.records(SECONDS=1), 10, BINARY)
         INPUT = self.ROOT / "input"
         KITTI.write_segment(INPUT, SEGMENTS[0], META["settings"], [25, 121, 80])
-        COMMON.run_estimator(BINARY, INPUT, self.ROOT / "short", KITTI=True)
+        COMMON.run_estimator(BINARY, INPUT, self.ROOT / "short", MODE="kitti")
         SUMMARY = json.loads((self.ROOT / "short/summary.json").read_text())
         self.assertFalse(SUMMARY["final_navigation_available"])
         self.assertEqual(SUMMARY["gnss_corrections"], 0)
@@ -250,7 +282,7 @@ class KittiSession(unittest.TestCase):
         VALUES[0] = str(int(VALUES[0]) + 1)
         PATH.write_text(ROWS[0] + '\n' + ','.join(VALUES) + '\n')
         with self.assertRaises(subprocess.CalledProcessError):
-            COMMON.run_estimator(BINARY, INPUT, self.ROOT / "bad", KITTI=True)
+            COMMON.run_estimator(BINARY, INPUT, self.ROOT / "bad", MODE="kitti")
         self.assertFalse((self.ROOT / "bad").exists())
 
     def test_standard_mode_does_not_use_kitti_prior(self):
@@ -259,7 +291,7 @@ class KittiSession(unittest.TestCase):
         PX4.prepare(stationary_log(SECONDS=1), INPUT, BINARY)
         COMMON.write_csv(INPUT / "initial_navigation.csv", KITTI.INITIAL_NAVIGATION_HEADER, [SEGMENTS[0]["prior"]])
         with self.assertRaises(subprocess.CalledProcessError):
-            COMMON.run_estimator(BINARY, INPUT, self.ROOT / "result", SESSION=True)
+            COMMON.run_estimator(BINARY, INPUT, self.ROOT / "result")
         self.assertFalse((self.ROOT / "result").exists())
 
     def test_no_gap_filling_and_prior_frame_conversion(self):
@@ -279,6 +311,29 @@ class KittiSession(unittest.TestCase):
         SEGMENTS, _, _ = KITTI.prepare(RECORDS, 100, BINARY)
         self.assertEqual(SEGMENTS[0]["gnss"][-1][14], 2)
         self.assertEqual(SEGMENTS[0]["gnss"][-1][16], 0)
+
+
+    def test_session_rebase_keeps_display_frame(self):
+        RECORDS = self.records(SECONDS=70)
+        SPEED, RADIUS = 20., 6378137. + 80.
+        for TIME, PACKET in RECORDS:
+            ELAPSED = (TIME - RECORDS[0][0]) * 1e-6
+            PACKET.update(lat=0, lon=math.degrees(SPEED * ELAPSED / RADIUS),
+                          yaw=0, vn=0, ve=SPEED, vu=0)
+        SEGMENTS, _, META = KITTI.prepare(RECORDS, 10, BINARY)
+        INPUT = self.ROOT / "input"
+        ORIGIN = SEGMENTS[0]["prior"][8:11]
+        KITTI.write_segment(INPUT, SEGMENTS[0], META["settings"], ORIGIN)
+        COMMON.run_estimator(BINARY, INPUT, self.ROOT / "result", MODE="kitti")
+        STATE = read_csv(self.ROOT / "result/state.csv")
+        with (self.ROOT / "result/fusion.csv").open() as STREAM:
+            EPOCHS = {int(ROW["frame_epoch"]) for ROW in csv.DictReader(STREAM) if ROW["group"] == "gnss_position"}
+        self.assertGreater(len(EPOCHS), 1)  # Explicit prior starts at frame zero; migration advances it.
+        FINITE = [ROW for ROW in STATE if math.isfinite(ROW["pe"])]
+        self.assertGreater(FINITE[-1]["pe"], 1300)  # No reset to zero in the fixed display frame.
+        # 20 m/s x 10 ms = 0.2 m; a 1 m per-tick bound leaves numeric/fusion
+        # margin while detecting a kilometre-scale origin jump, not accuracy.
+        self.assertLess(max(abs(B["pe"] - A["pe"]) for A, B in zip(FINITE, FINITE[1:])), 1.)
 
 
 if __name__ == "__main__":

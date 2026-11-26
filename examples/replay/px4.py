@@ -314,11 +314,11 @@ def run_replay(LOG_FILE, BINARY, COMPARE_MAG=False, MAGNETIC_MODEL=None):
                        f"{META['magnetometer_rows']} magnetometer events")
         PROGRESS.update(1)
         PROGRESS.set_description_str("Run C++ replay")
-        RESULT = run_estimator(BINARY, OUTPUT / "input", OUTPUT / "result", SESSION=True, MAGNETIC_MODEL=MAGNETIC_MODEL)
+        RESULT = run_estimator(BINARY, OUTPUT / "input", OUTPUT / "result", MAGNETIC_MODEL=MAGNETIC_MODEL)
         PROGRESS.update(1)
         if COMPARE_MAG:
             PROGRESS.set_description_str("Run magnetic loss after alignment")
-            BASELINE = run_estimator(BINARY, OUTPUT / "input", OUTPUT / "result_no_mag", MAGNETIC=False, SESSION=True, MAGNETIC_MODEL=MAGNETIC_MODEL)
+            BASELINE = run_estimator(BINARY, OUTPUT / "input", OUTPUT / "result_no_mag", MAGNETIC=False, MAGNETIC_MODEL=MAGNETIC_MODEL)
             PROGRESS.update(1)
         PROGRESS.set_description_str("Replay complete")
     print(RESULT, end="", flush=True)

@@ -204,7 +204,7 @@ second authoritative allocation.
 
 ## Additional caller tests
 
-The [recorded sensor session family](replay-session.md) covers the host PX4 replay
+The [recorded sensor session family](../replay-session-tests.md) covers the host PX4/KITTI replay
 binding outside this core/runtime allocation. Its CTest cases and caller coverage
 are counted separately; they do not expand the core/runtime plan's totals.
 
