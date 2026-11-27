@@ -39,6 +39,7 @@ and post-injection coordinate reset; its implementation/evidence are pending.
 | [E-PRED](../core/prediction.md) | Predict the nominal state using the selected attitude and translation models. | INS/AHRS; translation is INS-only. |
 | [E-NOISE](../core/process-noise.md) | Convert the declared sampled-noise and bias-density inputs into step covariance. | INS/AHRS use their respective source blocks. |
 | [E-PCOV](../core/covariance-prediction.md) | Propagate the error covariance and map source noise into error coordinates. | INS/AHRS; selected attitude mode. |
+| [E-PRED-AGGREGATE](../core/aggregate-prediction.md) | Endpoint-increment nominal and truncated covariance prediction with explicit local-error/noise binding. | Optional INS target; implementation and qualification pending; direct contracts unchanged. |
 | [E-OBS](../core/observations.md) | Define supported sensor residuals, local Jacobians and observation wrappers. | Per model; position/velocity are INS-only. |
 | [E-INNOV](../core/innovation.md) | Evaluate the componentwise innovation decision when requested by a caller. | Explicit gate operation; not implicit in every correction. |
 | [E-CORRECT](../core/correction.md) | Solve for the gain and apply the Joseph covariance update. | INS/AHRS. |

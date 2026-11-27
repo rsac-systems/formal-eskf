@@ -112,6 +112,18 @@ This target needs actual session composition tests across old/new-source history
 warmup and multiple events before feedback. Existing output-owner algebra does
 not establish new source handling or its physical transition error.
 
+### Aggregate-mode target
+
+The [aggregate session binding](../../architecture/imu-aggregate-prediction.md#session-and-history-binding)
+changes current nominal propagation and snapshot cadence only for the optional
+aggregate profile. Predict every admitted producer interval without P; retain
+seed/aggregate endpoints required for exact delayed feedback rather than assuming
+one snapshot per producer input. Scale the existing attitude-rate feedback by the
+actual gyro duration before applying the increment. Preserve the cached corrected
+body rate, bias-feedback boundary, reset/rebase transforms and transaction frames.
+Both current and delayed periods require qualified storage/tracking settings.
+Existing direct behavior and evidence remain unchanged.
+
 ### Internal coordinate event
 
 `prepare_rebase` stages a common left quaternion rotation and affine position

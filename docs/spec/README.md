@@ -185,6 +185,17 @@ reviewed precision principles. Its [architecture allocation](architecture/naviga
 [planned tests](verification/navigation-precision-tests.md) retain unresolved
 numerical/target criteria. This Draft does not establish binary32 session support.
 
+## Integrated IMU accumulation target
+
+[R-IMU-ACCUMULATION](requirements/runtime/imu/accumulation.md) and
+[E-PRED-AGGREGATE](requirements/core/aggregate-prediction.md) allocate the optional
+INS accumulator, two-rate session and integrated-increment core operation.
+The [design](architecture/imu-aggregate-prediction.md),
+[profile](profiles/imu-accumulation.md) and
+[Pending acceptance cases](verification/imu-accumulation-tests.md) retain explicit
+PX4 adaptations and qualification gaps. Direct mode remains the default; no
+aggregate implementation or proof is established by these Draft contracts.
+
 ## Integration requirements
 
 | ID | Required behavior |

@@ -162,6 +162,23 @@ no effects; GNSS height remains available. Common fixed storage and timing-profi
 validation remain. Relative barometer startup and optional geographic/datum attachment follow the
 staged source and reference contracts.
 
+## IMU accumulation target
+
+For the optional [R-IMU-ACCUMULATION](imu/accumulation.md) profile, use the
+[two-rate owner binding](../../architecture/imu-aggregate-prediction.md#session-and-history-binding).
+Startup, source events and current output consume admitted producer inputs;
+delayed state/P prediction consumes aggregates under E-PRED-AGGREGATE. This
+replaces only the direct mode's one-producer-input/one-main-interval binding.
+It does not relax the existing owner transaction/fault boundaries or permit
+per-input main covariance prediction. Retain real source/receipt provenance,
+exact delayed feedback endpoints and separately timed corrections/resets.
+
+Validate both cadences and all required histories before startup; never infer
+compatibility from equal ring lengths. Direct defaults remain unchanged. The
+[planned family](../../verification/imu-accumulation-tests.md) covers startup,
+source/hold/mixed-group handling, two-rate processing, consumers and rollback;
+existing direct evidence does not establish this target.
+
 ## Mixed-precision applicability
 
 [R-NAV-PRECISION](navigation-precision.md) extends this session's complete

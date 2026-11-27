@@ -94,6 +94,7 @@ qualified. Core template support alone does not discharge this composition.
 | Child | Allocated obligation |
 |---|---|
 | [R-NAV-PRECISION](../runtime/navigation-precision.md) | Target local scalar selection with binary64 geography and checked conversion boundaries. |
+| [R-IMU-ACCUMULATION](../runtime/imu/accumulation.md) | Optional increment accumulation, two-rate ownership and the integrated-increment core binding; implementation/qualification pending. |
 | [R-SENSOR-INPUT](../runtime/sensor-input.md) | Common input units, epochs, frames, provenance and profile-owned uncertainty/qualification. |
 | [R-IMU-SOURCE](../runtime/imu/source-change.md) | Target IMU source/calibration events, selected bias/P reset and continued current/delayed history. |
 | [R-INS-SESSION](../runtime/ins-session.md) | Ordered owner phases, external model boundary, faults and raw reports. |

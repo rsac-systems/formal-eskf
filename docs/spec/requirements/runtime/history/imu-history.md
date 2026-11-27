@@ -73,6 +73,18 @@ Successful configuration shall copy its timing bounds; later caller mutations
 shall not alter admission. Failed replacement shall preserve both timing bounds
 and derived configuration. Reset retains both.
 
+### Aggregate-mode target
+
+[R-IMU-ACCUMULATION](../imu/accumulation.md) supplies derived intervals to the
+main history under its [session binding](../../../architecture/imu-aggregate-prediction.md#session-and-history-binding).
+Retain aggregate endpoints, separate durations, clipping and source/hold summaries;
+do not relabel them as raw samples. Admission and permitted hold construction
+occur once on the producer timeline, not again while retaining or consuming an
+aggregate. Selection/completion, overflow/lag faults and reset ownership remain.
+The [aggregate profile](../../../profiles/imu-accumulation.md) replaces direct
+period/capacity assumptions only when that mode is selected. This target and its
+evidence are separate from existing direct-history execution.
+
 ## Acceptance and verification
 
 Exercise exact capacity, lag/age/period/overlap boundaries, independent angular
