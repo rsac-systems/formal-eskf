@@ -141,6 +141,7 @@ not itself authorize a broad file relocation. Numerical thresholds come from ite
 |---|---|---|
 | F-06.1 — Confidence and failure reporting | Completed | Existing strict-module baseline: capability flags, bias validity, faults, innovation summaries and covariance proxies follow the [status contract](spec/requirements/integration/px4/status.md). No bias-convergence or transported/current-time covariance claim; numerical/history faults require restart. The expanded portable/PX4 diagnostic target remains N4 below. |
 | F-06.2 — Deployment parameters | Partial | Startup parameters and the Kconfiglib build frontend bind packaged PX4 controls. Remaining work: review supported tuning profiles and additional startup bindings against the [configuration inventory](guides/configuration.md#px4-deployment-menu). Preserve units, defaults, restart semantics and configuration-specific evidence. Replay stays separate; do not import live EKF2 settings implicitly. |
+| F-06.3 — Bias stability (T-04) | Specification baseline | [Contract/design](spec/architecture/bias-stability.md) defines independent monitors, PX4 thresholds/reset/pause behavior and publication to the existing external calibration consumer. Implement runtime monitors, session/reset ordering and actual adapter binding; complete four Pending case families. No monitor state/P writes, bias-use gate or new calibration writer. Physical/target qualification and monitor/caller proofs remain open. |
 
 ### F-07 — Deployment validation
 

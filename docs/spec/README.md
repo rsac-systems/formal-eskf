@@ -206,6 +206,15 @@ PX4 logical-stream boundary. The [design](architecture/gnss-control.md),
 contracts and implementation gaps. Existing component evidence does not establish
 these new session and adapter paths.
 
+## Bias stability target
+
+[R-BIAS-STABILITY](requirements/runtime/imu/bias-stability.md) defines separate
+accelerometer/gyro qualification without changing ESKF estimation. The
+[design](architecture/bias-stability.md), [profile](profiles/bias-stability.md)
+and four [Pending case families](verification/bias-stability-tests.md) allocate
+runtime monitors, PX4 publication and the external calibration boundary. This
+Draft does not establish implemented monitoring or physical bias accuracy.
+
 ## Integration requirements
 
 | ID | Required behavior |

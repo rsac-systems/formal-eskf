@@ -12,6 +12,11 @@
 
 ## Required behavior
 
+The [bias-stability target](status.md#bias-stability-target) observes existing
+estimates/permissions separately. Its aggregate-fault predicate can disqualify
+both stability monitors while the learning policy below inhibits only accel
+bias. Do not substitute stability flags for these estimation permissions.
+
 The rules below describe the existing strict profile. For the
 [staged target](../../../profiles/staged-ins.md), additionally apply
 [R-INS-CONTINUITY](../../runtime/ins-continuity.md)'s real-aiding restrictions

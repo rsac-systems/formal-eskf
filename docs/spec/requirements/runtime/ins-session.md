@@ -201,6 +201,21 @@ ownership, explicit frame/output transactions and the existing fault boundary.
 These target compositions require the [Pending cases](../../verification/gnss-control-tests.md);
 current all-enabled session evidence does not establish them.
 
+### Bias stability target
+
+[R-BIAS-STABILITY](imu/bias-stability.md) adds independent bounded monitors after
+successful estimator updates. The single writer supplies actual bias/P, aggregate
+faults, per-axis learning permissions, source/calibration and takeoff facts with
+their current/delayed epochs. The [design](../../architecture/bias-stability.md)
+owns caller ordering: the PX4 binding reads retained flags for publication before
+evaluating the new completed estimate. Keep those result epochs distinct.
+Source/bias reset clears the affected monitor at the existing reset boundary;
+buffered source metadata must not cause another reset. A skipped/held estimate
+cannot earn elapsed time. Monitoring does not change state/P or existing failure
+boundaries, and no calibration service is added to the session. The
+[Pending cases](../../verification/bias-stability-tests.md) are required before
+claiming this composition implemented or verified.
+
 ## Acceptance and verification
 
 Compare the same explicit profile/backend/input sequence before and after owner

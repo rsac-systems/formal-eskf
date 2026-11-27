@@ -45,8 +45,10 @@ converged are different facts. Reporting must not change fusion decisions.
 - Bias validity requires a healthy estimator, a nonzero sensor ID, finite
   published bias/variance, nonnegative variance components and a variance-vector
   norm in `(0, 0.1]`, using the published float representation as PX4 does.
-  Temporary learning inhibition does not invalidate a stored estimate. Keep
-  `*_bias_stable` false: this module has no calibration-convergence tracker.
+  Temporary learning inhibition does not invalidate a stored estimate. The
+  current implementation keeps `*_bias_stable` false; the
+  [bias-stability target](#bias-stability-target) supplies its missing monitor
+  without changing this separate validity predicate.
 - Summarize each active source's **signed filtered squared** gate ratios. Convert
   our measurement-minus-prediction residual to PX4's opposite sign. At each new
   diagnostic measurement use `dt = clamp(delta_time, 0.001, 1)` seconds and
@@ -92,6 +94,36 @@ semantics and duplicate publication. SIH must arm normally with the existing
 preflight checks and exercise flight/fault recovery; retain failed runs. Native,
 sanitizer and SIH evidence do not establish target timing, calibration accuracy,
 formal source correctness or hardware-flight qualification.
+
+## Bias-stability target
+
+Consume [R-BIAS-STABILITY](../../runtime/imu/bias-stability.md) results under the
+[pinned design](../../../architecture/bias-stability.md). After each successful
+completed estimate, read retained monitor flags for the existing bias publication,
+then evaluate the monitors once using the latest admitted IMU time. Evaluate even
+when the publication schedule skips a message. Bias/P and timestamp_sample describe
+the completed delayed estimate; stable can describe the preceding evaluation.
+Retain that evaluation epoch internally rather than claiming same-cycle evidence.
+Keep the existing publication schedule and topic layout.
+
+Publish valid and stable independently for each enabled estimator and nonzero
+sensor ID. Apply the existing health/finite/binary32 validity checks; unavailable
+or failed estimation must not publish usable bias flags. An admitted affected
+source/calibration/bias reset clears its monitor before subsequent publication;
+never label a previous sensor's stability as the replacement's. A takeoff detected
+at monitor evaluation clears the new result; it does not retroactively change
+the preceding published snapshot. The flags do not gate ESKF bias compensation.
+
+Existing PX4 VehicleIMU owns calibration adoption and persistence. It requires
+both valid and stable, matching nonzero device ID and publication age < 1 s to
+accept a new candidate. Its SENS_IMU_AUTOCAL and disarmed save conditions remain
+external policy; the adapter shall not enable that option or write calibration
+parameters itself. A false flag does not revoke an already retained external
+candidate. Later calibration metadata changes follow the existing source-reset
+contract once. Complete the actual caller/consumer cases in the
+[acceptance design](../../../verification/bias-stability-tests.md), including
+disabled automatic calibration, stale messages and source/calibration changes.
+Existing always-false flag tests do not establish this target.
 
 ## Diagnostic-reporting target
 

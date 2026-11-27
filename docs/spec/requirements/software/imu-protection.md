@@ -31,8 +31,14 @@ requirements.
 
 ## Decomposition
 
+The target [R-BIAS-STABILITY](../runtime/imu/bias-stability.md) adds independent
+stability qualification without changing estimation controls. The external PX4
+calibration consumer may use its reports; the library owns no calibration writer.
+Existing estimation-control evidence does not verify the new monitor.
+
 | Child requirement | Allocated obligation |
 |---|---|
+| [R-BIAS-STABILITY](../runtime/imu/bias-stability.md) | Target independent bias stability monitors and valid/stable reporting. |
 | [R-IMU-BIAS-INHIBITION](../runtime/imu/bias-inhibition.md) | Maintain motion envelopes and select per-axis bias-learning permissions. |
 | [R-VERTICAL-ACCELERATION](../runtime/imu/vertical-health.md) | Track clipping/apparent-falling health and its distinct timing signals. |
 | [R-IMU-PREDICTION](../runtime/imu/prediction.md) | Compose noise selection, bias inhibition and atomic prediction with explicit fault variance. |
