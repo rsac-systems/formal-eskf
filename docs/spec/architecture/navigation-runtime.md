@@ -64,6 +64,38 @@ Directory grouping does not create inheritance, policy dispatch or one-class-per
 file obligations. Histories depend on sample values/storage, not prediction
 policy. Session composes lower components; lower components do not include it.
 
+### Mixed-precision target
+
+[R-NAV-PRECISION](../requirements/runtime/navigation-precision.md) extends the
+session's numerical applicability without changing the Cartesian equations or
+phase ownership. The current session and LocalNed require binary64. Supporting
+binary32 therefore requires explicit geography/local boundaries, not just removal
+of a type assertion. The [precision profile](../profiles/navigation-precision.md)
+owns the boundary inventory, candidate builds and unresolved acceptance limits.
+
+| Owner | Precision responsibility |
+|---|---|
+| Geodesy and frame/datum geometry | Retain binary64 coordinates, Earth-scale subtraction and geographic transforms. |
+| Core, sensor policies and histories | Use the selected local scalar consistently for local algebra; preserve geographic fields and integer time/source domains. |
+| Session/frame coordination | Prepare and validate conversions, preserve transaction boundaries, and coordinate initialization, rebases, resets and feedback without a second main state/P. |
+| Adapter and qualification | Retain message types; identify effective precision/epochs and qualify declared numerical/resource budgets on the selected target. |
+
+PX4 v1.16.2, commit `54f0455ffcd755534539a7cf33a09a20bf71d29d`, uses float
+[state](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/python/ekf_derivation/generated/state.h),
+[covariance](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/ekf.h)
+and local [predictor algebra](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF/output_predictor/output_predictor.h).
+Its [LatLonAlt](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/lib/lat_lon_alt/lat_lon_alt.hpp)
+stores double latitude/longitude and float altitude; its
+[ECEF conversion](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/lib/lat_lon_alt/lat_lon_alt.cpp)
+uses double geometry. This project retains binary64 geographic height/datum
+arithmetic and a selectable local scalar with binary64 default. This alignment
+of responsibilities does not copy PX4's navigation formulation, tolerances or
+deployment qualification.
+
+The [precision cases](../verification/navigation-precision-tests.md) require the
+whole session and its callers. Existing binary32 core evidence remains limited
+to its original scope; the new session profile is not yet implemented or qualified.
+
 ## Execution and state
 
 ### Sensor-input and IMU source-change allocation

@@ -177,6 +177,14 @@ physical/target acceptance and source proofs remain open under
 | `R-HEIGHT-DATUM` | [Ellipsoid and MSL height separation](requirements/runtime/height-datum.md) |
 | `R-FRAME-OBSERVATIONS` | [Observations across Cartesian navigation frames](requirements/runtime/frame-observations.md) |
 
+## Mixed-precision session target
+
+[R-NAV-PRECISION](requirements/runtime/navigation-precision.md) specifies the
+reviewed precision principles. Its [architecture allocation](architecture/navigation-runtime.md#mixed-precision-target),
+[qualification profile](profiles/navigation-precision.md) and
+[planned tests](verification/navigation-precision-tests.md) retain unresolved
+numerical/target criteria. This Draft does not establish binary32 session support.
+
 ## Integration requirements
 
 | ID | Required behavior |

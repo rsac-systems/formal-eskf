@@ -81,10 +81,19 @@ numerical updates. Reporting shall retain the staged capability rules; diagnosti
 cannot implement or qualify a missing capability. Historical strict-profile evidence remains
 limited to its original applicability.
 
+## Precision target applicability
+
+[R-NAV-PRECISION](../runtime/navigation-precision.md) allocates selectable local
+precision with binary64 geography. It extends complete-session applicability;
+existing binary64 component restrictions remain the current baseline until the
+[precision profile](../../profiles/navigation-precision.md) is implemented and
+qualified. Core template support alone does not discharge this composition.
+
 ## Decomposition
 
 | Child | Allocated obligation |
 |---|---|
+| [R-NAV-PRECISION](../runtime/navigation-precision.md) | Target local scalar selection with binary64 geography and checked conversion boundaries. |
 | [R-SENSOR-INPUT](../runtime/sensor-input.md) | Common input units, epochs, frames, provenance and profile-owned uncertainty/qualification. |
 | [R-IMU-SOURCE](../runtime/imu/source-change.md) | Target IMU source/calibration events, selected bias/P reset and continued current/delayed history. |
 | [R-INS-SESSION](../runtime/ins-session.md) | Ordered owner phases, external model boundary, faults and raw reports. |

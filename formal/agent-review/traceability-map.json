@@ -8230,7 +8230,7 @@
     },
     {
       "id": "R-INS-SESSION",
-      "title": "Portable INS session phase composition: native regression and independent fixtures; full symbolic and target evidence remain open; IMU source continuation has native coverage; historical mismatch-rejection proofs require migration; diagnostic-reporting composition target pending; ground-effect event composition target pending",
+      "title": "Portable INS session phase composition: native regression and independent fixtures; full symbolic and target evidence remain open; IMU source continuation has native coverage; historical mismatch-rejection proofs require migration; diagnostic-reporting composition target pending; ground-effect event composition target pending; mixed-precision session target is Draft/Pending and is not covered by existing binary64 evidence",
       "references": {
         "spec": [
           {
@@ -8264,6 +8264,22 @@
           {
             "file": "docs/spec/verification/barometer-ground-effect-tests.md",
             "symbol": "## Runtime cases"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/navigation-precision.md",
+            "symbol": "# R-NAV-PRECISION:"
+          },
+          {
+            "file": "docs/spec/architecture/navigation-runtime.md",
+            "symbol": "### Mixed-precision target"
+          },
+          {
+            "file": "docs/spec/profiles/navigation-precision.md",
+            "symbol": "# Navigation Precision Qualification Profile"
+          },
+          {
+            "file": "docs/spec/verification/navigation-precision-tests.md",
+            "symbol": "## Cases"
           }
         ],
         "lean": [],

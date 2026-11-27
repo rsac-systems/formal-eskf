@@ -162,6 +162,16 @@ no effects; GNSS height remains available. Common fixed storage and timing-profi
 validation remain. Relative barometer startup and optional geographic/datum attachment follow the
 staged source and reference contracts.
 
+## Mixed-precision applicability
+
+[R-NAV-PRECISION](navigation-precision.md) extends this session's complete
+startup, local/geographic operation, source policies, histories and output/frame
+transactions to the selected local scalar. Its
+[profile](../../profiles/navigation-precision.md) and
+[acceptance cases](../../verification/navigation-precision-tests.md) remain
+separate from existing binary64 evidence. The deployed baseline stays binary64;
+no component's domain or verification claim is widened by this target alone.
+
 ## Acceptance and verification
 
 Compare the same explicit profile/backend/input sequence before and after owner
