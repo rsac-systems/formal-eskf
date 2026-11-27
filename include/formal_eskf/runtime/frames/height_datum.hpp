@@ -27,10 +27,13 @@ public:
     [[nodiscard]] Status update(std::uint64_t sample_time_us, value_type ellipsoid_m, value_type msl_m);
     [[nodiscard]] Status to_msl(value_type ellipsoid_m, value_type & msl_m) const;
     [[nodiscard]] Status to_ellipsoid(value_type msl_m, value_type & ellipsoid_m) const;
+
     void reset() { *this = HeightDatum{}; }
 
     bool initialized() const { return m_time_us != 0; }
+
     std::uint64_t time_us() const { return m_time_us; }
+
     value_type separation_m() const { return m_separation; }
 
 private:

@@ -51,6 +51,7 @@ struct Fixture
     la::Matrix<L, 2, 15> H{};
     la::Matrix<L, 2, 2> V = la::Matrix<L, 2, 2>::from_row_major({2, 0.4, 0.4, 3});
     la::Vector<L, 2> r{};
+
     Fixture()
     {
         state.p_n = Vector::from_row_major({10, -3, 7});

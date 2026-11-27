@@ -63,11 +63,13 @@ void configuration(Context & test)
     test.expect(configure_timing(parameters_250hz, timing_250hz, 64, output) && output.imu_length == 54 &&
                     output.minimum_lag_us == 200000,
                 "configuration", "default 250 Hz mode derives 54 slots");
+
     struct Case
     {
         Parameters parameters{};
         std::size_t length{}; // Zero denotes rejection.
     };
+
     std::array<Case, 15> const cases{{
         {{4000, 230, 0, 0, 0}, 62},
         {{4000, 239, 0, 0, 0}, 64},
@@ -316,12 +318,14 @@ void admission_failures(Context & test)
 {
     auto const seed = sample(1000000);
     auto const good = sample(1004000);
+
     struct Case
     {
         Input input{};
         std::uint64_t now_us{};
         Fault fault = Fault::none;
     };
+
     std::vector<Case> cases;
     auto add = [&](Input const & input, Fault fault) { cases.push_back({input, input.time_us, fault}); };
     add(seed, Fault::invalid_sample);
@@ -465,6 +469,7 @@ void lag_bounds(Context & test)
         }
     }
 }
+
 void rollover_lag(Context & test)
 {
     History history;
@@ -512,6 +517,7 @@ void rollover_lag(Context & test)
                     "completion", "ready history cannot acknowledge a different endpoint");
     }
 }
+
 void history_scenarios(Context & test, std::string_view)
 {
     struct ClippingCase
@@ -519,6 +525,7 @@ void history_scenarios(Context & test, std::string_view)
         std::uint8_t accel, gyro;
         bool initialized, accepted;
     };
+
     std::array const cases{ClippingCase{0, 0, false, true},  ClippingCase{1, 0, false, false},
                            ClippingCase{7, 0, false, false}, ClippingCase{1, 0, true, true},
                            ClippingCase{4, 0, true, true},   ClippingCase{7, 0, true, true},

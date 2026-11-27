@@ -62,4 +62,5 @@ void verify_height_filter(height_proof::Manager manager, height_proof::Sample sa
                    "R-HEIGHT-FUSION: the bounded warmup counter cannot wrap or grow with flight duration");
     __ESBMC_assert(same_sample(sample, old_sample), "R-HEIGHT-FUSION: filter preserves the borrowed sample");
 }
+
 int main() { return 0; }

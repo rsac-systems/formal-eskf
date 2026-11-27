@@ -24,6 +24,7 @@ struct Results
     State injected;
     Status gain_status, correction_status, injection_status, reset_status;
 };
+
 struct Calls
 {
     inline static Results const * results = nullptr;
@@ -40,6 +41,7 @@ struct Calls
     inline static Scalar minimum{};
     inline static unsigned gain{}, correction{}, injection{}, reset{};
 };
+
 void unpublished()
 {
     __ESBMC_assert(
@@ -70,6 +72,7 @@ inline Status compute_correction_gain<step_correction_proof::Backend, step_corre
                        static_cast<void const *>(&output) != &H && static_cast<void const *>(&output) != &V &&
                        static_cast<void const *>(&output) != &r,
                    "E-STEP-CORRECT: gain uses separate scratch");
+
     unpublished();
     output = Calls::results->gain;
     return Calls::results->gain_status;
@@ -94,6 +97,7 @@ inline Status apply_correction_gain<step_correction_proof::Backend, step_correct
                        static_cast<void const *>(&delta) != &output && static_cast<void const *>(&output) != &K &&
                        static_cast<void const *>(&delta) != &K,
                    "E-STEP-CORRECT: linear results use separate scratch objects");
+
     unpublished();
     delta = Calls::results->delta;
     output = Calls::results->joseph;
@@ -118,6 +122,7 @@ inline Status inject_nominal<step_correction_proof::Backend>(step_correction_pro
                    "E-STEP-CORRECT: injection receives OLD nominal state and every unpacked error coordinate");
     __ESBMC_assert(&output != &state && &output != Calls::state_target,
                    "E-STEP-CORRECT: nominal injection writes separate scratch");
+
     unpublished();
     output = Calls::results->injected;
     return Calls::results->injection_status;
@@ -136,11 +141,13 @@ inline Status reset_covariance<step_correction_proof::Backend>(step_correction_p
                    "E-STEP-CORRECT: reset uses the complete Joseph covariance and error BEFORE zeroing");
     __ESBMC_assert(&output != &covariance && &output == Calls::covariance_target,
                    "E-STEP-CORRECT: final reset receives caller output, disjoint from Joseph P");
+
     unpublished();
     if (Calls::results->reset_status == Status::success)
     {
         output = Calls::results->reset;
     }
+
     return Calls::results->reset_status;
 }
 } // namespace formal_eskf
@@ -157,6 +164,7 @@ void verify_correction_step(State state, Covariance covariance, Residual residua
                                 FORMAL_ESKF_PROOF_STEP_ALIAS < 4;
     __ESBMC_assert(configured,
                    "Runner error: correction step requires only four component summaries and a valid alias");
+
     if constexpr (!configured)
         return;
     static_assert(!FORMAL_ESKF_PROOF_BIAS_CONTROL || state_size == 15U);
@@ -164,6 +172,7 @@ void verify_correction_step(State state, Covariance covariance, Residual residua
     {
         permissions = {};
     }
+
     auto const old_permissions = permissions;
     Calls::permissions = &old_permissions;
     constexpr bool state_alias = (FORMAL_ESKF_PROOF_STEP_ALIAS & 1) != 0;
@@ -211,6 +220,7 @@ void verify_correction_step(State state, Covariance covariance, Residual residua
         );
     __ESBMC_assert(bias_proof::same_permissions(permissions, old_permissions),
                    "E-BIAS-UPDATE: public correction preserves caller permissions");
+
     bool const gain_ok = results.gain_status == Status::success;
     bool const correction_ok = gain_ok && results.correction_status == Status::success;
     bool const injection_ok = correction_ok && results.injection_status == Status::success;

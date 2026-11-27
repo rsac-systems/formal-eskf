@@ -42,6 +42,7 @@ Dense<Rows, Columns> product(Dense<Rows, Inner> const & a, Dense<Inner, Columns>
             }
         }
     }
+
     return output;
 }
 
@@ -55,6 +56,7 @@ template <std::size_t Rows, std::size_t Columns> Dense<Columns, Rows> transposed
             output[column][row] = a[row][column];
         }
     }
+
     return output;
 }
 
@@ -68,6 +70,7 @@ template <typename Matrix> Dense<Matrix::row_count, Matrix::column_count> copied
             output[row][column] = static_cast<long double>(a(row, column));
         }
     }
+
     return output;
 }
 
@@ -101,6 +104,7 @@ reference_correction(Fixture const & fixture, bool approximate_reset,
             S[row][column] += V[row][column];
             augmented[row][column] = S[row][column];
         }
+
         for (std::size_t column = 0U; column < n; ++column)
         {
             augmented[row][m + column] = HP[row][column];
@@ -117,10 +121,12 @@ reference_correction(Fixture const & fixture, bool approximate_reset,
                 pivot = row;
             }
         }
+
         if (!(std::abs(augmented[pivot][k]) > 0.0L))
         {
             return result;
         }
+
         std::swap(augmented[k], augmented[pivot]);
         long double const divisor = augmented[k][k];
         std::transform(augmented[k].begin(), augmented[k].end(), augmented[k].begin(),
@@ -137,6 +143,7 @@ reference_correction(Fixture const & fixture, bool approximate_reset,
             }
         }
     }
+
     Dense<n, m> K{};
     for (std::size_t row = 0U; row < n; ++row)
     {
@@ -145,6 +152,7 @@ reference_correction(Fixture const & fixture, bool approximate_reset,
             K[row][column] = augmented[column][m + row];
         }
     }
+
     if constexpr (Fixture::is_ins)
     {
         // Independent dense projection oracle, not the production row-zeroing loop.
@@ -153,13 +161,16 @@ reference_correction(Fixture const & fixture, bool approximate_reset,
         {
             selection[row][row] = 1.0L;
         }
+
         for (std::size_t axis = 0U; axis < 3U; ++axis)
         {
             selection[9U + axis][9U + axis] = bias_update.accelerometer[axis] ? 1.0L : 0.0L;
             selection[12U + axis][12U + axis] = bias_update.gyroscope[axis] ? 1.0L : 0.0L;
         }
+
         K = product(selection, K);
     }
+
     if (project_heading)
     {
         // Right-local attitude gain is restricted to navigation Down expressed
@@ -177,12 +188,14 @@ reference_correction(Fixture const & fixture, bool approximate_reset,
             {
                 along_down += down[axis] * K[offset + axis][column];
             }
+
             for (std::size_t axis = 0U; axis < 3U; ++axis)
             {
                 K[offset + axis][column] = down[axis] * along_down;
             }
         }
     }
+
     result.delta_x = product(K, copied(fixture.r));
     auto A = product(K, H);
     for (std::size_t row = 0U; row < n; ++row)
@@ -192,6 +205,7 @@ reference_correction(Fixture const & fixture, bool approximate_reset,
             A[row][column] = (row == column ? 1.0L : 0.0L) - A[row][column];
         }
     }
+
     auto joseph = product(product(A, P), transposed(A));
     auto const noise = product(product(K, V), transposed(K));
     for (std::size_t row = 0U; row < n; ++row)
@@ -201,6 +215,7 @@ reference_correction(Fixture const & fixture, bool approximate_reset,
             joseph[row][column] += noise[row][column];
         }
     }
+
     result.joseph_covariance = joseph;
     long double const x = result.delta_x[offset][0U];
     long double const y = result.delta_x[offset + 1U][0U];
@@ -222,11 +237,13 @@ reference_correction(Fixture const & fixture, bool approximate_reset,
             }
         }
     }
+
     Dense<n, n> G{};
     for (std::size_t row = 0U; row < n; ++row)
     {
         G[row][row] = 1.0L;
     }
+
     for (std::size_t row = 0U; row < 3U; ++row)
     {
         for (std::size_t column = 0U; column < 3U; ++column)
@@ -234,6 +251,7 @@ reference_correction(Fixture const & fixture, bool approximate_reset,
             G[offset + row][offset + column] = Jr[row][column];
         }
     }
+
     result.covariance = product(product(G, joseph), transposed(G));
     result.valid = true;
     return result;
@@ -268,6 +286,7 @@ bool matches_reference(Fixture const & fixture, ReferenceCorrection<Fixture::siz
         matches = matches && near(coefficients(index),
                                   static_cast<value_type>(expected[index] / std::sqrt(squared_norm)), tolerance);
     }
+
     if constexpr (Fixture::is_ins)
     {
         using state_type = typename Fixture::state_type;
@@ -284,6 +303,7 @@ bool matches_reference(Fixture const & fixture, ReferenceCorrection<Fixture::siz
             }
         }
     }
+
     for (std::size_t row = 0U; row < Fixture::size; ++row)
     {
         matches = matches && covariance(row, row) >= value_type{0};
@@ -295,6 +315,7 @@ bool matches_reference(Fixture const & fixture, ReferenceCorrection<Fixture::siz
                 near(covariance(row, column), static_cast<value_type>(reference.covariance[row][column]), tolerance);
         }
     }
+
     return matches;
 }
 

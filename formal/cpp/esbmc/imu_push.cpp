@@ -46,6 +46,7 @@ bool same_interval(Interval const & a, Interval const & b)
         equal = same(a.held_rate.specific_force_b(axis), b.held_rate.specific_force_b(axis)) &
                 same(a.held_rate.angular_rate_b(axis), b.held_rate.angular_rate_b(axis)) & equal;
     }
+
     return equal;
 }
 
@@ -63,6 +64,7 @@ bool formal_eskf::runtime::ImuHistory<Backend, 64>::valid_input(input_type const
     __ESBMC_assert(&sample == expected_input && same_input(sample, original_input) && now == expected_now &&
                        admission_calls == 0 && rate_calls == 0 && storage_calls == 0,
                    "IMU push admission receives the actual input and clock before any mutation producer");
+
     ++admission_calls;
     return admission_result;
 }
@@ -73,6 +75,7 @@ template <> formal_eskf::ImuSample<Backend> formal_eskf::runtime::ImuInput<Backe
                        angular_period_us >= 3800 && angular_period_us <= 4200 && acceleration_period_us >= 3800 &&
                        acceleration_period_us <= 4200 && rate_calls == 0 && storage_calls == 0,
                    "IMU held rate comes from the previous admitted input before storage");
+
     ++rate_calls;
     return mean_rate_result;
 }
@@ -82,10 +85,12 @@ template <> void formal_eskf::runtime::RingBuffer<Interval, 64>::push(Interval c
     __ESBMC_assert(this == &expected_owner->m_samples && m_length >= 2 && m_length <= 64 && m_count <= m_length &&
                        m_oldest < m_length && m_write < m_length && storage_calls == 0,
                    "IMU push meets typed storage receiver and metadata domain");
+
     for (std::size_t i = 0; i < 64; ++i)
     {
         __ESBMC_assert(&sample != &m_samples[i], "IMU push supplies an external interval to storage");
     }
+
     __ESBMC_assert(m_length == original_length && m_count == original_count && m_oldest == original_oldest &&
                        m_write == original_write,
                    "IMU push preserves metadata until the storage producer");
@@ -202,6 +207,7 @@ void verify_imu_push_contract(Imu owner, Input input, std::uint64_t now, bool ad
         expected_fault = Imu::Fault::invalid_sample;
         eligible = false;
     }
+
     if (eligible)
     {
         auto const elapsed = input.time_us - previous.time_us;
@@ -216,11 +222,13 @@ void verify_imu_push_contract(Imu owner, Input input, std::uint64_t now, bool ad
             eligible = false;
         }
     }
+
     if (eligible && count == length && owner.m_samples.m_samples[oldest].time_us > fusion)
     {
         expected_fault = Imu::Fault::history_loss;
         eligible = false;
     }
+
     if (eligible && count + 1 >= length)
     {
         auto retained = oldest;
@@ -228,6 +236,7 @@ void verify_imu_push_contract(Imu owner, Input input, std::uint64_t now, bool ad
         {
             retained = (oldest + 1) % length;
         }
+
         auto const lag = input.time_us - owner.m_samples.m_samples[retained].time_us;
         if (lag < config.minimum_lag_us || lag > 300000)
         {
@@ -235,6 +244,7 @@ void verify_imu_push_contract(Imu owner, Input input, std::uint64_t now, bool ad
             eligible = false;
         }
     }
+
     original_input = input;
     original_previous = previous;
     original_length = length;
@@ -257,6 +267,7 @@ void verify_imu_push_contract(Imu owner, Input input, std::uint64_t now, bool ad
     __ESBMC_assert(same_input(input, before_input) && same_configuration(owner.m_configuration, config) &&
                        imu_proof::same_timing(owner.m_timing, timing) && owner.m_fusion_time_us == fusion,
                    "IMU push caller input, configuration and cursor frame");
+
     if (result)
     {
         auto const gap = static_cast<std::int64_t>(input.time_us - previous.time_us) -
@@ -267,6 +278,7 @@ void verify_imu_push_contract(Imu owner, Input input, std::uint64_t now, bool ad
                            forwarded.hold_period_us == (held ? static_cast<std::uint32_t>(gap) : 0U) &&
                            rate_calls == (held ? 1U : 0U),
                        "IMU push complete interval forwarding and previous-input publication");
+
         for (std::size_t axis = 0; axis < 3; ++axis)
         {
             if (held)
@@ -288,6 +300,7 @@ void verify_imu_push_contract(Imu owner, Input input, std::uint64_t now, bool ad
         __ESBMC_assert(same_input(owner.m_previous, previous) && rate_calls == 0,
                        "IMU rejected push preserves previous input without rate evaluation");
     }
+
     __ESBMC_assert(owner.m_samples.m_length == length &&
                        owner.m_samples.m_count == (result && count < length ? count + 1 : count) &&
                        owner.m_samples.m_oldest ==

@@ -32,6 +32,7 @@ public:
                                 linalg::Matrix<Linalg, 3U, 3U> const & P_theta_b);
 
     bool aligned() const { return m_aligned; }
+
     value_type variance() const { return m_variance; }
 
 private:

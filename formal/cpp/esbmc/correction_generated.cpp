@@ -21,6 +21,7 @@ static_assert(ESKF_CODEGEN && state_size == 15U);
 static_assert(FORMAL_ESKF_PROOF_CORRECTION_MODEL >= 1 && FORMAL_ESKF_PROOF_CORRECTION_MODEL <= 5);
 static_assert(!FORMAL_ESKF_PROOF_CORRECTION_CONTRACT && !FORMAL_ESKF_PROOF_FINITE_CONTRACT &&
               !FORMAL_ESKF_PROOF_PRODUCT_BOUNDARY && !FORMAL_ESKF_PROOF_ARITHMETIC_CONTRACT);
+
 struct Boundary
 {
     inline static Covariance const * P = nullptr;
@@ -33,6 +34,7 @@ struct Boundary
     inline static Covariance joseph{};
     inline static unsigned calls = 0U;
 };
+
 void check_body_vector(Vector3 const & h)
 {
     __ESBMC_assert(same(h(0U), (*Boundary::H)(2U, 7U)) && same(h(1U), (*Boundary::H)(0U, 8U)) &&
@@ -96,6 +98,7 @@ inline Noise GENERATED_INNOVATION<Backend>(Gain const & C,
 #endif
     return Boundary::innovation;
 }
+
 template <>
 inline Covariance GENERATED_JOSEPH<Backend>(Covariance const & P, Covariance const & A, Gain const & K, Noise const & V)
 {

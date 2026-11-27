@@ -17,6 +17,7 @@ struct DiagnosticsNoGravity
     static constexpr bool barometer_aiding = true, gravity_aiding = false, ground_effect = true, magnetic_model = true;
     // cppcheck-suppress-end unusedStructMember
 };
+
 class InsSessionTest
 {
     using Session = ins_test::Session;
@@ -28,13 +29,17 @@ class InsSessionTest
     using Status = formal_eskf::Status;
     using Vector = ins_test::Vector;
     using Matrix = Session::matrix3_type;
+
     static auto snapshot(Fixture const & f) { return f.session.diagnostics(f.imu.time_us); }
+
     static auto const & group(Session::Diagnostics const & d, Group g) { return d.groups[static_cast<std::size_t>(g)]; }
+
     static void warm(Fixture & f, Context & t, std::string_view p)
     {
         t.expect(f.configured && f.run(8000) && f.session.initialized(), p,
                  "actual session qualifies real source inputs");
     }
+
     static runtime::FusionResult<ins_test::Backend, 3> gate(double residual, bool invalid = false,
                                                             bool indefinite = false)
     {
@@ -81,6 +86,7 @@ public:
                      group(pd, Group::gnss_position).gate_valid && pd.gnss.horizontal_position.active && !pd.fault,
                  p, "horizontal position rejection is not a lifecycle or numerical fault");
     }
+
     static void support(Context & t, std::string_view p)
     {
         Fixture f;
@@ -100,6 +106,7 @@ public:
         t.expect(d.gnss_quality_evaluated && !d.gnss_quality.drift_valid && !d.gnss_motion.vehicle_at_rest, p,
                  "bypassed stationary drift cannot be read as a passed check");
     }
+
     static void replacement(Context & t, std::string_view p)
     {
         Diagnostic d;
@@ -114,6 +121,7 @@ public:
                      d.last_correction_us == 120,
                  p, "new failure replaces result and payload without refreshing successful correction");
     }
+
     static void skipped(Context & t, std::string_view p)
     {
         Fixture f;
@@ -127,6 +135,7 @@ public:
                      f.session.gnss_state().sample_time_us > after.gnss_quality_epoch.selection_time_us,
                  p, "consumed watermark is not the last evaluated GNSS sample");
     }
+
     static void expiry(Context & t, std::string_view p)
     {
         Fixture f;
@@ -144,6 +153,7 @@ public:
         t.expect(f.run(8000), p, "same source recovers through its existing qualification");
         t.expect(snapshot(f).gnss.velocity.active, p, "reporting does not add recovery policy");
     }
+
     static void source(Context & t, std::string_view p)
     {
         Fixture f;
@@ -177,6 +187,7 @@ public:
                      group(final, Group::barometer).counts.attempts == group(before, Group::barometer).counts.attempts,
                  p, "magnetic identity and barometer calibration changes clear only current evidence");
     }
+
     static void frames(Context & t, std::string_view p)
     {
         Fixture f;
@@ -201,6 +212,7 @@ public:
                      snapshot(f).frame_epoch == after.frame_epoch,
                  p, "failed rebase does not create a report frame");
     }
+
     static void clocks(Context & t, std::string_view p)
     {
         Fixture f;
@@ -212,6 +224,7 @@ public:
                      d.completed_fusion_us == d.covariance_time_us,
                  p, "original, frozen centered, prior and current clocks retain distinct meanings");
     }
+
     static void no_imu(Context & t, std::string_view p)
     {
         Fixture f;
@@ -228,6 +241,7 @@ public:
                      ins_test::same_bits(P, f.session.covariance()),
                  p, "wall-clock expiry is a pure availability view");
     }
+
     static void invalid_gate(Context & t, std::string_view p)
     {
         for (double residual : {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::max()})
@@ -242,6 +256,7 @@ public:
                      p, "nonfinite input and finite gate overflow replace valid evidence with actual failures");
         }
     }
+
     static void gate_boundary(Context & t, std::string_view p)
     {
         for (double residual : {1., 2., 4.})
@@ -253,6 +268,7 @@ public:
                      p, "independent S=4 and component boundary ratio=1");
         }
     }
+
     static void solve_failure(Context & t, std::string_view p)
     {
         Diagnostic d;
@@ -260,6 +276,7 @@ public:
         t.expect(d.gate_valid && d.test_ratio[0] == 0 && d.outcome == Outcome::failed && d.counts.corrected == 0, p,
                  "zero residual passes gate but indefinite covariance cannot be corrected");
     }
+
     static void limited(Context & t, std::string_view p)
     {
         for (bool rescue : {false, true})
@@ -287,6 +304,7 @@ public:
                      p, "session retains raw evidence and the owner-applied residual without re-gating or clamping");
         }
     }
+
     static void stages(Context & t, std::string_view p)
     {
         Fixture f;
@@ -321,6 +339,7 @@ public:
                      ins_test::same_bits(state.v_n, f.session.state().v_n),
                  p, "later failed group retains earlier real state commit and its reporting evidence");
     }
+
     static void resets(Context & t, std::string_view p)
     {
         Diagnostic d;
@@ -335,6 +354,7 @@ public:
         d.record_reset(e, Status::domain_error, false);
         t.expect(d.counts.reset_failures == 1 && d.last_reset_us == 20, p, "failed reset does not refresh progress");
     }
+
     static void phase(Context & t, std::string_view p)
     {
         Fixture f;
@@ -350,6 +370,7 @@ public:
         t.expect(f.session.complete_fusion(f.model), p, "finish pending fusion");
         t.expect(snapshot(f).completed_fusion_us > done, p, "completion advances only after actual feedback");
     }
+
     static void events(Context & t, std::string_view p)
     {
         Fixture f;
@@ -362,6 +383,7 @@ public:
                      before.evaluations == again.evaluations && !f.session.take_innovations().position[0].measurement,
                  p, "public reads do not consume the adapter's one-consumer event drain");
     }
+
     static void readers(Context & t, std::string_view p)
     {
         Fixture fast, slow, absent;
@@ -418,6 +440,7 @@ public:
             }
         }
     }
+
     static void fault(Context & t, std::string_view p)
     {
         Fixture f;
@@ -434,6 +457,7 @@ public:
                      after.failure_operation == first.failure_operation,
                  p, "propagation retains the first failing operation and counts once");
     }
+
     static void wrap(Context & t, std::string_view p)
     {
         auto parameters = ins_test_profile::parameters<Session>();
@@ -448,6 +472,7 @@ public:
         t.expect(snapshot(next).session_id == 74 && !snapshot(next).fault && snapshot(next).evaluations == 0, p,
                  "replacement session starts clean under caller identity");
     }
+
     static void admission(Context & t, std::string_view p)
     {
         Fixture f;
@@ -474,6 +499,7 @@ public:
                  "owner result accounting distinguishes records superseded on selection from records expired without "
                  "selection");
     }
+
     static void startup(Context & t, std::string_view p)
     {
         std::printf("Diagnostic storage: session=%zu snapshot=%zu bytes\n", sizeof(Session),
@@ -488,6 +514,7 @@ public:
         t.expect(d.fault && !d.initialized && d.failure_operation == runtime::InsOperation::input, p,
                  "unconfigured input has honest failing startup phase");
     }
+
     static void gravity(Context & t, std::string_view p)
     {
         Fixture f;
@@ -507,6 +534,7 @@ public:
                      !inhibited.gate_valid,
                  p, "clipping is an inhibited observation, not a failed or successful correction");
     }
+
     static void history(Context & t, std::string_view p)
     {
         Fixture f;

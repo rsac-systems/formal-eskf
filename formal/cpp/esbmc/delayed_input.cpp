@@ -29,12 +29,14 @@ inline bool same_configuration(formal_eskf::runtime::TimingConfiguration const &
            a.magnetic_delay_us == b.magnetic_delay_us && a.barometer_delay_us == b.barometer_delay_us &&
            a.imu_length == b.imu_length;
 }
+
 inline bool same_source(formal_eskf::runtime::ImuSource const & a, formal_eskf::runtime::ImuSource const & b)
 {
     return a.accelerometer_id == b.accelerometer_id && a.gyroscope_id == b.gyroscope_id &&
            a.accelerometer_calibration == b.accelerometer_calibration &&
            a.gyroscope_calibration == b.gyroscope_calibration;
 }
+
 inline bool same_input(Input const & a, Input const & b)
 {
     return a.time_us == b.time_us && a.angular_period_us == b.angular_period_us &&

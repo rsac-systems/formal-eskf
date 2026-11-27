@@ -23,12 +23,14 @@ struct NormContract
     inline static Vector4 received{};
     inline static unsigned calls = 0U;
 };
+
 struct CandidateContract
 {
     inline static Vector4 result{}, received{};
     inline static Scalar divisor{};
     inline static unsigned calls = 0U;
 };
+
 struct NormalizeContract
 {
     inline static Vector4 result{}, received{};
@@ -49,6 +51,7 @@ template <> inline contract_proof::Scalar norm(contract_proof::Vector4 const & i
     NormContract::received = input;
     return NormContract::result;
 }
+
 template <>
 inline Matrix<contract_proof::Linalg, 4U, 1U>
 Matrix<contract_proof::Linalg, 4U, 1U>::operator/(value_type divisor) const

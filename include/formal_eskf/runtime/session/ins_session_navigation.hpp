@@ -17,6 +17,7 @@ bool InsSession<Linalg, Layout>::record_gps_fusion(gnss_lifecycle_type::Group gr
     {
         return false;
     }
+
     if (decision == formal_eskf::runtime::FusionDecision::rejected)
     {
         ++m_statistics.rejections;
@@ -27,8 +28,10 @@ bool InsSession<Linalg, Layout>::record_gps_fusion(gnss_lifecycle_type::Group gr
         {
             return false;
         }
+
         ++m_gnss.corrections;
     }
+
     return true;
 }
 
@@ -57,6 +60,7 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::upd
     {
         return;
     }
+
     m_gnss.sample_time_us = m_gnss.input.time_us;
     if (gps.stamp.source.device_id != m_gnss.device_id || m_gnss.input.generation != m_gnss.generation)
     {
@@ -70,6 +74,7 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::upd
         m_gnss_selection = !gps.velocity_valid ? QualitySelection::velocity_unavailable : QualitySelection::expired;
         return;
     }
+
     m_gnss.sample.time_us = m_gnss.input.time_us;
     m_gnss.metadata_valid = std::isfinite(gps.latitude_deg) && std::abs(gps.latitude_deg) <= 90. &&
                             std::isfinite(gps.longitude_deg) && std::abs(gps.longitude_deg) <= 180. &&
@@ -85,6 +90,7 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::upd
         ++m_statistics.rejections;
         return;
     }
+
     auto const sample = gnss_quality_sample();
     auto const motion = gnss_motion();
     m_gnss.quality_result = m_gnss.quality.update(sample, motion, m_time_us, m_gnss.quality_parameters);
@@ -98,6 +104,7 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::upd
         check(m_gnss.quality_result.status);
         return;
     }
+
     m_gnss.sample.quality = m_gnss.quality_result.decision;
     m_gnss.previous_fix.set_origin(gps.latitude_deg, gps.longitude_deg, sample.time_us);
     m_gnss.previous_altitude = gps.altitude_msl_m;
@@ -112,6 +119,7 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::upd
             return;
         }
     }
+
     if (m_gnss.sample.quality == GnssQualityDecision::rejected)
     {
         ++m_statistics.rejections;
@@ -142,6 +150,7 @@ formal_eskf::runtime::GnssQualitySample<Linalg> InsSession<Linalg, Layout>::gnss
                                 : m_gnss.previous_ellipsoid_altitude - gps.altitude_ellipsoid_m;
         sample.position_delta_n = vector3(north, east, down);
     }
+
     return sample;
 }
 
@@ -153,11 +162,13 @@ formal_eskf::runtime::GnssQualityMotion InsSession<Linalg, Layout>::gnss_motion(
     {
         motion.in_air = m_gnss.context.vehicle.armed;
     }
+
     if (m_gnss.context.land.known)
     {
         motion.in_air = !m_gnss.context.land.landed;
         motion.vehicle_at_rest = m_gnss.context.land.at_rest;
     }
+
     return motion;
 }
 
@@ -217,6 +228,7 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::fus
         {
             return;
         }
+
         auto const & intervention = m_continuity.state();
         conditions.horizontal_position.numerical_reset_required =
             intervention.position.affected(continuity_type::direction(observation_frame.rotation, 0)) ||
@@ -228,23 +240,28 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::fus
     {
         return;
     }
+
     if (m_gnss.lifecycle.state().restart_quality)
     {
         m_gnss.quality.restart_health();
     }
+
     if (!m_gnss.lifecycle.state().velocity.active)
     {
         m_gnss.vertical_innovation = {};
     }
+
     if (!navigation_ready || m_gnss.sample.time_us == 0)
     {
         return;
     }
+
     if (!m_gnss.metadata_valid || !formal_eskf::succeeded(m_gnss.quality_result.status))
     {
         m_gnss.vertical_innovation = {};
         return;
     }
+
     m_operation = InsOperation::gnss_velocity;
     auto const observation = gnss_velocity_observation(imu);
     if (!check(observation.status))
@@ -253,6 +270,7 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::fus
             .evaluate(evaluation_epoch(m_gnss.input), FusionDiagnostic::Outcome::failed, observation.status, false);
         return;
     }
+
     if (!gps_good())
     {
         // A still-active source may supply health evidence without fusion permission.
@@ -260,6 +278,7 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::fus
         {
             check_gnss_velocity_observation(observation);
         }
+
         return;
     }
     // The lifecycle has decided both actions before either operation advances progress.
@@ -267,6 +286,7 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::fus
     {
         return;
     }
+
     m_statistics.max_fusion_age = std::max(m_statistics.max_fusion_age, m_time_us - m_gnss.sample.time_us);
 }
 
@@ -281,6 +301,7 @@ InsSession<Linalg, Layout>::gnss_velocity_observation(imu_type const & imu) cons
     {
         return observation;
     }
+
     observation.velocity_n = gps.velocity_n - observation.frame.rotation * gnss_velocity_offset(imu);
     observation.status = formal_eskf::runtime::velocity_observation(m_state.v_n, observation.velocity_n,
                                                                     observation.frame.rotation, observation.model);
@@ -307,10 +328,12 @@ void InsSession<Linalg, Layout>::check_gnss_velocity_observation(GnssVelocityObs
     {
         diagnostic.fusion_innovation[axis] = evidence.fusion_innovation(axis);
     }
+
     if (!check(evidence.gate.status))
     {
         return;
     }
+
     m_gnss.vertical_innovation = {evidence.gate.diagnostics_valid, -evidence.fusion_innovation(2),
                                   evidence.gate.innovation_variance(2)};
     m_gnss.velocity_test_ratios = evidence.gate.diagnostics_valid ? evidence.gate.test_ratio : vector3(NAN, NAN, NAN);
@@ -342,12 +365,14 @@ bool InsSession<Linalg, Layout>::fuse_gps_velocity(GnssVelocityObservation const
         {
             status = continuity.recover_velocity(observation.frame.rotation, {true, true, true});
         }
+
         if (!check(status) || !check(lifecycle.record_reset(LifecycleGroup::velocity, m_gnss.sample.time_us, true)) ||
             !reset_output({}, next_state.v_n - m_state.v_n, {}, {.velocity = true, .vertical_velocity = true}))
         {
             report(Group::gnss_velocity).record_reset(epoch, m_failure_status, false);
             return false;
         }
+
         report(Group::gnss_velocity).record_reset(epoch, status_type::success, true);
         m_state = next_state;
         m_covariance = next_covariance;
@@ -359,6 +384,7 @@ bool InsSession<Linalg, Layout>::fuse_gps_velocity(GnssVelocityObservation const
         {
             ratio.record_reset(m_gnss.sample.time_us);
         }
+
         m_gnss.velocity_test_ratios = {};
         m_gnss.velocity_rejected = false;
         m_gnss.vertical_innovation = {true, 0., velocity_variances(2)};
@@ -375,6 +401,7 @@ bool InsSession<Linalg, Layout>::fuse_gps_velocity(GnssVelocityObservation const
         {
             diagnostic.fusion_innovation[axis] = result.fusion_innovation(axis);
         }
+
         m_gnss.velocity_test_ratios =
             result.fusion.diagnostics_valid ? result.fusion.test_ratio : vector3(NAN, NAN, NAN);
         for (std::size_t axis = 0; axis < 3; ++axis)
@@ -382,10 +409,12 @@ bool InsSession<Linalg, Layout>::fuse_gps_velocity(GnssVelocityObservation const
             m_innovations.velocity[axis].record(m_gnss.sample.time_us, result.fusion.innovation(axis),
                                                 m_gnss.velocity_test_ratios(axis));
         }
+
         if (!record_gps_fusion(LifecycleGroup::velocity, result.fusion.decision, result.fusion.status))
         {
             return false;
         }
+
         m_gnss.vertical_innovation = {result.fusion.diagnostics_valid, -result.fusion_innovation(2),
                                       result.fusion.innovation_variance(2)};
         // Use preceding height progress, after normal velocity correction and before height control.
@@ -405,6 +434,7 @@ bool InsSession<Linalg, Layout>::fuse_gps_velocity(GnssVelocityObservation const
                 diagnostic.record_reset(reset_epoch, m_failure_status, false);
                 return false;
             }
+
             diagnostic.record_reset(reset_epoch, status_type::success, true);
             m_state = next_state;
             m_covariance = next_covariance;
@@ -413,6 +443,7 @@ bool InsSession<Linalg, Layout>::fuse_gps_velocity(GnssVelocityObservation const
             // A Down-only reset preserves this attempt's selected velocity diagnostics.
         }
     }
+
     return true;
 }
 
@@ -429,6 +460,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::fus
             .evaluate(evaluation_epoch(m_gnss.input), FusionDiagnostic::Outcome::failed, m_failure_status, false);
         return false;
     }
+
     auto const offset = frame.rotation * gnss_position_offset();
     auto const xy = vector2_type::from_row_major({-offset(0), -offset(1)});
     FrameObservation<backend_type, 2> observation;
@@ -439,6 +471,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::fus
             .evaluate(evaluation_epoch(m_gnss.input), FusionDiagnostic::Outcome::failed, m_failure_status, false);
         return false;
     }
+
     const double position_variance =
         square(std::min(std::max(double(gps.horizontal_accuracy_m), m_settings.gnss.minimum_position_noise_m),
                         m_settings.gnss.maximum_position_noise_m));
@@ -458,6 +491,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::fus
         {
             status = continuity.recover_position(frame.rotation, {true, true, false});
         }
+
         if (!check(status) ||
             !check(lifecycle.record_reset(LifecycleGroup::horizontal_position, m_gnss.sample.time_us, true)) ||
             !reset_output({}, {}, next_state.p_n - m_state.p_n, {.horizontal_position = true}))
@@ -465,6 +499,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::fus
             report(Group::gnss_position).record_reset(epoch, m_failure_status, false);
             return false;
         }
+
         report(Group::gnss_position).record_reset(epoch, status_type::success, true);
         m_state = next_state;
         m_covariance = next_covariance;
@@ -475,6 +510,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::fus
         {
             ratio.record_reset(m_gnss.sample.time_us);
         }
+
         m_gnss.position_test_ratio = 0.;
         m_gnss.position_rejected = false;
     }
@@ -491,11 +527,13 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::fus
             m_innovations.position[axis].record(m_gnss.sample.time_us, result.innovation(axis),
                                                 result.diagnostics_valid ? result.test_ratio(axis) : double(NAN));
         }
+
         if (!record_gps_fusion(LifecycleGroup::horizontal_position, result.decision, result.status))
         {
             return false;
         }
     }
+
     return true;
 }
 
@@ -549,6 +587,7 @@ void InsSession<Linalg, Layout>::receive_ground_effect(GroundEffectEvent const &
         {
             return;
         }
+
         auto const * delayed = m_imu_history.delayed();
         // Before history fills, the seed is the only available delayed horizon.
         auto const horizon = delayed != nullptr ? delayed->time_us : m_time_us;
@@ -576,6 +615,7 @@ void InsSession<Linalg, Layout>::fuse_height(ObservationReceipt const & baromete
             return;
         }
     }
+
     auto const & gps = m_gnss.input.sample;
     using Source = typename height_type::Source;
     typename height_type::Sample const barometer{m_barometer.time_us,
@@ -594,6 +634,7 @@ void InsSession<Linalg, Layout>::fuse_height(ObservationReceipt const & baromete
         {
             return;
         }
+
         auto const offset = frame.rotation * gnss_position_offset();
         gnss = {m_gnss.sample.time_us,
                 gps.stamp.source.device_id,
@@ -603,6 +644,7 @@ void InsSession<Linalg, Layout>::fuse_height(ObservationReceipt const & baromete
                 gps_good(),
                 m_gnss.input.generation};
     }
+
     if (!m_msl_initialized && gnss.time_us != 0 && gnss.qualified)
     {
         double origin_altitude = gnss.altitude + m_state.p_n(2);
@@ -618,17 +660,21 @@ void InsSession<Linalg, Layout>::fuse_height(ObservationReceipt const & baromete
             {
                 return;
             }
+
             old_height = current.point.height_ellipsoid_m - m_origin_control.relative_height_ellipsoid_m;
         }
+
         if (!check(m_height_aiding.change_reference(origin_altitude, old_height, new_height)))
         {
             return;
         }
+
         m_origin.altitude_msl_m = m_navigation_frame.initialized()
                                       ? m_origin.height_ellipsoid_m - m_height_datum.separation_m()
                                       : origin_altitude;
         m_msl_initialized = true;
     }
+
     auto const & health = m_vertical_health.state();
     typename height_type::Acceleration const acceleration{health.bad_vertical_acceleration,
                                                           {health.last_update_time_us, health.last_good_time_us}};
@@ -649,11 +695,13 @@ void InsSession<Linalg, Layout>::fuse_height(ObservationReceipt const & baromete
         record_height(result, false);
         return;
     }
+
     if (result.height_resets != 0 && !check(continuity.recover_position(basis, {false, false, true})))
     {
         record_height(result, false);
         return;
     }
+
     if ((result.height_resets != 0 || result.velocity_resets != 0) &&
         !reset_output({}, result.velocity_delta_n, result.position_delta_n,
                       {.vertical_velocity = result.velocity_resets != 0,
@@ -662,6 +710,7 @@ void InsSession<Linalg, Layout>::fuse_height(ObservationReceipt const & baromete
         record_height(result, false);
         return;
     }
+
     record_height(result, true);
     m_state = next_state;
     m_covariance = next_covariance;

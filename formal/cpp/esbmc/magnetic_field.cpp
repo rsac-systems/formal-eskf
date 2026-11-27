@@ -24,6 +24,7 @@ using formal_eskf::Status;
 using Vector = contract_proof::Vector3;
 using Geometry = formal_eskf::runtime::detail::MagneticFieldGeometry<Scalar>;
 using Parameters = formal_eskf::runtime::MagneticFieldParameters<Scalar>;
+
 inline Status root_status(Scalar input, Scalar value)
 {
     return !std::isfinite(input)   ? Status::non_finite_input
@@ -31,6 +32,7 @@ inline Status root_status(Scalar input, Scalar value)
            : !std::isfinite(value) ? Status::non_finite_result
                                    : Status::success;
 }
+
 inline Status angle_status(Scalar y, Scalar x, Scalar value)
 {
     return !std::isfinite(y) || !std::isfinite(x) ? Status::non_finite_input
@@ -38,24 +40,29 @@ inline Status angle_status(Scalar y, Scalar x, Scalar value)
            : !std::isfinite(value)                ? Status::non_finite_result
                                                   : Status::success;
 }
+
 inline bool same_geometry(Geometry a, Geometry b)
 {
     return same(a.strength, b.strength) && same(a.horizontal, b.horizontal) && same(a.inclination, b.inclination);
 }
+
 inline bool same_parameters(Parameters a, Parameters b)
 {
     return same(a.strength_tolerance, b.strength_tolerance) && same(a.inclination_tolerance, b.inclination_tolerance) &&
            same(a.heading_tolerance, b.heading_tolerance) &&
            same(a.minimum_horizontal_field, b.minimum_horizontal_field);
 }
+
 struct Root
 {
     Scalar argument, value;
 };
+
 struct Angle
 {
     Scalar y, x, value;
 };
+
 struct Calls
 {
     inline static Root root0{}, root1{};
@@ -134,6 +141,7 @@ void verify_magnetic_root(geometry_proof::Scalar input, geometry_proof::Scalar o
                        (!called || same(OpaqueMath::sqrt.argument, input)),
                    "R-MAGNETIC-FIELD: actual checked root domain, argument, result and atomic output contract");
 }
+
 void verify_magnetic_angle(geometry_proof::Scalar y, geometry_proof::Scalar x, geometry_proof::Scalar output,
                            geometry_proof::Scalar angle)
 {
@@ -149,6 +157,7 @@ void verify_magnetic_angle(geometry_proof::Scalar y, geometry_proof::Scalar x, g
             (!called || (same(OpaqueMath::atan2.y, y) && same(OpaqueMath::atan2.x, x))),
         "R-MAGNETIC-FIELD: actual atan2 origin/finite checks, argument order, result and atomic output contract");
 }
+
 void verify_magnetic_geometry(geometry_proof::Vector field, geometry_proof::Geometry output,
                               geometry_proof::Scalar strength, geometry_proof::Scalar horizontal,
                               geometry_proof::Scalar inclination)
@@ -205,6 +214,7 @@ void verify_magnetic_geometry(geometry_proof::Vector field, geometry_proof::Geom
     }
     __ESBMC_assert(same_vector(field, old_field), "R-MAGNETIC-FIELD: geometry never changes its borrowed field");
 }
+
 void verify_magnetic_heading_error(geometry_proof::Vector measured, geometry_proof::Vector reference,
                                    geometry_proof::Scalar output, geometry_proof::Scalar measured_angle,
                                    geometry_proof::Scalar reference_angle)
@@ -228,6 +238,7 @@ void verify_magnetic_heading_error(geometry_proof::Vector measured, geometry_pro
     __ESBMC_assert(same_vector(measured, old_measured) && same_vector(reference, old_reference),
                    "R-MAGNETIC-HEADING: both borrowed fields, including unused Down coefficients, remain unchanged");
 }
+
 void verify_magnetic_heading_value(geometry_proof::Vector measured, geometry_proof::Vector reference,
                                    geometry_proof::Scalar measured_angle, geometry_proof::Scalar reference_angle)
 {
@@ -297,4 +308,5 @@ void verify_magnetic_validation(geometry_proof::Quaternion q, geometry_proof::Ve
                        same_vector(reference, old_reference) && same_parameters(parameters, old_parameters),
                    "R-MAGNETIC-FIELD: validation preserves all input fields and parameters");
 }
+
 int main() { return 0; }

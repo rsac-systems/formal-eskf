@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "boundary.hpp"
+
 namespace
 {
 using namespace output_boundary;
@@ -11,6 +12,7 @@ Quaternion * expected_output;
 formal_eskf::Status status_result;
 bool valid;
 unsigned validations, products, normalizations;
+
 void check_state(State const & state)
 {
     __ESBMC_assert(same(state.q_nb.q0(), requested.q_nb.q0()) && same(state.q_nb.q1(), requested.q_nb.q1()) &&
@@ -24,6 +26,7 @@ void check_state(State const & state)
     }
 }
 } // namespace
+
 namespace formal_eskf::runtime
 {
 template <> bool OutputPredictor<output_proof::Backend, 64>::valid_state(state_type const & state) const
@@ -34,6 +37,7 @@ template <> bool OutputPredictor<output_proof::Backend, 64>::valid_state(state_t
     return valid;
 }
 } // namespace formal_eskf::runtime
+
 namespace formal_eskf::so3
 {
 template <>
@@ -54,6 +58,7 @@ UnitQuaternion<output_proof::Backend>::operator*(UnitQuaternion const & other) c
     ++products;
     return raw_product;
 }
+
 template <>
 Status UnitQuaternion<output_proof::Backend>::from_coefficients(vector4_type const & input, value_type minimum,
                                                                 UnitQuaternion & output)
@@ -75,7 +80,9 @@ Status UnitQuaternion<output_proof::Backend>::from_coefficients(vector4_type con
     return status_result;
 }
 } // namespace formal_eskf::so3
+
 #include <feedback_steps.hpp>
+
 void verify_output_feedback_admission(Output object, State state, std::uint64_t time, bool state_valid)
 {
     output_proof::bind_parameters(object);
@@ -116,6 +123,7 @@ void verify_output_feedback_admission(Output object, State state, std::uint64_t 
     check_state(state);
     output_proof::check_parameters(object);
 }
+
 void verify_output_feedback_normalization(Output object, State state, Sample sample, Quaternion output,
                                           Quaternion product, Quaternion result, formal_eskf::Status status)
 {

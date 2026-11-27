@@ -39,7 +39,9 @@ void __ESBMC_assert(bool condition, char const * description)
         std::abort();
     }
 }
+
 void __ESBMC_assume(bool condition) { __ESBMC_assert(condition, "unexpected infeasible native witness"); }
+
 float nondet_float() { return 0.0F; }
 
 // Deliberately distinct coordinates, off-diagonals and summary outputs check
@@ -72,10 +74,12 @@ int main()
             state.b_g(i) = static_cast<value_type>(i + 6U);
 #endif
         }
+
         for (std::size_t i = 0U; i < measurement_size; ++i)
         {
             measurement(i) = static_cast<value_type>(i + 7U);
         }
+
         switch (test_case)
         {
         case TestCase::baseline:
@@ -126,6 +130,7 @@ int main()
                 result.covariance(i, j) = value_type{-3};
             }
         }
+
         for (std::size_t i = 0U; i < measurement_size; ++i)
         {
             for (std::size_t j = 0U; j < measurement_size; ++j)
@@ -133,6 +138,7 @@ int main()
                 V(i, j) = static_cast<value_type>(i * measurement_size + j + 1U);
             }
         }
+
         result.covariance(state_size - 1U, state_size - 1U) = std::numeric_limits<value_type>::quiet_NaN();
         constexpr std::array statuses{
             Status::success,
@@ -159,5 +165,6 @@ int main()
 #endif
 #endif
     }
+
     std::puts("E-OBS native oracle/flow witnesses: pass");
 }

@@ -42,8 +42,10 @@ template <typename Matrix> bool same(Matrix const & a, Matrix const & b)
             }
         }
     }
+
     return true;
 }
+
 template <typename State> bool same_state(State const & a, State const & b)
 {
     bool equal = same(a.q_nb.coefficients(), b.q_nb.coefficients());
@@ -51,14 +53,17 @@ template <typename State> bool same_state(State const & a, State const & b)
     {
         equal = equal && same(a.p_n, b.p_n) && same(a.v_n, b.v_n) && same(a.b_a, b.b_a) && same(a.b_g, b.b_g);
     }
+
     return equal;
 }
+
 QuaternionValue product(QuaternionValue const & a, QuaternionValue const & b)
 {
     return {
         a[0] * b[0] - a[1] * b[1] - a[2] * b[2] - a[3] * b[3], a[0] * b[1] + a[1] * b[0] + a[2] * b[3] - a[3] * b[2],
         a[0] * b[2] - a[1] * b[3] + a[2] * b[0] + a[3] * b[1], a[0] * b[3] + a[1] * b[2] - a[2] * b[1] + a[3] * b[0]};
 }
+
 Rotation rotation(QuaternionValue const & q)
 {
     auto const w = q[0], x = q[1], y = q[2], z = q[3];
@@ -66,6 +71,7 @@ Rotation rotation(QuaternionValue const & q)
              {2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)},
              {2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)}}};
 }
+
 template <typename Q> QuaternionValue copied(Q const & q) { return {q.q0(), q.q1(), q.q2(), q.q3()}; }
 
 template <typename Linalg, typename Configuration> struct Fixture
@@ -84,6 +90,7 @@ template <typename Linalg, typename Configuration> struct Fixture
     Vector field = Vector::from_row_major({Scalar{20}, Scalar{-7}, Scalar{42}});
     Vector sample = field;
     Scalar yaw_variance = Scalar{0}, minimum_horizontal = Scalar{5}, minimum_norm = Scalar{0.125};
+
     Fixture()
     {
         for (std::size_t row = 0; row < size; ++row)
@@ -93,6 +100,7 @@ template <typename Linalg, typename Configuration> struct Fixture
                 P(row, column) = row == column ? Scalar{4} + static_cast<Scalar>(row) / Scalar{4} : Scalar{0.125};
             }
         }
+
         if constexpr (ins)
         {
             state.p_n = Vector::from_row_major({Scalar{1}, Scalar{2}, Scalar{-3}});
@@ -101,6 +109,7 @@ template <typename Linalg, typename Configuration> struct Fixture
             state.b_g = state.p_n / Scalar{16};
         }
     }
+
     Status apply(State & output, Matrix & output_P, Q & delta) const
     {
         return formal_eskf::runtime::reset_magnetic_heading(state, P, sample, field, yaw_variance, minimum_horizontal,
@@ -114,6 +123,7 @@ template <typename F> struct Expected
     Rotation before{}, after{};
     reference::Dense<F::size, F::size> P{};
 };
+
 template <typename F> Expected<F> oracle(F const & fixture)
 {
     Expected<F> result;
@@ -126,6 +136,7 @@ template <typename F> Expected<F> oracle(F const & fixture)
             measured[row] += result.before[row][column] * fixture.sample(column);
         }
     }
+
     long double angle =
         std::atan2(static_cast<long double>(fixture.field(1)), static_cast<long double>(fixture.field(0))) -
         std::atan2(measured[1], measured[0]);
@@ -133,10 +144,12 @@ template <typename F> Expected<F> oracle(F const & fixture)
     {
         angle -= 2 * std::numbers::pi_v<long double>;
     }
+
     if (angle < -std::numbers::pi_v<long double>)
     {
         angle += 2 * std::numbers::pi_v<long double>;
     }
+
     result.delta = {std::cos(angle / 2), 0, 0, std::sin(angle / 2)};
     result.attitude = product(result.delta, copied(fixture.state.q_nb));
     long double const squared =
@@ -156,6 +169,7 @@ template <typename F> Expected<F> oracle(F const & fixture)
             }
         }
     }
+
     result.P = reference::copied(fixture.P);
     reference::Dense<3, F::size> cross{};
     for (std::size_t row = 0; row < 3; ++row)
@@ -168,6 +182,7 @@ template <typename F> Expected<F> oracle(F const & fixture)
             }
         }
     }
+
     using Scalar = typename F::Scalar;
     Scalar const minimum = static_cast<Scalar>(0.01);
     Scalar const variance = std::max(fixture.yaw_variance, minimum * minimum);
@@ -179,6 +194,7 @@ template <typename F> Expected<F> oracle(F const & fixture)
             result.P[column][F::offset + row] = cross[row][column];
         }
     }
+
     for (std::size_t row = 0; row < 3; ++row)
     {
         for (std::size_t column = 0; column < 3; ++column)
@@ -188,11 +204,14 @@ template <typename F> Expected<F> oracle(F const & fixture)
             {
                 value += cross[row][F::offset + k] * A[column][k];
             }
+
             result.P[F::offset + row][F::offset + column] = value;
         }
     }
+
     return result;
 }
+
 template <typename F>
 void compare(Context & test, std::string_view profile, F const & fixture, Expected<F> const & expected,
              typename F::State const & actual, typename F::Matrix const & P, typename F::Q const & delta)
@@ -211,6 +230,7 @@ void compare(Context & test, std::string_view profile, F const & fixture, Expect
                        std::abs(delta_rotation[row][column] - expected_delta[row][column]) <= bound;
         }
     }
+
     for (std::size_t row = 0; row < F::size; ++row)
     {
         for (std::size_t column = 0; column < F::size; ++column)
@@ -221,17 +241,21 @@ void compare(Context & test, std::string_view profile, F const & fixture, Expect
             {
                 covariance = covariance && P(row, column) == fixture.P(row, column);
             }
+
             covariance = covariance && P(row, column) == P(column, row);
         }
     }
+
     test.expect(attitude && covariance, profile,
                 "independent navigation-Down left reset and covariance transport agree; non-attitude block exact and "
                 "symmetric");
+
     for (std::size_t axis = 0; axis < 3; ++axis)
     {
         test.expect(std::abs(actual_rotation[2][axis] - expected.before[2][axis]) <= bound, profile,
                     "body-expressed navigation Down is unchanged: reset cannot alter tilt");
     }
+
     if constexpr (F::ins)
     {
         test.expect(same(actual.p_n, fixture.state.p_n) && same(actual.v_n, fixture.state.v_n) &&
@@ -256,6 +280,7 @@ void orient(Context & test, std::string_view profile, F & fixture, long double p
                                         static_cast<Scalar>(actual[2]), static_cast<Scalar>(actual[3]),
                                         fixture.minimum_norm, fixture.state.q_nb) == Status::success,
                 profile, "independent Euler-composed fixture, including vertical pitch");
+
     auto const R = rotation(truth);
     for (std::size_t row = 0; row < 3; ++row)
     {
@@ -264,6 +289,7 @@ void orient(Context & test, std::string_view profile, F & fixture, long double p
         {
             value += R[column][row] * fixture.field(column);
         }
+
         fixture.sample(row) = static_cast<Scalar>(value);
     }
 }
@@ -285,6 +311,7 @@ template <typename Linalg, typename Configuration> void geometry(Context & test,
                 {
                     signed_fixture.state.q_nb = -signed_fixture.state.q_nb;
                 }
+
                 auto const expected = oracle(signed_fixture);
                 for (unsigned aliases = 0; aliases < 4; ++aliases)
                 {
@@ -296,6 +323,7 @@ template <typename Linalg, typename Configuration> void geometry(Context & test,
                     auto & covariance_output = (aliases & 2U) ? current.P : P;
                     test.expect(current.apply(state_output, covariance_output, delta) == Status::success, profile,
                                 "reset succeeds at all heading/tilt/alias partitions");
+
                     compare(test, profile, signed_fixture, expected, state_output, covariance_output, delta);
                     test.expect(((aliases & 1U) != 0 || same_state(current.state, signed_fixture.state)) &&
                                     ((aliases & 2U) != 0 || same(current.P, signed_fixture.P)) &&
@@ -322,20 +350,24 @@ template <typename Linalg, typename Configuration> void covariance(Context & tes
         auto P = fixture.P;
         typename F::Q delta;
         test.expect(fixture.apply(output, P, delta) == Status::success, profile, "axis-aligned floor fixture succeeds");
+
         auto expected = fixture.P;
         for (std::size_t axis = 0; axis < F::size; ++axis)
         {
             expected(F::offset + 2, axis) = Scalar{0};
             expected(axis, F::offset + 2) = Scalar{0};
         }
+
         expected(F::offset + 2, F::offset + 2) = variance < floor ? floor : variance;
         test.expect(same(P, expected) && same_state(output, fixture.state), profile,
                     "exact identity reset clears all yaw cross terms and applies encoded floor at below/equal/above "
                     "boundaries");
+
         orient(test, profile, fixture, 0.63L, -1.1L);
         auto const transported = oracle(fixture);
         test.expect(fixture.apply(output, P, delta) == Status::success, profile,
                     "strongly tilted dense cross-covariance fixture succeeds");
+
         compare(test, profile, fixture, transported, output, P, delta);
     }
 }
@@ -354,6 +386,7 @@ template <typename F> void fail(Context & test, std::string_view profile, F cons
         test.expect(F::Q::from_coefficients(Scalar{0.5}, Scalar{0.5}, Scalar{0.5}, Scalar{0.5}, Scalar{0.125},
                                             separate.q_nb) == Status::success,
                     profile, "distinct valid output sentinel");
+
         delta = separate.q_nb;
         auto & output = (aliases & 1U) ? current.state : separate;
         auto & P = (aliases & 2U) ? current.P : output_P;
@@ -386,6 +419,7 @@ template <typename Linalg, typename Configuration> void failures(Context & test,
             bad.field(axis) = invalid;
             fail(test, profile, bad, Status::non_finite_input);
         }
+
         for (std::size_t row = 0; row < F::size; ++row)
         {
             for (std::size_t column = 0; column < F::size; ++column)
@@ -395,12 +429,14 @@ template <typename Linalg, typename Configuration> void failures(Context & test,
                 fail(test, profile, bad, Status::non_finite_input);
             }
         }
+
         for (auto member : {&F::yaw_variance, &F::minimum_horizontal, &F::minimum_norm})
         {
             auto bad = baseline;
             bad.*member = invalid;
             fail(test, profile, bad, Status::non_finite_input);
         }
+
         if constexpr (F::ins)
         {
             for (auto member : {&F::State::p_n, &F::State::v_n, &F::State::b_a, &F::State::b_g})
@@ -415,12 +451,14 @@ template <typename Linalg, typename Configuration> void failures(Context & test,
             }
         }
     }
+
     for (std::size_t axis = 0; axis < F::size; ++axis)
     {
         auto bad = baseline;
         bad.P(axis, axis) = Scalar{-1};
         fail(test, profile, bad, Status::domain_error);
     }
+
     auto bad = baseline;
     bad.P(0, 1) = std::nextafter(bad.P(0, 1), Scalar{1});
     fail(test, profile, bad, Status::domain_error);
@@ -433,12 +471,14 @@ template <typename Linalg, typename Configuration> void failures(Context & test,
         bad.minimum_horizontal = bound;
         fail(test, profile, bad, Status::domain_error);
     }
+
     for (auto bound : {Scalar{0}, Scalar{-1}, std::nextafter(Scalar{1}, Scalar{2})})
     {
         bad = baseline;
         bad.minimum_norm = bound;
         fail(test, profile, bad, Status::domain_error);
     }
+
     for (bool reference_field : {false, true})
     {
         bad = baseline;
@@ -452,6 +492,7 @@ template <typename Linalg, typename Configuration> void failures(Context & test,
         vector(0) = std::numeric_limits<Scalar>::max();
         fail(test, profile, bad, Status::non_finite_result);
     }
+
     bad = baseline;
     for (std::size_t row = 0; row < F::size; ++row)
     {
@@ -460,6 +501,7 @@ template <typename Linalg, typename Configuration> void failures(Context & test,
             bad.P(row, column) = std::numeric_limits<Scalar>::max();
         }
     }
+
     bad.sample = F::Vector::from_row_major({Scalar{20}, Scalar{-20}, Scalar{40}});
     fail(test, profile, bad, Status::non_finite_result);
     bad = baseline;
@@ -493,6 +535,7 @@ template <typename Linalg, typename Configuration> void failures(Context & test,
             }
         }
     }
+
     auto endpoint = baseline;
     endpoint.minimum_horizontal = std::numeric_limits<Scalar>::min();
     endpoint.minimum_norm = Scalar{1};
@@ -501,6 +544,7 @@ template <typename Linalg, typename Configuration> void failures(Context & test,
     typename F::Q endpoint_delta;
     test.expect(endpoint.apply(endpoint_state, endpoint_P, endpoint_delta) == Status::success, profile,
                 "positive-normal horizontal endpoint and normalization bound one are valid for identity prior");
+
     // The indefinite prior above deliberately violates the PSD success premise;
     // it exercises an explicit negative computed attitude variance guard, not PSD repair.
     Scalar const tiny =
@@ -509,23 +553,28 @@ template <typename Linalg, typename Configuration> void failures(Context & test,
     test.expect(F::Q::from_coefficients(tiny * Scalar{0.875}, Scalar{0}, Scalar{0}, Scalar{0},
                                         std::numeric_limits<Scalar>::min(), bad.state.q_nb) == Status::success,
                 profile, "public shrinking quaternion witness");
+
     for (unsigned step = 0; step < 32 && bad.state.q_nb.q0() != Scalar{0}; ++step)
     {
         bad.state.q_nb = bad.state.q_nb * bad.state.q_nb;
     }
+
     fail(test, profile, bad, Status::zero_or_unsafe_divisor);
     test.expect(F::Q::from_coefficients(tiny * Scalar{0.875}, Scalar{0}, Scalar{0}, Scalar{0},
                                         std::numeric_limits<Scalar>::min(), bad.state.q_nb) == Status::success,
                 profile, "finite subunit prior survives field geometry before normalization failure");
+
     bad.minimum_norm = Scalar{1};
     fail(test, profile, bad, Status::invalid_quaternion_norm);
     test.expect(F::Q::from_coefficients(tiny, tiny / Scalar{2}, Scalar{0}, Scalar{0},
                                         std::numeric_limits<Scalar>::min(), bad.state.q_nb) == Status::success,
                 profile, "public growing quaternion witness");
+
     for (unsigned step = 0; step < 32 && formal_eskf::linalg::all_finite(bad.state.q_nb.coefficients()); ++step)
     {
         bad.state.q_nb = bad.state.q_nb * bad.state.q_nb;
     }
+
     fail(test, profile, bad, Status::non_finite_input);
     // StandardMath internal trig/sqrt failures remain scalar-boundary evidence;
     // no private-state fixture or modified production provider is introduced.
@@ -545,9 +594,11 @@ template <typename Linalg, typename Configuration> void repeated(Context & test,
         typename F::Q delta;
         auto const sample = fixture.sample, field = fixture.field;
         test.expect(fixture.apply(output, P, delta) == Status::success, profile, "repeated public reset succeeds");
+
         compare(test, profile, fixture, expected, output, P, delta);
         test.expect(same(fixture.sample, sample) && same(fixture.field, field), profile,
                     "reset borrows field data without consuming or changing it");
+
         if (count == 1)
         {
             test.expect(std::abs(delta.q1()) <= Scalar{64} * std::numeric_limits<Scalar>::epsilon() &&
@@ -556,11 +607,13 @@ template <typename Linalg, typename Configuration> void repeated(Context & test,
                         profile,
                         "second heading delta is numerically zero, without asserting covariance bitwise idempotence");
         }
+
         fixture.state = output;
         fixture.P = P;
     }
 }
 } /* end namespace */
+
 int main(int argc, char ** argv)
 {
     formal_eskf::test::configure_backend_test();

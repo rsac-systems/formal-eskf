@@ -24,6 +24,7 @@ using Scalar = float;
 struct FixedArray
 {
     using value_type = Scalar;
+
     template <std::size_t Rows, std::size_t Columns> struct storage_type
     {
         Scalar value[Rows * Columns];

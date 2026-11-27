@@ -21,26 +21,33 @@ using Vector = formal_eskf::linalg::Vector<Backend, 3>;
 using Vector2 = formal_eskf::linalg::Vector<Backend, 2>;
 using Quaternion = formal_eskf::so3::UnitQuaternion<Backend>;
 static_assert(sizeof(Backend::value_type) == sizeof(double));
+
 bool same(Vector const & a, Vector const & b) { return contract_proof::same_vector(a, b); }
+
 bool same(Quaternion const & a, Quaternion const & b)
 {
     return contract_proof::same_vector(a.coefficients(), b.coefficients());
 }
+
 struct Body
 {
     Vector position_n{}, velocity_n{};
 };
+
 struct Output
 {
     struct Sample
     {
         std::uint64_t time_us{};
     } sample;
+
     bool called{}, success{};
     Quaternion const * rotation{};
     Vector const * velocity{};
     Vector const * position{};
+
     Sample const & current() const { return sample; }
+
     bool apply_reset(Quaternion const & q, Vector const & v, Vector const & p)
     {
         __ESBMC_assert(!called && &q == rotation && &v == velocity && &p == position,
@@ -49,6 +56,7 @@ struct Output
         return success;
     }
 };
+
 struct Reporting
 {
     unsigned calls{};
@@ -56,24 +64,28 @@ struct Reporting
     Vector2 position;
     Vector velocity;
     double height{}, vertical_velocity{};
+
     void record_position(std::uint64_t time, Vector2 const & value)
     {
         __ESBMC_assert(calls == 0 && time == expected_epoch, "Body-point XY report uses the delayed reset epoch");
         ++calls;
         position = value;
     }
+
     void record_height(std::uint64_t time, double value, std::uint8_t count)
     {
         __ESBMC_assert(calls == 1 && time == expected_epoch && count == 1, "Body-point height reset is counted once");
         ++calls;
         height = value;
     }
+
     void record_velocity(std::uint64_t time, Vector const & value)
     {
         __ESBMC_assert(calls == 2 && time == expected_epoch, "Body-point velocity report follows position reports");
         ++calls;
         velocity = value;
     }
+
     void record_vertical_velocity(std::uint64_t time, double value)
     {
         __ESBMC_assert(calls == 3 && time == expected_epoch, "Body-point Down velocity uses the same reset epoch");
@@ -81,6 +93,7 @@ struct Reporting
         vertical_velocity = value;
     }
 };
+
 struct Flow
 {
     using quaternion_type = Quaternion;
@@ -91,11 +104,14 @@ struct Flow
     bool m_fault{};
     unsigned m_errors{}, conversions{};
     std::uint64_t m_time_us{};
+
     struct Positions
     {
         Vector imu_b;
     } m_sensor_positions;
+
     Body before, after;
+
     Body body_output()
     {
         ++conversions;
@@ -107,9 +123,11 @@ struct Flow
         __ESBMC_assert(m_output.success && conversions == 2, "Second body conversion requires successful output reset");
         return after;
     }
+
     bool check_timing(bool succeeded);
     bool reset_output(Quaternion const & q, Vector const & v, Vector const & p);
 };
+
 #include "module_reset.inc"
 
 Vector symbolic_vector() { return Vector::from_row_major({nondet_double(), nondet_double(), nondet_double()}); }

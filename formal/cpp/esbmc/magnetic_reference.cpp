@@ -28,15 +28,18 @@ using Sample = Reference::Sample;
 using State = Reference::State;
 using Vector = Reference::vector_type;
 using Pair = formal_eskf::scalar::SinCos<Scalar>;
+
 inline bool same_sample(Sample const & a, Sample const & b)
 {
     return same(a.declination, b.declination) && same(a.inclination, b.inclination) && same(a.strength, b.strength);
 }
+
 inline bool same_state(State const & a, State const & b)
 {
     return same_sample(a.model, b.model) && same_vector(a.field_n, b.field_n) && a.reference_id == b.reference_id &&
            a.last_check_time_us == b.last_check_time_us;
 }
+
 inline Status sample_status(Sample const & sample)
 {
     constexpr Scalar pi = std::numbers::pi_v<Scalar>;
@@ -44,19 +47,23 @@ inline Status sample_status(Sample const & sample)
     {
         return Status::non_finite_input;
     }
+
     if (sample.declination < -pi || sample.declination > pi || sample.inclination < -pi / Scalar{2} ||
         sample.inclination > pi / Scalar{2} || sample.strength < std::numeric_limits<Scalar>::min())
     {
         return Status::domain_error;
     }
+
     return Status::success;
 }
+
 inline Status pair_status(Scalar angle, Pair pair)
 {
     return !std::isfinite(angle)                                      ? Status::non_finite_input
            : !std::isfinite(pair.sine) || !std::isfinite(pair.cosine) ? Status::non_finite_result
                                                                       : Status::success;
 }
+
 struct Calls
 {
     inline static Sample sample;
@@ -77,14 +84,17 @@ inline Status sin_cos<reference_proof::OpaqueMath>(reference_proof::Scalar angle
 {
     using namespace reference_proof;
     __ESBMC_assert(Calls::trig < 2U, "R-MAGNETIC-REFERENCE: at most declination and inclination trigonometry");
+
     bool const first = Calls::trig++ == 0U;
     __ESBMC_assert(same(angle, first ? Calls::sample.declination : Calls::sample.inclination),
                    "R-MAGNETIC-REFERENCE: declination then inclination reach checked sin/cos unchanged");
+
     Pair const pair{first ? Calls::declination.sine : Calls::inclination.sine,
                     first ? Calls::declination.cosine : Calls::inclination.cosine};
 #if FORMAL_ESKF_PROOF_MAG_REFERENCE_CONTRACT == 3
     __ESBMC_assert(pair_status(angle, pair) == Status::success,
                    "R-MAGNETIC-REFERENCE: numeric path discharges successful trig domain");
+
     output = pair;
     return Status::success;
 #else
@@ -93,6 +103,7 @@ inline Status sin_cos<reference_proof::OpaqueMath>(reference_proof::Scalar angle
     {
         output = pair;
     }
+
     return status;
 #endif
 }
@@ -110,16 +121,19 @@ template <> inline Status MagneticReference<reference_proof::Linalg>::adopt(refe
                        same_state(m_state, Calls::before->m_state) &&
                        m_update_time_us == Calls::before->m_update_time_us,
                    "R-MAGNETIC-REFERENCE: adoption receives original sample and unchanged owner history once");
+
     if (m_state.reference_id == std::numeric_limits<std::uint32_t>::max())
     {
         return Status::out_of_range;
     }
+
     if (Calls::status == Status::success)
     {
         m_state.model = sample;
         m_state.field_n = Calls::field;
         ++m_state.reference_id;
     }
+
     return Calls::status;
 }
 } // namespace formal_eskf::runtime
@@ -128,6 +142,7 @@ void verify_reference_trig(reference_proof::Scalar angle, reference_proof::Pair 
 {
     using namespace reference_proof;
     __ESBMC_assert(FORMAL_ESKF_PROOF_MAG_REFERENCE_CONTRACT == 0, "Runner error: check actual scalar producer");
+
     auto const before = output;
     OpaqueMath::prepare(Scalar{0}, pair.sine, pair.cosine, Scalar{0});
     auto const actual = formal_eskf::scalar::sin_cos<OpaqueMath>(angle, output);
@@ -135,11 +150,13 @@ void verify_reference_trig(reference_proof::Scalar angle, reference_proof::Pair 
     __ESBMC_assert(actual == expected && same(output.sine, actual == Status::success ? pair.sine : before.sine) &&
                        same(output.cosine, actual == Status::success ? pair.cosine : before.cosine),
                    "R-MAGNETIC-REFERENCE: actual trig wrapper status and two-coefficient atomic publication");
+
     unsigned const count = std::isfinite(angle) ? 1U : 0U;
     __ESBMC_assert(OpaqueMath::sin.calls == count && OpaqueMath::cos.calls == count &&
                        (!count || (same(OpaqueMath::sin.argument, angle) && same(OpaqueMath::cos.argument, angle))),
                    "R-MAGNETIC-REFERENCE: validated angle reaches each primitive exactly once");
 }
+
 void verify_reference_initialization(reference_proof::Reference reference)
 {
     using namespace reference_proof;
@@ -147,12 +164,15 @@ void verify_reference_initialization(reference_proof::Reference reference)
     State zero;
     __ESBMC_assert(same_state(fresh.state(), zero) && fresh.m_update_time_us == 0U,
                    "R-MAGNETIC-REFERENCE: construction establishes empty reference, revision and both clocks");
+
     reference.reset();
     __ESBMC_assert(same_state(reference.state(), zero) && reference.m_update_time_us == 0U,
                    "R-MAGNETIC-REFERENCE: reset discards every state field and both clocks");
+
     auto const & state = reference.state();
     __ESBMC_assert(&state == &reference.m_state, "R-MAGNETIC-REFERENCE: accessor refers to owned state");
 }
+
 void verify_reference_validation(reference_proof::Sample sample)
 {
     using namespace reference_proof;
@@ -160,6 +180,7 @@ void verify_reference_validation(reference_proof::Sample sample)
     __ESBMC_assert(Reference::validate_sample(sample) == sample_status(sample) && same_sample(sample, before),
                    "R-MAGNETIC-REFERENCE: exact finite, angular and positive-normal strength domain with input purity");
 }
+
 // This producer establishes atomic finite-field and failure-status contracts.
 // Successful scalar paths compose with verify_reference_coefficients below.
 void verify_reference_adoption_frame(reference_proof::Reference reference, reference_proof::Sample sample,
@@ -168,6 +189,7 @@ void verify_reference_adoption_frame(reference_proof::Reference reference, refer
     using namespace reference_proof;
     __ESBMC_assert(FORMAL_ESKF_PROOF_MAG_REFERENCE_CONTRACT == 1,
                    "Runner error: adoption frame uses proved checked trig");
+
     auto const before = reference;
     auto const old_sample = sample;
     Calls::sample = sample;
@@ -180,6 +202,7 @@ void verify_reference_adoption_frame(reference_proof::Reference reference, refer
         __ESBMC_assert(actual == Status::out_of_range && Calls::trig == 0U,
                        "R-MAGNETIC-REFERENCE: saturated revision rejects before any numerical call");
     }
+
     auto const first = pair_status(sample.declination, declination),
                second = pair_status(sample.inclination, inclination);
     if (before.m_state.reference_id != std::numeric_limits<std::uint32_t>::max())
@@ -189,6 +212,7 @@ void verify_reference_adoption_frame(reference_proof::Reference reference, refer
                 (first != Status::success || second == Status::success || actual == second),
             "R-MAGNETIC-REFERENCE: both checked-trig failures propagate without later evaluation or publication");
     }
+
     if (actual == Status::success)
     {
         __ESBMC_assert(same_sample(reference.m_state.model, sample) && finite_vector(reference.m_state.field_n) &&
@@ -202,16 +226,19 @@ void verify_reference_adoption_frame(reference_proof::Reference reference, refer
         __ESBMC_assert(same_state(reference.m_state, before.m_state),
                        "R-MAGNETIC-REFERENCE: every failed adoption preserves the entire prior reference");
     }
+
     __ESBMC_assert(reference.m_state.last_check_time_us == before.m_state.last_check_time_us &&
                        reference.m_update_time_us == before.m_update_time_us && same_sample(sample, old_sample),
                    "R-MAGNETIC-REFERENCE: adoption leaves both clocks and the borrowed model unchanged");
 }
+
 void verify_reference_coefficients(reference_proof::Reference reference, reference_proof::Sample sample,
                                    reference_proof::Pair declination, reference_proof::Pair inclination)
 {
     using namespace reference_proof;
     __ESBMC_assert(FORMAL_ESKF_PROOF_MAG_REFERENCE_CONTRACT == 3,
                    "Runner error: numeric branch composes successful trig path");
+
     // Exact successful-wrapper preconditions, proved by verify_reference_trig.
     // Failure frames/statuses belong to verify_reference_adoption_frame.
     __ESBMC_assume(pair_status(sample.declination, declination) == Status::success &&
@@ -235,6 +262,7 @@ void verify_reference_coefficients(reference_proof::Reference reference, referen
     __ESBMC_assert(result != Status::success || same_vector(reference.m_state.field_n, field),
                    "R-MAGNETIC-REFERENCE: all three NED coefficients retain exact ordered IEEE products");
 }
+
 void verify_reference_update(reference_proof::Reference reference, std::uint64_t now, reference_proof::Sample sample,
                              bool position_valid, bool origin_updated, reference_proof::Status adoption_status,
                              reference_proof::Vector field)
@@ -242,6 +270,7 @@ void verify_reference_update(reference_proof::Reference reference, std::uint64_t
     using namespace reference_proof;
     __ESBMC_assert(FORMAL_ESKF_PROOF_MAG_REFERENCE_CONTRACT == 2,
                    "Runner error: update requires actual validation and proved adoption frame");
+
     // Base is construction/reset. Every successful update establishes these
     // field/clock facts; every failure preserves them. No bounded trace premise.
     __ESBMC_assume(reference.m_state.last_check_time_us <= reference.m_update_time_us &&
@@ -278,6 +307,7 @@ void verify_reference_update(reference_proof::Reference reference, std::uint64_t
         result.status == expected && result.checked == checked &&
             result.changed == (adopt && expected == Status::success) && Calls::adoptions == (adopt ? 1U : 0U),
         "R-MAGNETIC-REFERENCE: exact clock/position/origin admission, strict change thresholds and adoption outcome");
+
     State state = before.m_state;
     if (expected == Status::success && checked)
     {
@@ -289,6 +319,7 @@ void verify_reference_update(reference_proof::Reference reference, std::uint64_t
             ++state.reference_id;
         }
     }
+
     __ESBMC_assert(
         same_state(reference.m_state, state) &&
             reference.m_update_time_us == (expected == Status::success ? now : before.m_update_time_us),
@@ -301,4 +332,5 @@ void verify_reference_update(reference_proof::Reference reference, std::uint64_t
     __ESBMC_assert(reference.m_state.reference_id >= before.m_state.reference_id && same_sample(sample, old_sample),
                    "R-MAGNETIC-REFERENCE: revision never wraps and sample remains unchanged");
 }
+
 int main() { return 0; }

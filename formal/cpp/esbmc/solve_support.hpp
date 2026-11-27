@@ -57,6 +57,7 @@ struct Math : formal_eskf::scalar::StandardMath<Scalar>
         ScalarArray<Scalar, 3U> results;
         unsigned calls;
         Scalar argument;
+
         Scalar operator()(Scalar value)
         {
             __ESBMC_assert(calls < (observe_pivots ? size : 3U), "scalar root: bounded return sequence");
@@ -74,6 +75,7 @@ struct Math : formal_eskf::scalar::StandardMath<Scalar>
             return result;
         }
     };
+
     inline static Roots sqrt{};
 
     struct Angles
@@ -81,6 +83,7 @@ struct Math : formal_eskf::scalar::StandardMath<Scalar>
         ScalarArray<Scalar, 3U> results;
         unsigned calls;
         Scalar y, x;
+
         Scalar operator()(Scalar input_y, Scalar input_x)
         {
             if (observe_pivots)
@@ -93,8 +96,10 @@ struct Math : formal_eskf::scalar::StandardMath<Scalar>
             return results[calls++];
         }
     };
+
     inline static Angles atan2{};
 };
+
 class Backend
     : public formal_eskf::verification::FixedArrayLinalg<Scalar, formal_eskf::verification::NoNormObserver<Scalar>,
                                                          Math>
@@ -107,6 +112,7 @@ public:
         return formal_eskf::linalg::Cholesky<Backend>::template solve<Size, Columns>(system, rhs, output);
     }
 };
+
 using Kernel = formal_eskf::linalg::Cholesky<Backend>;
 using Factor = Backend::storage_type<size, size>;
 using Right = Backend::storage_type<size, columns>;

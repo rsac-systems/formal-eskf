@@ -17,6 +17,7 @@ namespace
 {
 namespace profile = formal_eskf::px4::profile;
 using Timing = formal_eskf::runtime::TimingParameters;
+
 struct Services
 {
     bool parameter_ok[6]{};
@@ -36,6 +37,7 @@ int param_find(char const * name)
                    "Startup reads each timing/gravity setting from its declared PX4 parameter");
     return int(services.parameter_reads);
 }
+
 int param_get(int id, std::int32_t * output)
 {
     __ESBMC_assert(id == int(services.parameter_reads) && id >= 0 && id < 6,
@@ -44,29 +46,34 @@ int param_get(int id, std::int32_t * output)
     ++services.parameter_reads;
     return services.parameter_ok[id] ? 0 : -1;
 }
+
 int module_mutex_init(unsigned *, void const *)
 {
     services.mutex_called = true;
     return services.mutex_ok ? 0 : -1;
 }
+
 std::uint64_t hrt_absolute_time() { return services.clock; }
 
 struct Owner
 {
     unsigned identity{};
     bool configured{};
+
     bool configure(Timing const & timing, formal_eskf::runtime::ImuTiming const & limits)
     {
         __ESBMC_assert(identity == 0 && &limits == &profile::history::timing,
                        "IMU startup receives the deployment timing bounds");
         return configure(timing);
     }
+
     bool configure(Timing const & timing, std::size_t capacity)
     {
         __ESBMC_assert(identity == 1 && capacity == profile::history::imu_capacity,
                        "Observation startup receives the actual IMU capacity");
         return configure(timing);
     }
+
     bool configure(Timing const & timing)
     {
         __ESBMC_assert(services.parameter_reads == 5 && services.configuration_calls == identity,
@@ -81,6 +88,7 @@ struct Owner
         return configured;
     }
 };
+
 struct Flow
 {
     bool m_diagnostics_ready{}, m_gravity_enabled{};
@@ -88,6 +96,7 @@ struct Flow
     unsigned perf{};
     unsigned *m_cycle_perf{}, *m_output_perf{}, *m_fusion_perf{};
     Owner m_imu_history{0}, m_observations{1}, m_output{2};
+
     struct Subscription
     {
         bool registerCallback()
@@ -100,11 +109,13 @@ struct Flow
             return services.callback_ok;
         }
     } m_imu_sub;
+
     bool load_magnetic_parameters()
     {
         services.magnetic_called = true;
         return services.magnetic_ok;
     }
+
     bool load_sensor_positions()
     {
         __ESBMC_assert(services.magnetic_called && services.magnetic_ok,
@@ -112,6 +123,7 @@ struct Flow
         services.positions_called = true;
         return services.sensor_positions_ok;
     }
+
     bool prepare_publications()
     {
         __ESBMC_assert(services.positions_called && services.sensor_positions_ok,
@@ -119,6 +131,7 @@ struct Flow
         services.prepared = true;
         return services.publications_ok;
     }
+
     void update_diagnostics(std::uint64_t now)
     {
         __ESBMC_assert(m_diagnostics_ready && services.prepared && services.publications_ok &&
@@ -126,16 +139,19 @@ struct Flow
                        "Initial diagnostic snapshot is complete before callback registration");
         services.snapshot = true;
     }
+
     void ScheduleNow()
     {
         __ESBMC_assert(services.callback_called && services.callback_ok,
                        "Immediate scheduling requires callback registration");
         services.scheduled = true;
     }
+
     bool load_timing_parameters();
     bool load_startup_parameters();
     bool init();
 };
+
 #define pthread_mutex_init module_mutex_init
 #include "module_startup.inc"
 #undef pthread_mutex_init

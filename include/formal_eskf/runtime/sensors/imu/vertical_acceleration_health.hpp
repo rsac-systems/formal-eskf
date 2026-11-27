@@ -70,6 +70,7 @@ public:
 
     /** Also required when restarting after missing IMU data or changing source/calibration/frame. */
     void reset() { m_state = {}; }
+
     State const & state() const { return m_state; }
 
     /**
@@ -95,12 +96,15 @@ template <typename Linalg>
 Status VerticalAccelerationHealth<Linalg>::falling_likelihood(Observations const & observations, Likelihood & output)
 {
     using math_type = typename Linalg::scalar_math_type;
+
     struct Evidence
     {
         bool above_minimum = false;
         bool above_limit = false;
     };
+
     Evidence pressure, gnss, ground;
+
     struct Check
     {
         // Every Check aggregate below explicitly binds both references.
@@ -108,6 +112,7 @@ Status VerticalAccelerationHealth<Linalg>::falling_likelihood(Observations const
         Innovation const & observation;
         Evidence & reference;
     };
+
     // Pair each source with its reference directly; this order also determines
     // the first reported failure. Validate every active source before deciding.
     std::array<Check, 6U> const checks{{{observations.barometer_height, pressure},

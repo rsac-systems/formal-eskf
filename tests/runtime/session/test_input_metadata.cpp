@@ -4,6 +4,7 @@
 namespace
 {
 using namespace ins_test;
+
 void clipping_availability(Context & test, std::string_view profile)
 {
     Fixture f;
@@ -73,6 +74,7 @@ void clipping_availability(Context & test, std::string_view profile)
                 profile, "unknown metadata must use the explicit zero fallback, not contradictory clipping bits");
 }
 } // namespace
+
 int main(int argc, char ** argv)
 {
     formal_eskf::test::configure_backend_test();

@@ -27,6 +27,7 @@ struct InsCapabilities
         magnetic_north,
         true_north
     };
+
     struct Capability
     {
         bool available{};
@@ -34,6 +35,7 @@ struct InsCapabilities
         std::uint64_t aiding_time_us{};
         std::uint32_t reasons{};
     };
+
     std::uint64_t session_epoch_us{}, frame_epoch{}, output_time_us{}, covariance_time_us{};
     std::uint64_t gnss_generation{}, magnetic_generation{}, barometer_generation{};
     bool seeded{}, tilt_aligned{}, history_ready{}, geographic_attached{};

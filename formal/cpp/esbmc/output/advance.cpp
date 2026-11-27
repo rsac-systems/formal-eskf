@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "frames.hpp"
+
 namespace
 {
 using namespace output_proof;
@@ -11,6 +12,7 @@ formal_eskf::ImuSample<Backend> expected_imu;
 Scalar expected_dt;
 unsigned calls;
 } // namespace
+
 namespace formal_eskf
 {
 template <>
@@ -56,6 +58,7 @@ Status predict_nominal(output_proof::State const & state, ImuSample<output_proof
     return returned_status;
 }
 } // namespace formal_eskf
+
 void verify_output_advance(output_proof::Output input_owner, output_proof::Sample sample,
                            formal_eskf::ImuSample<output_proof::Backend> imu, output_proof::Scalar dt,
                            output_proof::State candidate, formal_eskf::Status status)

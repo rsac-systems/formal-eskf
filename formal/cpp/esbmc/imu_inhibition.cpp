@@ -49,8 +49,10 @@ bool same_matrix(Matrix3 const & a, Matrix3 const & b)
             equal = same(a(i, j), b(i, j)) && equal;
         }
     }
+
     return equal;
 }
+
 bool finite_matrix(Matrix3 const & a)
 {
     bool finite = true;
@@ -61,20 +63,25 @@ bool finite_matrix(Matrix3 const & a)
             finite = std::isfinite(a(i, j)) && finite;
         }
     }
+
     return finite;
 }
+
 bool same_parameters(Policy::Parameters const & a, Policy::Parameters const & b)
 {
     return same(a.maximum_specific_force, b.maximum_specific_force) &&
            same(a.maximum_angular_rate, b.maximum_angular_rate) && same(a.decay_time_constant, b.decay_time_constant) &&
            a.accelerometer_enabled == b.accelerometer_enabled && a.gyroscope_enabled == b.gyroscope_enabled;
 }
+
 bool same_state(State const & a, State const & b)
 {
     return same_vector(a.q_nb.coefficients(), b.q_nb.coefficients()) && same_vector(a.p_n, b.p_n) &&
            same_vector(a.v_n, b.v_n) && same_vector(a.b_a, b.b_a) && same_vector(a.b_g, b.b_g);
 }
+
 bool valid_peak(Scalar value) { return std::isfinite(value) && value >= Scalar{0}; }
+
 bool permissions_match(Permissions const & result, Policy::Parameters const & parameters, Matrix3 const & rotation,
                        bool high, Policy::Conditions const & conditions)
 {
@@ -91,8 +98,10 @@ bool permissions_match(Permissions const & result, Policy::Parameters const & pa
         valid =
             valid && result.accelerometer[axis] == expected && result.gyroscope[axis] == parameters.gyroscope_enabled;
     }
+
     return valid;
 }
+
 struct Calls
 {
     inline static State state{};
@@ -109,6 +118,7 @@ template <> inline Scalar norm<Linalg, 3U>(Vector3 const & input)
 {
     __ESBMC_assert(Calls::norms < 2U && Calls::rotations == 0U && Calls::peaks == 0U,
                    "IMU inhibition: two corrected magnitudes precede rotation and peak updates");
+
     for (std::size_t i = 0U; i < 3U; ++i)
     {
         if (Calls::norms == 0U)
@@ -122,9 +132,11 @@ template <> inline Scalar norm<Linalg, 3U>(Vector3 const & input)
                            "IMU inhibition: rate subtracts the prior gyro bias exactly once");
         }
     }
+
     return Calls::norms++ == 0U ? Calls::force : Calls::rate;
 }
 } // namespace formal_eskf::linalg
+
 namespace formal_eskf::so3
 {
 template <> inline Matrix3 to_rotation_matrix<Linalg>(Quaternion const & input)
@@ -132,9 +144,11 @@ template <> inline Matrix3 to_rotation_matrix<Linalg>(Quaternion const & input)
     __ESBMC_assert(Calls::norms == 2U && Calls::rotations++ == 0U && Calls::peaks == 0U &&
                        same_vector(input.coefficients(), Calls::state.q_nb.coefficients()),
                    "IMU inhibition: one rotation uses the unchanged prior quaternion");
+
     return Calls::rotation;
 }
 } // namespace formal_eskf::so3
+
 namespace formal_eskf::runtime
 {
 template <>
@@ -144,12 +158,14 @@ inline Scalar ImuBiasInhibition<Linalg>::decayed_peak(Scalar magnitude, Scalar p
                        valid_peak(previous) && std::isfinite(interval) && interval > Scalar{0} &&
                        std::isfinite(m_parameters.decay_time_constant) && m_parameters.decay_time_constant > Scalar{0},
                    "IMU inhibition: caller establishes every peak-producer premise");
+
     bool const force = Calls::peaks++ == 0U;
     __ESBMC_assert(force ? (same(magnitude, Calls::force) && same(previous, Calls::old_force) &&
                             same(interval, Calls::force_interval))
                          : (same(magnitude, Calls::rate) && same(previous, Calls::old_rate) &&
                             same(interval, Calls::rate_interval)),
                    "IMU inhibition: each sensor uses its own prior peak and integration period");
+
     return force ? Calls::force_peak : Calls::rate_peak;
 }
 } // namespace formal_eskf::runtime
@@ -165,6 +181,7 @@ void verify_imu_norm(Vector3 vector, Scalar root)
                        same(result, root) && same_vector(vector, before),
                    "IMU inhibition: actual norm producer, ordered reduction, root boundary and input frame");
 }
+
 void verify_imu_rotation(Quaternion q)
 {
     auto const before = q;
@@ -183,6 +200,7 @@ void verify_imu_rotation(Quaternion q)
     __ESBMC_assert(same_matrix(result, expected) && same_vector(q.coefficients(), before.coefficients()),
                    "IMU inhibition: actual same-backend rotation producer and input frame");
 }
+
 void verify_imu_peak(Policy::Parameters parameters, Scalar previous, Scalar magnitude, Scalar interval)
 {
     __ESBMC_assume(valid_peak(previous) && std::isfinite(magnitude) && std::isfinite(interval) &&
@@ -204,6 +222,7 @@ void verify_imu_peak(Policy::Parameters parameters, Scalar previous, Scalar magn
         __ESBMC_assert(valid_peak(result), "IMU inhibition: inductive finite nonnegative peak");
         __ESBMC_assert(result >= magnitude, "IMU inhibition: peak retains current magnitude");
     }
+
     __ESBMC_assert(same_parameters(policy.m_parameters, parameters), "IMU inhibition: peak preserves parameters");
 }
 #endif
@@ -217,6 +236,7 @@ void verify_imu_max_model(Scalar first, Scalar second, bool alias)
     __ESBMC_assert(same(first, before_first) && same(second, before_second),
                    "IMU max model: preserve both inputs, including signed zero and NaN classification");
 }
+
 void verify_imu_permissions(Policy::Parameters parameters, Matrix3 rotation, bool high, Policy::Conditions conditions)
 {
     Policy policy(parameters);
@@ -237,6 +257,7 @@ void verify_imu_inhibition(Policy::Parameters parameters, Scalar previous_force,
     __ESBMC_assert(same(policy.m_specific_force_peak, Scalar{0}) && same(policy.m_angular_rate_peak, Scalar{0}) &&
                        same_parameters(policy.m_parameters, parameters),
                    "IMU inhibition: constructor establishes base invariant");
+
     __ESBMC_assume(valid_peak(previous_force) && valid_peak(previous_rate));
     policy.m_specific_force_peak = previous_force;
     policy.m_angular_rate_peak = previous_rate;
@@ -276,6 +297,7 @@ void verify_imu_inhibition(Policy::Parameters parameters, Scalar previous_force,
                        Calls::rotations == (finite && domain ? 1U : 0U) &&
                        Calls::peaks == (expected == Status::success ? 2U : 0U),
                    "IMU inhibition: complete input validation, exact delegation order and failure status");
+
     if (expected == Status::success)
     {
         bool const high =
@@ -294,12 +316,14 @@ void verify_imu_inhibition(Policy::Parameters parameters, Scalar previous_force,
                            same(result.specific_force_peak, Scalar{0}) && same(result.angular_rate_peak, Scalar{0}) &&
                            result.high_dynamics,
                        "IMU inhibition: all failures preserve history and return fresh invalid peak diagnostics");
+
         for (std::size_t axis = 0U; axis < 3U; ++axis)
         {
             __ESBMC_assert(!result.bias_update.accelerometer[axis] && !result.bias_update.gyroscope[axis],
                            "IMU inhibition: failure disables every learning permission");
         }
     }
+
     __ESBMC_assert(valid_peak(policy.m_specific_force_peak) && valid_peak(policy.m_angular_rate_peak),
                    "IMU inhibition: every public update preserves the inductive peak invariant");
     __ESBMC_assert(same_state(state, old_state) && same_vector(imu.specific_force_b, old_imu.specific_force_b) &&

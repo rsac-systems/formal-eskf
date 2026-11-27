@@ -43,6 +43,7 @@ template <typename Backend> void integration(Context & test, std::string_view pr
     imu = {};
     imu.specific_force_b(0) = Scalar{1};
     test.expect(!sampler.update(imu, 5000, 0, minimum_norm).ready, profile, "first interval retained");
+
     imu.specific_force_b = {};
     imu.angular_rate_b(2) = std::numbers::pi_v<Scalar> * Scalar{100};
     auto const transported = sampler.update(imu, 5000, 0, minimum_norm);
@@ -55,6 +56,7 @@ template <typename Backend> void integration(Context & test, std::string_view pr
     sampler.reset();
     imu = {};
     test.expect(!sampler.update(imu, 5000, 0, minimum_norm).ready, profile, "zero initial increment");
+
     imu.specific_force_b(0) = Scalar{1};
     imu.angular_rate_b(2) = std::numbers::pi_v<Scalar> * Scalar{100};
     auto const trapezoid = sampler.update(imu, 5000, 0, minimum_norm);
@@ -66,10 +68,12 @@ template <typename Backend> void integration(Context & test, std::string_view pr
     imu = {};
     imu.specific_force_b(0) = Scalar{1};
     test.expect(!sampler.update(imu, 2500, 0, minimum_norm).ready, profile, "noncommuting sequence starts partial");
+
     imu = {};
     imu.specific_force_b(1) = Scalar{1};
     imu.angular_rate_b(2) = std::numbers::pi_v<Scalar> * Scalar{200};
     test.expect(!sampler.update(imu, 2500, 0, minimum_norm).ready, profile, "minimum-period equality remains partial");
+
     imu = {};
     imu.specific_force_b(2) = Scalar{1};
     imu.angular_rate_b(0) = std::numbers::pi_v<Scalar> * Scalar{200};
@@ -77,6 +81,7 @@ template <typename Backend> void integration(Context & test, std::string_view pr
     // Signed quarter-turn matrices give total increment (1/800,1/800,1/400).
     std::array<Scalar, 3> const expected{Scalar{1} / Scalar{6}, Scalar{1} / Scalar{6}, Scalar{1} / Scalar{3}};
     test.expect(noncommuting.ready && noncommuting.interval_us == 7500, profile, "actual three-sample duration");
+
     for (std::size_t axis = 0; axis < 3; ++axis)
     {
         test.expect(std::abs(noncommuting.specific_force_b(axis) - expected[axis]) <= rotation_bound, profile,
@@ -87,6 +92,7 @@ template <typename Backend> void integration(Context & test, std::string_view pr
     imu = {};
     imu.specific_force_b(2) = Scalar{-8};
     test.expect(!sampler.update(imu, 2000, 0, minimum_norm).ready, profile, "unequal-period average starts partial");
+
     imu.specific_force_b(2) = Scalar{-12};
     auto const weighted = sampler.update(imu, 9000, 0, minimum_norm);
     Scalar const exact_average = Scalar{-124} / Scalar{11};
@@ -123,17 +129,20 @@ template <typename Backend> void timing(Context & test, std::string_view profile
             auto const result = sampler.update(imu, period, 0, Scalar{0.125});
             test.expect(result.status == Status::success && result.ready == expected_ready, profile,
                         "250/400/100 Hz and variable-period schedules follow the independent completion ledger");
+
             if (expected_ready)
             {
                 test.expect(result.interval_us == duration && result.clipping_mask == 0 &&
                                 result.magnitude.squared_norm == Scalar{0},
                             profile, "one emitted interval contains every actual input exactly once");
+
                 emitted_us += duration;
             }
             else
             {
                 test.expect(result.interval_us == 0, profile, "partial result publishes no interval");
             }
+
             average_us = average_us + 0.1 * (static_cast<double>(period) - average_us);
             if (expected_ready)
             {
@@ -144,9 +153,11 @@ template <typename Backend> void timing(Context & test, std::string_view profile
                 count = 0;
                 duration = 0;
             }
+
             test.expect(emitted_us + duration == input_us, profile, "no split, overlap, duplicate or implicit flush");
         }
     }
+
     for (auto const periods : {std::array<std::uint64_t, 2>{10000, 1}, std::array<std::uint64_t, 2>{5000, 1},
                                std::array<std::uint64_t, 2>{5000, 5000}})
     {
@@ -156,6 +167,7 @@ template <typename Backend> void timing(Context & test, std::string_view profile
         test.expect(!first.ready && second.ready && second.interval_us == periods[0] + periods[1], profile,
                     "strict initial minimum/target equality and first real increment above it");
     }
+
     Sampler<Backend> slow;
     auto const result = slow.update(imu, 50000, 0, Scalar{0.125});
     test.expect(result.status == Status::success && result.ready && result.interval_us == 50000, profile,
@@ -173,11 +185,13 @@ template <typename Backend> void clipping(Context & test, std::string_view profi
             Sampler<Backend> sampler;
             test.expect(!sampler.update(imu, 5000, first, Scalar{0.125}).ready, profile,
                         "mask interval starts partial");
+
             auto const result = sampler.update(imu, 5000, second, Scalar{0.125});
             int const expected = first == -1 || second == -1 ? -1 : first | second;
             test.expect(result.status == Status::success && result.ready && result.clipping_mask == expected, profile,
                         "all 81 mask pairs preserve unknown or OR known body-axis flags");
             test.expect(!sampler.update(imu, 5000, 0, Scalar{0.125}).ready, profile, "next interval is independent");
+
             auto const clear = sampler.update(imu, 5000, 0, Scalar{0.125});
             test.expect(clear.ready && clear.clipping_mask == 0, profile, "unknown/clip flags clear at emission");
         }
@@ -216,6 +230,7 @@ template <typename Backend> void failures(Context & test, std::string_view profi
             test.expect(baseline.update(imu, 5000, 1, Scalar{0.125}).status == Status::success, profile,
                         "reachable sampler prefix");
         }
+
         for (auto fault : faults)
         {
             for (std::size_t axis = 0; axis < 3; ++axis)
@@ -276,6 +291,7 @@ template <typename Backend> void failures(Context & test, std::string_view profi
                     expected = Status::non_finite_input;
                     break;
                 }
+
                 auto const old_force = bad.specific_force_b;
                 auto const old_rate = bad.angular_rate_b;
                 auto const rejected = sampler.update(bad, period, mask, minimum);
@@ -291,8 +307,10 @@ template <typename Backend> void failures(Context & test, std::string_view profi
                                 profile,
                                 "failing update preserves borrowed coefficients, excluding unspecified NaN payloads");
                 }
+
                 test.expect(rejected.status == expected && !rejected.ready && rejected.interval_us == 0, profile,
                             "invalid input/domain/arithmetic does not publish or consume a sample");
+
                 for (auto next_period : {4000U, 9000U, 1U, 5000U})
                 {
                     auto const actual = sampler.update(imu, next_period, 2, Scalar{0.125});
@@ -305,6 +323,7 @@ template <typename Backend> void failures(Context & test, std::string_view profi
                                     actual.magnitude.within_gravity_band == wanted.magnitude.within_gravity_band,
                                 profile,
                                 "common continuation checks timing, interval, clipping and magnitude history rollback");
+
                     for (std::size_t component = 0; component < 3; ++component)
                     {
                         test.expect(actual.specific_force_b(component) == wanted.specific_force_b(component), profile,
@@ -325,10 +344,12 @@ template <typename Backend> void reset_and_downstream(Context & test, std::strin
     auto const first = sampler.update(imu, 50000, 7, Scalar{0.125});
     test.expect(first.ready && first.magnitude.squared_norm == Scalar{64}, profile,
                 "first emission seeds LPF from actual force");
+
     formal_eskf::runtime::AccelerometerFusionConditions disabled{};
     auto const condition =
         formal_eskf::runtime::check_accelerometer_fusion_conditions<Backend>(disabled, first.magnitude);
     test.expect(!condition.active && !condition.sample_eligible, profile, "disabled fusion does not undo sampling");
+
     imu.specific_force_b(2) = Scalar{-16};
     auto const second = sampler.update(imu, 50000, -1, Scalar{0.125});
     Scalar const alpha = static_cast<Scalar>(0.010) / (static_cast<Scalar>(0.090) + static_cast<Scalar>(0.010));
@@ -337,6 +358,7 @@ template <typename Backend> void reset_and_downstream(Context & test, std::strin
                     second.magnitude.squared_norm == filtered * filtered,
                 profile, "raw average remains distinct; magnitude updates once even after disabled fusion");
     test.expect(!sampler.update(imu, 1, 7, Scalar{0.125}).ready, profile, "leave old-source partial interval");
+
     sampler.reset();
     Sampler<Backend> fresh;
     imu.specific_force_b(2) = Scalar{-4};
@@ -349,6 +371,7 @@ template <typename Backend> void reset_and_downstream(Context & test, std::strin
                         result.clipping_mask == reference.clipping_mask &&
                         result.magnitude.squared_norm == reference.magnitude.squared_norm,
                     profile, "explicit gap/source/calibration reset clears cadence, partial data, mask and LPF");
+
         if (result.ready)
         {
             test.expect(result.specific_force_b(2) == Scalar{-4} && result.clipping_mask == 0 &&

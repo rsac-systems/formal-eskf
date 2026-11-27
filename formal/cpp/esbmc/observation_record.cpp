@@ -9,6 +9,7 @@ using observation_proof::same_land;
 using observation_proof::same_timeline;
 using observation_proof::same_vehicle;
 using Context = Observations::Context;
+
 namespace
 {
 Context expected_record;
@@ -40,6 +41,7 @@ Context formal_eskf::runtime::ObservationHistory<imu_proof::Backend, 16, 64, 128
     ++snapshots;
     return expected_record;
 }
+
 template <> void formal_eskf::runtime::RingBuffer<Context, 128>::push(Context const & record)
 {
     check_metadata();

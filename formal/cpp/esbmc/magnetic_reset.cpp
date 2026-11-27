@@ -25,11 +25,13 @@ using Matrix = formal_eskf::linalg::Matrix<Linalg, size, size>;
 using Matrix3 = formal_eskf::linalg::Matrix<Linalg, 3U, 3U>;
 using Cross = formal_eskf::linalg::Matrix<Linalg, 3U, size>;
 using Vector = contract_proof::Vector3;
+
 struct ResetTerms
 {
     Scalar attitude[9]{};
     Scalar cross[3 * size]{};
 };
+
 // Independent row-major scalar oracle. Flat oracle arrays avoid repeatedly
 // expanding named production covariance access; the actual body is unchanged.
 inline ResetTerms covariance_terms(Scalar const * P, Matrix3 const & before, Matrix3 const & after, Scalar variance)
@@ -95,6 +97,7 @@ inline ResetTerms covariance_terms(Scalar const * P, Matrix3 const & before, Mat
     return result;
 }
 } // namespace magnetic_reset_proof
+
 void verify_magnetic_reset_covariance(magnetic_reset_proof::Matrix covariance, magnetic_reset_proof::Matrix3 before,
                                       magnetic_reset_proof::Matrix3 after, magnetic_reset_proof::Scalar variance,
                                       magnetic_reset_proof::Matrix output)
@@ -167,4 +170,5 @@ void verify_magnetic_reset_covariance(magnetic_reset_proof::Matrix covariance, m
     __ESBMC_assert(same_matrix(before, old_before) && same_matrix(after, old_after),
                    "R-MAGNETOMETER-RESET: both rotation inputs remain unchanged");
 }
+
 int main() { return 0; }

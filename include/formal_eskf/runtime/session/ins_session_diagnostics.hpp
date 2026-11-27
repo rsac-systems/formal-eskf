@@ -62,6 +62,7 @@ void InsSession<Linalg, Layout>::record_height(typename height_type::Result cons
         {
             continue;
         }
+
         auto epoch = source == 0 ? evaluation_epoch(m_barometer) : evaluation_epoch(m_gnss.input);
         auto & diagnostic = report(source == 0 ? Group::barometer : Group::gnss_height);
         if (evidence.evaluated)
@@ -72,6 +73,7 @@ void InsSession<Linalg, Layout>::record_height(typename height_type::Result cons
             diagnostic.innovation_limited = evidence.limited;
             diagnostic.fusion_innovation[0] = evidence.fusion_innovation;
         }
+
         if (evidence.reset_attempted)
         {
             diagnostic.record_reset(epoch, evidence.reset_status, committed && succeeded(evidence.reset_status));
@@ -108,6 +110,7 @@ typename InsSession<Linalg, Layout>::Diagnostics InsSession<Linalg, Layout>::dia
             view.covariance_diagonal[axis] = m_covariance(axis, axis);
         }
     }
+
     view.lag_us = view.output_time_us >= m_time_us ? view.output_time_us - m_time_us : 0;
     view.imu_entries = m_imu_history.entries();
     view.imu_capacity = m_imu_history.configuration().imu_length;
@@ -145,6 +148,7 @@ typename InsSession<Linalg, Layout>::Diagnostics InsSession<Linalg, Layout>::dia
         auto const & aid = m_height_aiding.session(i == 0 ? height_type::Source::barometer : height_type::Source::gnss);
         view.height[i] = {aid.active, aid.fault, aid.stop_reason};
     }
+
     view.height_reference = m_height_aiding.reference();
     view.gravity_conditions = m_gravity_conditions;
     view.resets = m_resets;
@@ -158,6 +162,7 @@ typename InsSession<Linalg, Layout>::Diagnostics InsSession<Linalg, Layout>::dia
         view.ground_effect_hold_us = m_settings.height.ground_effect_timeout_us;
         view.ground_effect_deadzone_m = m_height_aiding.ground_effect_deadzone();
     }
+
     return view;
 }
 

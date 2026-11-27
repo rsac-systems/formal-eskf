@@ -190,6 +190,7 @@ void relative_case(Context & test, std::string_view profile)
         relative_height<f::test::Backend<double>>(test);
     }
 }
+
 void reference_case(Context & test, std::string_view profile)
 {
     if (profile == "binary32")

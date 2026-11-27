@@ -28,6 +28,7 @@ struct Management
     Manager manager{height_proof::parameters()};
     Result result;
 };
+
 struct Phase
 {
     Manager manager{height_proof::parameters()};
@@ -35,6 +36,7 @@ struct Phase
     Covariance covariance;
     Result result;
 };
+
 struct Calls
 {
     inline static Management const * admitted = nullptr;
@@ -75,12 +77,14 @@ inline bool HeightAiding<height_process_proof::Backend>::admit(Source selected, 
     __ESBMC_assert(Calls::admissions++ == 0U && selected == source && now == Calls::now &&
                        same_sample(sample, Calls::sample),
                    "Height process: source admission receives the original source, epoch and complete sample");
+
     check_manager(*this, Calls::initial);
     check_result(result, Calls::initial_result);
     *this = Calls::admitted->manager;
     result = Calls::admitted->result;
     return Calls::admit;
 }
+
 template <>
 inline bool HeightAiding<height_process_proof::Backend>::prepare_barometer(Sample const & sample, value_type altitude,
                                                                            Result & result)
@@ -89,6 +93,7 @@ inline bool HeightAiding<height_process_proof::Backend>::prepare_barometer(Sampl
     __ESBMC_assert(barometer && Calls::admit && Calls::preparations++ == 0U && same_sample(sample, Calls::sample) &&
                        same(altitude, Calls::admitted->manager.m_origin_altitude - Calls::prior.p_n(2U)),
                    "Height process: barometer warmup uses the original state altitude after admission");
+
     check_manager(*this, Calls::admitted->manager);
     auto expected_result = Calls::admitted->result;
     expected_result.status = Status::success;
@@ -97,6 +102,7 @@ inline bool HeightAiding<height_process_proof::Backend>::prepare_barometer(Sampl
     result = Calls::prepared->result;
     return Calls::prepare;
 }
+
 template <>
 inline void
 HeightBias<height_process_proof::Scalar>::fuse(height_process_proof::Scalar measurement,
@@ -109,6 +115,7 @@ HeightBias<height_process_proof::Scalar>::fuse(height_process_proof::Scalar meas
     supplied_parameters.bias = parameters;
     __ESBMC_assert(same_parameters(supplied_parameters, expected_parameters),
                    "Height process: bias learning receives complete configured settings");
+
     auto const & ready = Calls::ready;
     auto const & aid = ready.m_sessions[FORMAL_ESKF_PROOF_HEIGHT_SOURCE];
     __ESBMC_assert(Calls::biases++ == 0U && aid.active && ready.m_reference != source && same_bias(*this, aid.bias) &&
@@ -117,10 +124,12 @@ HeightBias<height_process_proof::Scalar>::fuse(height_process_proof::Scalar meas
                        same(noise, Calls::variance + Calls::covariance(2U, 2U)) && same(sensor, Calls::variance) &&
                        std::isfinite(sensor) && sensor > Scalar{0},
                    "Height process: only an active nonreference learns bias, with admitted positive sensor variance");
+
     Scalar const prior_interval = dt;
     *this = Calls::bias;
     dt = prior_interval;
 }
+
 template <>
 inline void HeightAiding<height_process_proof::Backend>::reset_height(Source selected, std::uint64_t now,
                                                                       value_type altitude, value_type variance,
@@ -129,12 +138,14 @@ inline void HeightAiding<height_process_proof::Backend>::reset_height(Source sel
 {
     using namespace height_process_proof;
     __ESBMC_assert(geometry == nullptr, "Height process: flat reset binding");
+
     check_state(state, Calls::prior);
     check_matrix(P, Calls::covariance);
     __ESBMC_assert(
         !barometer && Calls::resets++ == 0U && selected == source && now == Calls::now &&
             same(altitude, Calls::sample.altitude) && same(variance, Calls::variance),
         "Height process: GNSS startup resets the current candidate using raw altitude and selected variance");
+
     check_manager(*this, Calls::ready);
     check_result(result, Calls::ready_result);
     *this = Calls::reset->manager;
@@ -142,6 +153,7 @@ inline void HeightAiding<height_process_proof::Backend>::reset_height(Source sel
     P = Calls::reset->covariance;
     result = Calls::reset->result;
 }
+
 template <>
 inline void HeightAiding<height_process_proof::Backend>::recover(Source selected, std::uint64_t now,
                                                                  Sample const & sample, value_type variance,
@@ -151,6 +163,7 @@ inline void HeightAiding<height_process_proof::Backend>::recover(Source selected
 {
     using namespace height_process_proof;
     __ESBMC_assert(geometry == nullptr, "Height process: flat recovery binding");
+
     auto const & expected = Calls::before_recovery;
     __ESBMC_assert(Calls::recoveries++ == 0U && selected == source && now == Calls::now &&
                        same_sample(sample, Calls::sample) && same(variance, Calls::variance) &&
@@ -158,6 +171,7 @@ inline void HeightAiding<height_process_proof::Backend>::recover(Source selected
                        acceleration.times.update_time_us == Calls::acceleration.times.update_time_us &&
                        acceleration.times.last_good_time_us == Calls::acceleration.times.last_good_time_us,
                    "Height process: recovery follows successful fusion status and receives complete accounting/health");
+
     check_state(state, *Calls::recovery_state);
     check_matrix(P, *Calls::recovery_covariance);
     check_manager(*this, expected);
@@ -192,10 +206,12 @@ fuse_height(height_process_proof::State const & state, height_process_proof::Cov
                                ? static_cast<Scalar>(px4::profile::height::ground_effect_deadzone_m)
                                : Scalar{0}),
         "Height process: fusion freezes PRIOR bias, forwards complete permissions and limits deadzone to barometer");
+
     output = Calls::fused;
     covariance = Calls::fused_covariance;
     return Calls::measurement;
 }
+
 template <>
 inline Status limit_bias(height_process_proof::State & state, BiasLimits<height_process_proof::Scalar> limits)
 {
@@ -205,6 +221,7 @@ inline Status limit_bias(height_process_proof::State & state, BiasLimits<height_
     __ESBMC_assert(Calls::limits++ == 0U && same(limits.accelerometer, expected.accelerometer) &&
                        same(limits.gyroscope, expected.gyroscope),
                    "Height process: successful fusion invokes deployment bias limits before recording progress");
+
     state = Calls::limited;
     return Calls::limit_status;
 }
@@ -274,11 +291,13 @@ void verify_height_process(Manager owner, State state, Covariance P, Sample samp
                                  : P(2, 2) < Scalar{0}              ? Status::domain_error
                                                                     : Status::success;
     }
+
     if (admit && observation_ok && barometer)
     {
         expected = prepared.manager;
         expected_result = prepared.result;
     }
+
     bool const ready = admit && observation_ok && (!barometer || prepare);
     Calls::ready = expected;
     Calls::ready_result = expected_result;
@@ -299,6 +318,7 @@ void verify_height_process(Manager owner, State state, Covariance P, Sample samp
         aid.bias = bias;
         aid.bias.dt = prior_interval;
     }
+
     if (start)
     {
         if (!barometer)
@@ -317,6 +337,7 @@ void verify_height_process(Manager owner, State state, Covariance P, Sample samp
         {
             aid.bias.value = expected.m_barometer_lpf - (admitted.manager.m_origin_altitude - state.p_n(2U));
         }
+
         if (barometer || reset.result.status == Status::success)
         {
             aid.active = true;
@@ -324,6 +345,7 @@ void verify_height_process(Manager owner, State state, Covariance P, Sample samp
             aid.progress_time = now;
         }
     }
+
     if (fuse)
     {
         aid.fusion_reset = false;
@@ -353,11 +375,13 @@ void verify_height_process(Manager owner, State state, Covariance P, Sample samp
         {
             ++expected_result.rejected;
         }
+
         Calls::before_recovery = expected;
         Calls::recovery_result = expected_result;
         Calls::recovery_state = expected_state;
         Calls::recovery_covariance = expected_covariance;
     }
+
     owner.process(source, now, sample, velocity, state, P, result, permissions, acceleration, ground, nullptr);
     __ESBMC_assert(Calls::admissions == 1U &&
                        Calls::preparations == static_cast<unsigned>(admit && observation_ok && barometer) &&
@@ -366,6 +390,7 @@ void verify_height_process(Manager owner, State state, Covariance P, Sample samp
                        Calls::fusions == static_cast<unsigned>(fuse) && Calls::limits == static_cast<unsigned>(limit) &&
                        Calls::recoveries == static_cast<unsigned>(recover),
                    "Height process: exact startup, nonreference bias, fusion, limiting and recovery eligibility");
+
     if (recover)
     {
         check_manager(owner, recovered.manager);
@@ -380,6 +405,7 @@ void verify_height_process(Manager owner, State state, Covariance P, Sample samp
         check_state(state, *expected_state);
         check_matrix(P, *expected_covariance);
     }
+
     __ESBMC_assert(!control || control_domain(owner),
                    "Height process: control-domain induction through every source phase and failure");
     __ESBMC_assert(history_domain(owner, now) && same_owner_constants(owner, before),

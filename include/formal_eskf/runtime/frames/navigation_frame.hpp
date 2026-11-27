@@ -120,10 +120,15 @@ public:
     }
 
     bool initialized() const { return m_working.initialized(); }
+
     std::uint64_t generation() const { return m_generation; }
+
     frame_type const & working() const { return m_working; }
+
     frame_type const & reference() const { return m_reference; }
+
     transform_type const & to_reference() const { return m_to_reference; }
+
     candidate_type const & candidate() const { return m_candidate; }
 
 private:

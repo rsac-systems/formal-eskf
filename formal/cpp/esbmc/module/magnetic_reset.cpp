@@ -22,19 +22,23 @@ using Vector = formal_eskf::linalg::Vector<Backend, 3>;
 using Quaternion = formal_eskf::so3::UnitQuaternion<Backend>;
 using Status = formal_eskf::Status;
 using Action = formal_eskf::runtime::MagnetometerFusion::Action;
+
 struct LifecycleState
 {
     bool active{};
     Action action = Action::none;
 };
+
 struct Conditions
 {
     bool horizontal_aiding{};
 };
+
 struct Event
 {
     std::uint64_t time_us{};
 };
+
 struct Boundary
 {
     Status core{}, feedback{};
@@ -47,6 +51,7 @@ struct Boundary
     std::uint64_t event_time{};
 } boundary;
 } // namespace
+
 namespace formal_eskf::runtime
 {
 Status reset_magnetic_heading(unsigned & state, unsigned & covariance, Vector const & field, Vector const & reference,
@@ -66,13 +71,16 @@ Status reset_magnetic_heading(unsigned & state, unsigned & covariance, Vector co
     return boundary.core;
 }
 } // namespace formal_eskf::runtime
+
 namespace
 {
 struct Lifecycle
 {
     using Action = formal_eskf::runtime::MagnetometerFusion::Action;
     LifecycleState value;
+
     LifecycleState const & state() const { return value; }
+
     Status record_reset(std::uint64_t time, bool reset)
     {
         __ESBMC_assert(boundary.core_called && !boundary.feedback_called && time == boundary.event_time &&
@@ -83,9 +91,11 @@ struct Lifecycle
         return boundary.feedback;
     }
 };
+
 struct Ratio
 {
     bool called{};
+
     void reset(std::uint64_t time)
     {
         __ESBMC_assert(boundary.notification_called && boundary.notification && time == boundary.event_time,
@@ -93,11 +103,14 @@ struct Ratio
         called = true;
     }
 };
+
 struct Heading
 {
     bool reset{};
+
     void reset_heading() { reset = true; }
 };
+
 struct Flow
 {
     using status_type = Status;
@@ -106,29 +119,37 @@ struct Flow
     unsigned m_state{}, m_covariance{}, m_errors{}, m_rejections{};
     std::uint64_t m_time_us{};
     bool m_fault{}, m_heading_aligned{};
+
     struct Magnetic
     {
         struct Filter
         {
             Vector field;
+
             Vector const & field_b() const { return field; }
         } filter;
+
         Lifecycle lifecycle;
         Heading heading;
         std::array<Ratio, 3> ratios;
         std::uint32_t corrections{};
     } m_magnetic;
+
     struct Model
     {
         Vector reference;
+
         Vector const & observation_n() const { return reference; }
     } m_magnetic_model;
+
     struct Resets
     {
         Quaternion attitude_delta;
         std::uint8_t attitude_count{}, odometry_count{};
     } m_resets;
+
     bool check(Status status);
+
     bool reset_output(Quaternion const & q, Vector const & velocity, Vector const & position)
     {
         __ESBMC_assert(boundary.core_called && formal_eskf::succeeded(boundary.core) && boundary.feedback_called &&
@@ -141,10 +162,12 @@ struct Flow
         m_fault |= !boundary.notification;
         return boundary.notification;
     }
+
     Status reset_magnetic_heading(std::uint64_t sample_time_us);
     void finish_magnetic(bool fused, bool rejected, LifecycleState const & previous, Conditions const & conditions,
                          Event const & event);
 };
+
 #include "module_status_check.inc"
 #include "module_magnetic_reset.inc"
 #include "module_magnetic_finish.inc"

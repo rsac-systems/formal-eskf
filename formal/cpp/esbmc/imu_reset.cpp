@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include "imu_owner_support.hpp"
+
 void verify_imu_storage_reset_owner_frame(imu_proof::Imu owner)
 {
     // reset does not consume indices, so changed-length allocation may invoke it

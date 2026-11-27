@@ -78,26 +78,31 @@ template <typename Linalg>
     {
         return Status::non_finite_result;
     }
+
     if (squared_strength < std::numeric_limits<value_type>::min())
     {
         return Status::zero_or_unsafe_divisor;
     }
+
     MagneticFieldGeometry<value_type> candidate;
     auto status = scalar::sqrt<math_type>(squared_strength, candidate.strength);
     if (!succeeded(status))
     {
         return status;
     }
+
     status = scalar::sqrt<math_type>(horizontal_squared, candidate.horizontal);
     if (!succeeded(status))
     {
         return status;
     }
+
     status = scalar::atan2<math_type>(field(2U), candidate.horizontal, candidate.inclination);
     if (succeeded(status))
     {
         output = candidate;
     }
+
     return status;
 }
 
@@ -117,6 +122,7 @@ template <typename Linalg>
     {
         return Status::non_finite_input;
     }
+
     auto const pi = scalar::pi<math_type>();
     if (parameters.strength_tolerance < value_type{0} || parameters.inclination_tolerance < value_type{0} ||
         parameters.inclination_tolerance > pi || parameters.heading_tolerance < value_type{0} ||
@@ -126,6 +132,7 @@ template <typename Linalg>
     {
         return Status::domain_error;
     }
+
     return Status::success;
 }
 
@@ -143,11 +150,13 @@ template <typename Linalg>
     {
         return status;
     }
+
     status = scalar::atan2<math_type>(observation_n(1U), observation_n(0U), reference_heading);
     if (!succeeded(status))
     {
         return status;
     }
+
     auto error = measured_heading - reference_heading;
     auto const pi = scalar::pi<math_type>();
     if (error > pi)
@@ -158,6 +167,7 @@ template <typename Linalg>
     {
         error += value_type{2} * pi;
     }
+
     output = error;
     return Status::success;
 }
@@ -204,12 +214,14 @@ check_magnetic_field(so3::UnitQuaternion<Linalg> const & q_nb, linalg::Vector<Li
     {
         return result;
     }
+
     auto const measured_n = so3::rotate(q_nb, m_b);
     if (!linalg::all_finite(measured_n))
     {
         result.status = Status::non_finite_result;
         return result;
     }
+
     detail::MagneticFieldGeometry<value_type> measured;
     detail::MagneticFieldGeometry<value_type> observation;
     result.status = detail::magnetic_field_geometry(measured_n, measured);
@@ -217,11 +229,13 @@ check_magnetic_field(so3::UnitQuaternion<Linalg> const & q_nb, linalg::Vector<Li
     {
         return result;
     }
+
     result.status = detail::magnetic_field_geometry(m_n, observation);
     if (!succeeded(result.status))
     {
         return result;
     }
+
     bool const reference_available = health_reference_n != nullptr;
     detail::MagneticFieldGeometry<value_type> health;
     if (reference_available && (checks.strength || checks.inclination))
@@ -231,6 +245,7 @@ check_magnetic_field(so3::UnitQuaternion<Linalg> const & q_nb, linalg::Vector<Li
             result.status = Status::non_finite_input;
             return result;
         }
+
         if (!(linalg::max_abs(*health_reference_n) > value_type{0}))
         {
             result.status = Status::domain_error;
@@ -242,11 +257,13 @@ check_magnetic_field(so3::UnitQuaternion<Linalg> const & q_nb, linalg::Vector<Li
         {
             result.status = detail::magnetic_field_geometry(*health_reference_n, health);
         }
+
         if (!succeeded(result.status))
         {
             return result;
         }
     }
+
     auto const inclination_error = measured.inclination - health.inclination;
     bool const horizontal_failure = measured.horizontal < parameters.minimum_horizontal_field ||
                                     observation.horizontal < parameters.minimum_horizontal_field;
@@ -260,6 +277,7 @@ check_magnetic_field(so3::UnitQuaternion<Linalg> const & q_nb, linalg::Vector<Li
             return result;
         }
     }
+
     result.strength = measured.strength;
     result.reference_strength = reference_available ? health.strength : value_type{45};
     result.strength_checked = checks.strength && (reference_available || !checks.require_reference);

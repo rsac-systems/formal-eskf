@@ -22,6 +22,7 @@ void InsSession<Linalg, Layout>::fuse_gravity(ImuInput const & sample, imu_type 
     {
         return;
     }
+
     if constexpr (!Layout::gravity_aiding)
     {
         return;
@@ -55,6 +56,7 @@ void InsSession<Linalg, Layout>::fuse_gravity(ImuInput const & sample, imu_type 
     {
         m_gravity.active = false;
     }
+
     if (!observation.ready)
     {
         return;
@@ -78,12 +80,14 @@ void InsSession<Linalg, Layout>::fuse_gravity(ImuInput const & sample, imu_type 
     {
         return;
     }
+
     bool const fused = result.decision == formal_eskf::runtime::FusionDecision::fused;
     if (fused && !check(formal_eskf::runtime::limit_bias(m_state, m_settings.bias_limits)))
     {
         // Sampling and correction have already committed; a tick is not atomic.
         return;
     }
+
     ++m_gravity.samples;
     m_gravity.interval_us = observation.interval_us;
     m_gravity.corrections += fused;
@@ -130,16 +134,19 @@ InsSession<Linalg, Layout>::magnetic_conditions() const
     {
         conditions.flight_state = m_magnetic.context.vehicle.armed ? FlightState::in_air : FlightState::on_ground;
     }
+
     if (m_magnetic.context.land.known)
     {
         conditions.flight_state = m_magnetic.context.land.landed ? FlightState::on_ground : FlightState::in_air;
         conditions.at_rest = m_magnetic.context.land.at_rest;
     }
+
     if (m_output.current().time_us != 0)
     {
         conditions.enabled = m_observations.magnetic_source().device_id != 0 &&
                              m_observations.magnetic_generation() == m_magnetic.generation;
     }
+
     return conditions;
 }
 
@@ -164,6 +171,7 @@ typename InsSession<Linalg, Layout>::MagneticSample InsSession<Linalg, Layout>::
         m_magnetic.heading.reset_heading();
         m_heading_aligned = m_external_heading;
     }
+
     m_magnetic.generation = input.generation;
     m_magnetic.sample_time_us = input.time_us;
     sample.time_us = input.time_us;
@@ -194,15 +202,18 @@ InsSession<Linalg, Layout>::prepare_magnetic_observation(MagneticSample const & 
     {
         m_heading_aligned = m_external_heading;
     }
+
     if (sample.source.device_id != 0U)
     {
         m_magnetic.source = sample.source;
         event = {sample.time_us, sample.source, false};
     }
+
     if (!sample.usable)
     {
         return status_type::success;
     }
+
     typename formal_eskf::runtime::MagneticHeading<backend_type>::Parameters const parameters{
         m_settings.magnetic.heading_noise_rad, m_settings.magnetic.acceleration_limit_m_s2,
         m_settings.magnetic.field.minimum_horizontal_field};
@@ -222,6 +233,7 @@ InsSession<Linalg, Layout>::prepare_magnetic_observation(MagneticSample const & 
             m_settings.magnetic.field, false, m_settings.magnetic.checks);
         event.field_accepted = m_magnetic.observation.field.accepted;
     }
+
     m_magnetic_quality_epoch = evaluation_epoch(m_magnetic.input);
     m_magnetic_quality_epoch.reference_id = m_magnetic_model.reference_id();
     m_diagnostic_magnetic_quality = m_magnetic.observation.field;
@@ -253,6 +265,7 @@ bool InsSession<Linalg, Layout>::fuse_magnetic_observation(MagneticSample const 
     {
         return false;
     }
+
     return fusion.decision != formal_eskf::runtime::FusionDecision::fused ||
            check(formal_eskf::runtime::limit_bias(m_state, m_settings.bias_limits));
 }
@@ -291,18 +304,22 @@ InsSession<Linalg, Layout>::reset_magnetic_heading(std::uint64_t sample_time_us)
                 square(m_settings.magnetic.heading_noise_rad), m_settings.magnetic.field.minimum_horizontal_field,
                 m_parameters.minimum_quaternion_norm, candidate_state, candidate_covariance, residual);
         }
+
         if (succeeded(status))
         {
             status = heading.rebase(delta);
         }
+
         if (succeeded(status))
         {
             status = continuity.rebase(transform.rotation, m_navigation_frame.generation());
         }
+
         if (succeeded(status))
         {
             status = tilt.rebase(candidate_state.q_nb, candidate_covariance.template block<6, 6, 3, 3>());
         }
+
         before = body_output();
         auto const & current = m_output.current();
         after = body_output(transform.rotation * current.p_n, transform.rotation * current.v_n, delta * current.q_nb,
@@ -313,6 +330,7 @@ InsSession<Linalg, Layout>::reset_magnetic_heading(std::uint64_t sample_time_us)
             status = status_type::non_finite_result;
         }
     }
+
     bool const reset = formal_eskf::succeeded(status);
     auto lifecycle = m_magnetic.lifecycle;
     auto const feedback = lifecycle.record_reset(sample_time_us, reset);
@@ -320,6 +338,7 @@ InsSession<Linalg, Layout>::reset_magnetic_heading(std::uint64_t sample_time_us)
     {
         return feedback;
     }
+
     if (reset)
     {
         if (!local_reference && !reset_output(delta, {}, {}, {.attitude = true}))
@@ -327,6 +346,7 @@ InsSession<Linalg, Layout>::reset_magnetic_heading(std::uint64_t sample_time_us)
             auto const failure = m_magnetic.lifecycle.record_reset(sample_time_us, false);
             return succeeded(failure) ? status_type::out_of_range : failure;
         }
+
         m_state = candidate_state;
         m_covariance = candidate_covariance;
         if (local_reference)
@@ -338,6 +358,7 @@ InsSession<Linalg, Layout>::reset_magnetic_heading(std::uint64_t sample_time_us)
             m_continuity = continuity;
             record_output_reset(before, after, {.attitude = true});
         }
+
         m_continuity.recover_heading();
         m_external_heading = false;
         m_heading_reference_id = m_magnetic_model.reference_id();
@@ -351,6 +372,7 @@ InsSession<Linalg, Layout>::reset_magnetic_heading(std::uint64_t sample_time_us)
             ratio.record_reset(sample_time_us);
         }
     }
+
     m_magnetic.lifecycle = lifecycle;
     return status;
 }

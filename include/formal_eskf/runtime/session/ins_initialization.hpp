@@ -81,7 +81,9 @@ public:
                                value_type & yaw) const;
     void seed_navigation(vector_type const & receiver_velocity, vector_type const & position_offset,
                          vector_type const & velocity_offset, state_type & state, covariance_type & covariance) const;
+
     void magnetic_reference(std::uint32_t reference_id) { m_history.magnetic_source.reference_id = reference_id; }
+
     History const & history() const { return m_history; }
 
 private:
@@ -89,6 +91,7 @@ private:
     {
         return sample != 0 && sample <= now && now - sample <= maximum_age;
     }
+
     void reset_samples()
     {
         m_history.accelerometer_sum = {};
@@ -97,6 +100,7 @@ private:
         m_history.imu_samples = 0;
         m_history.magnetic_samples = 0;
     }
+
     Parameters m_parameters;
     History m_history{};
 };

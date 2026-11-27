@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "boundary.hpp"
+
 namespace
 {
 using namespace output_boundary;
 unsigned commits;
 Sample committed;
 } // namespace
+
 namespace formal_eskf::runtime
 {
 template <> void OutputPredictor<output_proof::Backend, 64>::commit_history()
@@ -23,7 +25,9 @@ template <> void OutputPredictor<output_proof::Backend, 64>::commit_history()
     ++commits;
 }
 } // namespace formal_eskf::runtime
+
 #include <source_steps.hpp>
+
 void verify_output_reset_plan(Output object, Quaternion q, Vector velocity, Vector position,
                               output_steps::ResetPlan plan)
 {
@@ -84,6 +88,7 @@ void verify_output_reset_plan(Output object, Quaternion q, Vector velocity, Vect
     }
     output_proof::check_parameters(object);
 }
+
 void verify_output_reset_finish(Output object, Sample newest)
 {
     output_proof::bind_parameters(object);

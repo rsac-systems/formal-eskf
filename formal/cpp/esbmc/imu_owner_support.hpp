@@ -38,6 +38,7 @@ inline void metadata(Ring & ring)
     auto const sum = static_cast<std::size_t>(oldest) + count;
     ring.m_write = sum < length ? sum : sum - length;
 }
+
 inline bool same(Scalar a, Scalar b)
 {
 #if FORMAL_ESKF_PROOF_BINARY64
@@ -47,12 +48,14 @@ inline bool same(Scalar a, Scalar b)
 #endif
     return (__builtin_bit_cast(Bits, a) == __builtin_bit_cast(Bits, b)) | (std::isnan(a) & std::isnan(b));
 }
+
 inline bool same_source(formal_eskf::runtime::ImuSource const & a, formal_eskf::runtime::ImuSource const & b)
 {
     return a.accelerometer_id == b.accelerometer_id && a.gyroscope_id == b.gyroscope_id &&
            a.accelerometer_calibration == b.accelerometer_calibration &&
            a.gyroscope_calibration == b.gyroscope_calibration;
 }
+
 inline bool same_input(Input const & a, Input const & b)
 {
     bool result = a.time_us == b.time_us && a.angular_period_us == b.angular_period_us &&
@@ -66,6 +69,7 @@ inline bool same_input(Input const & a, Input const & b)
     }
     return result;
 }
+
 inline bool same_timing(formal_eskf::runtime::ImuTiming const & a, formal_eskf::runtime::ImuTiming const & b)
 {
     return a.filter_interval_us == b.filter_interval_us && a.minimum_period_us == b.minimum_period_us &&
@@ -99,6 +103,7 @@ inline void check_zero_input(Input const & input)
                        "IMU empty input has positive-zero coefficients");
     }
 }
+
 inline void check_zero_storage(Ring const & ring)
 {
     for (std::size_t i = 0; i < capacity; ++i)

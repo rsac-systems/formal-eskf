@@ -20,7 +20,9 @@ static unsigned char * arena;
 static unsigned operation;
 static int status;
 constexpr std::size_t size = 1024U * 1024U;
+
 static void invoke() { status = operation == 0U ? 0 : (operation == 1U ? call_kernel() : call_predict()); }
+
 int main()
 {
     arena =

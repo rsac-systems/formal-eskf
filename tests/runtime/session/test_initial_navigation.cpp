@@ -20,9 +20,11 @@ public:
     }
 };
 } // namespace formal_eskf::testing
+
 namespace
 {
 using namespace ins_test;
+
 Session::InitialNavigation prior()
 {
     return {{{}, {0.0001, 0.0002, 0.007615435494667714}},
@@ -32,6 +34,7 @@ Session::InitialNavigation prior()
             {1, 4, 9},
             {.25, .5, 1.5}};
 }
+
 bool initialize(Fixture<> & f, Session::InitialNavigation const & p)
 {
     f.imu.time_us = 1000000;
@@ -42,6 +45,7 @@ bool initialize(Fixture<> & f, Session::InitialNavigation const & p)
     }
     return accepted;
 }
+
 void seed_and_frame(Context & test, std::string_view profile)
 {
     Fixture f;
@@ -85,6 +89,7 @@ void seed_and_frame(Context & test, std::string_view profile)
                     "no fabricated observation/correction/reset");
     }
 }
+
 void rejection(Context & test, std::string_view profile)
 {
     enum class Invalid
@@ -139,6 +144,7 @@ void rejection(Context & test, std::string_view profile)
     test.expect(!initialize(f, prior()) && same_bits(P, f.session.covariance()), profile, "no live reseed");
     formal_eskf::testing::InsSessionTest::failed_history(test, profile, prior());
 }
+
 void qualification(Context & test, std::string_view profile)
 {
     Fixture f;
@@ -159,6 +165,7 @@ void qualification(Context & test, std::string_view profile)
                 profile, "real GNSS resets/corrections recover navigation in the previously established frame");
 }
 } // namespace
+
 int main(int argc, char ** argv)
 {
     formal_eskf::test::configure_backend_test();

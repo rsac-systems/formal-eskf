@@ -12,6 +12,7 @@ extern void __ESBMC_assert(bool condition, char const * description);
 #define private public
 #include <formal_eskf/runtime/sensors/magnetic/magnetometer_lifecycle.hpp>
 #undef private
+
 namespace mag_lifecycle_proof
 {
 using Controller = formal_eskf::runtime::MagnetometerFusion;
@@ -27,6 +28,7 @@ using Flight = Controller::FlightState;
 using Decision = formal_eskf::runtime::FusionDecision;
 using Status = formal_eskf::Status;
 using Time = std::uint64_t;
+
 inline bool same_state(State const & a, State const & b)
 {
     return a.active == b.active && a.action == b.action && a.filter_reset == b.filter_reset &&
@@ -34,15 +36,18 @@ inline bool same_state(State const & a, State const & b)
            a.last_field_failure_time_us == b.last_field_failure_time_us && a.start_time_us == b.start_time_us &&
            a.last_fuse_time_us == b.last_fuse_time_us && a.last_reset_time_us == b.last_reset_time_us;
 }
+
 inline bool same_parameters(Parameters const & a, Parameters const & b)
 {
     return a.health_time_us == b.health_time_us && a.maximum_interval_us == b.maximum_interval_us &&
            a.fusion_timeout_us == b.fusion_timeout_us;
 }
+
 inline bool same_source(Source const & a, Source const & b)
 {
     return a.device_id == b.device_id && a.calibration_count == b.calibration_count && a.reference_id == b.reference_id;
 }
+
 inline bool same_controller(Controller const & a, Controller const & b)
 {
     return same_state(a.m_state, b.m_state) && same_parameters(a.m_parameters, b.m_parameters) &&
@@ -51,17 +56,20 @@ inline bool same_controller(Controller const & a, Controller const & b)
            a.m_reset_on_timeout == b.m_reset_on_timeout && a.m_reset_sample_qualified == b.m_reset_sample_qualified &&
            a.m_heading_reset_required == b.m_heading_reset_required;
 }
+
 inline bool same_conditions(Conditions const & a, Conditions const & b)
 {
     return a.enabled == b.enabled && a.ready == b.ready && a.starting_allowed == b.starting_allowed &&
            a.horizontal_aiding == b.horizontal_aiding && a.at_rest == b.at_rest && a.flight_state == b.flight_state &&
            a.heading_consistent == b.heading_consistent && a.heading_aligned == b.heading_aligned;
 }
+
 inline bool valid_parameters(Parameters const & p)
 {
     return p.maximum_interval_us > 0U && p.maximum_interval_us <= std::numeric_limits<Time>::max() / 2U &&
            p.fusion_timeout_us > 0U;
 }
+
 inline bool invariant(Controller const & c)
 {
     auto const & s = c.m_state;
@@ -84,20 +92,24 @@ inline bool invariant(Controller const & c)
             (!s.active && c.m_reset_sample_qualified && s.recovery_reason != Recovery::fusion_failed &&
              s.recovery_reason != Recovery::reset_failed));
 }
+
 inline void stop(State & s, Reason reason)
 {
     s.active = false;
     s.action = Action::none;
     s.stop_reason = reason;
 }
+
 inline void recovery(State & s, Recovery reason)
 {
     if (s.recovery_reason == Recovery::none)
     {
         s.recovery_reason = reason;
     }
+
     stop(s, Reason::recovery_required);
 }
+
 inline void timeout(Controller & c)
 {
     auto & s = c.m_state;
@@ -106,6 +118,7 @@ inline void timeout(Controller & c)
     {
         return;
     }
+
     if (c.m_reset_on_timeout)
     {
         recovery(s, Recovery::fusion_timeout);
@@ -119,6 +132,7 @@ inline void timeout(Controller & c)
         stop(s, Reason::fusion_timeout);
     }
 }
+
 inline Status input_status(Controller const & c, Time now, Conditions const & conditions, Parameters const & p,
                            Sample const & sample)
 {
@@ -133,6 +147,7 @@ inline Status input_status(Controller const & c, Time now, Conditions const & co
            : !source || !flight ? Status::domain_error
                                 : Status::success;
 }
+
 inline void source_transition(Controller & c, Source const & source, Conditions const & conditions)
 {
     bool const replaced = c.m_source.device_id != 0U && (source.device_id != c.m_source.device_id ||
@@ -157,12 +172,14 @@ inline void source_transition(Controller & c, Source const & source, Conditions 
     {
         recovery(s, Recovery::reference_changed);
     }
+
     c.m_source = source;
     if (s.recovery_reason == Recovery::source_changed && conditions.flight_state == Flight::on_ground)
     {
         c.m_heading_reset_required = true;
     }
 }
+
 inline void sample_transition(Controller & c, Conditions const & conditions, bool accepted)
 {
     auto & s = c.m_state;
@@ -173,10 +190,12 @@ inline void sample_transition(Controller & c, Conditions const & conditions, boo
         stop(s, !conditions.ready ? Reason::not_ready : Reason::recovery_required);
         return;
     }
+
     if (!accepted || s.last_field_failure_time_us == 0U)
     {
         s.last_field_failure_time_us = c.m_update_time_us;
     }
+
     bool const healthy = c.m_parameters.health_time_us == 0U ||
                          c.m_update_time_us - s.last_field_failure_time_us > c.m_parameters.health_time_us;
     bool const fresh = c.m_update_time_us - c.m_sample_time_us < c.m_parameters.maximum_interval_us;
@@ -251,6 +270,7 @@ inline void sample_transition(Controller & c, Conditions const & conditions, boo
         }
     }
 }
+
 inline void update_oracle(Controller & c, Time now, Conditions const & conditions, Parameters const & p,
                           Sample const & sample)
 {
@@ -263,6 +283,7 @@ inline void update_oracle(Controller & c, Time now, Conditions const & condition
         stop(c.m_state, Reason::invalid_call);
         return;
     }
+
     c.m_update_time_us = now;
     c.m_parameters = p;
     c.m_reset_on_timeout = !conditions.horizontal_aiding || (conditions.at_rest && conditions.heading_consistent);
@@ -271,11 +292,13 @@ inline void update_oracle(Controller & c, Time now, Conditions const & condition
         source_transition(c, sample.source, conditions);
         c.m_sample_time_us = sample.time_us;
     }
+
     if (!conditions.enabled)
     {
         stop(c.m_state, Reason::disabled);
         return;
     }
+
     if (sample.time_us == 0U)
     {
         if (c.m_state.recovery_reason != Recovery::none)
@@ -286,13 +309,16 @@ inline void update_oracle(Controller & c, Time now, Conditions const & condition
         {
             stop(c.m_state, Reason::data_timeout);
         }
+
         return;
     }
+
     if (c.m_sample_count < 4U)
     {
         c.m_state.filter_reset = c.m_sample_count == 0U;
         c.m_sample_count += 1U;
     }
+
     sample_transition(c, conditions, sample.field_accepted);
     if (c.m_state.action == Action::fuse && conditions.horizontal_aiding && !conditions.heading_consistent)
     {
@@ -301,6 +327,7 @@ inline void update_oracle(Controller & c, Time now, Conditions const & condition
     }
 }
 } // namespace mag_lifecycle_proof
+
 void verify_mag_lifecycle_initialization(mag_lifecycle_proof::Controller controller, mag_lifecycle_proof::Source source)
 {
     using namespace mag_lifecycle_proof;
@@ -314,6 +341,7 @@ void verify_mag_lifecycle_initialization(mag_lifecycle_proof::Controller control
             fresh.m_sample_count == 0U && !fresh.m_reset_on_timeout && !fresh.m_reset_sample_qualified &&
             !fresh.m_heading_reset_required && invariant(fresh),
         "R-MAGNETOMETER-LIFECYCLE: constructor establishes every state field and timeline/permission invariants");
+
     auto reset = controller;
     reset.reset(source);
     auto expected = fresh;
@@ -321,6 +349,7 @@ void verify_mag_lifecycle_initialization(mag_lifecycle_proof::Controller control
     __ESBMC_assert(
         same_controller(reset, expected) && invariant(reset),
         "R-MAGNETOMETER-LIFECYCLE: reset clears every clock/permission and binds only requested initial source");
+
     __ESBMC_assume(invariant(controller));
     expected = controller;
     expected.m_state = State{};
@@ -332,6 +361,7 @@ void verify_mag_lifecycle_initialization(mag_lifecycle_proof::Controller control
                    "R-MAGNETOMETER-LIFECYCLE: explicit restart preserves source/time/configuration watermarks and "
                    "clears session authority");
 }
+
 void verify_mag_lifecycle_update(mag_lifecycle_proof::Controller controller, mag_lifecycle_proof::Time now,
                                  mag_lifecycle_proof::Conditions conditions, mag_lifecycle_proof::Parameters parameters,
                                  mag_lifecycle_proof::Sample sample)
@@ -362,6 +392,7 @@ void verify_mag_lifecycle_update(mag_lifecycle_proof::Controller controller, mag
                        sample.field_accepted == old_sample.field_accepted,
                    "R-MAGNETOMETER-LIFECYCLE: borrowed configuration, conditions and sample remain unchanged");
 }
+
 void verify_mag_lifecycle_fusion(mag_lifecycle_proof::Controller controller, mag_lifecycle_proof::Time sample_time,
                                  mag_lifecycle_proof::Decision decision)
 {
@@ -381,6 +412,7 @@ void verify_mag_lifecycle_fusion(mag_lifecycle_proof::Controller controller, mag
             {
                 s.start_time_us = expected.m_update_time_us;
             }
+
             s.active = true;
             s.last_fuse_time_us = expected.m_update_time_us;
             s.stop_reason = Reason::none;
@@ -395,17 +427,20 @@ void verify_mag_lifecycle_fusion(mag_lifecycle_proof::Controller controller, mag
             timeout(expected);
         }
     }
+
     Status const status = controller.record_fusion(sample_time, decision);
     __ESBMC_assert(status == wanted, "R-MAGNETOMETER-LIFECYCLE: exact feedback status");
     __ESBMC_assert(same_controller(controller, expected), "R-MAGNETOMETER-LIFECYCLE: exact feedback and timeout frame");
     __ESBMC_assert(invariant(controller),
                    "R-MAGNETOMETER-LIFECYCLE: feedback preserves timeline and authority invariant");
+
     if (status == Status::success)
     {
         __ESBMC_assert(controller.m_state.action != Action::fuse,
                        "R-MAGNETOMETER-LIFECYCLE: consumed fusion authority cannot authorize repeated feedback");
     }
 }
+
 void verify_mag_lifecycle_reset(mag_lifecycle_proof::Controller controller, mag_lifecycle_proof::Time sample_time,
                                 bool succeeded)
 {
@@ -424,6 +459,7 @@ void verify_mag_lifecycle_reset(mag_lifecycle_proof::Controller controller, mag_
             {
                 s.start_time_us = expected.m_update_time_us;
             }
+
             s.active = true;
             s.recovery_reason = Recovery::none;
             s.stop_reason = Reason::none;
@@ -436,14 +472,17 @@ void verify_mag_lifecycle_reset(mag_lifecycle_proof::Controller controller, mag_
             stop(s, Reason::recovery_required);
         }
     }
+
     Status const status = controller.record_reset(sample_time, succeeded);
     __ESBMC_assert(status == wanted && same_controller(controller, expected) && invariant(controller),
                    "R-MAGNETOMETER-LIFECYCLE: reset feedback is one-use, atomic on invalid call and never fabricates "
                    "fusion progress");
+
     if (status == Status::success)
     {
         __ESBMC_assert(controller.m_state.action != Action::reset,
                        "R-MAGNETOMETER-LIFECYCLE: consumed reset authority cannot authorize repeated feedback");
     }
 }
+
 int main() { return 0; }

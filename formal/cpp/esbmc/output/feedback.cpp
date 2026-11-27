@@ -4,6 +4,7 @@
 // Behavior and outer-owner fields are proved here. feedback_frame.cpp supplies
 // every history/workspace frame over the same inputs and producer outcomes.
 static_assert(FORMAL_ESKF_PROOF_FRAME_FIRST == 0 && FORMAL_ESKF_PROOF_FRAME_END == 0);
+
 namespace
 {
 using namespace output_boundary;
@@ -12,6 +13,7 @@ Vector velocity_translation, position_translation;
 Sample committed;
 bool translation_ok;
 unsigned translations, commits;
+
 void check_state(State const & state)
 {
     auto const q = state.q_nb.coefficients();
@@ -28,6 +30,7 @@ void check_state(State const & state)
     }
 }
 } // namespace
+
 namespace formal_eskf::runtime
 {
 template <>
@@ -49,6 +52,7 @@ bool OutputPredictor<output_proof::Backend, 64>::stage_translation(vector3_type 
     ++translations;
     return translation_ok;
 }
+
 template <> void OutputPredictor<output_proof::Backend, 64>::commit_history()
 {
     check();
@@ -63,7 +67,9 @@ template <> void OutputPredictor<output_proof::Backend, 64>::commit_history()
     ++commits;
 }
 } // namespace formal_eskf::runtime
+
 #include <feedback_steps.hpp>
+
 void verify_output_feedback_finish(Output object, State state, std::uint64_t time,
                                    output_steps::FeedbackValues feedback, bool staged, Sample newest)
 {

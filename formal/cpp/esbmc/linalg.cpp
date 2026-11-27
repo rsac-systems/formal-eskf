@@ -306,6 +306,7 @@ void verify_linalg_symmetry(Matrix input, Scalar tolerance)
 }
 
 using Vector3 = formal_eskf::linalg::Vector<Backend, 3U>;
+
 void verify_linalg_vector(Vector3 left, Vector3 right, Scalar root)
 {
     __ESBMC_assert(actual, "Runner error: linalg vector requires actual operations");

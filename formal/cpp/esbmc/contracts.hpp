@@ -80,6 +80,7 @@ struct OpaqueMath : formal_eskf::scalar::StandardMath<Scalar>
         Scalar result;
         mutable Scalar argument;
         mutable unsigned calls;
+
         Scalar operator()(Scalar value) const
         {
             __ESBMC_assert(calls == 0U, "scalar boundary: at most one call per primitive");
@@ -88,11 +89,13 @@ struct OpaqueMath : formal_eskf::scalar::StandardMath<Scalar>
             return result;
         }
     };
+
     struct Binary
     {
         Scalar result;
         mutable Scalar y, x;
         mutable unsigned calls;
+
         Scalar operator()(Scalar a, Scalar b) const
         {
             __ESBMC_assert(calls == 0U, "scalar boundary: at most one atan2 call");
@@ -102,6 +105,7 @@ struct OpaqueMath : formal_eskf::scalar::StandardMath<Scalar>
             return result;
         }
     };
+
     inline static Unary sqrt{}, sin{}, cos{};
     inline static Binary atan2{};
 

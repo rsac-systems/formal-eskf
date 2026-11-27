@@ -40,6 +40,7 @@ template <std::size_t AttitudeOffset, typename Linalg, std::size_t Size, std::si
     {
         return Status::non_finite_result;
     }
+
     gain.template set_block<AttitudeOffset, 0U>(attitude_gain);
     return Status::success;
 }
@@ -75,6 +76,7 @@ template <typename Linalg>
         result.status = Status::domain_error;
         return result;
     }
+
     result.R = so3::to_rotation_matrix(q_nb);
     result.h_m_b = linalg::transpose(result.R) * m_n;
     result.r = m_b - result.h_m_b;
@@ -82,6 +84,7 @@ template <typename Linalg>
     {
         result.status = Status::non_finite_result;
     }
+
     return result;
 }
 
@@ -102,6 +105,7 @@ template <typename Linalg>
     {
         return Status::non_finite_result;
     }
+
     projector_output = projector;
     return Status::success;
 }
@@ -182,6 +186,7 @@ template <typename Linalg>
     {
         return observation.status;
     }
+
     auto const H = so3::hat<Linalg>(observation.h_m_b);
 #if ESKF_MAG_TILT
     linalg::Matrix<Linalg, 3U, 3U> projector;
@@ -190,6 +195,7 @@ template <typename Linalg>
     {
         return projection_status;
     }
+
     linalg::Matrix<Linalg, 3U, 3U> K;
     Status const gain_status =
         detail::compute_correction_gain(covariance, observation.r, H, V, minimum_quaternion_norm, K);
@@ -197,11 +203,13 @@ template <typename Linalg>
     {
         return gain_status;
     }
+
     Status const tilt_status = detail::project_magnetic_gain<0U>(projector, K);
     if (!succeeded(tilt_status))
     {
         return tilt_status;
     }
+
     linalg::Vector<Linalg, 3U> delta_x;
     linalg::Matrix<Linalg, 3U, 3U> P_corrected;
     Status const correction_status =
@@ -210,6 +218,7 @@ template <typename Linalg>
     {
         return correction_status;
     }
+
     configuration::Ahrs::ErrorState<Linalg> error, reset_error;
     detail::unpack_correction(delta_x, error);
     return inject_and_reset(state, P_corrected, error, minimum_quaternion_norm, state_output, covariance_output,
@@ -242,6 +251,7 @@ template <typename Linalg>
     {
         return observation.status;
     }
+
     linalg::Matrix<Linalg, 3U, 15U> H;
     H.template set_block<0U, 6U>(so3::hat<Linalg>(observation.h_m_b));
 #if ESKF_MAG_TILT
@@ -251,6 +261,7 @@ template <typename Linalg>
     {
         return projection_status;
     }
+
     linalg::Matrix<Linalg, 15U, 3U> K;
     Status const gain_status = detail::compute_correction_gain<Linalg, 15U, 3U, detail::CorrectionModel::body_vector>(
         covariance, observation.r, H, V, minimum_quaternion_norm, K);
@@ -258,12 +269,14 @@ template <typename Linalg>
     {
         return gain_status;
     }
+
     detail::constrain_bias_gain(bias_update, K);
     Status const tilt_status = detail::project_magnetic_gain<6U>(projector, K);
     if (!succeeded(tilt_status))
     {
         return tilt_status;
     }
+
     linalg::Vector<Linalg, 15U> delta_x;
     linalg::Matrix<Linalg, 15U, 15U> P_corrected;
     Status const correction_status =
@@ -273,6 +286,7 @@ template <typename Linalg>
     {
         return correction_status;
     }
+
     configuration::Ins::ErrorState<Linalg> error, reset_error;
     detail::unpack_correction(delta_x, error);
     return inject_and_reset(state, P_corrected, error, minimum_quaternion_norm, state_output, covariance_output,

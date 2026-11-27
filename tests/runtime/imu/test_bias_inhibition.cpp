@@ -42,6 +42,7 @@ template <typename Linalg> void peaks(TestContext & test, std::string_view profi
                     result.angular_rate_peak == Scalar{6} && result.high_dynamics &&
                     result.bias_update.accelerometer == none && result.bias_update.gyroscope == all,
                 profile, "first real impulse seeds both bias-subtracted peaks without a startup delay");
+
     std::array<Scalar, 3> const forces{Scalar{25}, Scalar{12.5}, Scalar{10}};
     std::array<Scalar, 3> const rates{Scalar{4.5}, Scalar{3.375}, Scalar{2.53125}};
     for (std::size_t step = 0; step < forces.size(); ++step)
@@ -51,11 +52,13 @@ template <typename Linalg> void peaks(TestContext & test, std::string_view profi
                         result.high_dynamics == (step < 2),
                     profile, "independent exact dyadic recurrence uses force and angular periods separately");
     }
+
     for (auto period : {Scalar{0.25}, Scalar{0.5}, Scalar{1}})
     {
         Policy timed(parameters);
         test.expect(timed.update(Scalar{0.125}, Scalar{0.125}, state, spike, {}).status == Status::success, profile,
                     "seed before tau partition");
+
         result = timed.update(period, period, state, quiet, {});
         test.expect(result.status == Status::success &&
                         result.specific_force_peak == (period < Scalar{0.5} ? Scalar{25} : Scalar{10}) &&
@@ -63,6 +66,7 @@ template <typename Linalg> void peaks(TestContext & test, std::string_view profi
                         !result.high_dynamics,
                     profile, "below/equal/above tau decays only old evidence");
     }
+
     for (bool angular : {false, true})
     {
         Scalar const limit = angular ? Scalar{3} : Scalar{25};
@@ -96,6 +100,7 @@ template <typename Linalg> void test_permissions(TestContext & test, std::string
         auto const & q = attitudes[down_axis];
         test.expect(Quaternion::from_coefficients(q[0], q[1], q[2], q[3], Scalar{0.125}, state.q_nb) == Status::success,
                     profile, "exact axis-aligned attitude fixture");
+
         for (unsigned flags = 0U; flags < 128U; ++flags)
         {
             bool const accel_enabled = (flags & 1U) != 0U;
@@ -114,6 +119,7 @@ template <typename Linalg> void test_permissions(TestContext & test, std::string
                                                   {at_rest, fake_height, fake_position, vertical_fault, clipping});
                 test.expect(result.status == Status::success && result.high_dynamics == high_dynamics, profile,
                             "switches and observability modes do not bypass motion detection");
+
                 for (std::size_t axis = 0U; axis < 3U; ++axis)
                 {
                     bool const expected = accel_enabled && !high_dynamics && !vertical_fault &&
@@ -152,6 +158,7 @@ template <typename Linalg> void observability(TestContext & test, std::string_vi
                 test.expect(Quaternion::from_coefficients(c, axis == 0 ? Scalar{0} : s, axis == 0 ? s : Scalar{0},
                                                           Scalar{0}, Scalar{0.125}, state.q_nb) == Status::success,
                             profile, "prepare proper oblique unit attitude through public normalization");
+
                 auto const q = state.q_nb.coefficients();
                 long double const a = q(0U), x = q(1U), y = q(2U);
                 long double const projection = axis == 0 ? -2 * a * y : axis == 1 ? 2 * a * x : a * a - x * x;
@@ -162,6 +169,7 @@ template <typename Linalg> void observability(TestContext & test, std::string_vi
                                 (std::abs(projection) > threshold) == (side > 0),
                             profile,
                             "independent coefficient oracle certifies the chosen side of the observability threshold");
+
                 Policy policy({Scalar{25}, Scalar{3}, Scalar{0.5}, true, true});
                 auto const result = policy.update(Scalar{0.5}, Scalar{0.5}, state, {}, {false, false, true, false, 0});
                 test.expect(result.status == Status::success && result.bias_update.accelerometer[axis] == (side > 0),
@@ -184,6 +192,7 @@ template <typename Matrix> bool same_bits(Matrix const & a, Matrix const & b)
             return false;
         }
     }
+
     return true;
 }
 
@@ -201,6 +210,7 @@ template <typename Linalg> void failures(TestContext & test, std::string_view pr
     Policy baseline(parameters);
     test.expect(baseline.update(Scalar{0.125}, Scalar{0.25}, original_state, spike, {}).status == Status::success,
                 profile, "reachable two-envelope history");
+
     auto check = [&](Policy policy, typename Policy::state_type const & state,
                      formal_eskf::ImuSample<Linalg> const & imu, Scalar angular, Scalar force,
                      typename Policy::Conditions const & conditions, Status expected)
@@ -218,6 +228,7 @@ template <typename Linalg> void failures(TestContext & test, std::string_view pr
                         same_bits(imu.specific_force_b, old_imu.specific_force_b) &&
                         same_bits(imu.angular_rate_b, old_imu.angular_rate_b),
                     profile, "borrowed inputs remain bitwise intact");
+
         auto const recovery = policy.update(Scalar{0.125}, Scalar{0.25}, original_state, {}, {});
         test.expect(recovery.status == Status::success && recovery.specific_force_peak == Scalar{25} &&
                         recovery.angular_rate_peak == Scalar{4.5},
@@ -242,11 +253,13 @@ template <typename Linalg> void failures(TestContext & test, std::string_view pr
                         profile, "each invalid constructor parameter fails closed");
         }
     }
+
     for (int mask : {-1, 8})
     {
         check(baseline, original_state, spike, Scalar{0.125}, Scalar{0.25}, {true, false, false, false, mask},
               Status::domain_error);
     }
+
     for (auto invalid : {std::numeric_limits<Scalar>::infinity(), -std::numeric_limits<Scalar>::infinity(),
                          std::numeric_limits<Scalar>::quiet_NaN(), std::numeric_limits<Scalar>::max()})
     {
@@ -272,11 +285,13 @@ template <typename Linalg> void failures(TestContext & test, std::string_view pr
                                                             std::numeric_limits<Scalar>::min(),
                                                             malformed.q_nb) == Status::success,
                 profile, "public gradual-underflow quaternion fixture");
+
     for (unsigned count = 0;
          count < 32 && std::isfinite(formal_eskf::linalg::squared_norm(malformed.q_nb.coefficients())); ++count)
     {
         malformed.q_nb = malformed.q_nb * malformed.q_nb;
     }
+
     check(baseline, malformed, spike, Scalar{0.125}, Scalar{0.25}, {}, Status::non_finite_result);
 }
 
@@ -292,6 +307,7 @@ template <typename Linalg> void sessions(TestContext & test, std::string_view pr
     auto same = idle.update(Scalar{0.125}, Scalar{0.125}, {}, sample, {});
     test.expect(first.status == Status::success && same.specific_force_peak == Scalar{50}, profile,
                 "both sessions consume the same first real sample");
+
     // No update represents arbitrary external idle time; this API has no wall clock.
     sample.specific_force_b(2U) = Scalar{-10};
     first = active.update(Scalar{0.125}, Scalar{0.125}, {}, sample, {});

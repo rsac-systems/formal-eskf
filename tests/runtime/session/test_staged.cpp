@@ -27,7 +27,9 @@ public:
                 force[i] = n == 0 ? input.specific_force_b(i) : (1 - a) * force[i] + a * input.specific_force_b(i);
                 rate[i] = n == 0 ? input.angular_rate_b(i) : (1 - b) * rate[i] + b * input.angular_rate_b(i);
             }
+
             test.expect(f.tick() && !f.session.initialized(), profile, "valid fast rotation collects without seeding");
+
             auto const & filtered = f.session.m_startup.filtered();
             for (std::size_t i = 0; i < 3; ++i)
             {
@@ -35,8 +37,10 @@ public:
                                 std::abs(filtered.angular_rate_b(i) - rate[i]) < 4e-15,
                             profile, "session forwards distinct periods to the independent long-double LPF oracle");
             }
+
             ++n;
         }
+
         ++f.imu.source.gyroscope_id;
         f.imu.delta_angle_b = {};
         f.imu.delta_velocity_b = Vector::from_row_major({0, 0, -9.80665 * .004});
@@ -72,21 +76,27 @@ public:
             case Participant::imu:
                 f.imu.time_us = 1;
                 test.expect(f.session.m_imu_history.seed(f.imu, 1), profile, "consume required IMU seed owner");
+
                 break;
             case Participant::observations:
             {
                 Session::observation_history_type::Seed seed;
                 seed.context.time_us = 1;
                 test.expect(f.session.m_observations.seed(seed), profile, "consume required observation seed owner");
+
                 break;
             }
+
             case Participant::output:
                 test.expect(f.session.m_output.seed({}, 1), profile, "consume required output seed owner");
+
                 break;
             case Participant::continuity:
                 test.expect(f.session.m_continuity.seed(1), profile, "inject a previously consumed seed owner");
+
                 break;
             }
+
             auto const state = f.session.state();
             auto const P = f.session.covariance();
             test.expect(!f.tick() && f.session.fault() && !f.session.initialized() &&
@@ -106,6 +116,7 @@ public:
         f.send_gnss = f.send_barometer = false;
         test.expect(f.run(8500) && f.tick(false), profile,
                     "real qualified magnetic owner and distinct retained epochs");
+
         auto & s = f.session;
         double const roll = .3, pitch = -.2, yaw = .4;
         double const cr = std::cos(roll), sr = std::sin(roll), cp = std::cos(pitch), sp = std::sin(pitch);
@@ -118,10 +129,12 @@ public:
                 std::cos(roll / 2) * std::cos(pitch / 2), std::sin(roll / 2) * std::cos(pitch / 2),
                 std::cos(roll / 2) * std::sin(pitch / 2), -std::sin(roll / 2) * std::sin(pitch / 2), 1e-12, attitude)),
             profile, "independently defined tilted attitude");
+
         auto const delta = attitude * s.m_state.q_nb.inverse();
         auto const p = Vector::from_row_major({3, -4, 2}), v = Vector::from_row_major({.3, -.2, .1});
         test.expect(s.m_output.apply_reset(delta, v - s.m_state.v_n, p - s.m_state.p_n), profile,
                     "prepare nonzero coordinates on real retained output history");
+
         s.m_state.q_nb = attitude;
         s.m_state.p_n = p;
         s.m_state.v_n = v;
@@ -136,9 +149,11 @@ public:
                 P(i, j) = (i == j ? .01 : 0.) + .00001 * double((i + 1) * (j + 1));
             }
         }
+
         s.m_covariance = P;
         auto const raw_field = linalg::transpose(R) * linalg::transpose(A) * s.m_magnetic_model.observation_n();
         test.expect(succeeded(s.m_magnetic.filter.update(raw_field, true)), profile, "real body field for known yaw");
+
         auto conditions = s.magnetic_conditions();
         conditions.ready = conditions.heading_consistent = true;
         conditions.heading_aligned = false;
@@ -146,23 +161,28 @@ public:
         test.expect(succeeded(s.m_magnetic.lifecycle.update(s.m_time_us, conditions, s.m_settings.magnetic.timing,
                                                             {s.m_time_us, s.m_magnetic.source, true})),
                     profile, "qualified source requests genuine heading uncertainty");
+
         auto const before = s.m_state;
         auto const current = s.m_output.current();
         auto const * delayed = s.m_output.delayed();
         test.expect(delayed != nullptr, profile, "next retained output epoch is available before the reset");
+
         if (delayed == nullptr)
         {
             return;
         }
+
         auto const oldest = *delayed;
         auto const counts = s.resets();
         auto const input_generation = s.m_observations.magnetic_generation();
         test.expect(succeeded(s.reset_magnetic_heading(s.m_time_us)), profile, "whole local gauge rotates once");
+
         std::array<std::array<long double, 15>, 15> T{};
         for (std::size_t i = 0; i < 15; ++i)
         {
             T[i][i] = 1;
         }
+
         for (std::size_t i = 0; i < 3; ++i)
         {
             for (std::size_t j = 0; j < 3; ++j)
@@ -171,6 +191,7 @@ public:
                 T[i + 6][j + 6] = (i == j ? 1.L : 0.L) - static_cast<long double>(R(2, i)) * R(2, j);
             }
         }
+
         for (std::size_t i = 0; i < 15; ++i)
         {
             for (std::size_t j = 0; j < 15; ++j)
@@ -183,18 +204,22 @@ public:
                         expected += T[i][k] * P(k, l) * T[j][l];
                     }
                 }
+
                 if (i >= 6 && i < 9 && j >= 6 && j < 9)
                 {
                     expected += .09L * R(2, i - 6) * R(2, j - 6);
                 }
+
                 test.expect(std::abs(s.covariance()(i, j) - expected) < 2e-15, profile,
                             "full independent transform plus one real Down uncertainty reset, including cross blocks");
             }
         }
+
         test.expect(linalg::max_abs(s.state().p_n - A * p) < 2e-14 && linalg::max_abs(s.state().v_n - A * v) < 2e-14 &&
                         linalg::max_abs(so3::to_rotation_matrix(s.state().q_nb) - A * R) < 2e-14 &&
                         same_bits(before.b_a, s.state().b_a) && same_bits(before.b_g, s.state().b_g),
                     profile, "yaw changes the horizontal gauge, not body biases or gravity convention");
+
         for (auto pair : {std::pair{current, s.m_output.current()}, std::pair{oldest, *s.m_output.delayed()}})
         {
             test.expect(pair.first.time_us == pair.second.time_us &&
@@ -205,11 +230,13 @@ public:
                                             A * so3::to_rotation_matrix(pair.first.q_nb)) < 2e-14,
                         profile, "delayed and current retained records share the event without changing epochs");
         }
+
         test.expect(s.resets().attitude_count == std::uint8_t(counts.attitude_count + 1) &&
                         same_bits(s.m_magnetic.filter.field_b(), raw_field) &&
                         s.m_observations.magnetic_generation() == input_generation &&
                         !s.navigation_frame().initialized(),
                     profile, "one heading notification; body field/source epoch retained; no invented geography");
+
         auto const after = s.covariance();
         auto const resets = s.resets();
         test.expect(!succeeded(s.reset_magnetic_heading(s.m_time_us)) && same_bits(after, s.covariance()) &&
@@ -225,6 +252,7 @@ public:
             Fixture f;
             f.send_gnss = f.send_magnetic = f.send_barometer = false;
             test.expect(f.run(128), profile, "real partial session before a declared cross-covariance fixture");
+
             auto & s = f.session;
             s.m_state = {};
             s.m_covariance = Session::covariance_type::identity();
@@ -255,6 +283,7 @@ public:
                 (s.state().b_a(0) != 0) == bias_enabled && !s.capabilities(f.imu.time_us).horizontal_position.available,
                 profile, "existing bias mask still applies; a coupled state change is not positioning capability");
         }
+
         magnetic_height_coupling(test, profile);
     }
 
@@ -264,12 +293,14 @@ public:
         Fixture magnetic;
         magnetic.send_gnss = magnetic.send_barometer = false;
         test.expect(magnetic.run(8500), profile, "real magnetic session before declared correlated-P fixture");
+
         auto & s = magnetic.session;
         s.m_state = {};
         s.m_covariance = Session::covariance_type::identity();
         s.m_covariance(0, 7) = s.m_covariance(7, 0) = .2;
         auto const reference = s.m_magnetic_model.observation_n();
         test.expect(std::abs(reference(1)) < 1e-12, profile, "magnetic-North fixture has its declared horizontal axis");
+
         double const delta = .001;
         auto field = reference + Vector::from_row_major({-reference(2) * delta, 0, reference(0) * delta});
         s.m_time_us += 4000;
@@ -278,6 +309,7 @@ public:
         test.expect(succeeded(s.m_magnetic.lifecycle.update(s.m_time_us, conditions, s.m_settings.magnetic.timing,
                                                             {s.m_time_us, s.m_magnetic.source, true})),
                     profile, "current qualified real source permits an ordinary magnetic correction");
+
         double const norm2 = reference(0) * reference(0) + reference(2) * reference(2);
         double const information = norm2 / (norm2 + s.m_settings.magnetic.noise_variance);
         test.expect(s.fuse_magnetic_observation({field, s.m_magnetic.source, s.m_time_us, true, true}) &&
@@ -290,6 +322,7 @@ public:
         Fixture height;
         height.send_gnss = height.send_magnetic = false;
         test.expect(height.run(3000), profile, "real relative-height session before declared correlated-P fixture");
+
         auto & h = height.session;
         h.m_state = {};
         h.m_covariance = Session::covariance_type::identity();
@@ -328,16 +361,19 @@ public:
         {
             Fixture live;
             test.expect(live.run(8500), profile, "establish real qualified owners for transaction fault injection");
+
             for (unsigned n = 0; n < 30 && live.session.m_gnss.sample.time_us == 0; ++n)
             {
                 test.expect(live.tick(), profile, "select a fresh qualified GNSS event");
             }
+
             auto & attempted = live.session;
             attempted.m_navigation_frame = {};
             auto const translation = Vector::from_row_major({10, -7, 2});
             attempted.m_state.p_n = attempted.m_state.p_n + translation;
             test.expect(attempted.m_output.apply_reset({}, {}, translation), profile,
                         "prepare distinct retained output epochs");
+
             Session::covariance_type L;
             for (std::size_t i = 0; i < 15; ++i)
             {
@@ -347,6 +383,7 @@ public:
                     L(i, j) = .0001 * double(i + j + 1);
                 }
             }
+
             attempted.m_covariance = formal_eskf::linalg::sandwich(L, Session::covariance_type::identity());
             for (std::size_t row = 0; row < 15; ++row)
             {
@@ -355,6 +392,7 @@ public:
                     attempted.m_covariance(col, row) = attempted.m_covariance(row, col);
                 }
             }
+
             auto const old_height = attempted.body_output().altitude_msl_m;
             auto const old_z = attempted.body_output().position_n(2);
             switch (failure)
@@ -377,6 +415,7 @@ public:
             case Failure::none:
                 break;
             }
+
             auto const state = attempted.m_state;
             auto const P = attempted.m_covariance;
             auto const output = attempted.m_output.current();
@@ -426,11 +465,13 @@ public:
                                                Vector::from_row_major({.6, .1, -.1})};
         test.expect(f.session.configure_sensor_positions(sensors) && f.run(8500), profile,
                     "GNSS and height may qualify before a true-North heading exists");
+
         auto & s = f.session;
         auto const before = s.body_output();
         auto const seed = s.capabilities(f.imu.time_us).session_epoch_us;
         test.expect(s.capabilities(f.imu.time_us).attitude.available && !s.navigation_frame().initialized(), profile,
                     "candidate GNSS cannot manufacture body heading or geographic attachment");
+
         f.send_magnetic = true;
         // Rotate the declared field without changing its strength or inclination.
         // An inconsistent field would legitimately change tilt/height when full
@@ -443,8 +484,10 @@ public:
                 break;
             }
         }
+
         test.expect(s.navigation_frame().initialized() && !s.fault(), profile,
                     "real heading admission attaches the same running INS in the reverse source order");
+
         auto const after = s.body_output();
         test.expect(std::abs(after.position_n(2) - before.position_n(2)) < 1e-5 &&
                         s.capabilities(f.imu.time_us).session_epoch_us == seed &&
@@ -452,12 +495,14 @@ public:
                         s.output_predictor().current().time_us > s.fusion_time_us(),
                     profile,
                     "valid local height and distinct current/delayed epochs survive nonzero heading and lever arms");
+
         Vector working_ecef, antenna_ecef;
         auto const & gps = s.m_gnss.input.sample;
         test.expect(succeeded(s.navigation_frame().working().ned_to_ecef({}, working_ecef)) &&
                         succeeded(geodesy::geodetic_to_ecef<Backend>(
                             {gps.latitude_deg, gps.longitude_deg, gps.altitude_ellipsoid_m}, antenna_ecef)),
                     profile, "first origin and received antenna position have separate ECEF points");
+
         double const lat = gps.latitude_deg * std::acos(-1.) / 180., lon = gps.longitude_deg * std::acos(-1.) / 180.;
         auto const ned_ecef = Session::matrix3_type::from_row_major(
             {-std::sin(lat) * std::cos(lon), -std::sin(lon), -std::cos(lat) * std::cos(lon),
@@ -473,6 +518,7 @@ public:
         s.m_state.p_n = s.m_state.p_n + displacement;
         test.expect(s.m_output.apply_reset({}, {}, displacement), profile,
                     "move matched main/current history for rebase");
+
         auto const output = s.body_output();
         auto const reference_epoch = s.m_origin.time_us;
         auto const datum = s.m_height_datum.time_us();
@@ -484,6 +530,7 @@ public:
         auto const current_frame = s.frame_admission(current.p_n, current.v_n, current.time_us);
         test.expect(succeeded(s.rebase_navigation(delayed_frame, current_frame)), profile,
                     "ordinary coordinated rebase follows first geographic attachment");
+
         auto const rebased = s.body_output();
         test.expect(
             s.navigation_frame().generation() == 1 && s.continuity_state().frame_epoch == 1 &&
@@ -506,6 +553,7 @@ public:
         {
             Fixture f;
             test.expect(f.run(8500), profile, "real geographic service established");
+
             auto & s = f.session;
             s.m_covariance(6, 6) = .04;
             s.m_covariance(7, 7) = .06;
@@ -516,6 +564,7 @@ public:
             // admitted tangent domain. Retain the same output axes for q and P.
             s.m_state.p_n = displacement;
             test.expect(s.m_output.apply_reset({}, {}, displacement), profile, "inject out-of-domain position");
+
             auto const output = s.body_output();
             auto const cap = s.capabilities(f.imu.time_us);
             test.expect(formal_eskf::succeeded(output.status) && cap.attitude.available &&
@@ -571,12 +620,15 @@ void imu_admission(Context & test, std::string_view profile)
             input.delta_velocity_b(0) = NAN;
             break;
         }
+
         f.session.process_imu(input, 1000000, {});
         test.expect(!f.session.initialized() && !f.session.fault() &&
                         f.session.output_predictor().current().time_us == 0,
                     profile, "bad pre-start sample supplies no seed or required-history fault");
+
         f.session.process_imu(f.imu, 1004000, {});
         test.expect(f.session.initialized(), profile, "later valid sample remains eligible after rejection");
+
         auto const state = f.session.state();
         auto const P = f.session.covariance();
         f.session.process_imu(f.imu, 1004000, {});
@@ -591,6 +643,7 @@ void seed_transaction(Context & test, std::string_view profile)
     formal_eskf::testing::InsSessionTest::seed_participants(test, profile);
     Fixture good;
     test.expect(good.tick() && good.session.initialized(), profile, "valid local seed commits");
+
     auto const epoch = good.session.fusion_time_us();
     auto const cap = good.session.capabilities(good.imu.time_us);
     test.expect(epoch == good.session.imu_history().fusion_time_us() &&
@@ -598,6 +651,7 @@ void seed_transaction(Context & test, std::string_view profile)
                     epoch == good.session.output_predictor().current().time_us && cap.seeded &&
                     !cap.attitude.available && !cap.horizontal_position.available,
                 profile, "one common seed epoch is not premature output readiness");
+
     auto p = ins_test_profile::parameters<Session>();
     p.output.quaternion_squared_norm_tolerance = -1;
     Fixture rejected{p};
@@ -624,6 +678,7 @@ void seed_boundaries(Context & test, std::string_view profile)
         test.expect(f.tick() && f.session.initialized() == (force >= 8. && force <= 12.), profile,
                     "actual IMU ingress preserves the inclusive seed force limits");
     }
+
     for (double rate : {.5 - 1e-6, .5, .5 + 1e-6})
     {
         Fixture f(parameters);
@@ -631,6 +686,7 @@ void seed_boundaries(Context & test, std::string_view profile)
         test.expect(f.tick() && f.session.initialized() == (rate <= .5), profile,
                     "actual IMU ingress preserves the inclusive seed angular-rate limit");
     }
+
     for (bool angular : {false, true})
     {
         for (unsigned period : {3799U, 3800U, 4200U, 4201U})
@@ -656,6 +712,7 @@ void seed_covariance(Context & test, std::string_view profile)
         f.imu.delta_velocity_b = down * (-ins_test_profile::gravity * .004);
         f.imu.delta_angle_b = Vector::from_row_major({.001, -.002, .003}) * .004;
         test.expect(f.tick() && f.session.initialized(), profile, "tilted real sample seeds a complete local INS");
+
         auto const & state = f.session.state();
         auto const R = formal_eskf::so3::to_rotation_matrix(state.q_nb);
         for (std::size_t i = 0; i < 3; ++i)
@@ -665,6 +722,7 @@ void seed_covariance(Context & test, std::string_view profile)
                         profile,
                         "gravity defines tilt; nominal zero priors are not measured position, velocity or bias");
         }
+
         for (std::size_t i = 0; i < 15; ++i)
         {
             for (std::size_t j = 0; j < 15; ++j)
@@ -681,10 +739,12 @@ void seed_covariance(Context & test, std::string_view profile)
                                : i < 12 ? parameters.startup.accelerometer_bias_variance
                                         : parameters.startup.gyroscope_bias_variance;
                 }
+
                 test.expect(std::abs(f.session.covariance()(i, j) - expected) < 2e-15, profile,
                             "all 225 seed entries match the independent I-minus-Down-projector prior");
             }
         }
+
         auto const cap = f.session.capabilities(f.imu.time_us);
         test.expect(!cap.heading.available && !cap.horizontal_velocity.available && !cap.global_position.available,
                     profile, "seed priors and relative yaw never fabricate navigation observability");
@@ -703,10 +763,12 @@ void physical_tilt(Context & test, std::string_view profile)
             f.imu.delta_velocity_b = Vector::from_row_major({0, -ins_test_profile::gravity * std::sin(angle) * .004,
                                                              -ins_test_profile::gravity * std::cos(angle) * .004});
             test.expect(f.tick(), profile, "known seed transient admitted");
+
             f.imu.delta_velocity_b = Vector::from_row_major(
                 {acceleration * ins_test_profile::gravity * .004, 0, -ins_test_profile::gravity * .004});
             test.expect(f.run(15000), profile,
                         "60 s real IMU-only propagation/refinement without manufactured sources");
+
             auto const R = formal_eskf::so3::to_rotation_matrix(f.session.state().q_nb);
             auto const tilt = std::acos(std::clamp(R(2, 2), -1., 1.));
             auto const cap = f.session.capabilities(f.imu.time_us);
@@ -730,10 +792,12 @@ void prealignment_refinement(Context & test, std::string_view profile)
         {0, -ins_test_profile::gravity * std::sin(angle) * .004, -ins_test_profile::gravity * std::cos(angle) * .004});
     test.expect(f.tick() && !f.session.tilt_alignment().aligned(), profile,
                 "real seed begins above the alignment limit");
+
     auto const before = formal_eskf::so3::to_rotation_matrix(f.session.state().q_nb);
     f.imu.delta_velocity_b = Vector::from_row_major({0, 0, -ins_test_profile::gravity * .004});
     test.expect(f.run(128) && f.session.gravity().corrections > 0 && !f.session.tilt_alignment().aligned(), profile,
                 "eligible gravity is actually fused while the session remains unaligned");
+
     auto const after = formal_eskf::so3::to_rotation_matrix(f.session.state().q_nb);
     test.expect(after(2, 2) > before(2, 2), profile, "real pre-alignment correction improves known physical tilt");
 }
@@ -745,6 +809,7 @@ void gravity_ambiguity(Context & test, std::string_view profile)
     f.imu.delta_velocity_b =
         Vector::from_row_major({.2 * ins_test_profile::gravity * .004, 0, -ins_test_profile::gravity * .004});
     test.expect(f.run(15000), profile, "sustained accelerometer ambiguity remains a finite model input");
+
     auto const R = formal_eskf::so3::to_rotation_matrix(f.session.state().q_nb);
     auto const apparent_tilt = std::acos(std::clamp(R(2, 2), -1., 1.));
     test.expect(
@@ -752,10 +817,12 @@ void gravity_ambiguity(Context & test, std::string_view profile)
         "small covariance/alignment must not be interpreted as physical accuracy during sustained acceleration");
     test.expect(!f.session.capabilities(f.imu.time_us).horizontal_velocity.available, profile,
                 "gravity ambiguity does not manufacture translational support");
+
     Fixture constant_speed;
     constant_speed.send_gnss = constant_speed.send_magnetic = constant_speed.send_barometer = false;
     constant_speed.at_rest = false;
     test.expect(constant_speed.run(15000), profile, "level constant-speed flight has the same gravity-only IMU input");
+
     auto const truth_velocity = Vector::from_row_major({5, -2, .3});
     auto const cap = constant_speed.session.capabilities(constant_speed.imu.time_us);
     test.expect(cap.attitude.available && !cap.horizontal_velocity.available && !cap.vertical_velocity.available &&
@@ -768,6 +835,7 @@ void partial_capabilities(Context & test, std::string_view profile)
     Fixture f;
     f.send_gnss = f.send_magnetic = false;
     test.expect(f.run(15000), profile, "IMU and relative barometer cold start without magnetic/GNSS input");
+
     auto cap = f.session.capabilities(f.imu.time_us);
     auto const before = f.session.state();
     auto const P = f.session.covariance();
@@ -777,14 +845,18 @@ void partial_capabilities(Context & test, std::string_view profile)
                 profile, "relative height is independent of GNSS, heading and velocity");
     test.expect(cap.output_time_us > cap.covariance_time_us && cap.session_epoch_us == 1000000, profile,
                 "snapshot identifies distinct current-output, delayed-covariance and seed epochs");
+
     for (unsigned i = 0; i < 10; ++i)
     {
         (void)f.session.capabilities(f.imu.time_us);
     }
+
     test.expect(same_bits(before.p_n, f.session.state().p_n) && same_bits(P, f.session.covariance()), profile,
                 "status is read-only");
+
     f.send_magnetic = true;
     test.expect(f.run(1000), profile, "magnetic heading qualifies without GNSS");
+
     cap = f.session.capabilities(f.imu.time_us);
     test.expect(cap.heading.available && cap.heading_reference == Capabilities::HeadingReference::magnetic_north &&
                     !cap.horizontal_position.available && !cap.msl_altitude.available,
@@ -796,14 +868,17 @@ void freshness(Context & test, std::string_view profile)
     Fixture f;
     f.send_gnss = f.send_magnetic = f.send_barometer = false;
     test.expect(f.run(15000), profile, "qualified relative attitude");
+
     auto const epoch = f.imu.time_us;
     test.expect(f.session.capabilities(epoch + 99999).attitude.available &&
                     !f.session.capabilities(epoch + 100000).attitude.available &&
                     (f.session.capabilities(epoch + 100000).attitude.reasons & Capabilities::stale) != 0 &&
                     !f.session.fault(),
                 profile, "freshness equality withdraws output, distinct from a numerical fault");
+
     f.imu.gyroscope_clipping = 1;
     test.expect(!f.tick() && f.session.fault(), profile, "invalid clipped gyro input still requires restart");
+
     auto const cap = f.session.capabilities(f.imu.time_us);
     test.expect(!cap.attitude.available && (cap.attitude.reasons & Capabilities::fault) != 0, profile,
                 "fault defeats previously completed tilt alignment");
@@ -817,8 +892,10 @@ void aiding_clocks(Context & test, std::string_view profile)
     parameters.settings.gnss.maximum_sample_age_us = 2000000;
     Fixture f(parameters);
     test.expect(f.run(8500), profile, "full real aiding established");
+
     f.send_gnss = f.send_barometer = f.send_magnetic = false;
     test.expect(f.run(60), profile, "drain already admitted delayed measurements");
+
     auto const reference = f.session.capabilities(f.imu.time_us);
     auto const last = reference.horizontal_velocity.aiding_time_us;
     auto advance_to = [&](std::uint64_t epoch)
@@ -835,15 +912,18 @@ void aiding_clocks(Context & test, std::string_view profile)
     auto cap = f.session.capabilities(f.imu.time_us);
     test.expect(cap.horizontal_velocity.available && cap.horizontal_velocity.aided, profile,
                 "real aiding remains current just before one second");
+
     advance_to(last + 1000000);
     cap = f.session.capabilities(f.imu.time_us);
     test.expect(cap.horizontal_velocity.available && !cap.horizontal_velocity.aided &&
                     cap.horizontal_velocity.aiding_time_us == last,
                 profile, "one-second equality ends current aiding without inventing a new clock");
+
     advance_to(last + 4996000);
     cap = f.session.capabilities(f.imu.time_us);
     test.expect(cap.horizontal_velocity.available && !cap.heading.available && cap.attitude.available, profile,
                 "heading has its own shorter loss budget while supported tilt continues");
+
     advance_to(last + 5000000);
     cap = f.session.capabilities(f.imu.time_us);
     test.expect(!cap.horizontal_velocity.available && cap.attitude.available &&
@@ -858,6 +938,7 @@ void disabled_refinement(Context & test, std::string_view profile)
     f.send_gnss = f.send_magnetic = f.send_barometer = false;
     test.expect(f.session.configure_gravity(false) && f.run(15000), profile,
                 "disabled gravity still permits finite IMU seed and propagation");
+
     auto const cap = f.session.capabilities(f.imu.time_us);
     test.expect(cap.seeded && !cap.tilt_aligned && !cap.attitude.available && f.session.gravity().corrections == 0,
                 profile, "elapsed time alone cannot promote the initial covariance to qualified tilt");
@@ -870,10 +951,12 @@ void attachment(Context & test, std::string_view profile)
     f.input.barometer.altitude_m = 538;
     test.expect(f.run(15000), profile, "relative height and magnetic heading established before GNSS");
     test.expect(!f.session.navigation_frame().initialized(), profile, "magnetic-only heading cannot attach geography");
+
     auto const z = f.session.body_output().position_n(2);
     auto const seed_epoch = f.session.capabilities(f.imu.time_us).session_epoch_us;
     f.send_gnss = true;
     test.expect(f.run(6000), profile, "qualified GNSS supplies WMM candidate then true North and first origin");
+
     auto const cap = f.session.capabilities(f.imu.time_us);
     auto const body = f.session.body_output();
     test.expect(cap.horizontal_position.available && cap.horizontal_velocity.available &&
@@ -885,20 +968,24 @@ void attachment(Context & test, std::string_view profile)
                 profile,
                 "known stationary truth retains relative height and gains a separate MSL datum without restart");
 }
+
 void ellipsoid_without_msl(Context & test, std::string_view profile)
 {
     Fixture f;
     f.input.gnss.altitude_msl_m = NAN;
     test.expect(f.run(15000), profile, "qualified ellipsoid navigation can start without MSL metadata");
+
     auto cap = f.session.capabilities(f.imu.time_us);
     auto const before = f.session.body_output();
     test.expect(cap.attitude.available && cap.horizontal_position.available && cap.horizontal_velocity.available &&
                     cap.vertical_position.available && cap.global_position.available && !cap.msl_altitude.available &&
                     before.geographic_available && !before.msl_available && std::isnan(before.altitude_msl_m),
                 profile, "missing datum withholds MSL alone; it does not invent zero separation");
+
     auto const epoch = cap.session_epoch_us;
     f.input.gnss.altitude_msl_m = 488;
     test.expect(f.run(2000), profile, "later paired datum is admitted without restarting the estimator");
+
     cap = f.session.capabilities(f.imu.time_us);
     auto const after = f.session.body_output();
     test.expect(cap.msl_altitude.available && cap.session_epoch_us == epoch &&
@@ -911,20 +998,25 @@ void consumed_observations(Context & test, std::string_view profile)
 {
     Fixture f;
     test.expect(f.run(8500), profile, "real heading, navigation and height sources established");
+
     auto const old = f.input;
     f.send_gnss = f.send_magnetic = f.send_barometer = false;
     test.expect(f.run(64), profile, "consume already queued real observations");
+
     Fixture baseline;
     test.expect(baseline.run(8500), profile,
                 "independent no-duplicate control follows the identical real input schedule");
+
     baseline.send_gnss = baseline.send_magnetic = baseline.send_barometer = false;
     test.expect(baseline.run(64), profile, "control drains the same admitted observations");
+
     f.session.receive_gnss(old.gnss, f.imu.time_us);
     f.session.receive_barometer(old.barometer, f.imu.time_us);
     f.session.receive_magnetic({{old.magnetic.time_us, {old.magnetic.device_id, old.magnetic.calibration_count}},
                                 old.magnetic.field_gauss * 100.},
                                f.imu.time_us);
     test.expect(f.run(64) && baseline.run(64), profile, "duplicate arrivals do not prevent subsequent real IMU work");
+
     auto const cap = f.session.capabilities(f.imu.time_us);
     auto const reference = baseline.session.capabilities(baseline.imu.time_us);
     test.expect(same_bits(f.session.covariance(), baseline.session.covariance()) &&

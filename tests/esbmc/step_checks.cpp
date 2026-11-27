@@ -75,7 +75,9 @@ void __ESBMC_assert(bool condition, char const * description)
         std::abort();
     }
 }
+
 void __ESBMC_assume(bool condition) { __ESBMC_assert(condition, "unexpected infeasible native witness"); }
+
 float nondet_float() { return 0.0F; }
 
 int main()

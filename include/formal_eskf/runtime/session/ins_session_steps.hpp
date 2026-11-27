@@ -18,6 +18,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::che
     {
         return true;
     }
+
     if (!m_fault)
     {
         ++m_statistics.errors;
@@ -26,6 +27,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::che
         m_failure_status = status;
         m_fault = true; // Latch the first failure; propagated failures are not new events.
     }
+
     return false;
 }
 
@@ -39,6 +41,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::che
         m_failure_operation = m_operation;
         m_failure_status = status_type::out_of_range;
     }
+
     return accepted;
 }
 
@@ -66,6 +69,7 @@ void InsSession<Linalg, Layout>::record_admission(std::size_t source,
             {
                 report(group).change_source();
             }
+
             m_gnss_quality_epoch = {};
             m_diagnostic_gnss_quality = {};
             m_gnss_quality_evaluated = false;
@@ -82,6 +86,7 @@ void InsSession<Linalg, Layout>::record_admission(std::size_t source,
             }
         }
     }
+
     m_statistics.arrival_rejections += result.decision != Admission::queued;
     m_statistics.rate_rejections += result.decision == Admission::too_fast;
     m_statistics.stale_arrivals += result.decision == Admission::stale || result.decision == Admission::imu_stale;
@@ -113,6 +118,7 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::sel
         record_selection(2, barometer);
         m_statistics.retired_observations += barometer.retired;
     }
+
     m_gnss.context = m_observations.context(m_gnss.input.time_us, m_settings.gnss.context_maximum_age_us);
     m_magnetic.context = m_observations.context(m_magnetic.input.time_us != 0 ? m_magnetic.input.time_us : m_time_us,
                                                 m_settings.magnetic.context_maximum_age_us);
@@ -139,17 +145,20 @@ bool InsSession<Linalg, Layout>::reset_output(quaternion_type const & delta_q, v
         {
             return false;
         }
+
         after = body_output(current.p_n + delta_p, current.v_n + delta_v, attitude, m_output.angular_rate_b());
     }
     else
     {
         after = body_output(m_state.p_n, m_state.v_n, m_state.q_nb, {});
     }
+
     if (!check(before.status) || !check(after.status) ||
         (seeded && !check_timing(m_output.apply_reset(delta_q, delta_v, delta_p))))
     {
         return false;
     }
+
     record_output_reset(before, after, request, seeded);
     return true;
 }
@@ -171,28 +180,33 @@ void InsSession<Linalg, Layout>::record_output_reset(BodyOutput const & before, 
     {
         m_resets.record_position(m_time_us, vector2_type::from_row_major({position(0), position(1)}));
     }
+
     if (request.height_count != 0 || rotated_point ||
         (current_output && std::abs(position(2)) > m_settings.output.position_reset_resolution_m))
     {
         m_resets.record_height(m_time_us, position(2), std::max<std::uint8_t>(request.height_count, 1));
     }
+
     if (request.velocity || rotated_point ||
         (current_output &&
          math_type::hypot(velocity(0), velocity(1)) > m_settings.output.velocity_reset_resolution_m_s))
     {
         m_resets.record_velocity(m_time_us, velocity);
     }
+
     if (request.vertical_velocity || rotated_point ||
         (current_output && std::abs(velocity(2)) > m_settings.output.velocity_reset_resolution_m_s))
     {
         m_resets.record_vertical_velocity(m_time_us, velocity(2));
     }
+
     if (request.attitude ||
         (current_output && formal_eskf::linalg::max_abs(attitude.coefficients().template segment<1, 3>()) >
                                m_settings.output.attitude_reset_resolution))
     {
         m_resets.record_attitude(m_time_us, attitude);
     }
+
     auto const count = std::max<unsigned>(1, request.height_count + request.vertical_velocity);
     m_resets.odometry_count = static_cast<std::uint8_t>(m_resets.odometry_count + count);
 }
@@ -222,6 +236,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::upd
     {
         return true; // The previous verdict was invalidated before prediction/bias evaluation.
     }
+
     typename vertical_health_type::Observations observations;
     observations.barometer_height = m_height_aiding.vertical_innovation(height_type::Source::barometer);
     observations.gnss_height = m_height_aiding.vertical_innovation(height_type::Source::gnss);
@@ -266,6 +281,7 @@ bool InsSession<Linalg, Layout>::accept_imu(ImuInput const & sample, std::uint64
         reset_imu_observations();
         return false;
     }
+
     return true;
 }
 
@@ -285,10 +301,12 @@ bool InsSession<Linalg, Layout>::admit_imu(ImuInput const & sample, std::uint64_
         {
             return false;
         }
+
         if (!m_imu_history.can_push(sample, arrival_us))
         {
             return check_timing(m_imu_history.push(sample, arrival_us));
         }
+
         auto const & prior = m_startup.parameters();
         formal_eskf::BiasReset<backend_type> reset;
         reset.accelerometer = accel_changed;
@@ -303,15 +321,18 @@ bool InsSession<Linalg, Layout>::admit_imu(ImuInput const & sample, std::uint64_
             return false;
         }
     }
+
     m_operation = InsOperation::input;
     if (!check_timing(m_imu_history.push(sample, arrival_us)))
     {
         return false;
     }
+
     if (accel_changed)
     {
         m_imu_source_changes.accelerometer_time_us = sample.time_us;
     }
+
     if (gyro_changed)
     {
         m_imu_source_changes.gyroscope_time_us = sample.time_us;
@@ -336,6 +357,7 @@ void InsSession<Linalg, Layout>::process_imu(ImuInput const & sample, std::uint6
         m_imu_admission = ImuAdmission::session_fault;
         return;
     }
+
     m_context = context;
     if (m_initialized)
     {
@@ -345,29 +367,34 @@ void InsSession<Linalg, Layout>::process_imu(ImuInput const & sample, std::uint6
             m_imu_admission = ImuAdmission::owner_rejected;
             return;
         }
+
         m_imu_admission = ImuAdmission::accepted;
         auto const & interval = *m_imu_history.latest();
         if (!check_timing(m_observations.record_imu(interval, context.land, context.vehicle)))
         {
             return;
         }
+
         m_operation = InsOperation::output_prediction;
         ++m_output_prediction_attempts;
         check_timing(m_output.predict(interval));
         return;
     }
+
     if (!accept_imu(sample, arrival_us))
     {
         ++m_imu_rejections;
         m_imu_admission = ImuAdmission::invalid_input;
         return;
     }
+
     if (sample.source.accelerometer_id == 0 || sample.source.gyroscope_id == 0)
     {
         ++m_imu_rejections;
         m_imu_admission = ImuAdmission::unavailable;
         return;
     }
+
     auto const imu = sample.mean_rates();
     if (!linalg::all_finite(imu.specific_force_b) || !linalg::all_finite(imu.angular_rate_b))
     {
@@ -376,18 +403,21 @@ void InsSession<Linalg, Layout>::process_imu(ImuInput const & sample, std::uint6
         m_imu_admission = ImuAdmission::invalid_input;
         return;
     }
+
     m_imu_admission = ImuAdmission::accepted;
     if (!m_filtered_imu_source.matches(sample.source))
     {
         m_startup.reset();
         m_filtered_imu_source = sample.source;
     }
+
     m_time_us = sample.time_us;
     m_imu_context = startup_context(m_time_us, m_settings.imu.rest_maximum_age_us);
     if (!m_startup.update(imu, sample.angular_interval_s(), sample.acceleration_interval_s()))
     {
         return;
     }
+
     m_operation = InsOperation::initialization;
     state_type seed_state;
     covariance_type seed_covariance;
@@ -395,6 +425,7 @@ void InsSession<Linalg, Layout>::process_imu(ImuInput const & sample, std::uint6
     {
         return;
     }
+
     (void)seed(seed_state, seed_covariance, sample, arrival_us);
 }
 
@@ -416,11 +447,13 @@ bool InsSession<Linalg, Layout>::seed(state_type const & seed_state, covariance_
     {
         return false;
     }
+
     if (!check_timing(m_imu_history.seed(sample, arrival_us) && m_observations.seed(seed) &&
                       m_output.seed(seed_state, m_time_us) && m_continuity.seed(m_time_us)))
     {
         return false;
     }
+
     m_state = seed_state;
     m_covariance = seed_covariance;
     m_seed_time_us = m_time_us;
@@ -453,11 +486,13 @@ bool InsSession<Linalg, Layout>::initialize_prior(InitialAttitude const & prior,
     {
         return false;
     }
+
     auto const norm_squared = linalg::squared_norm(prior.q_nb.coefficients());
     if (!std::isfinite(norm_squared) || std::abs(norm_squared - 1.) > m_parameters.quaternion_squared_norm_tolerance)
     {
         return false;
     }
+
     state_type seed_state;
     covariance_type seed_covariance;
     if (!succeeded(m_startup.seed_attitude(prior.q_nb, prior.variance_n, seed_state, seed_covariance)) ||
@@ -465,6 +500,7 @@ bool InsSession<Linalg, Layout>::initialize_prior(InitialAttitude const & prior,
     {
         return false;
     }
+
     auto const imu = sample.mean_rates();
     if (!linalg::all_finite(imu.specific_force_b) || !linalg::all_finite(imu.angular_rate_b))
     {
@@ -490,6 +526,7 @@ bool InsSession<Linalg, Layout>::initialize_prior(InitialAttitude const & prior,
         {
             return false;
         }
+
         for (std::size_t axis = 0; axis < 3; ++axis)
         {
             auto const pv = navigation->position_variance_n[axis];
@@ -498,20 +535,24 @@ bool InsSession<Linalg, Layout>::initialize_prior(InitialAttitude const & prior,
             {
                 return false;
             }
+
             seed_covariance(axis, axis) = pv;
             seed_covariance(3 + axis, 3 + axis) = vv;
         }
+
         seed_state.v_n = navigation->velocity_n;
         origin.projection.set_origin(position.latitude_deg, position.longitude_deg, sample.time_us);
         origin.time_us = sample.time_us;
         origin.altitude_msl_m = navigation->altitude_msl_m;
         origin.height_ellipsoid_m = position.height_ellipsoid_m;
     }
+
     auto tilt = m_tilt_alignment;
     if (!succeeded(tilt.update(seed_state.q_nb, seed_covariance.template block<6, 6, 3, 3>())))
     {
         return false;
     }
+
     m_operation = InsOperation::initialization;
     m_context = context;
     m_time_us = sample.time_us;
@@ -525,6 +566,7 @@ bool InsSession<Linalg, Layout>::initialize_prior(InitialAttitude const & prior,
     {
         return false;
     }
+
     if (navigation != nullptr)
     {
         m_navigation_frame = frame;
@@ -535,6 +577,7 @@ bool InsSession<Linalg, Layout>::initialize_prior(InitialAttitude const & prior,
         m_msl_initialized = true;
         m_velocity_seed_time_us = m_time_us;
     }
+
     m_tilt_alignment = tilt;
     m_heading_aligned = true;
     m_external_heading = true;
@@ -549,11 +592,13 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::beg
     {
         return;
     }
+
     auto const * interval = m_imu_history.delayed();
     if (interval == nullptr)
     {
         return;
     }
+
     predict_and_fuse(*interval);
 }
 
@@ -565,16 +610,19 @@ bool InsSession<Linalg, Layout>::complete_fusion(std::optional<typename magnetic
     {
         return false;
     }
+
     if (!check_timing(m_phase == Phase::magnetic_model || m_phase == Phase::fusion_completion))
     {
         return false;
     }
+
     complete_magnetic(model);
     m_operation = InsOperation::continuity;
     if (!m_fault && !maintain_continuity())
     {
         return false;
     }
+
     m_phase = Phase::idle;
     m_model_request = {};
     m_operation = InsOperation::output_feedback;
@@ -582,6 +630,7 @@ bool InsSession<Linalg, Layout>::complete_fusion(std::optional<typename magnetic
     {
         return false;
     }
+
     m_completed_fusion_us = m_time_us;
     m_operation = InsOperation::frame_change;
     if (!m_navigation_frame.initialized())
@@ -592,6 +641,7 @@ bool InsSession<Linalg, Layout>::complete_fusion(std::optional<typename magnetic
             ++m_statistics.rejections;
         }
     }
+
     update_origin();
     return true;
 }
@@ -602,12 +652,14 @@ void InsSession<Linalg, Layout>::receive_gnss(typename observation_history_type:
 {
     record_admission(0, sample.stamp, arrival_us, m_observations.push_gnss(sample, arrival_us));
 }
+
 template <typename Linalg, typename Layout>
 void InsSession<Linalg, Layout>::receive_magnetic(typename observation_history_type::MagneticSample const & sample,
                                                   std::uint64_t arrival_us)
 {
     record_admission(1, sample.stamp, arrival_us, m_observations.push_magnetic(sample, arrival_us));
 }
+
 template <typename Linalg, typename Layout>
 void InsSession<Linalg, Layout>::receive_barometer(typename observation_history_type::BarometerSample const & sample,
                                                    std::uint64_t arrival_us)
@@ -649,9 +701,11 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::pre
     {
         return false;
     }
+
     output = candidate;
     return true;
 }
+
 template <typename Linalg, typename Layout>
 void InsSession<Linalg, Layout>::predict_and_fuse(typename imu_history_type::interval_type const & interval)
 {
@@ -670,18 +724,22 @@ void InsSession<Linalg, Layout>::predict_and_fuse(typename imu_history_type::int
             m_gravity_clipping_available = false;
             m_gravity_conditions = {};
         }
+
         if (interval.hold_period_us == 0)
         {
             m_gravity.reset_samples();
         }
+
         m_magnetic.heading.reset_acceleration();
         m_filtered_imu_source = sample.source;
     }
+
     m_imu_context = m_observations.prediction_context(interval, m_settings.imu.rest_maximum_age_us);
     if (!sample.accelerometer_clipping_available)
     {
         m_vertical_health.reset();
     }
+
     if (interval.hold_period_us != 0)
     {
         ++m_statistics.gaps;
@@ -694,13 +752,16 @@ void InsSession<Linalg, Layout>::predict_and_fuse(typename imu_history_type::int
         {
             return;
         }
+
         m_covariance_time_us = interval.start_time_us + interval.hold_period_us;
     }
+
     m_operation = InsOperation::bias_learning;
     if (!update_imu_bias(sample, imu))
     {
         return;
     }
+
     m_operation = InsOperation::prediction;
     ++m_prediction_attempts;
     if (!check(formal_eskf::runtime::predict_imu(
@@ -709,6 +770,7 @@ void InsSession<Linalg, Layout>::predict_and_fuse(typename imu_history_type::int
     {
         return;
     }
+
     m_time_us = sample.time_us;
     m_covariance_time_us = m_time_us;
     ++m_statistics.predictions;
@@ -717,11 +779,13 @@ void InsSession<Linalg, Layout>::predict_and_fuse(typename imu_history_type::int
     {
         return;
     }
+
     update_ground_effect();
     if (m_fault)
     {
         return;
     }
+
     select_observations();
     restrict_bias_learning();
     m_operation = InsOperation::magnetic;
@@ -730,6 +794,7 @@ void InsSession<Linalg, Layout>::predict_and_fuse(typename imu_history_type::int
     {
         return;
     }
+
     fuse_gps(imu);
     // Current delayed GNSS velocity and preceding height evidence feed health.
     m_operation = InsOperation::vertical_health;
@@ -737,11 +802,13 @@ void InsSession<Linalg, Layout>::predict_and_fuse(typename imu_history_type::int
     {
         return;
     }
+
     fuse_height(m_observations.barometer_receipt());
     if (m_fault)
     {
         return;
     }
+
     fuse_gravity(sample, imu);
     if (!m_fault)
     {
@@ -770,6 +837,7 @@ void InsSession<Linalg, Layout>::complete_magnetic(
     {
         return;
     }
+
     auto sample = m_pending_magnetic;
     auto conditions = m_pending_conditions;
     apply_magnetic_model(model);
@@ -777,6 +845,7 @@ void InsSession<Linalg, Layout>::complete_magnetic(
     {
         return;
     }
+
     sample.source.reference_id = m_magnetic_model.reference_id();
     if (m_fault)
     {
@@ -793,8 +862,10 @@ void InsSession<Linalg, Layout>::complete_magnetic(
         {
             return;
         }
+
         rejected = !sample.usable || !event.field_accepted;
     }
+
     conditions.ready = !sample.fresh || sample.usable;
     conditions.heading_consistent = m_magnetic.heading.state().consistent;
     // A qualified magnetic reference takes over through its real reset, once.
@@ -805,16 +876,19 @@ void InsSession<Linalg, Layout>::complete_magnetic(
     {
         return;
     }
+
     auto const & lifecycle = m_magnetic.lifecycle.state();
     if (lifecycle.filter_reset)
     {
         m_magnetic.filter.reset();
         clear_innovations(m_innovations.magnetic);
     }
+
     if (previous.active && !lifecycle.active && !conditions.horizontal_aiding && !m_external_heading)
     {
         m_heading_aligned = false;
     }
+
     if (sample.usable && !check(m_magnetic.filter.update(sample.field_b)))
     {
         return;
@@ -827,9 +901,11 @@ void InsSession<Linalg, Layout>::complete_magnetic(
         {
             return;
         }
+
         fused = m_magnetic.observation.fusion.decision == formal_eskf::runtime::FusionDecision::fused;
         rejected = m_magnetic.observation.fusion.decision == formal_eskf::runtime::FusionDecision::rejected;
     }
+
     status_type reset_status = status_type::success;
     // Rejected fusion feedback can request a reset in the same tick.
     if (lifecycle.action == magnetic_lifecycle_type::Action::reset)
@@ -844,10 +920,12 @@ void InsSession<Linalg, Layout>::complete_magnetic(
     {
         m_heading_aligned = false;
     }
+
     if (!check(reset_status))
     {
         return;
     }
+
     m_magnetic.corrections += fused;
     m_statistics.rejections += rejected;
 }
@@ -866,6 +944,7 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::pre
                 return;
             }
         }
+
         m_pending_position_valid = attached ? gps_position_valid(m_settings.gnss.maximum_aiding_age_us) : gps_good();
         m_pending_origin_updated = m_origin.time_us > m_mag_model_origin_time;
         bool const initial = m_magnetic_model.reference_id() == 0;
@@ -873,10 +952,12 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::pre
         {
             return;
         }
+
         if (!initial && !m_magnetic_model.lookup_due(m_time_us, m_pending_position_valid, m_pending_origin_updated))
         {
             return;
         }
+
         double latitude = m_gnss.input.sample.latitude_deg, longitude = m_gnss.input.sample.longitude_deg;
         if (attached)
         {
@@ -885,9 +966,11 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::pre
             {
                 return;
             }
+
             latitude = geographic.latitude_deg;
             longitude = geographic.longitude_deg;
         }
+
         longitude = longitude == 180. ? -180. : longitude;
         m_model_request = {true, latitude, longitude, attached ? m_origin.projection.latitude_deg() : latitude,
                            attached ? m_origin.projection.longitude_deg() : longitude};
@@ -907,8 +990,10 @@ void InsSession<Linalg, Layout>::apply_magnetic_model(
             check(m_magnetic_model.initialize(m_time_us, m_magnetic_settings, field,
                                               m_model_request.required ? model : std::nullopt));
         }
+
         return;
     }
+
     if (m_model_request.required)
     {
         m_statistics.mag_model_unavailable += !model.has_value();

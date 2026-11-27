@@ -76,6 +76,7 @@ template <typename Linalg> struct HeightFixture
             receipt.push_time_us = time;
             receipt.generation = baro.generation;
         }
+
         auto const result =
             aiding.update(time, baro, gps, receipt, velocity, estimate, covariance, permissions, acceleration);
         if (result.status == Status::success && result.height_resets != 0U)
@@ -83,6 +84,7 @@ template <typename Linalg> struct HeightFixture
             reset_counter = static_cast<std::uint8_t>(reset_counter + result.height_resets);
             reset_delta = result.height_delta;
         }
+
         return result;
     }
 
@@ -94,20 +96,24 @@ template <typename Linalg> struct HeightFixture
         {
             baro = {now, 1, calibration, baro_altitude, static_cast<value_type>(12.25)};
         }
+
         if (gnss)
         {
             gps = {now, 2, 0, gnss_altitude, 1, quality};
         }
+
         return update(now, baro, gps, velocity_aiding, state, P);
     }
 
     void start(Context & test)
     {
         test.expect(aiding.initialize(now, value_type{500}) == Status::success, "setup", "fixed origin");
+
         for (unsigned i = 0; i < 22; ++i)
         {
             test.expect(tick().status == Status::success, "setup", "qualified two-source startup");
         }
+
         test.expect(aiding.session(Source::barometer).active && aiding.session(Source::gnss).active &&
                         aiding.reference() == Source::gnss,
                     "setup", "both fuse, GNSS is the reference");
@@ -147,6 +153,7 @@ template <typename Linalg> void ground_effect(Context & test)
                         : selected.fusion_innovation == original.fusion_innovation &&
                               protected_case.state.p_n(2) == ordinary.state.p_n(2),
                     "ground-effect", "only barometer correction is protected; GNSS residual is untouched");
+
         if (barometer)
         {
             test.expect(selected.active && selected.bias.value < baseline.aiding.session(Source::barometer).bias.value,
@@ -175,6 +182,7 @@ template <typename Linalg> void ground_bias_boundaries(Context & test)
         {
             test.expect(prior.aiding.initialize(prior.now, T{500}) == Status::success, "bias",
                         "initialize relative barometer gauge");
+
             if (mode == Mode::reference)
             {
                 for (unsigned i = 0; i < 24; ++i)
@@ -182,6 +190,7 @@ template <typename Linalg> void ground_bias_boundaries(Context & test)
                 test.expect(prior.aiding.reference() == Source::barometer, "bias", "barometer owns height reference");
             }
         }
+
         auto protected_case = prior;
         auto ordinary = prior;
         typename F::aiding_type::Sample const sample{
@@ -196,8 +205,10 @@ template <typename Linalg> void ground_bias_boundaries(Context & test)
                         x.bias.variance == y.bias.variance && x.active == y.active &&
                         a.height_resets == b.height_resets,
                     "bias", "reference, inactive and scalar-gated paths receive the same original altitude");
+
         if (mode == Mode::inactive)
             test.expect(!x.active, "bias", "inactive source cannot bypass warmup");
+
         if (mode == Mode::bias_rejected)
         {
             auto const & before = prior.aiding.session(Source::barometer).bias;
@@ -233,6 +244,7 @@ template <typename Linalg> void ground_effect_isolation(Context & test)
                             a.velocity_resets == b.velocity_resets &&
                             protected_case.aiding.reference() == ordinary.aiding.reference(),
                         "isolation", "protection has no reset or height-reference authority");
+
             for (auto source : {Source::barometer, Source::gnss})
             {
                 auto const & x = protected_case.aiding.session(source);
@@ -253,10 +265,12 @@ template <typename Linalg> void ground_reset_authority(Context & test)
     F prior;
     test.expect(prior.aiding.initialize(prior.now, T{500}) == Status::success, "reset",
                 "initialize barometer reference");
+
     for (unsigned i = 0; i < 24; ++i)
     {
         test.expect(prior.tick(true, false).status == Status::success, "reset", "qualify source alone");
     }
+
     auto protected_case = prior;
     auto ordinary = prior;
     typename F::aiding_type::Sample const sample{prior.now + 5000001, 1, 0, prior.baro_altitude - T{50}, T{1}};
@@ -267,6 +281,7 @@ template <typename Linalg> void ground_reset_authority(Context & test)
     test.expect(a.status == Status::success && b.status == Status::success && a.height_resets == 1 &&
                     b.height_resets == 1 && a.height_delta == b.height_delta && a.velocity_resets == b.velocity_resets,
                 "reset", "genuine fusion timeout keeps its existing reset authority despite active protection");
+
     prior = F{};
     prior.start(test);
     protected_case = prior;
@@ -306,6 +321,7 @@ template <typename Linalg> void shared_sample(Context & test)
                     aliased.height_delta == independent.height_delta &&
                     aliased.velocity_delta == independent.velocity_delta,
                 "shared sample", "shared and independent borrowing produce identical successful/reset accounting");
+
     using formal_eskf::linalg::max_abs;
     test.expect(max_abs(shared.state.p_n - separate.state.p_n) == T{0} &&
                     max_abs(shared.state.v_n - separate.state.v_n) == T{0} &&
@@ -348,15 +364,18 @@ template <typename Linalg> void run(Context & test)
                         open.state.b_a(0) != Scalar{0} && f.state.b_g(0) != Scalar{0} && f.P(9, 9) == Scalar{1},
                     "bias permissions",
                     "height forwards inhibited accel gain without disabling gyro learning or fusion");
+
         auto innovation = f.aiding.vertical_innovation(Source::gnss);
         test.expect(innovation.active && innovation.innovation > Scalar{0} && innovation.variance > Scalar{0}, "health",
                     "height converts residual to prediction-minus-observation");
+
         gps.time_us += 20000U;
         gps.altitude = 1500;
         result = f.update(gps.time_us, {}, gps, true, f.state, f.P, inhibited);
         test.expect(result.rejected != 0 && f.aiding.vertical_innovation(Source::gnss).active, "health",
                     "rejected height retains evidence while its source is active");
     }
+
     for (bool barometer : {false, true})
     {
         F f;
@@ -371,6 +390,7 @@ template <typename Linalg> void run(Context & test)
         test.expect(result.fused == 1 && f.state.b_a(0) == static_cast<Scalar>(-0.4) &&
                         f.state.b_g(1) == static_cast<Scalar>(0.15),
                     "bias limits", "each height source limits successful corrections even with learning inhibited");
+
         f.state.b_a(0) = Scalar{-1};
         sample.time_us += 20000U;
         sample.altitude += 1000;
@@ -379,6 +399,7 @@ template <typename Linalg> void run(Context & test)
         test.expect(result.rejected == 1 && f.state.b_a(0) == Scalar{-1}, "bias limits",
                     "rejected height does not invoke limiting");
     }
+
     for (bool barometer : {false, true})
     {
         F f;
@@ -390,8 +411,10 @@ template <typename Linalg> void run(Context & test)
                 test.expect(f.tick(true, false).status == Status::success, "setup", "barometer fallback");
             }
         }
+
         auto const source = barometer ? Source::barometer : Source::gnss;
         test.expect(f.aiding.reference() == source, "setup", "selected height reference");
+
         auto const now = f.now + 20000U;
         typename Aiding::Sample sample{now, barometer ? 1U : 2U, 0,
                                        (barometer ? f.baro_altitude : f.gnss_altitude) + Scalar{100}, 1};
@@ -413,6 +436,7 @@ template <typename Linalg> void run(Context & test)
                         f.aiding.reset_required(now, {now, now - 500001U}) && f.aiding.reset_required(now, {now, 0U}) &&
                         !f.aiding.reset_required(now),
                     "reset time", "strict 500 ms last-good boundary is independent of recent fusion and held fault");
+
         sample.time_us += 20000U;
         held.times = {sample.time_us, sample.time_us - 500001U};
         auto unqualified = f;
@@ -424,6 +448,7 @@ template <typename Linalg> void run(Context & test)
         test.expect(blocked.fused == 0 && blocked.height_resets == 0 && blocked.velocity_resets == 0 &&
                         unqualified.state.p_n(2) == f.state.p_n(2),
                     "permission", "bad acceleration never grants quality permission or reset without a source");
+
         auto invalid = f;
         auto future = held;
         future.times.update_time_us = sample.time_us + 1U;
@@ -431,6 +456,7 @@ template <typename Linalg> void run(Context & test)
         test.expect(failed.status == Status::out_of_range && invalid.state.p_n(2) == f.state.p_n(2) &&
                         invalid.reset_counter == f.reset_counter,
                     "time", "future health does not mutate the height transaction");
+
         f.state.v_n(2) = Scalar{2};
         auto const reset_counter = f.reset_counter;
         auto const reset = f.update(sample.time_us, barometer ? sample : typename Aiding::Sample{},
@@ -439,27 +465,33 @@ template <typename Linalg> void run(Context & test)
                         f.reset_counter == static_cast<std::uint8_t>(reset_counter + 1U) &&
                         !f.aiding.vertical_innovation(source).active && reset.velocity_resets == unsigned(barometer),
                     "recovery", "successful bounded fusion does not postpone independent reference-height reset");
+
         if (barometer)
         {
             test.expect(f.state.v_n(2) == Scalar{0} && f.P(5, 5) == Scalar{10}, "recovery",
                         "barometer reference resets Down velocity only when velocity aiding is absent");
         }
     }
+
     {
         F f;
         test.expect(f.aiding.initialize(f.now, 100000) == Status::domain_error && !f.aiding.valid(f.now), "startup",
                     "invalid external origin does not create height progress");
         test.expect(f.aiding.initialize(f.now, 500) == Status::success, "startup", "initialize metadata only");
         test.expect(!f.aiding.valid(f.now) && f.aiding.progress_time() == 0, "startup", "no invented fusion");
+
         auto result = f.tick();
         test.expect(result.height_resets == 1 && result.fused == 0 && f.reset_counter == 1 && near(f.P(2, 2), 1) &&
                         f.aiding.valid(f.now),
                     "startup", "first GNSS starts with a real height/covariance reset");
+
         for (unsigned i = 1; i < 20U; ++i)
         {
             test.expect(f.tick().status == Status::success, "startup", "barometer warmup");
         }
+
         test.expect(!f.aiding.session(Source::barometer).active, "startup", "strict sample-count boundary");
+
         result = f.tick();
         test.expect(f.aiding.session(Source::barometer).active && f.aiding.session(Source::barometer).fused_time == 0 &&
                         result.height_resets == 0 && near(f.aiding.session(Source::barometer).bias.value, 50),
@@ -467,6 +499,7 @@ template <typename Linalg> void run(Context & test)
         test.expect(f.tick().fused == 2 && near(f.state.p_n(2), 0), "startup",
                     "different raw altitude datums agree after offset alignment");
     }
+
     {
         F f;
         f.start(test);
@@ -476,18 +509,22 @@ template <typename Linalg> void run(Context & test)
         test.expect(f.tick(true, false, 1).status == Status::success && f.aiding.reference() == Source::barometer &&
                         !f.aiding.session(Source::gnss).active && f.aiding.valid(f.now) && f.reset_counter == resets,
                     "fallback", "at 1 s missing GNSS selects working baro without resetting height");
+
         auto const bias = f.aiding.session(Source::barometer).bias.value;
         auto const bias_variance = f.aiding.session(Source::barometer).bias.variance;
         for (unsigned i = 0; i < 10; ++i)
         {
             test.expect(f.tick(true, false).status == Status::success, "fallback", "baro reference remains active");
         }
+
         test.expect(f.aiding.session(Source::barometer).bias.value == bias &&
                         f.aiding.session(Source::barometer).bias.variance == bias_variance,
                     "bias", "reference bias and variance are frozen");
+
         f.quality = false;
         test.expect(f.tick().height_resets == 0 && !f.aiding.session(Source::gnss).active, "quality",
                     "unqualified returning GNSS cannot reset or start");
+
         f.quality = true;
         f.gnss_altitude += 5;
         auto const before = f.state.p_n(2);
@@ -500,23 +537,28 @@ template <typename Linalg> void run(Context & test)
                     "reset", "height delta transports other-source bias; GNSS reference offset resets");
         test.expect(f.tick().height_resets == 0, "recovery", "normal fusion resumes without repeating reset");
     }
+
     {
         F f;
         f.start(test);
         auto const reset_count = f.reset_counter;
         f.tick(false, true, 399999);
         test.expect(f.aiding.session(Source::barometer).active, "baro timeout", "active before 400 ms");
+
         f.tick(false, true, 1);
         test.expect(!f.aiding.session(Source::barometer).active && f.aiding.reference() == Source::gnss &&
                         f.aiding.valid(f.now),
                     "baro timeout", "missing secondary does not invalidate GNSS height");
+
         f.baro_altitude += 25;
         test.expect(f.tick().height_resets == 0 && f.reset_counter == reset_count, "baro recovery",
                     "secondary re-entry aligns offset, not the navigation state");
+
         f.baro_altitude = std::numeric_limits<Scalar>::quiet_NaN();
         test.expect(f.tick().status == Status::success && !f.aiding.session(Source::barometer).active, "invalid",
                     "bad external altitude stops that source without estimator fault");
     }
+
     {
         F f;
         f.start(test);
@@ -528,21 +570,26 @@ template <typename Linalg> void run(Context & test)
             test.expect(result.status == Status::success && result.height_resets == 0, "rejection",
                         "working GNSS prevents a height reset from bad barometer");
         }
+
         test.expect(f.aiding.session(Source::barometer).fault && !f.aiding.session(Source::barometer).active &&
                         f.reset_counter == resets && near(f.state.p_n(2), 0),
                     "rejection", "sustained baro rejection latches fault while GNSS continues");
+
         f.baro_altitude = 550;
         test.expect(f.tick().height_resets == 0 && !f.aiding.session(Source::barometer).active, "latch",
                     "a good reading alone cannot clear the fault latch");
+
         ++f.calibration;
         for (unsigned i = 0; i < 22; ++i)
         {
             test.expect(f.tick().status == Status::success, "calibration", "requalify changed barometer");
         }
+
         test.expect(f.aiding.session(Source::barometer).active && !f.aiding.session(Source::barometer).fault &&
                         f.reset_counter == resets,
                     "calibration", "calibration clears fault, reseeds LPF and restarts without height reset");
     }
+
     {
         F f;
         f.start(test);
@@ -552,10 +599,12 @@ template <typename Linalg> void run(Context & test)
         {
             test.expect(f.tick().height_resets == 0, "GNSS rejection", "baro progress prevents all-source timeout");
         }
+
         test.expect(!f.aiding.session(Source::gnss).active && f.aiding.reference() == Source::barometer &&
                         f.reset_counter == resets,
                     "GNSS rejection", "failed primary stops and falls back to active secondary");
     }
+
     {
         F f;
         f.start(test);
@@ -565,6 +614,7 @@ template <typename Linalg> void run(Context & test)
         {
             test.expect(f.tick().height_resets == 0, "global timeout", "no reset at or before 5 s");
         }
+
         auto result = f.tick();
         test.expect(result.height_resets == 1 && near(f.state.p_n(2), -1000) && near(f.P(2, 2), 1) &&
                         f.aiding.valid(f.now),
@@ -572,10 +622,12 @@ template <typename Linalg> void run(Context & test)
         test.expect(f.aiding.session(Source::gnss).fusion.diagnostics_valid &&
                         !f.aiding.vertical_innovation(Source::gnss).active,
                     "health", "reset retains raw diagnostics but excludes their pre-reset innovation from health");
+
         f.gnss_altitude += 100;
         test.expect(f.tick().status == Status::success && f.aiding.vertical_innovation(Source::gnss).active, "health",
                     "the next height attempt supplies fresh evidence even when rejected");
     }
+
     {
         F f;
         f.start(test);
@@ -591,11 +643,13 @@ template <typename Linalg> void run(Context & test)
         {
             result = f.tick(true, false);
         }
+
         test.expect(result.height_resets == 1 && result.velocity_resets == 1 && near(result.velocity_delta, -4) &&
                         f.state.v_n(2) == Scalar{0} && near(f.P(5, 5), 10) && f.state.v_n(0) == Scalar{2} &&
                         f.state.v_n(1) == Scalar{3},
                     "baro reset", "baro fallback resets Down velocity only when no velocity aiding is active");
     }
+
     {
         F f;
         f.start(test);
@@ -604,11 +658,13 @@ template <typename Linalg> void run(Context & test)
             f.baro_altitude += static_cast<Scalar>(0.005);
             test.expect(f.tick().status == Status::success, "drift", "slow barometer drift remains numerical");
         }
+
         test.expect(f.aiding.session(Source::barometer).bias.value > static_cast<Scalar>(50.5) &&
                         f.aiding.session(Source::gnss).bias.value == Scalar{0} &&
                         std::abs(f.state.p_n(2)) < static_cast<Scalar>(0.5),
                     "drift", "secondary offset learns drift while GNSS retains the altitude reference");
     }
+
     {
         F f;
         f.start(test);
@@ -620,6 +676,7 @@ template <typename Linalg> void run(Context & test)
         {
             test.expect(f.tick(true, false).height_resets == 0, "combined reset", "reference timeout pending");
         }
+
         f.quality = true;
         f.gnss_altitude += 3;
         auto result = f.tick();
@@ -627,6 +684,7 @@ template <typename Linalg> void run(Context & test)
                         near(f.reset_delta, -3) && near(f.state.p_n(2), -3) && f.state.v_n(2) == Scalar{4},
                     "combined reset", "two real height resets accumulate delta; active velocity is not zeroed");
     }
+
     {
         F f;
         f.start(test);
@@ -640,6 +698,7 @@ template <typename Linalg> void run(Context & test)
                         formal_eskf::linalg::max_abs(f.state.p_n - prior.p_n) == Scalar{0} && std::isnan(f.P(0, 0)),
                     "numerical failure", "production correction failure rolls back tentative offset/history/state");
     }
+
     {
         F f;
         f.start(test);
@@ -650,22 +709,26 @@ template <typename Linalg> void run(Context & test)
         test.expect(!f.aiding.valid(f.now) && f.aiding.reference() == Source::none && f.reset_counter == resets &&
                         f.aiding.progress_time() == progress,
                     "outage", "no measurements means no reset, success or validity refresh");
+
         typename Aiding::Sample future{f.now + 50000, 2, 0, 500, 1};
         auto result = f.update(f.now + 1, {}, future, false, f.state, f.P);
         test.expect(result.status == Status::success && f.aiding.session(Source::gnss).sample_time == sample_time,
                     "time", "future sample is not consumed");
+
         result = f.update(future.time_us, {}, future, true, f.state, f.P);
         test.expect(result.height_resets == 1, "time", "future sample becomes usable at its timestamp");
         test.expect(f.update(future.time_us + 1, {}, future, true, f.state, f.P).height_resets == 0, "time",
                     "duplicate sample cannot reset twice");
         test.expect(f.update(future.time_us, {}, {}, true, f.state, f.P).status == Status::out_of_range, "time",
                     "reversed tick rejected");
+
         auto const old_tick_progress = f.aiding.progress_time();
         f.P(2, 2) = -1;
         test.expect(f.update(future.time_us + 2, {}, {}, true, f.state, f.P).status == Status::domain_error &&
                         f.aiding.progress_time() == old_tick_progress && f.P(2, 2) == Scalar{-1},
                     "failure", "bad prior preserves helper and estimator outputs");
     }
+
     {
         auto const parameters = height_parameters<Scalar>().bias;
         formal_eskf::runtime::HeightBias<Scalar> bias{parameters};
@@ -673,13 +736,16 @@ template <typename Linalg> void run(Context & test)
         bias.fuse(2, 3, 3, parameters);
         test.expect(near(bias.value, static_cast<Scalar>(0.5)) && near(bias.variance, static_cast<Scalar>(0.75)),
                     "bias", "scalar Kalman offset estimate has the expected analytical posterior");
+
         auto const old = bias.value;
         bias.fuse(1000, 1, 1, parameters);
         test.expect(bias.value == old, "bias", "bias innovation gate rejects a large offset jump");
+
         bias.predict(1000, parameters);
         test.expect(bias.variance <= Scalar{1} && bias.finite(), "bias", "bounded bias uncertainty");
     }
 }
+
 template <typename Linalg> void geographic_height(Context & test)
 {
     using Aiding = formal_eskf::runtime::HeightAiding<Linalg>;
@@ -691,6 +757,7 @@ template <typename Linalg> void geographic_height(Context & test)
                     new_frame.set_origin({46., 7., 600.}) == Status::success &&
                     datum.update(1000000, 550., 503.) == Status::success,
                 "geographic height", "independent origins and paired datum");
+
     typename Aiding::Geometry old_geometry{old_frame, datum}, new_geometry{new_frame, datum};
     typename Aiding::state_type state;
     state.p_n = V::from_row_major({1200., -800., -20.});
@@ -702,8 +769,10 @@ template <typename Linalg> void geographic_height(Context & test)
     test.expect(old_frame.transform_to(new_frame, transform) == Status::success &&
                     new_frame.transform_to(old_frame, inverse) == Status::success,
                 "geographic height", "frame transforms");
+
     Aiding aiding{height_parameters<typename Aiding::value_type>()};
     test.expect(aiding.initialize(1000000, 503.) == Status::success, "geographic height", "source startup");
+
     typename Aiding::Sample gps{1020000, 2, 0, 500., 1.};
     auto const first = aiding.update(gps.time_us, {}, gps, {gps.time_us, gps.time_us, 0}, true, state, P, {}, {}, false,
                                      &old_geometry);
@@ -714,11 +783,13 @@ template <typename Linalg> void geographic_height(Context & test)
                     formal_eskf::geodesy::ecef_to_geodetic<Linalg>(ecef, point) == Status::success &&
                     std::abs(point.height_ellipsoid_m - 547.) < 2e-7,
                 "geographic height", "reset moves along the point's normal to the requested physical MSL height");
+
     auto moved_aiding = aiding;
     typename Aiding::state_type moved;
     typename Aiding::covariance_type moved_P;
     test.expect(formal_eskf::runtime::rebase_origin(state, P, transform, 1e-6, moved, moved_P) == Status::success,
                 "geographic height", "transport full prior");
+
     gps.time_us += 20000;
     gps.altitude += 0.5;
     auto const a = aiding.update(gps.time_us, {}, gps, {gps.time_us, gps.time_us, 0}, true, state, P, {}, {}, false,
@@ -734,6 +805,7 @@ template <typename Linalg> void geographic_height(Context & test)
             formal_eskf::linalg::max_abs(back_P - P) < 1e-9 &&
             aiding.session(Source::gnss).bias.value == moved_aiding.session(Source::gnss).bias.value,
         "geographic height", "same MSL observation produces equivalent full-covariance correction after rebasing");
+
     auto const prior = state;
     auto const prior_P = P;
     auto const epoch = aiding.session(Source::gnss).sample_time;
@@ -758,39 +830,48 @@ template <typename Linalg> void parameters_and_events(Context & test)
     settings.fusion_timeout_us = 0;
     test.expect(copied.initialize(1000000, T{500}) == Status::success, "parameters",
                 "caller settings are copied into the owner");
+
     A invalid{settings};
     test.expect(invalid.initialize(1000000, T{500}) == Status::domain_error && invalid.progress_time() == 0,
                 "parameters", "invalid settings cannot initialize height management");
+
     settings = height_parameters<T>();
     settings.bias.minimum_variance = settings.bias.measurement_variance_floor * T{2};
     A unordered{settings};
     test.expect(unordered.initialize(1000000, T{500}) == Status::domain_error, "parameters",
                 "reject invalid clamp bounds before any bias update");
+
     settings = height_parameters<T>();
     settings.gate_sigma = std::numeric_limits<T>::quiet_NaN();
     A nonfinite{settings};
     test.expect(nonfinite.initialize(1000000, T{500}) == Status::domain_error, "parameters",
                 "nonfinite numerical settings cannot become a live owner");
+
     settings = height_parameters<T>();
     settings.barometer_lpf_gain = T{2};
     A unstable_filter{settings};
     test.expect(unstable_filter.initialize(1000000, T{500}) == Status::domain_error, "parameters",
                 "reject a gain outside the declared convex filter range");
+
     settings = height_parameters<T>();
     settings.barometer_warmup_samples = std::numeric_limits<unsigned>::max();
     A overflowing_count{settings};
     test.expect(overflowing_count.initialize(1000000, T{500}) == Status::domain_error, "parameters",
                 "warmup successor must remain representable before processing samples");
+
     settings.barometer_warmup_samples = std::numeric_limits<unsigned>::max() - 1U;
     A overflowing_saturated_count{settings};
     test.expect(overflowing_saturated_count.initialize(1000000, T{500}) == Status::domain_error, "parameters",
                 "the increment after saturation must also remain representable");
+
     F f;
     test.expect(f.aiding.initialize(f.now, T{500}) == Status::success, "events", "initialize");
+
     auto const start = f.tick(false, true);
     auto const & initial = start.diagnostics[1];
     test.expect(initial.source_changed && initial.reset && !initial.measurement && initial.time_us == f.now, "events",
                 "first GNSS report clears source history then resets at the admitted epoch");
+
     f.gnss_altitude += T{0.5}; // A nonzero residual distinguishes the two sign conventions.
     auto const fused = f.tick(false, true);
     auto const & observation = fused.diagnostics[1];
@@ -800,6 +881,7 @@ template <typename Linalg> void parameters_and_events(Context & test)
             observation.time_us == f.now && observation.innovation != T{0} &&
             observation.innovation == aid.fusion.innovation(0) && observation.test_ratio == aid.fusion.test_ratio(0),
         "events", "ordinary fusion returns measurement-minus-prediction evidence before adapter sign conversion");
+
     auto const time = aid.sample_time;
     f.P(2, 2) = std::numeric_limits<T>::quiet_NaN();
     auto const failed = f.tick(false, true);
@@ -819,6 +901,7 @@ template <typename Linalg> void prior_offset(Context & test)
     {
         F f;
         test.expect(f.aiding.initialize(f.now, T{500}) == Status::success, "prior", "initialize height gauge");
+
         for (unsigned count = 0; count < 22; ++count)
         {
             test.expect(f.tick(true, secondary).status == Status::success, "prior", "warmup and source activation");
@@ -835,6 +918,7 @@ template <typename Linalg> void prior_offset(Context & test)
                 f.P(i, j) = f.P(j, i) = entry;
             }
         }
+
         auto const P = f.P;
         auto const state = f.state;
         auto const prior = f.aiding.session(Source::barometer).bias;
@@ -849,6 +933,7 @@ template <typename Linalg> void prior_offset(Context & test)
                         prior.positive_time < settings.bias.offset_duration_s &&
                         prior.negative_time < settings.bias.offset_duration_s,
                     "prior", "fixture has nominal process density and no clamp/multiplier");
+
         typename A::Sample sample{f.now + 20000U, 1, 0, f.baro_altitude + T{0.25}, T{4}};
         T const residual = (T{500} - state.p_n(2)) - (sample.altitude - prior.value);
         T const S = P(2, 2) + sample.variance + prior_variance;
@@ -859,11 +944,13 @@ template <typename Linalg> void prior_offset(Context & test)
         test.expect(result.status == Status::success && result.fused == 1 && aid.fusion.innovation(0) == residual &&
                         std::abs(aid.fusion.innovation_variance(0) - S) <= T{16} * epsilon * S,
                     "prior", "innovation freezes prior offset; S includes its variance exactly once");
+
         long double const bias_gain = static_cast<long double>(prior_variance) /
                                       (static_cast<long double>(prior_variance) + sample.variance + P(2, 2));
         T const expected_offset = secondary ? static_cast<T>(prior.value - bias_gain * residual) : prior.value;
         test.expect(std::abs(aid.bias.value - expected_offset) <= T{4} * epsilon * std::abs(expected_offset), "prior",
                     "only nonreference offset learns from the unchanged prior height");
+
         for (std::size_t i = 0; i < 15; ++i)
         {
             for (std::size_t j = 0; j < 15; ++j)
@@ -874,9 +961,11 @@ template <typename Linalg> void prior_offset(Context & test)
                             "full covariance follows independent scalar Kalman update");
             }
         }
+
         T const expected_down = state.p_n(2) + P(2, 2) / S * residual;
         test.expect(std::abs(f.state.p_n(2) - expected_down) <= T{32} * epsilon, "prior",
                     "same frozen residual drives the state correction");
+
         auto const updated_P = f.P;
         auto const updated_offset = aid.bias.value;
         auto const repeat = f.aiding.update(sample.time_us + 1, sample, {}, {sample.time_us + 1, sample.time_us + 1, 0},
@@ -906,11 +995,13 @@ template <typename Linalg> void warmup_timing(Context & test)
     using T = typename F::value_type;
     using A = typename F::aiding_type;
     using Source = typename A::Source;
+
     struct TimingCase
     {
         std::int32_t period_us, delay_ms;
         unsigned count;
     };
+
     TimingCase const cases[]{{4000, 200, 50}, {4000, 201, 51}, {10000, 200, 20},
                              {10000, 10, 2},  {10000, 5, 1},   {6000, 2, 1}};
     for (auto const & scenario : cases)
@@ -919,6 +1010,7 @@ template <typename Linalg> void warmup_timing(Context & test)
         formal_eskf::runtime::TimingParameters timing{scenario.period_us, scenario.delay_ms, 0, 0, 0};
         test.expect(aiding.configure_timing(timing) && aiding.barometer_warmup_samples() == scenario.count, "warmup",
                     "independent rational count including round-half-up boundary");
+
         for (auto const & invalid : {formal_eskf::runtime::TimingParameters{0, 200, 0, 0, 0},
                                      formal_eskf::runtime::TimingParameters{4000, -1, 0, 0, 0},
                                      formal_eskf::runtime::TimingParameters{6001, 2, 0, 0, 0},
@@ -927,11 +1019,13 @@ template <typename Linalg> void warmup_timing(Context & test)
             test.expect(!aiding.configure_timing(invalid) && aiding.barometer_warmup_samples() == scenario.count,
                         "warmup", "invalid or unrepresentable count preserves previous settings");
         }
+
         std::uint64_t now = 1000000;
         typename A::state_type state;
         auto P = A::covariance_type::identity();
         test.expect(aiding.initialize(now, T{500}) == Status::success && !aiding.configure_timing(timing), "warmup",
                     "timing freezes on initialization");
+
         typename A::Sample sample;
         for (unsigned count = 1; count <= scenario.count + 3; ++count)
         {
@@ -941,11 +1035,13 @@ template <typename Linalg> void warmup_timing(Context & test)
             test.expect(result.status == Status::success &&
                             aiding.session(Source::barometer).active == (count > scenario.count),
                         "warmup", "start only after N valid selected events, then remain active");
+
             ++now;
             auto const duplicate = aiding.update(now, sample, {}, {now, sample.time_us, 0}, true, state, P);
             test.expect(duplicate.status == Status::success && duplicate.fused == 0 &&
                             aiding.session(Source::barometer).active == (count > scenario.count),
                         "warmup", "repeated event cannot shorten qualification or fuse twice");
+
             if (count == 1 && scenario.count > 1)
             {
                 sample = {now + 1, 1, 0, T{550}, T{4}};
@@ -953,11 +1049,13 @@ template <typename Linalg> void warmup_timing(Context & test)
                 auto const stale = aiding.update(now, sample, {}, {now, now, 0}, true, state, P);
                 test.expect(stale.status == Status::success && stale.rejected == 1, "warmup",
                             "stale event is not a warmup sample");
+
                 sample.time_us = ++now;
                 sample.altitude = std::numeric_limits<T>::quiet_NaN();
                 auto const invalid = aiding.update(now, sample, {}, {now, now, 0}, true, state, P);
                 test.expect(invalid.status == Status::success && invalid.rejected == 1, "warmup",
                             "invalid altitude is not a warmup sample");
+
                 sample.time_us = now + 1000;
                 sample.altitude = T{550};
                 ++now;
@@ -966,6 +1064,7 @@ template <typename Linalg> void warmup_timing(Context & test)
                             "future event waits without qualification");
             }
         }
+
         test.expect(aiding.barometer_warmup_samples() == scenario.count, "warmup", "runtime never changes the bound");
     }
 }
@@ -1004,6 +1103,7 @@ template <typename Linalg> void receipt_clocks(Context & test)
                         formal_eskf::linalg::max_abs(f.P - baseline.P) == 0,
                     "receipt", "latest-clock equality expires without inventing fusion or a reset");
     }
+
     auto f = baseline;
     auto const now = f.now + 400000;
     typename A::Sample stale{now - 200000, 1, 0, T{550}, T{1}};
@@ -1012,6 +1112,7 @@ template <typename Linalg> void receipt_clocks(Context & test)
                     f.aiding.session(Source::barometer).active &&
                     f.aiding.session(Source::barometer).fused_time == progress,
                 "receipt", "fresh receipt does not make a stale delayed sample usable");
+
     for (std::uint64_t elapsed : {5000000U, 5000001U})
     {
         f = baseline;
@@ -1023,8 +1124,10 @@ template <typename Linalg> void receipt_clocks(Context & test)
                         f.aiding.session(Source::barometer).fused_time == progress,
                     "receipt", "fresh rejected arrivals do not refresh the strict delayed fusion timeout");
     }
+
     f = F{};
     test.expect(f.aiding.initialize(f.now, T{500}) == Status::success, "receipt", "fresh owner");
+
     auto time = f.now;
     for (unsigned count = 0; count < 21; ++count)
     {
@@ -1034,16 +1137,19 @@ template <typename Linalg> void receipt_clocks(Context & test)
         test.expect(result.status == Status::success && !f.aiding.session(Source::barometer).active, "receipt",
                     "valid warmup alone cannot start with an expired latest receipt");
     }
+
     time += 20000;
     typename A::Sample selected{time, 1, 0, T{550}, T{1}};
     result = f.aiding.update(time, selected, {}, {time + 212000, time + 212000, 0}, true, f.state, f.P);
     test.expect(result.status == Status::success && f.aiding.session(Source::barometer).active, "receipt",
                 "a fresh matching receipt permits the already qualified source to start");
+
     time += 20000;
     selected.time_us = time;
     result = f.aiding.update(time, selected, {}, {time + 400000, time, 0}, true, f.state, f.P);
     test.expect(result.status == Status::success && result.fused == 1, "receipt",
                 "active source can fuse an eligible delayed sample before the no-data stop branch, as in PX4");
+
     for (auto receipt : {formal_eskf::runtime::ObservationReceipt{baseline.now, baseline.now, 0},
                          formal_eskf::runtime::ObservationReceipt{baseline.now + 20000, baseline.now + 20001, 0}})
     {
@@ -1074,6 +1180,7 @@ template <typename Linalg> void receipt_generation(Context & test)
                     f.aiding.session(Source::gnss).fused_time == gnss_progress && result.fused == 0 &&
                     result.height_resets == 0 && formal_eskf::linalg::max_abs(f.P - P) == 0,
                 "receipt", "new generation cannot qualify an older delayed sample or reset state");
+
     sample.generation = 1;
     sample.altitude = T{560};
     for (unsigned count = 1; count <= 21; ++count)
@@ -1086,9 +1193,11 @@ template <typename Linalg> void receipt_generation(Context & test)
                         result.diagnostics[0].source_changed == (count == 1),
                     "receipt", "same identity with a new generation restarts qualification exactly once");
     }
+
     test.expect(f.aiding.session(Source::barometer).bias.value == T{60} &&
                     f.aiding.session(Source::gnss).fused_time == gnss_progress,
                 "receipt", "new source learns its own offset without rewriting unrelated fusion history");
+
     auto const progress = f.aiding.session(Source::barometer).progress_time;
     now += 4000;
     result = f.aiding.update(now, {}, {}, {now + 212000, now + 212000, 1}, true, f.state, f.P);
@@ -1096,12 +1205,14 @@ template <typename Linalg> void receipt_generation(Context & test)
                     f.aiding.session(Source::barometer).progress_time == progress && result.fused == 0,
                 "receipt",
                 "a tick without a new sample retains the active matching generation, not default generation zero");
+
     now += 4000;
     sample.time_us = now;
     result = f.aiding.update(now, sample, {}, {now + 212000, now + 212000, 1}, true, f.state, f.P);
     test.expect(result.status == Status::success && result.fused == 1 &&
                     f.aiding.session(Source::barometer).fused_time == now,
                 "receipt", "the next same-generation sample corrects instead of repeatedly restarting");
+
     now += 4000;
     result = f.aiding.update(now, {}, {}, {now + 212000, now + 212000, 2}, true, f.state, f.P);
     test.expect(result.status == Status::success && !f.aiding.session(Source::barometer).active &&
@@ -1123,21 +1234,25 @@ template <typename Linalg> void selected_gnss_recovery(Context & test)
         test.expect(brief.tick(true, false, 500000).status == Status::success &&
                         brief.aiding.session(Source::gnss).active,
                     "brief gap", "a gap below the missing-data timeout retains the GNSS session");
+
         brief.gnss_altitude += T{0.25};
         auto const resumed = brief.tick();
         test.expect(resumed.status == Status::success && resumed.height_resets == 0 && resumed.fused == 2, "brief gap",
                     "a continued qualified source corrects instead of restarting height");
     }
+
     for (T reported_variance : {T{4}, T{144}})
     {
         auto f = baseline;
         test.expect(f.tick(true, false, 1000000).status == Status::success &&
                         f.aiding.reference() == Source::barometer && !f.aiding.session(Source::gnss).active,
                     "recovery", "one-second loss stops GNSS and leaves barometer as reference");
+
         f.quality = false;
         f.gnss_altitude = T{600};
         test.expect(f.tick().height_resets == 0 && !f.aiding.session(Source::gnss).active, "recovery",
                     "the first returning unqualified sample cannot set the height");
+
         // I + w w^T is PSD with nonzero correlations in every reset row.
         for (std::size_t i = 0; i < 15; ++i)
         {
@@ -1146,6 +1261,7 @@ template <typename Linalg> void selected_gnss_recovery(Context & test)
                 f.P(i, j) = (i == j ? T{1} : T{0}) + T{0.25};
             }
         }
+
         auto const prior = f.P;
         auto const position = f.state.p_n;
         auto const velocity = f.state.v_n;
@@ -1162,6 +1278,7 @@ template <typename Linalg> void selected_gnss_recovery(Context & test)
                         f.aiding.session(Source::gnss).bias.value == 0 &&
                         f.aiding.session(Source::barometer).bias.value == offset + reset.height_delta,
                     "recovery", "reset uses the selected qualified altitude and transports the other offset once");
+
         for (std::size_t i = 0; i < 15; ++i)
         {
             for (std::size_t j = 0; j < 15; ++j)
@@ -1171,9 +1288,11 @@ template <typename Linalg> void selected_gnss_recovery(Context & test)
                             "full covariance decorrelates only reset height and uses the effective sample variance");
             }
         }
+
         auto const duplicate = f.update(now + 1, {}, selected, true, f.state, f.P);
         test.expect(duplicate.status == Status::success && duplicate.height_resets == 0 && duplicate.fused == 0,
                     "recovery", "the selected sample cannot be consumed again");
+
         selected.time_us = now + 20000;
         selected.altitude = T{510.25};
         auto const resumed = f.update(selected.time_us, {}, selected, true, f.state, f.P);
@@ -1191,10 +1310,12 @@ template <typename Linalg> void reference_pressure_changes(Context & test)
     {
         F baseline;
         test.expect(baseline.aiding.initialize(baseline.now, T{500}) == Status::success, "reference change", "setup");
+
         for (unsigned n = 0; n < 22; ++n)
         {
             test.expect(baseline.tick(true, gnss_reference).status == Status::success, "reference change", "warmup");
         }
+
         for (T shift : {T{-100}, T{-1}, T{1}, T{100}})
         {
             auto f = baseline;
@@ -1215,6 +1336,7 @@ template <typename Linalg> void reference_pressure_changes(Context & test)
             test.expect(gnss_reference && inside_gate ? (aid.bias.value - prior.bias.value) * shift > 0
                                                       : aid.bias.value == prior.bias.value,
                         "reference change", "only an accepted nonreference offset may learn the changed altitude");
+
             f.baro_altitude -= shift;
             auto const restored = f.tick(true, false);
             test.expect(restored.status == Status::success && restored.fused == 1 && restored.height_resets == 0 &&
@@ -1237,6 +1359,7 @@ template <typename Matrix> bool same_bits(Matrix const & a, Matrix const & b)
             }
         }
     }
+
     return true;
 }
 
@@ -1250,6 +1373,7 @@ void expect_height_frame(Context & test, HeightFixture<Linalg> const & actual, H
                     same_bits(actual.P, before.P) && actual.aiding.reference() == before.aiding.reference() &&
                     actual.aiding.progress_time() == before.aiding.progress_time(),
                 "transaction", "all nominal fields, full covariance and height authority retain their prior values");
+
     for (auto source : {Source::barometer, Source::gnss})
     {
         auto const & a = actual.aiding.session(source);
@@ -1295,6 +1419,7 @@ template <typename Linalg> void height_transaction(Context & test)
         T const origin = failure == Failure::offset ? -huge : huge;
         test.expect(f.aiding.initialize(f.now, origin) == Status::success, "transaction",
                     "wide finite owner domain isolates arithmetic failure; not a deployment atmosphere profile");
+
         typename A::Sample baro{f.now + 20000, 1, 0, origin, T{12.25}};
         typename A::Sample gps{baro.time_us, 2, 0, origin, T{1}};
         switch (failure)
@@ -1316,6 +1441,7 @@ template <typename Linalg> void height_transaction(Context & test)
             gps.altitude = huge;
             break;
         }
+
         f.state.v_n(1) = -T{0};
         f.P(0, 1) = f.P(1, 0) = -T{0};
         auto const before = f;
@@ -1327,6 +1453,7 @@ template <typename Linalg> void height_transaction(Context & test)
                             control.state.p_n(2) != before.state.p_n(2),
                         "transaction", "the first source really succeeds and changes the candidate before GNSS fails");
         }
+
         auto const failed = f.update(baro.time_us, baro, gps, true, f.state, f.P);
         auto const expected_status = failure == Failure::reset ? Status::non_finite_input : Status::non_finite_result;
         test.expect(failed.status == expected_status && failed.fused == 0 && failed.rejected == 0 &&
@@ -1334,12 +1461,14 @@ template <typename Linalg> void height_transaction(Context & test)
                         failed.velocity_delta == 0 && formal_eskf::linalg::max_abs(failed.position_delta_n) == 0 &&
                         formal_eskf::linalg::max_abs(failed.velocity_delta_n) == 0,
                     "transaction", "failure returns no committed correction or reset");
+
         for (auto const & event : failed.diagnostics)
         {
             test.expect(!event.source_changed && !event.measurement && !event.reset && !event.valid &&
                             event.time_us == 0 && event.innovation == 0 && event.test_ratio == 0,
                         "transaction", "neither source publishes a tentative diagnostic event");
         }
+
         if (failure == Failure::second_correction)
         {
             test.expect(
@@ -1349,6 +1478,7 @@ template <typename Linalg> void height_transaction(Context & test)
                 "transaction",
                 "rollback preserves computed first-source gate and invalid second-source attempt as evidence only");
         }
+
         expect_height_frame(test, f, before);
         // Retry the failed epoch against an untouched owner, then cross the warmup
         // boundary. This also detects leaked private tick/count/LPF state.
@@ -1365,6 +1495,7 @@ template <typename Linalg> void height_transaction(Context & test)
             test.expect(retried.status == Status::success && fresh.status == Status::success &&
                             retried.fused == fresh.fused && retried.height_resets == fresh.height_resets,
                         "transaction", "retry and subsequent warmup follow the untouched owner's outcomes");
+
             expect_height_frame(test, f, control);
             baro.time_us += 20000;
         }
@@ -1418,6 +1549,7 @@ void receipt_case(Context & test, std::string_view profile)
         receipt_clocks<formal_eskf::test::Backend<double>>(test);
     }
 }
+
 void generation_case(Context & test, std::string_view profile)
 {
     if (profile == "binary32")
@@ -1443,6 +1575,7 @@ void management_case(Context & test, std::string_view profile)
         parameters_and_events<formal_eskf::test::Backend<double>>(test);
     }
 }
+
 void ground_bias_case(Context & test, std::string_view profile)
 {
     if (profile == "binary32")
@@ -1456,6 +1589,7 @@ void ground_bias_case(Context & test, std::string_view profile)
         ground_bias_boundaries<formal_eskf::test::Backend<double>>(test);
     }
 }
+
 void ground_isolation_case(Context & test, std::string_view profile)
 {
     if (profile == "binary32")
@@ -1469,6 +1603,7 @@ void ground_isolation_case(Context & test, std::string_view profile)
         ground_reset_authority<formal_eskf::test::Backend<double>>(test);
     }
 }
+
 void geographic_case(Context & test, std::string_view) { geographic_height<formal_eskf::test::Backend<double>>(test); }
 } /* end namespace */
 

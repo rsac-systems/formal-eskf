@@ -14,6 +14,7 @@
 #define private public
 #include <formal_eskf/runtime/sensors/magnetic/magnetic_reference.hpp>
 #undef private
+
 namespace model_proof
 {
 using contract_proof::finite_vector;
@@ -21,6 +22,7 @@ using contract_proof::same;
 using contract_proof::same_vector;
 using contract_proof::Scalar;
 using formal_eskf::Status;
+
 // The selected scalar boundary keeps all raw returns arbitrary. The independently
 // checked reference wrapper uses the same inherited checked-math contract.
 struct ModelMath : contract_proof::Linalg::scalar_math_type
@@ -30,34 +32,41 @@ struct ModelMath : contract_proof::Linalg::scalar_math_type
     {
         Scalar operator()(Scalar x, Scalar y) const;
     };
+
     struct Cosine
     {
         Scalar operator()(Scalar value) const;
     };
+
     struct Sine
     {
         Scalar operator()(Scalar value) const;
     };
+
     inline static Hypot hypot{};
     inline static Cosine cos{};
     inline static Sine sin{};
 };
+
 using Linalg =
     formal_eskf::verification::FixedArrayLinalg<Scalar, formal_eskf::verification::NoNormObserver<Scalar>, ModelMath>;
 using Reference = formal_eskf::runtime::MagneticReference<Linalg>;
 using Sample = Reference::Sample;
 using Vector = Reference::vector_type;
 using Result = Reference::Result;
+
 inline bool same_sample(Sample const & a, Sample const & b)
 {
     return same(a.declination, b.declination) && same(a.inclination, b.inclination) && same(a.strength, b.strength);
 }
+
 inline bool same_reference(Reference const & a, Reference const & b)
 {
     return same_sample(a.m_state.model, b.m_state.model) && same_vector(a.m_state.field_n, b.m_state.field_n) &&
            a.m_state.reference_id == b.m_state.reference_id &&
            a.m_state.last_check_time_us == b.m_state.last_check_time_us && a.m_update_time_us == b.m_update_time_us;
 }
+
 inline bool valid_sample(Sample const & v)
 {
     constexpr Scalar pi = std::numbers::pi_v<Scalar>;
@@ -65,11 +74,13 @@ inline bool valid_sample(Sample const & v)
            v.declination >= -pi && v.declination <= pi && v.inclination >= -pi / Scalar{2} &&
            v.inclination <= pi / Scalar{2} && v.strength >= std::numeric_limits<Scalar>::min();
 }
+
 inline bool valid_reference(Reference const & r)
 {
     return r.m_state.last_check_time_us <= r.m_update_time_us && finite_vector(r.m_state.field_n) &&
            (!r.m_state.reference_id || valid_sample(r.m_state.model));
 }
+
 struct Calls
 {
     inline static Reference before;
@@ -81,6 +92,7 @@ struct Calls
     inline static Scalar horizontal, sine, cosine, declination;
     inline static unsigned references, roots, sines, cosines;
 };
+
 inline Reference updated(Reference const & before, std::uint64_t now, Sample const & sample, Result result,
                          Vector const & field)
 {
@@ -101,6 +113,7 @@ inline Reference updated(Reference const & before, std::uint64_t now, Sample con
     }
     return after;
 }
+
 inline void constrain_result(Reference const & before, Sample const & sample, Result result, Vector const & field)
 {
     // The reference producer establishes these facts for arbitrary scalar returns
@@ -111,6 +124,7 @@ inline void constrain_result(Reference const & before, Sample const & sample, Re
                     finite_vector(field) && before.m_state.reference_id < std::numeric_limits<std::uint32_t>::max()));
 }
 } // namespace model_proof
+
 namespace formal_eskf::runtime
 {
 template <>
@@ -127,6 +141,7 @@ inline model_proof::Result MagneticReference<model_proof::Linalg>::update(std::u
     return Calls::result;
 }
 } // namespace formal_eskf::runtime
+
 // Arbitrary pure scalar returns; no numerical accuracy assumptions.
 namespace model_proof
 {
@@ -138,6 +153,7 @@ inline Scalar ModelMath::Hypot::operator()(Scalar x, Scalar y) const
                    "Magnetic model: seed horizontal norm receives original North/East before model lookup");
     return Calls::horizontal;
 }
+
 inline Scalar ModelMath::Cosine::operator()(Scalar value) const
 {
     using namespace model_proof;
@@ -145,6 +161,7 @@ inline Scalar ModelMath::Cosine::operator()(Scalar value) const
                    "Magnetic model: selected declination reaches cosine");
     return Calls::cosine;
 }
+
 inline Scalar ModelMath::Sine::operator()(Scalar value) const
 {
     using namespace model_proof;
@@ -153,19 +170,23 @@ inline Scalar ModelMath::Sine::operator()(Scalar value) const
     return Calls::sine;
 }
 } // namespace model_proof
+
 #define private public
 #include <formal_eskf/runtime/sensors/magnetic/magnetic_model.hpp>
 #undef private
+
 namespace model_proof
 {
 using Model = formal_eskf::runtime::MagneticModel<Linalg>;
 using Settings = Model::Settings;
 using Heading = Model::HeadingSource;
+
 inline bool same_settings(Settings const & a, Settings const & b)
 {
     return a.geographic_heading == b.geographic_heading && a.saved_heading == b.saved_heading &&
            same(a.saved_declination, b.saved_declination);
 }
+
 inline bool same_model(Model const & a, Model const & b)
 {
     return a.m_lookup_interval_us == b.m_lookup_interval_us && same_reference(a.m_model, b.m_model) &&
@@ -174,6 +195,7 @@ inline bool same_model(Model const & a, Model const & b)
            a.m_reference_id == b.m_reference_id && a.m_last_lookup_time == b.m_last_lookup_time &&
            a.m_lookup_count == b.m_lookup_count;
 }
+
 inline bool public_view(Model const & m)
 {
     return same_vector(m.observation_n(), m.m_observation) && same_vector(m.health_n(), m.m_model.m_state.field_n) &&
@@ -182,6 +204,7 @@ inline bool public_view(Model const & m)
            m.last_lookup_time() == m.m_last_lookup_time && m.heading_source() == m.m_heading_source &&
            same(m.declination(), m.m_declination);
 }
+
 inline bool valid_model(Model const & m)
 {
     constexpr Scalar pi = std::numbers::pi_v<Scalar>;
@@ -194,6 +217,7 @@ inline bool valid_model(Model const & m)
            (m.m_heading_source == Heading::magnetic_north || m.m_heading_source == Heading::saved ||
             (m.m_heading_source == Heading::geographic && m.m_settings.geographic_heading && m.available()));
 }
+
 inline void prepare(Reference const & before, Sample sample, Result result, Vector field, std::uint64_t now,
                     bool position, bool origin)
 {
@@ -207,11 +231,13 @@ inline void prepare(Reference const & before, Sample sample, Result result, Vect
     Calls::references = Calls::roots = Calls::sines = Calls::cosines = 0U;
     constrain_result(before, sample, result, field);
 }
+
 inline bool same_result(Result a, Result b)
 {
     return a.status == b.status && a.checked == b.checked && a.changed == b.changed;
 }
 } // namespace model_proof
+
 void verify_model_initialization(std::uint64_t interval)
 {
     using namespace model_proof;
@@ -224,6 +250,7 @@ void verify_model_initialization(std::uint64_t interval)
     __ESBMC_assert(same_vector(m.observation_n(), zero) && same_vector(m.health_n(), zero),
                    "Magnetic model: no fabricated field at construction");
 }
+
 void verify_model_initialize(model_proof::Model model, std::uint64_t now, model_proof::Settings settings,
                              model_proof::Vector independent_level, bool has_model, model_proof::Sample sample,
                              model_proof::Result reply, model_proof::Vector field, model_proof::Scalar horizontal,
@@ -309,6 +336,7 @@ void verify_model_initialize(model_proof::Model model, std::uint64_t now, model_
                        same_settings(settings, old_settings) && same_sample(sample, old_sample),
                    "Magnetic model: initialization preserves inputs and establishes clock/source invariants");
 }
+
 void verify_model_update(model_proof::Model model, std::uint64_t now, bool has_model, model_proof::Sample sample,
                          bool position, bool origin, model_proof::Result reply, model_proof::Vector field)
 {
@@ -380,4 +408,5 @@ void verify_model_update(model_proof::Model model, std::uint64_t now, bool has_m
                    "Magnetic model: initialized clocks/source domains are inductive; counters never wrap or "
                    "fabricate a model");
 }
+
 int main() { return 0; }

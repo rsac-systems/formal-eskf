@@ -21,6 +21,7 @@ public:
             }
         }
     }
+
     static void velocity_limit(test::Context & test, std::string_view profile)
     {
         using namespace ins_test;
@@ -69,6 +70,7 @@ public:
             }
         }
     }
+
     static void velocity_boundaries(test::Context & test, std::string_view profile)
     {
         using namespace ins_test;
@@ -101,6 +103,7 @@ public:
             }
         }
     }
+
     static void bias_boundaries(test::Context & test, std::string_view profile)
     {
         using namespace ins_test;
@@ -184,6 +187,7 @@ public:
         velocity,
         heading
     };
+
     static void recovery_failure(test::Context & test, std::string_view profile)
     {
         using namespace ins_test;
@@ -252,6 +256,7 @@ public:
                 profile, "failed recovery advances no real successful-reset clock and clears no provenance");
         }
     }
+
     static void source_recovery(test::Context & test, std::string_view profile)
     {
         using namespace ins_test;
@@ -351,6 +356,7 @@ void provenance(Context & test, std::string_view profile)
                     policy.state().position.empty(),
                 profile, "failed scalar operation commits neither covariance nor affected-subspace metadata");
 }
+
 void source_loss(Context & test, std::string_view profile)
 {
     for (unsigned sources = 0; sources < 8; ++sources)
@@ -443,6 +449,7 @@ void cadence(Context & test, std::string_view profile)
                     policy.state().heading_updates == 1,
                 profile, "real heading reset/fusion also starts cadence budget");
 }
+
 void bias_permissions(Context & test, std::string_view profile)
 {
     formal_eskf::testing::InsSessionTest::bias_boundaries(test, profile);
@@ -466,6 +473,7 @@ void bias_permissions(Context & test, std::string_view profile)
                 "trusted rest removes only the additional aiding restriction");
 }
 } // namespace
+
 int main(int argc, char ** argv)
 {
     formal_eskf::test::configure_backend_test();

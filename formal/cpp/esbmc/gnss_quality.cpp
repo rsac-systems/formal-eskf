@@ -38,6 +38,7 @@ bool same_checks(Checks const & a, Checks const & b)
            a.horizontal_drift == b.horizontal_drift && a.vertical_drift == b.vertical_drift &&
            a.horizontal_speed == b.horizontal_speed && a.vertical_speed == b.vertical_speed && a.spoofed == b.spoofed;
 }
+
 bool any_failure(Checks const & failures, Checks const & enabled)
 {
     bool const f[]{failures.satellites,          failures.pdop,
@@ -55,8 +56,10 @@ bool any_failure(Checks const & failures, Checks const & enabled)
     {
         count += f[i] && e[i] ? 1U : 0U;
     }
+
     return count != 0U;
 }
+
 bool same_result(Result const & a, Result const & b)
 {
     return a.decision == b.decision && a.status == b.status && same_checks(a.failures, b.failures) &&
@@ -65,6 +68,7 @@ bool same_result(Result const & a, Result const & b)
            same(a.horizontal_speed, b.horizontal_speed) && same(a.vertical_speed, b.vertical_speed) &&
            a.last_fail_us == b.last_fail_us && a.last_pass_us == b.last_pass_us;
 }
+
 bool same_monitor(Monitor const & a, Monitor const & b)
 {
     return same_vector(a.m_position_rate, b.m_position_rate) && same_vector(a.m_velocity, b.m_velocity) &&
@@ -73,6 +77,7 @@ bool same_monitor(Monitor const & a, Monitor const & b)
            same_checks(a.m_failures, b.m_failures) && a.m_previous_position_valid == b.m_previous_position_valid &&
            a.m_qualified == b.m_qualified;
 }
+
 bool same_sample(Sample const & a, Sample const & b)
 {
     return a.time_us == b.time_us && a.fix_type == b.fix_type && a.satellites == b.satellites && same(a.pdop, b.pdop) &&
@@ -81,6 +86,7 @@ bool same_sample(Sample const & a, Sample const & b)
            same_vector(a.velocity_n, b.velocity_n) && same_vector(a.position_delta_n, b.position_delta_n) &&
            a.position_reference_time_us == b.position_reference_time_us;
 }
+
 bool same_parameters(Parameters const & a, Parameters const & b)
 {
     return same_checks(a.enabled_checks, b.enabled_checks) && a.minimum_satellites == b.minimum_satellites &&
@@ -91,11 +97,13 @@ bool same_parameters(Parameters const & a, Parameters const & b)
            same(a.maximum_vertical_drift, b.maximum_vertical_drift) && same(a.velocity_limit, b.velocity_limit) &&
            a.minimum_health_time_us == b.minimum_health_time_us;
 }
+
 bool time_invariant(Monitor const & m)
 {
     return m.m_sample_time_us <= m.m_update_time_us && m.m_last_fail_us <= m.m_update_time_us &&
            m.m_last_pass_us <= m.m_update_time_us && (!m.m_previous_position_valid || m.m_sample_time_us != 0U);
 }
+
 Status parameters_status(Parameters const & p)
 {
     Scalar const limits[]{p.maximum_pdop,           p.maximum_horizontal_accuracy, p.maximum_vertical_accuracy,
@@ -107,11 +115,13 @@ Status parameters_status(Parameters const & p)
         {
             return Status::non_finite_input;
         }
+
         if (limit < std::numeric_limits<Scalar>::min())
         {
             return Status::domain_error;
         }
     }
+
     Scalar const h = Scalar{10} * p.maximum_horizontal_drift, v = Scalar{10} * p.maximum_vertical_drift;
     Scalar const h2 = p.maximum_horizontal_drift * p.maximum_horizontal_drift,
                  speed2 = p.velocity_limit * p.velocity_limit;
@@ -121,6 +131,7 @@ Status parameters_status(Parameters const & p)
                ? Status::domain_error
                : Status::success;
 }
+
 Status sample_status(Sample const & s, Motion motion, bool prior_position)
 {
     Scalar const accuracies[]{s.pdop, s.horizontal_accuracy, s.vertical_accuracy, s.speed_accuracy};
@@ -130,16 +141,19 @@ Status sample_status(Sample const & s, Motion motion, bool prior_position)
         {
             return Status::non_finite_input;
         }
+
         if (accuracy < Scalar{0})
         {
             return Status::domain_error;
         }
     }
+
     return !finite_vector(s.velocity_n) ||
                    (!motion.in_air && motion.vehicle_at_rest && prior_position && !finite_vector(s.position_delta_n))
                ? Status::non_finite_input
                : Status::success;
 }
+
 void health_oracle(Monitor & m, std::uint64_t now, Parameters const & p, Result & r)
 {
     bool const failing = r.decision == Decision::rejected;
@@ -154,10 +168,12 @@ void health_oracle(Monitor & m, std::uint64_t now, Parameters const & p, Result 
         m.m_qualified = m.m_qualified || (recovered && elapsed > p.minimum_health_time_us);
         r.decision = recovered && m.m_qualified ? Decision::accepted : Decision::waiting;
     }
+
     r.last_fail_us = m.m_last_fail_us;
     r.last_pass_us = m.m_last_pass_us;
     r.qualified = m.m_qualified;
 }
+
 void verify_gnss_initialization(Monitor monitor)
 {
     Monitor initial;
@@ -174,6 +190,7 @@ void verify_gnss_initialization(Monitor monitor)
             same(defaults.maximum_vertical_drift, static_cast<Scalar>(0.2)) &&
             same(defaults.velocity_limit, Scalar{100}) && defaults.minimum_health_time_us == 10000000U,
         "GNSS quality: specified defaults, units and all ten enabled checks");
+
     bool const old_invariant = time_invariant(monitor);
     __ESBMC_assert(
         time_invariant(initial) && initial.m_sample_time_us == 0U && initial.m_update_time_us == 0U &&
@@ -184,6 +201,7 @@ void verify_gnss_initialization(Monitor monitor)
     __ESBMC_assert(same_vector(initial.m_position_rate, Vector3::zero()) &&
                        same_vector(initial.m_velocity, Vector3::zero()),
                    "GNSS quality: constructor clears both filters");
+
     expected = monitor;
     expected.m_last_fail_us = expected.m_last_pass_us = 0U;
     monitor.restart_health();
@@ -191,9 +209,11 @@ void verify_gnss_initialization(Monitor monitor)
                    "GNSS quality: restart clears only recent health times, retaining qualification and source history");
     __ESBMC_assert(!old_invariant || time_invariant(monitor),
                    "GNSS quality: restart preserves the initialized clock invariant");
+
     monitor.reset();
     __ESBMC_assert(same_monitor(monitor, initial), "GNSS quality: reset restores the complete constructor invariant");
 }
+
 void verify_gnss_validation(Monitor monitor, Parameters p, Sample sample, Motion motion, Checks enabled,
                             Checks failures)
 {
@@ -214,6 +234,7 @@ void verify_gnss_validation(Monitor monitor, Parameters p, Sample sample, Motion
     __ESBMC_assert(same_monitor(monitor, old_monitor) && same_parameters(p, old_p) && same_sample(sample, old_sample),
                    "GNSS quality: validation is pure");
 }
+
 void verify_gnss_health(Monitor monitor, std::uint64_t now, Parameters parameters, Result result)
 {
     __ESBMC_assume(time_invariant(monitor) && now >= monitor.m_update_time_us && now != 0U &&
@@ -250,12 +271,14 @@ namespace formal_eskf::linalg
 template <> inline Scalar norm<Linalg, 2U>(Vector2 const & vector)
 {
     __ESBMC_assert(MotionResults::norm_calls < 2U, "GNSS motion: at most two pure norm results");
+
     if (MotionResults::check_norm_inputs)
     {
         __ESBMC_assert(MotionResults::norm_calls == 0U ? same_vector(vector, MotionResults::norm_position)
                                                        : same_vector(vector, MotionResults::norm_velocity),
                        "GNSS motion: horizontal norms consume the two filtered vectors in order");
     }
+
     return MotionResults::roots[MotionResults::norm_calls++];
 }
 } // namespace formal_eskf::linalg
@@ -275,6 +298,7 @@ inline Status GnssQuality<Linalg>::update_motion_checks(Sample const & sample, M
     __ESBMC_assert(validate_sample(sample, motion) == Status::success &&
                        validate_parameters(parameters) == Status::success && sample.time_us > m_sample_time_us,
                    "GNSS quality: caller establishes motion-stage validity and positive sample interval");
+
     // Actual producer frame is a required companion profile. No numerical
     // success, finite diagnostic/filter, or particular failure flag is assumed.
     m_position_rate = MotionResults::position_rate;
@@ -324,6 +348,7 @@ void verify_gnss_motion_frame(Monitor monitor, Sample sample, Parameters p, Moti
     auto const status = monitor.update_motion_checks(sample, motion, p, result);
     __ESBMC_assert(status == Status::success || status == Status::non_finite_result,
                    "GNSS motion: producer status range");
+
     // Restore exactly the producer-owned fields to check the complete frame.
     monitor.m_position_rate = old_monitor.m_position_rate;
     monitor.m_velocity = old_monitor.m_velocity;
@@ -359,6 +384,7 @@ void verify_gnss_transition(Monitor monitor, Sample sample, Parameters parameter
     {
         invalid = Status::out_of_range;
     }
+
     unsigned expected_motion_calls = 0U;
     if (invalid != Status::success)
     {
@@ -384,6 +410,7 @@ void verify_gnss_transition(Monitor monitor, Sample sample, Parameters parameter
             expected.vertical_speed = motion_result.vertical_speed;
             expected.drift_valid = motion_result.drift_valid;
         }
+
         expected_monitor.m_previous_position_valid = expected.status == Status::success;
         if (expected.status != Status::success)
         {
@@ -393,6 +420,7 @@ void verify_gnss_transition(Monitor monitor, Sample sample, Parameters parameter
             expected_monitor.m_position_rate = Vector3::zero();
             expected_monitor.m_velocity = Vector3::zero();
         }
+
         expected.invalid_fix = sample.fix_type < 3U;
         expected.failures.satellites = sample.satellites < parameters.minimum_satellites;
         expected.failures.pdop = sample.pdop > parameters.maximum_pdop;
@@ -408,6 +436,7 @@ void verify_gnss_transition(Monitor monitor, Sample sample, Parameters parameter
         expected_monitor.m_sample_time_us = sample.time_us;
         expected_monitor.m_update_time_us = now;
     }
+
     MotionResults::sample = sample;
     MotionResults::parameters = parameters;
     MotionResults::motion = motion;
@@ -433,6 +462,7 @@ Scalar clamp_value(Scalar value, Scalar lower, Scalar upper)
 {
     return value < lower ? lower : upper < value ? upper : value;
 }
+
 Status motion_oracle(Monitor & monitor, Sample const & sample, Parameters const & p, Motion motion, Result & result,
                      Scalar root0, Scalar root1, unsigned & norm_calls)
 {
@@ -451,10 +481,12 @@ Status motion_oracle(Monitor & monitor, Sample const & sample, Parameters const 
             {
                 return Status::non_finite_result;
             }
+
             monitor.m_position_rate(axis) = clamp_value(filtered, -Scalar{10} * limit, Scalar{10} * limit);
             Scalar const limited_input = clamp_value(sample.velocity_n(axis), -Scalar{10} * limit, Scalar{10} * limit);
             monitor.m_velocity(axis) = limited_input * alpha + monitor.m_velocity(axis) * (Scalar{1} - alpha);
         }
+
         norm_calls = 2U;
         result.horizontal_drift = root0;
         result.horizontal_speed = root1;
@@ -465,6 +497,7 @@ Status motion_oracle(Monitor & monitor, Sample const & sample, Parameters const 
         {
             return Status::non_finite_result;
         }
+
         result.drift_valid = true;
         result.failures.horizontal_drift = root0 > p.maximum_horizontal_drift;
         result.failures.horizontal_speed = root1 > p.maximum_horizontal_drift;
@@ -483,6 +516,7 @@ Status motion_oracle(Monitor & monitor, Sample const & sample, Parameters const 
             result.failures.vertical_speed = false;
         }
     }
+
     Scalar const horizontal =
         (Scalar{0} + sample.velocity_n(0U) * sample.velocity_n(0U)) + sample.velocity_n(1U) * sample.velocity_n(1U);
     Scalar const limit = p.velocity_limit * p.velocity_limit;
@@ -490,16 +524,20 @@ Status motion_oracle(Monitor & monitor, Sample const & sample, Parameters const 
     {
         return Status::non_finite_result;
     }
+
     if (horizontal > limit)
     {
         result.failures.horizontal_speed = true;
     }
+
     if (std::fabs(sample.velocity_n(2U)) > p.velocity_limit)
     {
         result.failures.vertical_speed = true;
     }
+
     return Status::success;
 }
+
 void verify_gnss_motion(Monitor monitor, Sample sample, Parameters p, Motion motion, Result result, Scalar root0,
                         Scalar root1)
 {
@@ -525,6 +563,7 @@ void verify_gnss_motion(Monitor monitor, Sample sample, Parameters p, Motion mot
         MotionResults::norm_position(axis) = expected_monitor.m_position_rate(axis);
         MotionResults::norm_velocity(axis) = expected_monitor.m_velocity(axis);
     }
+
     auto const status = monitor.update_motion_checks(sample, motion, p, result);
     __ESBMC_assert(status == expected_status && MotionResults::norm_calls == expected_calls &&
                        same_monitor(monitor, expected_monitor) && same_result(result, expected_result) &&

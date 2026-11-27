@@ -10,6 +10,7 @@
 #define private public
 #include <formal_eskf/runtime/session/tilt_alignment.hpp>
 #undef private
+
 namespace tilt_proof
 {
 using correction_proof::finite_matrix;
@@ -21,6 +22,7 @@ using solve_proof::Backend;
 using Matrix = formal_eskf::linalg::Matrix<Backend, 3U, 3U>;
 using Quaternion = formal_eskf::so3::UnitQuaternion<Backend>;
 using Alignment = formal_eskf::runtime::TiltAlignment<Backend>;
+
 struct Calls
 {
     inline static Quaternion q;
@@ -28,6 +30,7 @@ struct Calls
     inline static unsigned rotations{}, products{};
 };
 } // namespace tilt_proof
+
 // Reuse the exact-type E-OBS rotation and E-CORRECT 3x3 product producers.
 // Arbitrary IEEE output matrices overapproximate their numeric results;
 // exact operand/order/purity checks compose their proved value frames.
@@ -42,6 +45,7 @@ template <> inline tilt_proof::Matrix to_rotation_matrix<tilt_proof::Backend>(ti
     return Calls::rotation;
 }
 } // namespace formal_eskf::so3
+
 namespace formal_eskf::linalg
 {
 template <>
@@ -70,6 +74,7 @@ inline tilt_proof::Matrix Matrix<tilt_proof::Backend, 3U, 3U>::operator*<3U>(til
     return Calls::world;
 }
 } // namespace formal_eskf::linalg
+
 void verify_tilt_initialization()
 {
     using namespace tilt_proof;
@@ -77,6 +82,7 @@ void verify_tilt_initialization()
     __ESBMC_assert(!alignment.aligned() && same(alignment.variance(), Scalar{0}),
                    "R-ACCELEROMETER-CONDITIONS: alignment starts unlatched with zero variance");
 }
+
 void verify_tilt_alignment(tilt_proof::Alignment alignment, tilt_proof::Quaternion q, tilt_proof::Matrix P,
                            tilt_proof::Matrix rotation, tilt_proof::Matrix middle, tilt_proof::Matrix world)
 {
@@ -123,4 +129,5 @@ void verify_tilt_alignment(tilt_proof::Alignment alignment, tilt_proof::Quaterni
     __ESBMC_assert(same_matrix(q.coefficients(), old_q.coefficients()) && same_matrix(P, old_P),
                    "R-ACCELEROMETER-CONDITIONS: alignment preserves the borrowed attitude and covariance");
 }
+
 int main() { return 0; }

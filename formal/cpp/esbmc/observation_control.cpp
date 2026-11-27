@@ -28,6 +28,7 @@ void verify_observation_admission(Observations owner, Stamp stamp, std::uint64_t
     observation_proof::assume_timing(owner);
     constexpr unsigned source = FORMAL_ESKF_PROOF_OBSERVATION_SOURCE;
     static_assert(FORMAL_ESKF_PROOF_OBSERVATION_SOURCE < 3);
+
     auto const timeline = owner.SELECTED_TIME;
     auto const old_gnss = owner.m_gnss_time;
     auto const old_magnetic = owner.m_magnetic_time;
@@ -38,8 +39,10 @@ void verify_observation_admission(Observations owner, Stamp stamp, std::uint64_t
     auto const old_configured = owner.m_configured;
     auto const old_fusion = owner.m_fusion_time_us;
     auto const old_advanced = owner.m_advanced_at_us;
+
     // Established by construction/reset and the actual begin_fusion recurrence.
     __ESBMC_assume(owner.m_average_period_us >= 3800. && owner.m_average_period_us <= 4200.);
+
     bool const generation_domain = timeline.generation <= timeline.sample_time_us;
     auto const previous_generation = timeline.generation;
     auto expected = timeline;
@@ -50,6 +53,7 @@ void verify_observation_admission(Observations owner, Stamp stamp, std::uint64_t
     auto const half = static_cast<std::uint32_t>(mean * 0.5);
     Admission decision = Admission::not_ready;
     bool changed = false;
+
     if (seed != 0U)
     {
         if (now < latest || now < timeline.arrival_time_us || stamp.time_us == 0U || stamp.time_us > now)
@@ -108,6 +112,7 @@ void verify_observation_admission(Observations owner, Stamp stamp, std::uint64_t
             }
         }
     }
+
     auto const result = owner.admit(owner.SELECTED_TIME, stamp, now, limits, effective);
     __ESBMC_assert((source == 0 || same_timeline(owner.m_gnss_time, old_gnss)) &&
                        (source == 1 || same_timeline(owner.m_magnetic_time, old_magnetic)) &&
@@ -134,6 +139,7 @@ void verify_observation_admission(Observations owner, Stamp stamp, std::uint64_t
                                owner.SELECTED_TIME.generation <= owner.SELECTED_TIME.sample_time_us &&
                                (!result.source_changed || owner.SELECTED_TIME.generation > previous_generation)),
         "Observation admission: generation cannot wrap from the seed invariant because every change advances raw time");
+
     if (result.decision == Admission::queued)
     {
         __ESBMC_assert(
@@ -141,6 +147,7 @@ void verify_observation_admission(Observations owner, Stamp stamp, std::uint64_t
                 now - stamp.time_us < limits.arrival_age_us && now - latest < profile::output::maximum_age_us,
             "Observation admission: queued epochs are after seed, not future, and use fresh nonzero sources");
     }
+
     observation_proof::check_timing(owner);
 }
 
@@ -154,6 +161,7 @@ void verify_source_identity(Observations::Source a, Observations::Source b)
                        b.device_id == old_b.device_id && b.calibration_count == old_b.calibration_count,
                    "Source comparison preserves inputs");
 }
+
 void verify_seed_source(Stamp stamp, std::uint64_t epoch)
 {
     auto const old = stamp;
@@ -163,6 +171,7 @@ void verify_seed_source(Stamp stamp, std::uint64_t epoch)
                        stamp.source.calibration_count == old.source.calibration_count,
                    "Seed source input frame");
 }
+
 void verify_snapshot(Observations::Context previous, std::uint64_t epoch, Observations::LandState land,
                      Observations::VehicleState vehicle)
 {
@@ -173,6 +182,7 @@ void verify_snapshot(Observations::Context previous, std::uint64_t epoch, Observ
     bool const replace_vehicle = vehicle.time_us > previous.vehicle.time_us && vehicle.time_us <= epoch;
     auto const result = Observations::snapshot(previous, epoch, land, vehicle);
     __ESBMC_assert(result.time_us == epoch, "Snapshot records the supplied IMU endpoint");
+
     if (replace_land)
     {
         __ESBMC_assert(same_land(result.land, old_land), "Snapshot copies new available land metadata");
@@ -181,6 +191,7 @@ void verify_snapshot(Observations::Context previous, std::uint64_t epoch, Observ
     {
         __ESBMC_assert(same_land(result.land, old.land), "Snapshot retains old land metadata otherwise");
     }
+
     if (replace_vehicle)
     {
         __ESBMC_assert(same_vehicle(result.vehicle, old_vehicle), "Snapshot copies new available vehicle metadata");
@@ -189,14 +200,17 @@ void verify_snapshot(Observations::Context previous, std::uint64_t epoch, Observ
     {
         __ESBMC_assert(same_vehicle(result.vehicle, old.vehicle), "Snapshot retains old vehicle metadata otherwise");
     }
+
     __ESBMC_assert(same_context(previous, old) && same_land(land, old_land) && same_vehicle(vehicle, old_vehicle),
                    "Snapshot preserves every input");
+
     if (old.land.time_us <= epoch && old.vehicle.time_us <= epoch)
     {
         __ESBMC_assert(result.land.time_us <= epoch && result.vehicle.time_us <= epoch,
                        "Snapshot cannot introduce future knowledge");
     }
 }
+
 void verify_period_range(Observations owner)
 {
     observation_proof::assume_timing(owner);
@@ -205,8 +219,10 @@ void verify_period_range(Observations owner)
     auto const half = owner.half_period_us();
     __ESBMC_assert(half == static_cast<std::uint32_t>(mean * 0.5) && half >= 1900 && half <= 2100,
                    "Half-period offset is finite, representable, and within the declared range");
+
     observation_proof::check_timing(owner);
 }
+
 void verify_observation_clock(Observations owner, imu_proof::Interval interval)
 {
     observation_proof::assume_timing(owner);
@@ -239,6 +255,7 @@ void verify_observation_clock(Observations owner, imu_proof::Interval interval)
                        owner.m_advanced_at_us == advanced && same_double(owner.m_average_period_us, mean) &&
                        same_interval(interval, old_interval),
                    "Next fusion preserves complete inputs and owner metadata before begin");
+
     bool const result = owner.begin_fusion(interval);
     __ESBMC_assert(same_timeline(owner.m_gnss_time, old_gnss) && same_timeline(owner.m_magnetic_time, old_magnetic) &&
                        same_timeline(owner.m_barometer_time, old_barometer) &&
@@ -247,6 +264,7 @@ void verify_observation_clock(Observations owner, imu_proof::Interval interval)
                        owner.m_latest_time_us == latest && same_interval(interval, old_interval),
                    "Fusion preserves complete inputs and other owner metadata");
     __ESBMC_assert(result == expected, "Begin fusion exact eligibility");
+
     if (result)
     {
         double const period =
@@ -265,6 +283,7 @@ void verify_observation_clock(Observations owner, imu_proof::Interval interval)
                            owner.m_advanced_at_us == advanced,
                        "Rejected begin leaves timing unchanged");
     }
+
     observation_proof::check_timing(owner);
 }
 
@@ -291,6 +310,7 @@ void verify_observation_selection(Observations owner)
             expected.selection_time_us == fusion ? Observations::Selection::repeated : Observations::Selection::empty;
         expected.selection_time_us = fusion;
     }
+
     auto const result = owner.select(owner.SELECTED_TIME);
     __ESBMC_assert(result.decision == decision && result.retired == 0 && same_timeline(owner.SELECTED_TIME, expected),
                    "Selection exact eligibility, single-consumption watermark and result initialization");
@@ -303,6 +323,7 @@ void verify_observation_selection(Observations owner)
                        owner.m_latest_time_us == latest && owner.m_fusion_time_us == fusion &&
                        owner.m_advanced_at_us == advanced && same_double(owner.m_average_period_us, average),
                    "Selection preserves all configuration and clock fields");
+
     observation_proof::check_timing(owner);
 }
 
@@ -327,6 +348,7 @@ void verify_observation_configuration(Observations owner, formal_eskf::runtime::
                                            parameters, formal_eskf::px4::profile::history::timing, 64, candidate);
     bool const result = owner.configure(parameters, 64);
     __ESBMC_assert(result == eligible, "Configuration exact pre-seed timing admission");
+
     if (result)
     {
         __ESBMC_assert(owner.m_configured && imu_proof::same_configuration(owner.m_configuration, candidate),
@@ -338,6 +360,7 @@ void verify_observation_configuration(Observations owner, formal_eskf::runtime::
                            imu_proof::same_configuration(owner.m_configuration, configuration),
                        "Configuration failure preserves the previous setting");
     }
+
     __ESBMC_assert(same_timeline(owner.m_gnss_time, old_gnss) && same_timeline(owner.m_magnetic_time, old_magnetic) &&
                        same_timeline(owner.m_barometer_time, old_barometer) && owner.m_seed_time_us == seed &&
                        owner.m_latest_time_us == latest && owner.m_fusion_time_us == fusion &&
@@ -349,6 +372,7 @@ void verify_observation_configuration(Observations owner, formal_eskf::runtime::
                        parameters.magnetic_delay_ms == input.magnetic_delay_ms &&
                        parameters.barometer_delay_ms == input.barometer_delay_ms,
                    "Configuration preserves every input field");
+
     observation_proof::check_timing(owner);
 }
 
@@ -381,6 +405,7 @@ void verify_observation_views(Observations owner)
                        owner.m_latest_time_us == latest && owner.m_fusion_time_us == fusion &&
                        owner.m_advanced_at_us == advanced && same_double(owner.m_average_period_us, average),
                    "Observation getters preserve all owner metadata");
+
     observation_proof::check_timing(owner);
 }
 

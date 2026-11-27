@@ -3,6 +3,7 @@
 #include "boundary.hpp"
 #include <feedback_steps.hpp>
 using namespace output_boundary;
+
 void verify_output_feedback_numerics(Output object, State state, Sample sample, Quaternion q, std::uint64_t time,
                                      output_steps::FeedbackValues result)
 {

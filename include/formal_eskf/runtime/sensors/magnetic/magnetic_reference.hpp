@@ -47,6 +47,7 @@ public:
     };
 
     State const & state() const { return m_state; }
+
     void reset() { *this = MagneticReference{}; }
 
     /**

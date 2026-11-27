@@ -25,6 +25,7 @@ struct RotationCall
     inline static Quaternion argument;
     inline static unsigned count{};
 };
+
 namespace formal_eskf::so3
 {
 template <> inline Matrix3 to_rotation_matrix<Backend>(Quaternion const & q)
@@ -128,4 +129,5 @@ void verify_magnetic_gain(Matrix3 projector, Gain gain)
         }
     __ESBMC_assert(same_matrix(projector, old_projector), "E-MAG-TILT: gain projection preserves its projector");
 }
+
 int main() { return 0; }

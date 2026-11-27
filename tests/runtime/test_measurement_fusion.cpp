@@ -42,16 +42,20 @@ template <typename Linalg> auto malformed_quaternion(TestContext & test, std::st
                                               Scalar{0}, Scalar{0}, std::numeric_limits<Scalar>::min(),
                                               q) == Status::success,
                 profile, "public gradual-underflow normalization witness");
+
     for (unsigned count = 0; count < 32; ++count)
     {
         if (zero ? q.coefficients()(0U) == Scalar{0} : !std::isfinite(q.coefficients()(0U)))
         {
             break;
         }
+
         q = q * q;
     }
+
     test.expect(zero ? q.coefficients()(0U) == Scalar{0} : !std::isfinite(q.coefficients()(0U)), profile,
                 "public raw quaternion products reach the intended checked failure input");
+
     return q;
 }
 
@@ -68,6 +72,7 @@ template <typename Matrix> bool same_matrix_bits(Matrix const & a, Matrix const 
             }
         }
     }
+
     return true;
 }
 
@@ -79,6 +84,7 @@ template <typename State> bool same_fusion_state(State const & a, State const & 
         equal = equal && same_matrix_bits(a.p_n, b.p_n) && same_matrix_bits(a.v_n, b.v_n) &&
                 same_matrix_bits(a.b_a, b.b_a) && same_matrix_bits(a.b_g, b.b_g);
     }
+
     return equal;
 }
 
@@ -90,6 +96,7 @@ BiasUpdate bias_permissions(unsigned mask)
         result.accelerometer[axis] = (mask & (1U << axis)) != 0U;
         result.gyroscope[axis] = (mask & (1U << (3U + axis))) != 0U;
     }
+
     return result;
 }
 
@@ -122,6 +129,7 @@ template <typename Linalg, typename Configuration, std::size_t MeasurementSize> 
                 P(row, column) += static_cast<value_type>((row + 1U) * (column + 1U)) / value_type{256};
             }
         }
+
         for (std::size_t row = 0U; row < MeasurementSize; ++row)
         {
             H(row, row % size) = value_type{1};
@@ -157,9 +165,11 @@ void test_generic_fusion(TestContext & test, std::string_view profile)
     test.expect(decltype(fixture.state.q_nb)::from_coefficients(Scalar{0.5}, Scalar{0.5}, Scalar{0.5}, Scalar{0.5},
                                                                 Scalar{0.125}, fixture.state.q_nb) == Status::success,
                 profile, "exact tilted prior for independent correction");
+
     auto const check = formal_eskf::runtime::check_measurement(fixture.state, fixture.P, fixture.r, fixture.H,
                                                                fixture.V, fixture.minimum_norm, fixture.sigma);
     test.expect(check.passed(), profile, "fixed valid correlated fixture passes gate");
+
     constexpr std::array<unsigned, 14> masks{0U, 63U, 1U, 2U, 4U, 8U, 16U, 32U, 62U, 61U, 59U, 55U, 47U, 31U};
     for (unsigned mask : masks)
     {
@@ -170,6 +180,7 @@ void test_generic_fusion(TestContext & test, std::string_view profile)
                 continue;
             }
         }
+
         auto const permissions = bias_permissions(mask);
         auto const reference =
             formal_eskf::test::reference::reference_correction(fixture, ESKF_RESET_APPROX != 0, permissions);
@@ -201,6 +212,7 @@ void test_generic_fusion(TestContext & test, std::string_view profile)
                         profile, "distinct borrowed inputs remain unchanged");
         }
     }
+
     typename Fixture::state_type output;
     typename Fixture::covariance_type output_P;
     auto const result = fixture.fuse(output, output_P);
@@ -235,6 +247,7 @@ void expect_preserved(TestContext & test, std::string_view profile, Fixture cons
                         same_matrix_bits(current.r, source.r) && same_matrix_bits(current.H, source.H) &&
                         same_matrix_bits(current.V, source.V),
                     profile, "rejection/failure preserves both arbitrary outputs, including all alias arrangements");
+
         if (!diagnostics_valid)
         {
             test.expect(same_matrix_bits(result.innovation, Fixture::vector_type::zero()) &&
@@ -268,6 +281,7 @@ void test_gate_boundaries(TestContext & test, std::string_view profile)
             auto result = boundary.fuse(output, output_P);
             test.expect(result.decision == FusionDecision::fused && result.test_ratio(axis) == value_type{1}, profile,
                         "gate equality fuses on every axis and either sign");
+
             boundary.r(axis) = sign * std::nextafter(value_type{2}, limits_type::infinity());
             expect_preserved(test, profile, boundary, FusionDecision::rejected, Status::success, true);
             boundary.r(axis) = sign * std::nextafter(value_type{2}, value_type{0});
@@ -323,18 +337,21 @@ void test_pre_gate_failures(TestContext & test, std::string_view profile)
             }
         }
     }
+
     for (value_type sigma : {value_type{0}, value_type{-1}})
     {
         auto bad = fixture;
         bad.sigma = sigma;
         expect_preserved(test, profile, bad, FusionDecision::failed, Status::domain_error, false);
     }
+
     for (value_type bound : {value_type{0}, value_type{-1}, value_type{2}})
     {
         auto bad = fixture;
         bad.minimum_norm = bound;
         expect_preserved(test, profile, bad, FusionDecision::failed, Status::domain_error, false);
     }
+
     auto bad = fixture;
     bad.minimum_norm = limits_type::quiet_NaN();
     expect_preserved(test, profile, bad, FusionDecision::failed, Status::non_finite_input, false);
@@ -405,6 +422,7 @@ void test_pre_gate_failures(TestContext & test, std::string_view profile)
             expected = Status::non_finite_result;
             break;
         }
+
         auto PHt = formal_eskf::linalg::Matrix<Linalg, fixture_type::size, 3U>::zero();
         auto S = fixture_type::noise_type::identity() * value_type{-9};
         PHt(0U, 0U) = -value_type{0};
@@ -436,12 +454,14 @@ void test_downstream_failures(TestContext & test, std::string_view profile)
     auto check =
         formal_eskf::runtime::check_measurement(bad.state, bad.P, bad.r, bad.H, bad.V, bad.minimum_norm, bad.sigma);
     test.expect(check.passed(), profile, "standalone gate does not attempt LLT");
+
     expect_preserved(test, profile, bad, FusionDecision::failed, Status::not_positive_definite, true);
     // Gate passes, injection fails; valid diagnostics survive but no estimate is published.
     bad = fixture;
     bad.state.q_nb = malformed_quaternion<Linalg>(test, profile, true);
     check = formal_eskf::runtime::check_measurement(bad.state, bad.P, bad.r, bad.H, bad.V, bad.minimum_norm, bad.sigma);
     test.expect(check.passed(), profile, "standalone gate does not normalize or inject");
+
     expect_preserved(test, profile, bad, FusionDecision::failed, Status::invalid_quaternion_norm, true);
 
     using ResetFixture = FusionFixture<Linalg, Configuration, 1U>;
@@ -463,6 +483,7 @@ void test_downstream_failures(TestContext & test, std::string_view profile)
                                                 reset_failure.V, reset_failure.minimum_norm, reset_failure.sigma);
     test.expect(reset_check.passed() && reset_check.innovation_variance(0U) == value_type{2}, profile,
                 "finite pi residual passes a permissive gate before the late covariance overflow");
+
     // Stage observations establish where this fixture fails; they are not the
     // mathematical posterior oracle. The large xy covariance block is rank-one PSD.
     formal_eskf::linalg::Matrix<Linalg, ResetFixture::size, 1U> gain;
@@ -474,6 +495,7 @@ void test_downstream_failures(TestContext & test, std::string_view profile)
                     formal_eskf::detail::apply_correction_gain(reset_failure.P, reset_failure.r, reset_failure.H,
                                                                reset_failure.V, gain, delta, joseph) == Status::success,
                 profile, "actual gain and Joseph preparation succeed before the reset failure");
+
     typename Configuration::template ErrorState<Linalg> error;
     formal_eskf::detail::unpack_correction(delta, error);
     auto injected = reset_failure.state;
@@ -483,6 +505,7 @@ void test_downstream_failures(TestContext & test, std::string_view profile)
                     !same_fusion_state(injected, reset_failure.state) &&
                     formal_eskf::reset_covariance(error, joseph, reset_covariance) == Status::non_finite_result,
                 profile, "changing nominal injection succeeds but right-Jacobian covariance reset overflows");
+
     expect_preserved(test, profile, reset_failure, FusionDecision::failed, Status::non_finite_result, true);
     auto output = reset_failure.state;
     auto output_P = reset_failure.P;
@@ -523,11 +546,13 @@ struct ObservationFusionFixture : FusionFixture<Linalg, formal_eskf::configurati
         {
             this->H(row, base_offset + row) = value_type{1};
         }
+
         for (std::size_t axis = 0U; axis < 3U; ++axis)
         {
             this->state.p_n(axis) = static_cast<value_type>(axis + 1U);
             this->state.v_n(axis) = -static_cast<value_type>(axis + 1U);
         }
+
         for (std::size_t axis = 0U; axis < measurement_size; ++axis)
         {
             z(axis) = observed_state()(offset + axis) + this->r(axis);
@@ -601,6 +626,7 @@ void test_observation_fusion(TestContext & test, std::string_view profile, std::
                                 fixture, reference, state_output, covariance_output,
                                 value_type{128} * std::numeric_limits<value_type>::epsilon()),
                         profile, "gated sensor API preserves the core model, full V, bias mask and aliases");
+
             for (std::size_t axis = 0U; axis < fixture_type::measurement_size; ++axis)
             {
                 auto const variance = fixture.P(error_offset + axis, error_offset + axis) + fixture.V(axis, axis);
@@ -609,12 +635,14 @@ void test_observation_fusion(TestContext & test, std::string_view profile, std::
             }
         }
     }
+
     auto zero = fixture;
     zero.r = {};
     for (std::size_t axis = 0; axis < MeasurementSize; ++axis)
     {
         zero.z(axis) = zero.observed_state()(fixture_type::offset + axis);
     }
+
     auto const zero_reference = formal_eskf::test::reference::reference_correction(zero, ESKF_RESET_APPROX != 0);
     state_type zero_state;
     covariance_type zero_P;
@@ -623,6 +651,7 @@ void test_observation_fusion(TestContext & test, std::string_view profile, std::
             formal_eskf::test::reference::matches_reference(
                 zero, zero_reference, zero_state, zero_P, value_type{128} * std::numeric_limits<value_type>::epsilon()),
         profile, "zero residual preserves nominal state while independent covariance update still applies");
+
     auto const no_publication = [&](fixture_type const & input, FusionDecision decision, Status status)
     {
         for (unsigned alias = 0; alias < 4; ++alias)
@@ -681,6 +710,7 @@ template <typename Linalg> void test_sequential_groups(TestContext & test, std::
                     formal_eskf::test::near(state.v_n(0U), value_type{0.5}, tolerance) &&
                     formal_eskf::test::near(P(3U, 3U), value_type{0.875}, tolerance),
                 profile, "first group updates velocity through prior cross-covariance");
+
     auto const after_position = state;
     auto const after_position_P = P;
     auto const height_result = formal_eskf::runtime::fuse_vertical_position(state, P, value_type{100}, value_type{1},
@@ -688,6 +718,7 @@ template <typename Linalg> void test_sequential_groups(TestContext & test, std::
     test.expect(height_result.decision == FusionDecision::rejected && same_fusion_state(state, after_position) &&
                     same_matrix_bits(P, after_position_P),
                 profile, "height rejection does not undo accepted horizontal position");
+
     auto const velocity = vector3_type::from_row_major({value_type{1.5}, value_type{0}, value_type{0}});
     FusionFixture<Linalg, formal_eskf::configuration::Ins, 3U> reference_fixture;
     reference_fixture.state = state;
@@ -699,6 +730,7 @@ template <typename Linalg> void test_sequential_groups(TestContext & test, std::
     {
         reference_fixture.H(axis, 3U + axis) = value_type{1};
     }
+
     auto const reference =
         formal_eskf::test::reference::reference_correction(reference_fixture, ESKF_RESET_APPROX != 0);
     auto const velocity_result =
@@ -711,6 +743,7 @@ template <typename Linalg> void test_sequential_groups(TestContext & test, std::
                                                                     value_type{128} *
                                                                         std::numeric_limits<value_type>::epsilon()),
                 profile, "later group recomputes residual and S from the latest committed prior");
+
     // Using the pre-position prior would reject: 1.5^2 / (1 + 1) > 1.
     state_type old_state;
     auto old_P = covariance_type::identity();
@@ -720,6 +753,7 @@ template <typename Linalg> void test_sequential_groups(TestContext & test, std::
                                                            old_state, old_P);
     test.expect(stale.decision == FusionDecision::rejected, profile,
                 "the sequence detects stale-prior gating, rather than merely testing independent covariances");
+
     auto const expected_state = state;
     auto const expected_P = P;
     auto const failed = formal_eskf::runtime::fuse_vertical_position(state, P, value_type{0}, value_type{-1},
@@ -752,12 +786,14 @@ template <typename Linalg> void sequential_cases(TestContext & test, std::string
         test.expect(first.decision == (numerical_failure ? FusionDecision::failed : FusionDecision::rejected) &&
                         same_fusion_state(fixture.state, before.state) && same_matrix_bits(fixture.P, before.P),
                     profile, "first rejected or failed group leaves the prior available to an independent next group");
+
         fixture.V = Fixture::noise_type::identity();
         fixture.H = {};
         for (std::size_t axis = 0; axis < 3; ++axis)
         {
             fixture.H(axis, 3U + axis) = Scalar{1};
         }
+
         fixture.r = {};
         fixture.r(0U) = Scalar{0.5};
         auto const reference = formal_eskf::test::reference::reference_correction(fixture, ESKF_RESET_APPROX != 0);
@@ -785,6 +821,7 @@ template <typename Linalg> void result_meanings(TestContext & test, std::string_
     test.expect(!check.passed() && !check.diagnostics_valid && check.rejected &&
                     fresh.decision == FusionDecision::failed && !fresh.diagnostics_valid,
                 profile, "default reporting records do not fabricate valid evidence or fusion");
+
     for (auto status : {Status::success, Status::non_finite_input, Status::domain_error, Status::out_of_range,
                         Status::zero_or_unsafe_divisor, Status::invalid_quaternion_norm, Status::not_positive_definite,
                         Status::ill_conditioned, Status::non_finite_result})
@@ -828,6 +865,7 @@ void check_only(TestContext & test, std::string_view profile)
     {
         fixture.r(axis) = Scalar{1.5};
     }
+
     if constexpr (Size > 1)
     {
         fixture.V(0U, 1U) = Scalar{0.5};
@@ -835,17 +873,20 @@ void check_only(TestContext & test, std::string_view profile)
         fixture.r(0U) = Scalar{1.75};
         fixture.r(1U) = Scalar{-1.75};
     }
+
     auto const before = fixture;
     auto const check = formal_eskf::runtime::check_measurement(fixture.state, fixture.P, fixture.r, fixture.H,
                                                                fixture.V, fixture.minimum_norm, fixture.sigma);
     test.expect(check.passed(), profile,
                 "componentwise gate accepts despite noise-only and joint-NIS negative controls");
+
     if constexpr (Size > 1)
     {
         // For S_01=.5, r=(7/4,-7/4), joint NIS=49/28=7/4 >1;
         // both component ratios=(7/4)^2/4=49/64 <1.
         test.expect(Scalar{7} / Scalar{4} > Scalar{1}, profile, "independent joint-NIS fixture is discriminating");
     }
+
     for (std::size_t axis = 0; axis < Size; ++axis)
     {
         Scalar const expected = fixture.r(axis) * fixture.r(axis) / Scalar{4};
@@ -853,6 +894,7 @@ void check_only(TestContext & test, std::string_view profile)
                         check.test_ratio(axis) == expected,
                     profile, "independent exact same-prior S and per-axis ratio oracle");
     }
+
     test.expect(same_fusion_state(fixture.state, before.state) && same_matrix_bits(fixture.P, before.P) &&
                     same_matrix_bits(fixture.V, before.V) && same_matrix_bits(fixture.H, before.H) &&
                     same_matrix_bits(fixture.r, before.r),
@@ -862,6 +904,7 @@ void check_only(TestContext & test, std::string_view profile)
 template <typename Base> struct CountingBackend : Base
 {
     static inline unsigned solves = 0;
+
     template <std::size_t Size, std::size_t Columns>
     static Status solve_spd(typename Base::template storage_type<Size, Size> const & system,
                             typename Base::template storage_type<Size, Columns> const & right,
@@ -887,6 +930,7 @@ template <typename Linalg, typename Configuration> void rejected_skips(TestConte
     Backend::solves = 0;
     test.expect(baseline.fuse(output, output_P).decision == FusionDecision::fused && Backend::solves == 1, profile,
                 "contract-preserving counting backend observes the ordinary numerical solve");
+
     for (bool singular_attitude : {false, true})
     {
         auto rejected = baseline;
@@ -900,6 +944,7 @@ template <typename Linalg, typename Configuration> void rejected_skips(TestConte
             rejected.V(0U, 1U) = Scalar{8};
             rejected.V(1U, 0U) = Scalar{8};
         }
+
         Backend::solves = 0;
         expect_preserved(test, profile, rejected, FusionDecision::rejected, Status::success, true);
         test.expect(Backend::solves == 0, profile,
@@ -920,6 +965,7 @@ void exact_correction(TestContext & test, std::string_view profile)
     {
         expected_P(axis, axis) = Scalar{0.75};
     }
+
     auto state = fixture.state;
     auto P = fixture.P;
     auto const result = fixture.fuse(state, P);
@@ -992,6 +1038,7 @@ template <typename Linalg> void named_cases(TestContext & test, std::string_view
 }
 
 } /* end namespace */
+
 int main(int argc, char ** argv)
 {
     formal_eskf::test::configure_backend_test();

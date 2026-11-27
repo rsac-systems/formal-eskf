@@ -20,6 +20,7 @@ using Result = formal_eskf::runtime::FusionResult<Backend, measurement_size>;
 using Decision = formal_eskf::runtime::FusionDecision;
 static_assert(boundaries_clear && measurement_size <= 3U && FORMAL_ESKF_PROOF_STEP_ALIAS >= 0 &&
               FORMAL_ESKF_PROOF_STEP_ALIAS < 4);
+
 struct Results
 {
     Gain PHt;
@@ -29,6 +30,7 @@ struct Results
     Covariance covariance;
     Status covariance_status, gate_status, correction_status;
 };
+
 struct Calls
 {
     inline static Results const * results = nullptr;
@@ -45,6 +47,7 @@ struct Calls
     inline static Scalar minimum{}, sigma{};
     inline static unsigned preparation{}, gate{}, correction{};
 };
+
 void unpublished()
 {
     __ESBMC_assert(same_state(*Calls::state_target, *Calls::state_before) &&
@@ -52,6 +55,7 @@ void unpublished()
                    "R-MEASUREMENT-FUSION: outputs are unchanged before successful "
                    "correction");
 }
+
 bool finite_state(State const & state)
 {
     bool finite = correction_proof::finite_matrix(state.q_nb.coefficients());
@@ -93,6 +97,7 @@ inline Status correction_covariances<fusion_proof::Backend, fusion_proof::state_
                        static_cast<void const *>(&S) != &H,
                    "R-MEASUREMENT-FUSION: preparation outputs are disjoint from "
                    "every observation input");
+
     unpublished();
     // A stronger producer is atomic; admitting scratch writes on failure tests
     // that the runtime caller never consumes failed preparation results.
@@ -100,6 +105,7 @@ inline Status correction_covariances<fusion_proof::Backend, fusion_proof::state_
     S = Calls::results->S;
     return Calls::results->covariance_status;
 }
+
 template <>
 inline Status check_innovation<fusion_proof::Backend, fusion_proof::measurement_size>(
     fusion_proof::Residual const & r, fusion_proof::Residual const & variance, fusion_proof::Scalar sigma,
@@ -113,16 +119,19 @@ inline Status check_innovation<fusion_proof::Backend, fusion_proof::measurement_
     __ESBMC_assert(same_matrix(r, *Calls::residual) && same(sigma, Calls::sigma),
                    "R-MEASUREMENT-FUSION: gate receives unchanged residual and "
                    "explicit sigma");
+
     for (std::size_t i = 0U; i < measurement_size; ++i)
     {
         __ESBMC_assert(same(variance(i), Calls::results->S(i, i)),
                        "R-MEASUREMENT-FUSION: gate uses diag(S), never measurement "
                        "covariance diag(V)");
     }
+
     unpublished();
     output = Calls::results->gate;
     return Calls::results->gate_status;
 }
+
 template <>
 inline Status correct<fusion_proof::Backend, fusion_proof::measurement_size>(
     fusion_proof::State const & state, fusion_proof::Covariance const & P, fusion_proof::Residual const & r,
@@ -144,6 +153,7 @@ inline Status correct<fusion_proof::Backend, fusion_proof::measurement_size>(
                        same(minimum, Calls::minimum),
                    "R-MEASUREMENT-FUSION: correction uses the SAME prior, residual, H, V "
                    "and threshold");
+
 #if FORMAL_ESKF_PROOF_STATE_SIZE == 15
     __ESBMC_assert(bias_proof::same_permissions(permissions, *Calls::permissions),
                    "R-MEASUREMENT-FUSION: bias permissions reach correction "
@@ -152,17 +162,20 @@ inline Status correct<fusion_proof::Backend, fusion_proof::measurement_size>(
     __ESBMC_assert(&state_output == Calls::state_target && &covariance_output == Calls::covariance_target,
                    "R-MEASUREMENT-FUSION: correction receives actual caller "
                    "outputs and legal aliases");
+
     unpublished();
     if (Calls::results->correction_status == Status::success)
     {
         state_output = Calls::results->state;
         covariance_output = Calls::results->covariance;
     }
+
     return Calls::results->correction_status;
 }
 } // namespace formal_eskf
 
 using namespace fusion_proof;
+
 void verify_measurement_fusion(State state, Covariance P, Residual r, Jacobian H, Noise V, Scalar minimum, Scalar sigma,
                                State state_output, Covariance covariance_output, Results results,
                                bias_proof::permissions_type permissions, bool check_only)
@@ -183,10 +196,12 @@ void verify_measurement_fusion(State state, Covariance P, Residual r, Jacobian H
     {
         state_pointer = &state;
     }
+
     if constexpr (covariance_alias)
     {
         covariance_pointer = &P;
     }
+
     auto const before_state = *state_pointer;
     auto const before_covariance = *covariance_pointer;
     Calls::results = &results;
@@ -217,6 +232,7 @@ void verify_measurement_fusion(State state, Covariance P, Residual r, Jacobian H
         __ESBMC_assert(check.passed() == accepted && check.rejected == (!diagnosed || results.gate.rejected),
                        "R-MEASUREMENT-FUSION: check-only eligibility requires "
                        "successful valid non-rejected diagnostics");
+
         result = Result{check};
     }
     else
@@ -229,6 +245,7 @@ void verify_measurement_fusion(State state, Covariance P, Residual r, Jacobian H
 #endif
         );
     }
+
     bool const corrected = !check_only && accepted;
     bool const fused = corrected && results.correction_status == Status::success;
     Status const expected_status = corrected ? results.correction_status : gate_status;
@@ -240,6 +257,7 @@ void verify_measurement_fusion(State state, Covariance P, Residual r, Jacobian H
                    "R-MEASUREMENT-FUSION: distinguish rejected, failed and "
                    "fused; retain gate diagnostics after "
                    "correction failure");
+
     for (std::size_t i = 0U; i < measurement_size; ++i)
     {
         __ESBMC_assert(same(result.innovation(i), diagnosed ? old_r(i) : Scalar{0}) &&
@@ -248,6 +266,7 @@ void verify_measurement_fusion(State state, Covariance P, Residual r, Jacobian H
                        "R-MEASUREMENT-FUSION: return this prior's complete diagnostics or "
                        "fresh zero placeholders");
     }
+
     __ESBMC_assert(Calls::preparation == (eligible ? 1U : 0U) && Calls::gate == (prepared ? 1U : 0U) &&
                        Calls::correction == (corrected ? 1U : 0U),
                    "R-MEASUREMENT-FUSION: no skipped stages or correction after "
@@ -264,4 +283,5 @@ void verify_measurement_fusion(State state, Covariance P, Residual r, Jacobian H
             bias_proof::same_permissions(permissions, old_permissions),
         "R-MEASUREMENT-FUSION: preserve distinct inputs and unused outputs");
 }
+
 int main() { return 0; }

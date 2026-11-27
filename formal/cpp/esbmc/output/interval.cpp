@@ -2,6 +2,7 @@
 
 #include <interval_step.hpp>
 using namespace output_proof;
+
 void verify_output_interval_range(Scalar previous, std::uint16_t period)
 {
     auto const initial = static_cast<Scalar>(profile::imu::nominal_interval_s);

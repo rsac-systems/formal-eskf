@@ -5,7 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 CONFIG_FILE="${REPO_DIR}/.clang-format"
-FORMAT_COMMAND="${CLANG_FORMAT:-clang-format}"
+FORMAT_COMMAND="${CLANG_FORMAT:-clang-format-14}"
 MODE=fix
 PASS_COLOR='\e[32;01m'
 FAIL_COLOR='\e[31;01m'
@@ -16,7 +16,7 @@ usage()
     printf 'Usage: %s [--check | --fix | --help]\n' "${0##*/}"
     printf '  --check  Check C++ formatting without modifying files.\n'
     printf '  --fix    Format C++ files in place using .clang-format (default).\n'
-    printf 'Set CLANG_FORMAT to select the formatter executable.\n'
+    printf 'Uses clang-format-14, matching CI and code generation; override with CLANG_FORMAT.\n'
 }
 
 fail()
@@ -43,7 +43,7 @@ check_environment()
 {
     command -v git >/dev/null 2>&1 || fail 'git was not found in PATH'
     FORMAT_COMMAND="$(command -v "${FORMAT_COMMAND}")" ||
-        fail "clang-format was not found; install it or set CLANG_FORMAT"
+        fail 'formatter was not found; install clang-format-14 or set CLANG_FORMAT'
     [[ -f "${CONFIG_FILE}" ]] || fail "configuration was not found: ${CONFIG_FILE}"
     git rev-parse --is-inside-work-tree >/dev/null 2>&1 || fail 'the project must be a Git worktree'
     "${FORMAT_COMMAND}" --version

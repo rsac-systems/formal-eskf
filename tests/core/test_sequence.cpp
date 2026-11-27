@@ -63,12 +63,14 @@ void test_rotating_regression(Context & test, std::string_view profile)
     {
         parameters.process_noise.angular_rate_variance(axis) = static_cast<value_type>(1e-4);
     }
+
     formal_eskf::ImuSample<Backend> imu;
     imu.specific_force_b = -gravity;
     imu.angular_rate_b(2U) = yaw_rate;
     test.expect(formal_eskf::so3::exp(vector3_type::from_row_major(initial_error), minimum_norm, state.q_nb) ==
                     Status::success,
                 profile, "initialize a nonzero attitude error");
+
     if constexpr (std::is_same_v<Configuration, Ins>)
     {
         parameters.gravity_n = gravity;
@@ -115,6 +117,7 @@ void test_rotating_regression(Context & test, std::string_view profile)
                                                       P) == Status::success,
                         profile, "velocity correction completes the tick");
         }
+
         test.expect(formal_eskf::linalg::all_finite(P) && formal_eskf::linalg::is_symmetric(P, value_type{0}), profile,
                     "every completed tick leaves finite symmetric covariance");
     }
@@ -129,6 +132,7 @@ void test_rotating_regression(Context & test, std::string_view profile)
     test.expect(std::abs(formal_eskf::linalg::squared_norm(state.q_nb.coefficients()) - value_type{1}) <=
                     parameters.quaternion_squared_norm_tolerance,
                 profile, "successive injections keep a valid quaternion for the next prediction");
+
     if constexpr (std::is_same_v<Configuration, Ins>)
     {
         test.expect(formal_eskf::linalg::max_abs(state.p_n) < static_cast<value_type>(0.02) &&
@@ -146,6 +150,7 @@ void test_rotating_regression(Context & test, std::string_view profile)
     test.expect(formal_eskf::linalg::max_abs(state.q_nb.coefficients() - before.q_nb.coefficients()) == value_type{0} &&
                     formal_eskf::linalg::max_abs(P - P_before) == value_type{0},
                 profile, "failed tick preserves the last attitude and covariance");
+
     if constexpr (std::is_same_v<Configuration, Ins>)
     {
         test.expect(formal_eskf::linalg::max_abs(state.p_n - before.p_n) == value_type{0} &&
@@ -165,6 +170,7 @@ template <std::size_t Rows, std::size_t Columns> struct WideMatrix
     // cppcheck-suppress unusedStructMember
     static constexpr std::size_t column_count = Columns;
     formal_eskf::test::reference::Dense<Rows, Columns> values{};
+
     long double operator()(std::size_t row, std::size_t column) const { return values[row][column]; }
 };
 
@@ -202,6 +208,7 @@ auto advance_reference_covariance(
     {
         F[axis][axis] = 1;
     }
+
     if constexpr (ins)
     {
         constexpr long double R[3][3]{{0, 0, 1}, {1, 0, 0}, {0, 1, 0}};
@@ -220,6 +227,7 @@ auto advance_reference_covariance(
             }
         }
     }
+
     auto result = formal_eskf::test::reference::product(formal_eskf::test::reference::product(F, prior.values),
                                                         formal_eskf::test::reference::transposed(F));
     for (std::size_t axis = 0U; axis < 3U; ++axis)
@@ -237,6 +245,7 @@ auto advance_reference_covariance(
             result[axis][axis] += static_cast<long double>(axis + 1U) / 16 * dt * dt;
         }
     }
+
     return WideMatrix<size, size>{result};
 }
 
@@ -254,6 +263,7 @@ template <typename Matrix> bool preserved(Matrix const & a, Matrix const & b)
             }
         }
     }
+
     return true;
 }
 
@@ -265,6 +275,7 @@ template <typename State> bool preserved_state(State const & a, State const & b)
         result = result && preserved(a.p_n, b.p_n) && preserved(a.v_n, b.v_n) && preserved(a.b_a, b.b_a) &&
                  preserved(a.b_g, b.b_g);
     }
+
     return result;
 }
 
@@ -283,6 +294,7 @@ void publish_reference(Context & test, std::string_view profile, Reference const
                     formal_eskf::test::reference::matches_reference(input, result, state, P, tolerance),
                 profile,
                 "every composed observation matches the independently advanced full-state/covariance timeline");
+
     covariance.values = result.covariance;
 }
 
@@ -300,6 +312,7 @@ void test_reference_timeline(Context & test, std::string_view profile)
                     value_type{0.5}, value_type{0.5}, value_type{0.5}, value_type{0.5},
                     static_cast<value_type>(0.000001), state.q_nb) == Status::success,
                 profile, "exact cyclic trajectory attitude is valid");
+
     typename types::parameter_type parameters;
     parameters.dt_min = value_type{0.125};
     parameters.dt_max = value_type{0.25};
@@ -324,10 +337,12 @@ void test_reference_timeline(Context & test, std::string_view profile)
                 value_type{1} / value_type{256};
         }
     }
+
     if constexpr (ins)
     {
         parameters.gravity_n(2U) = value_type{8};
     }
+
     auto const nominal_reference = state; // Exact stationary solution of independently stated inputs.
     typename types::error_covariance_type P;
     WideMatrix<size, size> reference_P;
@@ -341,6 +356,7 @@ void test_reference_timeline(Context & test, std::string_view profile)
             P(row, column) = static_cast<value_type>(reference_P.values[row][column]);
         }
     }
+
     using vector3_type = formal_eskf::linalg::Vector<Backend, 3U>;
     using matrix3_type = formal_eskf::linalg::Matrix<Backend, 3U, 3U>;
     auto const gravity = vector3_type::from_row_major({value_type{0}, value_type{0}, value_type{8}});
@@ -354,6 +370,7 @@ void test_reference_timeline(Context & test, std::string_view profile)
         test.expect(formal_eskf::predict(state, P, imu, dt, parameters, state, P) == Status::success &&
                         preserved_state(state, nominal_reference),
                     profile, "variable-time prediction preserves exact stationary nominal solution");
+
         constexpr value_type tolerance = static_cast<value_type>(std::is_same_v<value_type, float> ? 2e-4 : 2e-11);
         for (std::size_t row = 0U; row < size; ++row)
         {
@@ -364,6 +381,7 @@ void test_reference_timeline(Context & test, std::string_view profile)
                             profile, "prediction advances full independent prior once with rotated discrete noise");
             }
         }
+
         full_reference gravity_reference{nominal_reference, reference_P};
         gravity_reference.H(0U, offset + 2U) = value_type{-8};
         gravity_reference.H(2U, offset) = value_type{8};
@@ -382,6 +400,7 @@ void test_reference_timeline(Context & test, std::string_view profile)
                         profile,
                         "failed correction preserves the completed prediction rather than rolling back the tick");
         }
+
         auto const gravity_status = formal_eskf::correct_accelerometer(
             state, P, imu.specific_force_b, gravity, gravity_reference.V, parameters.minimum_quaternion_norm, state, P);
         publish_reference(test, profile, gravity_reference, gravity_status, state, P, reference_P);
@@ -394,6 +413,7 @@ void test_reference_timeline(Context & test, std::string_view profile)
                 magnetic_reference.H(row, offset + column) = magnetic_hat[row][column];
             }
         }
+
         magnetic_reference.V = matrix3_type::identity() * value_type{2};
         magnetic_reference.V(0U, 2U) = magnetic_reference.V(2U, 0U) = value_type{0.125};
         auto const magnetic_status = formal_eskf::correct_magnetometer(
@@ -426,6 +446,7 @@ void test_reference_timeline(Context & test, std::string_view profile)
                     velocity.H(axis, 3U + axis) = value_type{1};
                     velocity.V(axis, axis) = value_type{2};
                 }
+
                 velocity.V(1U, 2U) = velocity.V(2U, 1U) = value_type{-0.125};
                 auto const velocity_status = formal_eskf::correct_velocity(
                     state, P, vector3_type{}, velocity.V, parameters.minimum_quaternion_norm, state, P);
@@ -466,6 +487,7 @@ template <typename Parameters> bool preserved_parameters(Parameters const & a, P
                  preserved(a.process_noise.gyroscope_bias_random_walk_variance_density,
                            b.process_noise.gyroscope_bias_random_walk_variance_density);
     }
+
     return result;
 }
 
@@ -477,6 +499,7 @@ template <typename Error> bool preserved_error(Error const & a, Error const & b)
         result = result && preserved(a.delta_p_n, b.delta_p_n) && preserved(a.delta_v_n, b.delta_v_n) &&
                  preserved(a.delta_b_a, b.delta_b_a) && preserved(a.delta_b_g, b.delta_b_g);
     }
+
     return result;
 }
 
@@ -504,6 +527,7 @@ void test_independent_frames(Context & test, std::string_view profile)
         sentinel.b_a(2U) = value_type{7};
         sentinel.b_g(0U) = value_type{-3};
     }
+
     covariance_type covariance_sentinel;
     covariance_sentinel(0U, 0U) = nan;
     covariance_sentinel(0U, 1U) = -value_type{0};
@@ -517,6 +541,7 @@ void test_independent_frames(Context & test, std::string_view profile)
         error_sentinel.delta_b_a(2U) = -value_type{0};
         error_sentinel.delta_b_g(0U) = value_type{7};
     }
+
     typename types::parameter_type parameters;
     parameters.dt_min = parameters.dt_max = value_type{0.25};
     parameters.minimum_quaternion_norm = minimum_norm;
@@ -528,6 +553,7 @@ void test_independent_frames(Context & test, std::string_view profile)
         imu.specific_force_b(0U) = nan;
         imu.specific_force_b(1U) = -value_type{0};
     }
+
     auto const imu_before = imu;
     for (bool failure : {false, true})
     {
@@ -537,6 +563,7 @@ void test_independent_frames(Context & test, std::string_view profile)
             // The nominal step succeeds before the covariance/noise stage fails.
             prediction_parameters.process_noise.angular_rate_variance(0U) = value_type{-1};
         }
+
         auto const parameters_before = prediction_parameters;
         for (unsigned aliases = 0U; aliases < 4U; ++aliases)
         {
@@ -562,12 +589,14 @@ void test_independent_frames(Context & test, std::string_view profile)
                             preserved(imu.specific_force_b, imu_before.specific_force_b) &&
                             preserved(imu.angular_rate_b, imu_before.angular_rate_b),
                         profile, "prediction preserves every disjoint input and unused output object");
+
             if (failure)
             {
                 test.expect(preserved_state(state_output, output_before) && preserved(P_output, covariance_before),
                             profile, "failed prediction preserves all named outputs including sentinel fields");
             }
         }
+
         for (unsigned aliases = 0U; aliases < 8U; ++aliases)
         {
             auto state = initial;
@@ -577,11 +606,13 @@ void test_independent_frames(Context & test, std::string_view profile)
             {
                 error.delta_p_n(0U) = value_type{0.25};
             }
+
             if (failure)
             {
                 // Nominal injection succeeds; the next covariance reset fails.
                 P(0U, 0U) = nan;
             }
+
             auto separate_state = sentinel;
             auto separate_P = covariance_sentinel;
             auto separate_error = error_sentinel;
@@ -605,6 +636,7 @@ void test_independent_frames(Context & test, std::string_view profile)
                             ((aliases & 2U) == 0U || preserved(separate_P, covariance_sentinel)) &&
                             ((aliases & 4U) == 0U || preserved_error(separate_error, error_sentinel)),
                         profile, "injection/reset preserves all disjoint inputs and unused output objects");
+
             if (failure)
             {
                 test.expect(preserved_state(state_output, output_before) && preserved(P_output, covariance_before) &&
@@ -612,6 +644,7 @@ void test_independent_frames(Context & test, std::string_view profile)
                             profile, "failed injection/reset preserves its three named outputs");
             }
         }
+
         for (unsigned aliases = 0U; aliases < 4U; ++aliases)
         {
             auto state = initial;
@@ -642,6 +675,7 @@ void test_independent_frames(Context & test, std::string_view profile)
                             ((aliases & 2U) == 0U || preserved(separate_P, covariance_sentinel)) &&
                             preserved(r, r_before) && preserved(H, H_before) && preserved(V, V_before),
                         profile, "correction preserves borrowed residual, Jacobian, noise and disjoint prior");
+
             if (failure)
             {
                 test.expect(preserved_state(state_output, output_before) && preserved(P_output, covariance_before),

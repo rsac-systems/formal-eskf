@@ -36,6 +36,7 @@ using Check = formal_eskf::runtime::MeasurementCheck<Backend, 3U>;
 using Result = formal_eskf::runtime::MagnetometerFusionResult<Backend>;
 using Decision = formal_eskf::runtime::FusionDecision;
 static_assert(boundaries_clear && measurement_size == 3U && FORMAL_ESKF_PROOF_STEP_ALIAS < 4);
+
 struct Replies
 {
     Field field;
@@ -46,6 +47,7 @@ struct Replies
     Covariance covariance;
     Status correction_status;
 };
+
 struct Calls
 {
     inline static State const *prior{}, *state_before{};
@@ -62,6 +64,7 @@ struct Calls
     inline static bool observable{};
     inline static unsigned observations{}, gates{}, corrections{};
 };
+
 inline bool same_field(Field const & a, Field const & b)
 {
     return a.status == b.status && a.accepted == b.accepted && a.diagnostics_valid == b.diagnostics_valid &&
@@ -72,16 +75,19 @@ inline bool same_field(Field const & a, Field const & b)
            same(a.strength, b.strength) && same(a.reference_strength, b.reference_strength) &&
            same(a.inclination_error, b.inclination_error) && same(a.heading_error, b.heading_error);
 }
+
 inline bool same_parameters(Parameters const & a, Parameters const & b)
 {
     return same(a.strength_tolerance, b.strength_tolerance) && same(a.inclination_tolerance, b.inclination_tolerance) &&
            same(a.heading_tolerance, b.heading_tolerance) &&
            same(a.minimum_horizontal_field, b.minimum_horizontal_field);
 }
+
 inline bool same_checks(Checks const & a, Checks const & b)
 {
     return a.strength == b.strength && a.inclination == b.inclination && a.require_reference == b.require_reference;
 }
+
 inline bool finite_state(State const & state)
 {
     bool valid = finite_matrix(state.q_nb.coefficients());
@@ -91,12 +97,14 @@ inline bool finite_state(State const & state)
 #endif
     return valid;
 }
+
 inline void unpublished()
 {
     __ESBMC_assert(same_state(*Calls::state_output, *Calls::state_before) &&
                        same_matrix(*Calls::P_output, *Calls::P_before),
                    "R-MAGNETOMETER-FUSION: outputs remain unchanged before successful correction");
 }
+
 inline bool jacobian_matches(Jacobian const & H)
 {
     auto const & h = Calls::replies->predicted;
@@ -111,8 +119,10 @@ inline bool jacobian_matches(Jacobian const & H)
             valid = same(H(i, j), wanted) && valid;
         }
     }
+
     return valid;
 }
+
 inline Result observation_result()
 {
     Result result;
@@ -129,6 +139,7 @@ inline Result observation_result()
             result.fusion.status = Calls::replies->observation_status;
         }
     }
+
     return result;
 }
 } // namespace magnetic_fusion_proof
@@ -154,12 +165,14 @@ inline magnetic_fusion_proof::Result check_magnetic_observation<magnetic_fusion_
                        health == Calls::health && same_parameters(parameters, *Calls::parameters) &&
                        same_checks(checks, *Calls::checks) && observable == Calls::observable,
                    "R-MAGNETOMETER-FUSION: observation receives original prior, distinct references and policy");
+
     unpublished();
     predicted = Calls::replies->predicted;
     residual = Calls::replies->residual;
     return observation_result();
 }
 } // namespace formal_eskf::runtime::detail
+
 namespace formal_eskf::runtime
 {
 template <>
@@ -182,10 +195,12 @@ check_measurement<magnetic_fusion_proof::Backend, 3U
                        same_matrix(r, Calls::replies->residual) && jacobian_matches(H) && finite_matrix(H) &&
                        same_matrix(V, *Calls::V) && same(minimum, Calls::minimum) && same(sigma, Calls::sigma),
                    "R-MAGNETOMETER-FUSION: gate uses original prior, full V, exact attitude Jacobian and residual");
+
     unpublished();
     return Calls::replies->gate;
 }
 } // namespace formal_eskf::runtime
+
 namespace formal_eskf
 {
 template <>
@@ -209,6 +224,7 @@ inline Status correct_magnetometer<magnetic_fusion_proof::Backend>(
             same_matrix(reference, *Calls::reference) && same_matrix(V, *Calls::V) && same(minimum, Calls::minimum) &&
             &output == Calls::state_output && &covariance == Calls::P_output,
         "R-MAGNETOMETER-FUSION: correction uses unchanged raw fields/prior/noise and original output aliases");
+
 #if FORMAL_ESKF_PROOF_STATE_SIZE == 15
     __ESBMC_assert(bias_proof::same_permissions(permissions, *Calls::permissions),
                    "R-MAGNETOMETER-FUSION: all six INS bias permissions reach correction");
@@ -219,9 +235,11 @@ inline Status correct_magnetometer<magnetic_fusion_proof::Backend>(
         output = Calls::replies->state;
         covariance = Calls::replies->covariance;
     }
+
     return Calls::replies->correction_status;
 }
 } // namespace formal_eskf
+
 void verify_magnetic_fusion(magnetic_fusion_proof::State state, magnetic_fusion_proof::Covariance P,
                             magnetic_fusion_proof::Vector body, magnetic_fusion_proof::Vector reference,
                             magnetic_fusion_proof::Vector health, unsigned health_source,
@@ -253,10 +271,12 @@ void verify_magnetic_fusion(magnetic_fusion_proof::State state, magnetic_fusion_
     {
         state_target = &state;
     }
+
     if constexpr (FORMAL_ESKF_PROOF_STEP_ALIAS & 2U)
     {
         P_target = &P;
     }
+
     auto const before_state = *state_target;
     auto const before_P = *P_target;
     Calls::prior = &old_state;
@@ -287,6 +307,7 @@ void verify_magnetic_fusion(magnetic_fusion_proof::State state, magnetic_fusion_
     {
         expected = observation_result();
     }
+
     bool const qualified = finite && expected.fusion.status == Status::success && replies.field.accepted;
     bool const finite_H = finite_matrix(replies.predicted);
     bool const gated = qualified && finite_H;
@@ -297,6 +318,7 @@ void verify_magnetic_fusion(magnetic_fusion_proof::State state, magnetic_fusion_
     {
         expected.fusion.status = Status::non_finite_result;
     }
+
     if (gated)
     {
         expected.fusion.status = corrected ? replies.correction_status : replies.gate.status;
@@ -310,6 +332,7 @@ void verify_magnetic_fusion(magnetic_fusion_proof::State state, magnetic_fusion_
                 ? Decision::rejected
                 : Decision::failed;
     }
+
     auto const actual = formal_eskf::runtime::fuse_magnetometer(state, P, body, reference, selected, V, parameters,
                                                                 observable, minimum, sigma, *state_target, *P_target
 #if FORMAL_ESKF_PROOF_STATE_SIZE == 15
@@ -332,6 +355,7 @@ void verify_magnetic_fusion(magnetic_fusion_proof::State state, magnetic_fusion_
     __ESBMC_assert(fused ? (same_state(*state_target, replies.state) && same_matrix(*P_target, replies.covariance))
                          : (same_state(*state_target, before_state) && same_matrix(*P_target, before_P)),
                    "R-MAGNETOMETER-FUSION: only successful correction publishes both outputs for all aliases");
+
     if constexpr (!(FORMAL_ESKF_PROOF_STEP_ALIAS & 1U))
     {
         __ESBMC_assert(same_state(state, old_state), "magnetic fusion: separate state input frame");
@@ -340,6 +364,7 @@ void verify_magnetic_fusion(magnetic_fusion_proof::State state, magnetic_fusion_
     {
         __ESBMC_assert(same_state(state_output, old_state_output), "magnetic fusion: unused state output frame");
     }
+
     if constexpr (!(FORMAL_ESKF_PROOF_STEP_ALIAS & 2U))
     {
         __ESBMC_assert(same_matrix(P, old_P), "magnetic fusion: separate covariance input frame");
@@ -348,10 +373,12 @@ void verify_magnetic_fusion(magnetic_fusion_proof::State state, magnetic_fusion_
     {
         __ESBMC_assert(same_matrix(P_output, old_P_output), "magnetic fusion: unused covariance output frame");
     }
+
     __ESBMC_assert(same_matrix(body, old_body) && same_matrix(reference, old_reference) &&
                        same_matrix(health, old_health) && same_matrix(V, old_V) &&
                        same_parameters(parameters, old_parameters) && same_checks(checks, old_checks) &&
                        bias_proof::same_permissions(permissions, old_permissions),
                    "R-MAGNETOMETER-FUSION: measurements, both references, full noise and policies are unchanged");
 }
+
 int main() { return 0; }

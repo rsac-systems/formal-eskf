@@ -30,6 +30,7 @@ Scalar fresh_scalar()
     return nondet_float();
 #endif
 }
+
 template <std::size_t Count> bool finite_cells(ScalarArray<Scalar, Count> const & values)
 {
     if constexpr (Count == 1U)
@@ -37,10 +38,12 @@ template <std::size_t Count> bool finite_cells(ScalarArray<Scalar, Count> const 
     else
         return std::isfinite(values.head) && finite_cells(values.tail);
 }
+
 template <typename Matrix> bool equal_matrix(Matrix const & a, Matrix const & b)
 {
     return equal_cells(MatrixAccess::storage(a).values, MatrixAccess::storage(b).values);
 }
+
 struct Flow
 {
     inline static Factor system{}, candidate_factor{};
@@ -74,6 +77,7 @@ struct Flow
         return last_status;
     }
 };
+
 struct SolveContract
 {
     inline static Factor system{};
@@ -81,6 +85,7 @@ struct SolveContract
     inline static Status status{};
     inline static unsigned calls{};
 };
+
 struct SymmetryContract
 {
     inline static SystemMatrix input{};
@@ -109,6 +114,7 @@ inline Status Cholesky<solve_proof::Backend>::factorize<solve_proof::size>(solve
     Flow::last_status = Flow::factor_status;
     return Flow::factor_status;
 }
+
 template <>
 template <>
 inline Status Cholesky<solve_proof::Backend>::forward_substitute<solve_proof::size, solve_proof::columns>(
@@ -120,6 +126,7 @@ inline Status Cholesky<solve_proof::Backend>::forward_substitute<solve_proof::si
                    "F-SOLVE: forward inputs and workspace meet producer disjointness");
     return Flow::substitute(factor, output, column, true);
 }
+
 template <>
 template <>
 inline Status Cholesky<solve_proof::Backend>::backward_substitute<solve_proof::size, solve_proof::columns>(
@@ -148,6 +155,7 @@ inline Status Cholesky<solve_proof::Backend>::solve<solve_proof::size, solve_pro
     output = SolveContract::candidate; // Even on failure, scratch may change.
     return SolveContract::status;
 }
+
 template <>
 inline bool
 detail::is_symmetric_finite<solve_proof::Backend, solve_proof::size>(solve_proof::SystemMatrix const & input,

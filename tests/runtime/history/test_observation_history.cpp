@@ -629,6 +629,7 @@ void bounded_overflow(Context & test)
                     b.time_us == session.epoch + ((epoch - session.epoch + 2000) / 8000) * 8000 - 2000,
                 "wrap", "select correct newest eligible event after multiple wraps");
 }
+
 void explicit_settings(Context & test)
 {
     auto timing = timing_250hz;

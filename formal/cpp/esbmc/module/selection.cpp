@@ -13,11 +13,13 @@ extern void __ESBMC_assert(bool, char const *);
 namespace
 {
 #include "module_constants.inc"
+
 struct Observation
 {
     std::uint64_t time_us{}, generation{};
     unsigned payload{};
 };
+
 struct Observations
 {
     struct LandState
@@ -25,26 +27,31 @@ struct Observations
         std::uint64_t time_us{};
         bool known{}, landed{}, at_rest{}, in_ground_effect{};
     };
+
     struct VehicleState
     {
         std::uint64_t time_us{};
         bool known{}, armed{}, fixed_wing{};
     };
+
     struct Context
     {
         std::uint64_t time_us{};
         LandState land;
         VehicleState vehicle;
     };
+
     struct Result
     {
         std::uint64_t retired{};
     };
+
     Observation selected[3];
     bool available[3]{};
     std::uint64_t retired[3]{};
     unsigned pops{}, contexts{};
     std::uint64_t context_times[2]{}, context_ages[2]{};
+
     Result pop(unsigned source, Observation & output)
     {
         __ESBMC_assert(pops == source, "One pop per source in GNSS, magnetic, barometer order");
@@ -55,9 +62,13 @@ struct Observations
         }
         return {retired[source]};
     }
+
     Result pop_gnss(Observation & output) { return pop(0, output); }
+
     Result pop_magnetic(Observation & output) { return pop(1, output); }
+
     Result pop_barometer(Observation & output) { return pop(2, output); }
+
     Context context(std::uint64_t time, std::uint64_t age)
     {
         __ESBMC_assert(pops == 3 && contexts < 2, "Context lookup follows all three source selections");
@@ -67,28 +78,35 @@ struct Observations
         return {time, {}, {}};
     }
 };
+
 struct Flow
 {
     using observation_history_type = Observations;
     Observations m_observations;
     std::uint64_t m_time_us{}, m_retired_observations{};
+
     struct Selected
     {
         Observation input;
         Observations::Context context;
     } m_gnss, m_magnetic;
+
     Observation m_barometer;
     bool quality_called{};
     Observations::LandState land;
     Observations::VehicleState vehicle;
+
     Observations::LandState land_state() const { return land; }
+
     Observations::VehicleState vehicle_state() const { return vehicle; }
+
     void update_gps_quality()
     {
         __ESBMC_assert(m_observations.pops == 3 && m_observations.contexts == 2,
                        "GNSS quality is evaluated only after selected inputs and historical context are installed");
         quality_called = true;
     }
+
     void select_observations();
     Observations::Context startup_context(std::uint64_t epoch, std::uint64_t maximum_age) const;
 };
@@ -97,6 +115,7 @@ struct Flow
 #include "module_context.inc"
 
 Observation symbolic_observation() { return {nondet_time(), nondet_time(), nondet_value()}; }
+
 bool same(Observation a, Observation b)
 {
     return a.time_us == b.time_us && a.generation == b.generation && a.payload == b.payload;

@@ -24,6 +24,7 @@ bool same_noise(ProcessNoise const & a, ProcessNoise const & b)
                        b.accelerometer_bias_random_walk_variance_density) &&
            same_matrix(a.gyroscope_bias_random_walk_variance_density, b.gyroscope_bias_random_walk_variance_density);
 }
+
 Scalar noise_coefficient(ProcessNoise const & noise, std::size_t index)
 {
     auto const axis = index / 4U;
@@ -39,12 +40,14 @@ Scalar noise_coefficient(ProcessNoise const & noise, std::size_t index)
         return noise.gyroscope_bias_random_walk_variance_density(axis);
     }
 }
+
 Status coefficient_status(Scalar value)
 {
     return !std::isfinite(value) ? Status::non_finite_input
            : value < Scalar{0}   ? Status::domain_error
                                  : Status::success;
 }
+
 void verify_imu_noise(ProcessNoise noise, Conditions conditions, Scalar fault_variance, ProcessNoise output)
 {
     auto const before = noise;
@@ -85,6 +88,7 @@ void verify_imu_noise(ProcessNoise noise, Conditions conditions, Scalar fault_va
                        conditions.accelerometer_clipped == old_conditions.accelerometer_clipped,
                    "R-IMU-PROCESS-NOISE: selection never modifies the caller's conditions");
 }
+
 void verify_bias_noise(Covariance covariance, ProcessNoise noise, ProcessNoise output)
 {
     auto const old_covariance = covariance;
@@ -131,6 +135,7 @@ void verify_bias_noise(Covariance covariance, ProcessNoise noise, ProcessNoise o
                    "R-BIAS-PROCESS-NOISE: preserve covariance and distinct input "
                    "or unused output");
 }
+
 void verify_bias_limits(State state, Limits limits)
 {
     auto const before = state;
@@ -174,4 +179,5 @@ void verify_bias_limits(State state, Limits limits)
     __ESBMC_assert(same(limits.accelerometer, old_limits.accelerometer) && same(limits.gyroscope, old_limits.gyroscope),
                    "R-BIAS-LIMITS: caller limits are unchanged");
 }
+
 int main() { return 0; }

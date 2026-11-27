@@ -26,6 +26,7 @@ struct EntryCalls
     inline static void const * received_right = nullptr;
     inline static std::size_t count{};
 };
+
 template <std::size_t K> struct DotCalls
 {
     inline static formal_eskf::linalg::Vector<Backend, K> left{}, right{};
@@ -89,6 +90,7 @@ Scalar product_entry(Backend::storage_type<R, K> const & left, Backend::storage_
     return formal_eskf::linalg::dot(row_values, column_values);
 #endif
 }
+
 template <std::size_t R, std::size_t K, std::size_t C>
 void ordered_product(Backend::storage_type<R, K> const & left, Backend::storage_type<K, C> const & right,
                      Backend::storage_type<R, C> & output)

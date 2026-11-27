@@ -29,11 +29,13 @@ Settings read_settings(std::filesystem::path const & input)
         {
             line.pop_back();
         }
+
         auto const comma = line.find(',');
         if (comma == std::string::npos)
         {
             throw std::runtime_error("invalid settings row");
         }
+
         std::size_t consumed{};
         auto const text = line.substr(comma + 1);
         auto const value = std::stod(text, &consumed);
@@ -42,6 +44,7 @@ Settings read_settings(std::filesystem::path const & input)
             throw std::runtime_error("invalid or repeated setting: " + line);
         }
     }
+
     return values;
 }
 
@@ -52,6 +55,7 @@ double take(Settings & settings, std::string const & name)
     {
         throw std::runtime_error("missing replay setting: " + name);
     }
+
     auto const result = found->second;
     settings.erase(found);
     return result;
@@ -99,6 +103,7 @@ Configuration configuration(std::filesystem::path const & input, bool kitti_prio
     {
         *value = take(settings, name);
     }
+
     auto const mask = metadata_integer(take(settings, "gnss_checks"), 0, 1023);
     auto & c = p.gnss_quality.enabled_checks;
     c = {bool(mask & 1),  bool(mask & 2),  bool(mask & 4),   bool(mask & 8),   bool(mask & 16),
@@ -125,10 +130,12 @@ Configuration configuration(std::filesystem::path const & input, bool kitti_prio
         p.output.nominal_interval_s = p.settings.imu.nominal_interval_s = 0.01;
         result.timing.filter_interval_us = 10000;
     }
+
     if (!settings.empty())
     {
         throw std::runtime_error("unknown replay setting: " + settings.begin()->first);
     }
+
     return result;
 }
 
@@ -139,6 +146,7 @@ std::uint32_t source_id(double value)
     {
         throw std::runtime_error("invalid source identity");
     }
+
     return static_cast<std::uint32_t>(value);
 }
 
@@ -168,12 +176,15 @@ std::vector<Session::ImuInput> read_imu(std::filesystem::path const & input)
         {
             throw std::runtime_error("unordered IMU input");
         }
+
         records.push_back(imu);
     }
+
     if (records.empty())
     {
         throw std::runtime_error("no IMU samples");
     }
+
     return records;
 }
 
@@ -208,8 +219,10 @@ std::vector<History::GnssSample> read_gnss(std::filesystem::path const & input)
         {
             throw std::runtime_error("unordered GNSS input");
         }
+
         records.push_back(sample);
     }
+
     return records;
 }
 
@@ -228,8 +241,10 @@ std::vector<History::MagneticSample> read_magnetic(std::filesystem::path const &
         {
             throw std::runtime_error("unordered magnetic input");
         }
+
         records.push_back(sample);
     }
+
     return records;
 }
 
@@ -247,8 +262,10 @@ std::vector<History::LandState> read_land(std::filesystem::path const & input)
         {
             throw std::runtime_error("unordered land context");
         }
+
         records.push_back(sample);
     }
+
     return records;
 }
 
@@ -261,16 +278,19 @@ std::optional<Session::magnetic_model_type::sample_type> request_model(Session::
     {
         throw std::runtime_error("magnetic provider response missing");
     }
+
     if (response == "unavailable")
     {
         return std::nullopt;
     }
+
     std::istringstream stream(response);
     std::array<double, 3> values{};
     if (!read_row(stream, values))
     {
         throw std::runtime_error("invalid magnetic provider response");
     }
+
     return Session::magnetic_model_type::sample_type{values[0], values[1], values[2]};
 }
 
@@ -307,12 +327,14 @@ void write_fusion(std::ostream & stream, Session::Diagnostics const & d,
         {
             continue;
         }
+
         for (bool reset : {false, true})
         {
             if ((reset ? resets : evaluations) == recorded[i][reset ? 1 : 0])
             {
                 continue;
             }
+
             auto const & epoch = reset ? group.reset.epoch : group.epoch;
             auto const dimensions = reset ? 1U : std::max(1U, unsigned(group.dimension));
             for (unsigned axis = 0; axis < dimensions; ++axis)
@@ -330,6 +352,7 @@ void write_fusion(std::ostream & stream, Session::Diagnostics const & d,
                        << ',' << counts.reset_failures << '\n';
             }
         }
+
         recorded[i] = {evaluations, resets};
     }
 }
@@ -350,22 +373,27 @@ void write_current(std::ostream & stream, Session const & session, std::uint64_t
         p = transform.translation;
         v = transform.rotation * body.velocity_n;
     }
+
     if (!capabilities.horizontal_velocity.available)
     {
         v(0) = v(1) = NAN;
     }
+
     if (!capabilities.vertical_velocity.available)
     {
         v(2) = NAN;
     }
+
     if (!capabilities.vertical_position.available)
     {
         p(2) = NAN;
     }
+
     if (!capabilities.attitude.available)
     {
         q = decltype(q)::from_row_major({NAN, NAN, NAN, NAN});
     }
+
     stream << now << ',' << segment;
     for (auto const & vector : {p, v})
     {
@@ -374,10 +402,12 @@ void write_current(std::ostream & stream, Session const & session, std::uint64_t
             stream << ',' << vector(i);
         }
     }
+
     for (std::size_t i = 0; i < 4; ++i)
     {
         stream << ',' << q(i);
     }
+
     for (auto const & vector : {session.state().b_a, session.state().b_g})
     {
         for (std::size_t i = 0; i < 3; ++i)
@@ -385,6 +415,7 @@ void write_current(std::ostream & stream, Session const & session, std::uint64_t
             stream << ',' << vector(i);
         }
     }
+
     stream << '\n';
 }
 } // namespace
@@ -407,8 +438,10 @@ void replay_session(std::filesystem::path const & input, std::filesystem::path c
         {
             throw std::runtime_error("missing plot origin");
         }
+
         check_status(plot_frame.set_origin({point[0], point[1], point[2]}), "plot origin", imu.front().time_us);
     }
+
     auto parameters = config.parameters;
     parameters.session_id = 1;
     auto session = std::make_unique<Session>(parameters);
@@ -416,11 +449,13 @@ void replay_session(std::filesystem::path const & input, std::filesystem::path c
     {
         throw std::runtime_error("invalid replay numerical profile");
     }
+
     if (!session->configure_timing(config.timing) || !session->configure_gravity(true) ||
         !session->configure_magnetic(config.magnetic) || !session->configure_sensor_positions({}))
     {
         throw std::runtime_error("invalid replay session profile");
     }
+
     if (kitti_prior)
     {
         auto prior_file =
@@ -434,6 +469,7 @@ void replay_session(std::filesystem::path const & input, std::filesystem::path c
         {
             throw std::runtime_error("initial navigation epoch must equal the first real IMU endpoint");
         }
+
         Session::InitialNavigation prior;
         // The value constructor normalizes; separately reject a non-unit supplied prior.
         check_status(Session::quaternion_type::from_coefficients(row[1], row[2], row[3], row[4],
@@ -445,6 +481,7 @@ void replay_session(std::filesystem::path const & input, std::filesystem::path c
         {
             throw std::runtime_error("initial quaternion is not unit length");
         }
+
         prior.attitude.variance_n = {row[5], row[6], row[7]};
         prior.position = {row[8], row[9], row[10]};
         prior.altitude_msl_m = row[11];
@@ -460,16 +497,19 @@ void replay_session(std::filesystem::path const & input, std::filesystem::path c
     {
         throw std::runtime_error("initial navigation is restricted to the explicit KITTI replay mode");
     }
+
     if (!std::filesystem::create_directories(output))
     {
         throw std::runtime_error("output already exists");
     }
+
     std::ofstream states(output / "state.csv"), status(output / "status.csv"), summary(output / "summary.json"),
         fusion(output / "fusion.csv");
     for (auto * stream : {&states, &status, &summary, &fusion})
     {
         stream->exceptions(std::ios::failbit | std::ios::badbit);
     }
+
     states << std::setprecision(17) << "timestamp_us,segment,pn,pe,pd,vn,ve,vd,q0,q1,q2,q3,bax,bay,baz,bgx,bgy,bgz\n";
     status << "timestamp_us,segment,initialized,history_ready,tilt_aligned,attitude,heading,position,velocity,height,"
               "vertical_velocity,global_position,msl_altitude,fault,covariance_time_us,lag_us,clipping_available,gnss_"
@@ -491,6 +531,7 @@ void replay_session(std::filesystem::path const & input, std::filesystem::path c
         {
             context.land = land[land_index++];
         }
+
         if (!kitti_prior || &sample != &imu.front())
         {
             session->process_imu(sample, now, context);
@@ -505,8 +546,10 @@ void replay_session(std::filesystem::path const & input, std::filesystem::path c
             {
                 session->receive_magnetic(magnetic[magnetic_index], now);
             }
+
             ++magnetic_index;
         }
+
         if (session->fusion_ready())
         {
             session->begin_fusion();
@@ -517,6 +560,7 @@ void replay_session(std::filesystem::path const & input, std::filesystem::path c
                 throw std::runtime_error("incomplete session fusion transaction");
             }
         }
+
         auto const d = session->diagnostics(now);
         write_status(status, d, parameters.session_id);
         write_fusion(fusion, d, recorded);
@@ -526,14 +570,17 @@ void replay_session(std::filesystem::path const & input, std::filesystem::path c
                                      ": operation=" + std::to_string(int(d.failure_operation)) +
                                      ", history=" + std::to_string(int(d.history_fault)));
         }
+
         if (d.initialized && seed_time == 0)
         {
             seed_time = now;
         }
+
         if (d.capabilities.tilt_aligned && tilt_time == 0)
         {
             tilt_time = now;
         }
+
         if (d.capabilities.heading.available && heading_time == 0)
         {
             heading_time = now;
@@ -542,13 +589,16 @@ void replay_session(std::filesystem::path const & input, std::filesystem::path c
                 magnetic_cutoff = now;
             }
         }
+
         if (d.capabilities.global_position.available && navigation_time == 0)
         {
             navigation_time = now;
         }
+
         write_current(states, *session, now, parameters.session_id, plot_frame);
         (void)session->take_innovations();
     }
+
     auto const & stats = session->statistics();
     auto const final = session->diagnostics(imu.back().time_us);
     summary << "{\n  \"initialized_at_us\": " << seed_time << ",\n  \"tilt_aligned_at_us\": " << tilt_time
@@ -572,6 +622,7 @@ void replay_session(std::filesystem::path const & input, std::filesystem::path c
     {
         stream->close();
     }
+
     std::cout << (kitti_prior ? "KITTI seeded INS session: " : "Standard INS session: ") << stats.predictions
               << " delayed predictions; gravity=" << session->gravity().corrections
               << ", magnetic=" << session->magnetic_state().corrections

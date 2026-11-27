@@ -35,6 +35,7 @@
 #undef max
 #undef private
 #undef array
+
 namespace height_proof
 {
 using contract_proof::Scalar;
@@ -56,8 +57,11 @@ static_assert(setting::fusion_timeout_us == 5000000U && setting::barometer_timeo
                   setting::barometer_lpf_gain == 0.1 && setting::maximum_aided_gnss_variance == 100.0 &&
                   setting::gate_sigma == 5.0 && setting::reset_velocity_variance == 10.0,
               "height deployment defaults match their specified constants");
+
 inline Manager::Parameters parameters() { return formal_eskf::px4::profile::height_parameters<Manager>(); }
+
 inline void bind_parameters(Manager & owner) { owner.m_parameters = parameters(); }
+
 inline bool same_parameters(Manager::Parameters const & a, Manager::Parameters const & b)
 {
     return same(a.minimum_quaternion_norm, b.minimum_quaternion_norm) && a.fusion_timeout_us == b.fusion_timeout_us &&
@@ -81,18 +85,21 @@ inline bool same_parameters(Manager::Parameters const & a, Manager::Parameters c
            same(a.bias_limits.accelerometer, b.bias_limits.accelerometer) &&
            same(a.bias_limits.gyroscope, b.bias_limits.gyroscope);
 }
+
 inline bool same_diagnostic(Manager::DiagnosticUpdate const & a, Manager::DiagnosticUpdate const & b)
 {
     return a.time_us == b.time_us && same(a.innovation, b.innovation) && same(a.test_ratio, b.test_ratio) &&
            a.valid == b.valid && a.source_changed == b.source_changed && a.measurement == b.measurement &&
            a.reset == b.reset;
 }
+
 inline bool same_bias(Bias const & a, Bias const & b)
 {
     return same(a.value, b.value) && same(a.variance, b.variance) && same(a.maximum_variance, b.maximum_variance) &&
            same(a.signed_ratio, b.signed_ratio) && same(a.positive_time, b.positive_time) &&
            same(a.negative_time, b.negative_time) && same(a.dt, b.dt);
 }
+
 // Scratch may contain nonfinite arithmetic; update() rejects it before commit.
 // The ceiling is always ordered, so the standard clamp precondition holds.
 inline bool bias_domain(Bias const & bias)
@@ -101,11 +108,13 @@ inline bool bias_domain(Bias const & bias)
            bias.maximum_variance >= static_cast<Scalar>(formal_eskf::px4::profile::height_bias::minimum_variance) &&
            (!std::isfinite(bias.variance) || bias.variance >= Scalar{0});
 }
+
 inline bool same_owner_constants(Manager const & a, Manager const & b)
 {
     return same_parameters(a.m_parameters, b.m_parameters) && same(a.m_origin_altitude, b.m_origin_altitude) &&
            a.m_started == b.m_started && a.m_tick == b.m_tick;
 }
+
 inline bool history_domain(Manager const & owner, std::uint64_t epoch)
 {
     if (owner.m_started > epoch || owner.m_tick > epoch || owner.m_last_height_progress > epoch ||
@@ -123,6 +132,7 @@ inline bool history_domain(Manager const & owner, std::uint64_t epoch)
     }
     return true;
 }
+
 inline bool same_session(Session const & a, Session const & b)
 {
     auto const & x = a.fusion;
@@ -136,6 +146,7 @@ inline bool same_session(Session const & a, Session const & b)
            a.generation == b.generation && a.active == b.active && a.fusion_reset == b.fusion_reset &&
            a.fault == b.fault && a.stop_reason == b.stop_reason;
 }
+
 inline bool same_manager(Manager const & a, Manager const & b)
 {
     return same_parameters(a.m_parameters, b.m_parameters) && same_session(a.m_sessions[0U], b.m_sessions[0U]) &&
@@ -144,6 +155,7 @@ inline bool same_manager(Manager const & a, Manager const & b)
            a.m_barometer_samples == b.m_barometer_samples && a.m_started == b.m_started && a.m_tick == b.m_tick &&
            a.m_last_height_progress == b.m_last_height_progress;
 }
+
 inline bool same_result(Result const & a, Result const & b)
 {
     return same_diagnostic(a.diagnostics[0], b.diagnostics[0]) && same_diagnostic(a.diagnostics[1], b.diagnostics[1]) &&
@@ -152,17 +164,20 @@ inline bool same_result(Result const & a, Result const & b)
            a.height_resets == b.height_resets && a.velocity_resets == b.velocity_resets &&
            same(a.height_delta, b.height_delta) && same(a.velocity_delta, b.velocity_delta);
 }
+
 inline bool same_sample(Sample const & a, Sample const & b)
 {
     return a.time_us == b.time_us && a.device_id == b.device_id && a.calibration_count == b.calibration_count &&
            same(a.altitude, b.altitude) && same(a.variance, b.variance) && a.qualified == b.qualified &&
            a.generation == b.generation;
 }
+
 inline bool altitude_valid(Scalar altitude)
 {
     return std::isfinite(altitude) && altitude > static_cast<Scalar>(setting::minimum_altitude_m) &&
            altitude < static_cast<Scalar>(setting::maximum_altitude_m);
 }
+
 // Inductive owner properties established by construction/initialization and
 // preserved by every source transition. They do not require finite scratch
 // bias values: update rejects those before publishing the candidate.
@@ -181,6 +196,7 @@ inline bool control_domain(Manager const & owner)
            owner.m_barometer_lpf >= -lpf_bound && owner.m_barometer_lpf <= lpf_bound && reference_valid &&
            intervals_valid;
 }
+
 inline void stopped(Manager & expected, Source source, Reason reason)
 {
     auto & aid = expected.m_sessions[source == Source::barometer ? 0U : 1U];

@@ -38,12 +38,14 @@ class InsSessionTest
         test.expect(ins_test::same_bits(s.state().p_n, before.p_n) && ins_test::same_bits(s.state().v_n, before.v_n) &&
                         ins_test::same_bits(s.state().q_nb.coefficients(), before.q_nb.coefficients()),
                     profile, "bias reset preserves nominal position, velocity and attitude at the reset boundary");
+
         for (std::size_t i = 0; i < 3; ++i)
         {
             test.expect(s.state().b_a(i) == (accel ? 0. : before.b_a(i)) &&
                             s.state().b_g(i) == (gyro ? 0. : before.b_g(i)),
                         profile, "only the independently selected bias groups are zeroed");
         }
+
         for (std::size_t r = 0; r < 15; ++r)
         {
             for (std::size_t c = 0; c < 15; ++c)
@@ -66,6 +68,7 @@ class InsSessionTest
             f.session.begin_fusion();
             return f.session.complete_fusion(std::nullopt);
         }
+
         return !f.session.fault();
     }
 
@@ -109,7 +112,9 @@ public:
                 ++f.imu.source.gyroscope_calibration;
                 break;
             }
+
             test.expect(f.tick(false), profile, "source-only change continues current propagation");
+
             expect_reset(test, profile, f.session, state, covariance, accel, gyro);
             auto const & event = f.session.imu_source_changes();
             test.expect(event.accelerometer_time_us == (accel ? f.imu.time_us : 0) &&
@@ -133,8 +138,10 @@ public:
                 {
                     ++f.imu.source.gyroscope_id;
                 }
+
                 f.imu.delta_angle_b(2) = double(n % 4) * 1e-8;
                 test.expect(f.tick(false), profile, "ingress continues across partially full and wrapped histories");
+
                 if (auto const * interval = f.session.imu_history().delayed())
                 {
                     auto const epoch = interval->time_us;
@@ -143,6 +150,7 @@ public:
                                     interval->sample.delta_angle_b(2) == double(((epoch - 1000000) / 4000) % 4) * 1e-8,
                                 profile,
                                 "reference chronological list retains old/new provenance without skipped intervals");
+
                     // A nonzero main bias must survive reading any historical source.
                     f.session.m_state.b_g = Vector::from_row_major({.001, 0, 0});
                     test.expect(finish(f) && f.session.state().b_g(0) == .001, profile,
@@ -151,9 +159,11 @@ public:
                         f.session.fusion_time_us() == epoch && f.session.output_predictor().fusion_time_us() == epoch &&
                             f.session.m_filtered_imu_source.gyroscope_id == (epoch < changed_epoch ? 102U : 103U),
                         profile, "main, observation-filter source and output-feedback cursors advance together");
+
                     completed = epoch;
                 }
             }
+
             test.expect(f.session.imu_source_changes().gyroscope_time_us == changed_epoch, profile,
                         "later records and wrap do not relabel the single source event");
         }
@@ -168,23 +178,29 @@ public:
         f.session.m_output.reset();
         test.expect(f.session.m_output.seed(f.session.state(), f.imu.time_us), profile,
                     "controlled initial fixture seeds nonzero predictor biases at the same epoch");
+
         ++f.imu.source.gyroscope_id;
         test.expect(f.tick(false) && ins_test::same_bits(f.session.output_predictor().angular_rate_b(), cached * -1.),
                     profile, "changed current input still uses the previous successful feedback bias");
+
         ++f.imu.source.gyroscope_id;
         test.expect(f.tick(false) && ins_test::same_bits(f.session.output_predictor().angular_rate_b(), cached * -1.),
                     profile, "multiple ingress events before feedback do not replace cached biases early");
+
         for (std::size_t n = 0;
              n < ins_test_profile::Layout::imu_capacity && !f.session.fusion_ready() && !f.session.fault(); ++n)
         {
             test.expect(f.tick(false), profile, "fill warmup without a premature feedback update");
         }
+
         auto const current_epoch = f.session.output_predictor().current().time_us;
         test.expect(finish(f), profile, "first delayed completion supplies the reset main biases");
+
         auto const error = f.session.output_predictor().tracking_error();
         double const lag = double(current_epoch - f.session.fusion_time_us()) * 1e-6;
         auto const expected = error.attitude_b * (.5 / lag) - f.session.state().b_g;
         test.expect(f.tick(false), profile, "next current propagation follows successful delayed feedback");
+
         for (std::size_t axis = 0; axis < 3; ++axis)
         {
             test.expect(std::abs(f.session.output_predictor().angular_rate_b()(axis) - expected(axis)) < 1e-13, profile,
@@ -219,6 +235,7 @@ public:
                     test.expect(f.tick(false), profile, "fill without completing before the forced overrun");
                 }
             }
+
             set_biases(f.session);
             auto const state = f.session.state();
             auto const covariance = f.session.covariance();
@@ -258,9 +275,11 @@ public:
                 f.session.m_startup = runtime::InsStartup<ins_test::Backend>(prior);
                 break;
             }
+
             case Invalid::history:
                 break;
             }
+
             f.session.process_imu(input, arrival, f.context);
             test.expect(f.session.fault() && f.session.imu_history().latest_time_us() == epoch &&
                             f.session.imu_history().source().matches(f.imu.source) &&
@@ -283,9 +302,11 @@ public:
         f.session.m_output.reset(); // Inject a mismatched required output epoch after valid main seed.
         test.expect(f.session.m_output.seed(state, f.imu.time_us - 1), profile,
                     "seed the explicitly mismatched output fixture");
+
         ++f.imu.source.gyroscope_id;
         test.expect(!f.tick(false) && f.session.fault(), profile,
                     "actual current-output prediction fails after admission");
+
         expect_reset(test, profile, f.session, state, covariance, false, true);
         test.expect(f.session.imu_history().latest_time_us() == f.imu.time_us &&
                         f.session.imu_source_changes().gyroscope_time_us == f.imu.time_us &&
@@ -300,6 +321,7 @@ public:
         start(f, test, profile);
         test.expect(f.session.imu_source_changes().gyroscope_time_us == 0, profile,
                     "seed is not a source-change event");
+
         for (auto source : {runtime::ImuSource{101, 102, 0, 0},
                             {101, 103, 0, 255},
                             {101, 103, 0, 255},
@@ -315,6 +337,7 @@ public:
             f.imu.source = source;
             bool const changed = !previous.matches(source);
             test.expect(f.tick(false), profile, "repeat, calibration wrap and switch-back remain valid inputs");
+
             expect_reset(test, profile, f.session, state, covariance, false, changed);
             test.expect(f.session.imu_source_changes().gyroscope_time_us == (changed ? f.imu.time_us : event), profile,
                         "only an actually changed accepted binding receives a new event epoch");
@@ -326,11 +349,13 @@ public:
         Fixture f;
         start(f, test, profile);
         test.expect(f.run(130), profile, "warm the real delayed estimator before preserving its alignment");
+
         auto const aligned = f.session.m_tilt_alignment.aligned();
         ImuSample<ins_test::Backend> shock{Vector::from_row_major({100, 0, 0}), Vector{}};
         auto const protection = f.session.m_bias_learning.update(.004, .004, f.session.state(), shock, {});
         test.expect(succeeded(protection.status) && protection.high_dynamics, profile,
                     "a real high-dynamics envelope exists before changing source");
+
         auto const reset = f.session.resets();
         auto const epoch = f.session.fusion_time_us();
         set_biases(f.session);
@@ -342,6 +367,7 @@ public:
         f.session.receive_magnetic(mag, f.imu.time_us);
         ++f.imu.source.accelerometer_id;
         test.expect(f.tick(false), profile, "current ingress accepts source change with delayed aiding still pending");
+
         expect_reset(test, profile, f.session, state, covariance, true, false);
         auto const & after = f.session.resets();
         test.expect(f.session.m_tilt_alignment.aligned() == aligned && f.session.fusion_time_us() == epoch &&
@@ -350,6 +376,7 @@ public:
                         after.vertical_velocity_count == reset.vertical_velocity_count &&
                         after.odometry_count == reset.odometry_count,
                     profile, "bias-only event preserves delayed epoch, alignment and every consumer reset counter");
+
         auto const protected_next =
             f.session.m_bias_learning.update(.004, .004, f.session.state(), f.imu.mean_rates(), {});
         test.expect(succeeded(protected_next.status) && protected_next.high_dynamics &&
@@ -364,12 +391,14 @@ public:
         Fixture f;
         start(f, test, profile);
         test.expect(f.run(130), profile, "warm up before a held-gap source transition");
+
         auto const gaps = f.session.statistics().gaps;
         auto const previous = f.imu.time_us;
         auto const held = f.imu.mean_rates();
         ++f.step; // One missing 4 ms sample; the following real record remains a 4 ms measurement.
         ++f.imu.source.gyroscope_id;
         test.expect(f.tick(false), profile, "permitted missing sample and source event can coexist");
+
         auto const interval = *f.session.imu_history().latest();
         test.expect(interval.start_time_us == previous && interval.hold_period_us == 4000 &&
                         interval.time_us == previous + 8000 &&
@@ -379,11 +408,13 @@ public:
                     "the same single gap reaches delayed prediction without an extra source reset");
         test.expect(!f.session.configure_sensor_positions({}), profile,
                     "live installation replacement stays prohibited");
+
         f.step += 13;
         ++f.imu.source.gyroscope_id;
         auto const event = f.session.imu_source_changes().gyroscope_time_us;
         test.expect(!f.tick() && f.session.imu_source_changes().gyroscope_time_us == event, profile,
                     "an unsupported gap cannot be waived by changing the source");
+
         Fixture restarted;
         start(restarted, test, profile);
         test.expect(restarted.session.imu_source_changes().gyroscope_time_us == 0 &&

@@ -51,6 +51,7 @@ enum class EdgeCase : unsigned
 struct Random
 {
     std::uint64_t state;
+
     template <typename S> S value()
     {
         state = state * 6364136223846793005ULL + 1442695040888963407ULL;
@@ -101,6 +102,7 @@ template <typename S> auto fixture(unsigned seed)
         f.parameters.process_noise.accelerometer_bias_random_walk_variance_density(i) = S{0.001};
         f.parameters.process_noise.gyroscope_bias_random_walk_variance_density(i) = S{0.0001};
     }
+
     f.V(0, 1) = f.V(1, 0) = S{0.04};
     f.V(1, 2) = f.V(2, 1) = S{-0.02};
     f.gravity(2) = S{9.80665};
@@ -109,6 +111,7 @@ template <typename S> auto fixture(unsigned seed)
     {
         std::abort();
     }
+
     typename Fixture<S>::Mat factor;
     for (std::size_t i = 0; i < 15U; ++i)
     {
@@ -127,13 +130,16 @@ template <typename S> auto fixture(unsigned seed)
             {
                 sum += factor(i, k) * factor(j, k);
             }
+
             if (i == j)
             {
                 sum += S{0.5};
             }
+
             f.P(i, j) = f.P(j, i) = sum;
         }
     }
+
     S const maximum = std::numeric_limits<S>::max();
     switch (static_cast<EdgeCase>(seed))
     {
@@ -169,6 +175,7 @@ template <typename S> auto fixture(unsigned seed)
                 }
             }
         }
+
         break;
     case EdgeCase::infinite_covariance:
         f.P(0, 0) = std::numeric_limits<S>::infinity();
@@ -233,6 +240,7 @@ template <typename S> auto fixture(unsigned seed)
     default:
         break;
     }
+
     return f;
 }
 
@@ -264,6 +272,7 @@ template <typename State, typename Mat> auto capture(State const & state, Mat co
             result.push_back(bits(value));
         }
     }
+
     for (std::size_t i = 0; i < 15U; ++i)
     {
         for (std::size_t j = 0; j < 15U; ++j)
@@ -271,6 +280,7 @@ template <typename State, typename Mat> auto capture(State const & state, Mat co
             result.push_back(bits(P(i, j)));
         }
     }
+
     return result;
 }
 
@@ -299,6 +309,7 @@ template <typename S> auto trial_fixture(unsigned seed)
             }
         }
     }
+
     return f;
 }
 
@@ -311,6 +322,7 @@ template <typename S> auto transition(Fixture<S> const & f)
     {
         std::abort();
     }
+
     auto F = decltype(f.P)::identity();
     auto const minus_R = -formal_eskf::so3::to_rotation_matrix(f.state.q_nb);
     auto const I_dt = decltype(T)::identity() * f.dt;

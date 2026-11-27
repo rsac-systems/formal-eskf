@@ -5,12 +5,14 @@ using observation_proof::Observations;
 using observation_proof::same_context;
 using observation_proof::same_interval;
 using Context = Observations::Context;
+
 namespace
 {
 Context returned_context;
 std::uint64_t expected_query, expected_age;
 unsigned calls;
 } // namespace
+
 template <>
 Context formal_eskf::runtime::ObservationHistory<imu_proof::Backend, 16, 64, 128, 128>::lookup_context(
     std::uint64_t time_us, std::uint64_t maximum_age_us) const

@@ -19,17 +19,21 @@ namespace
 struct ReplayFailure
 {
 };
+
 std::uint64_t timestamp(std::uint64_t decoded) { return decoded; }
+
 struct Stream
 {
     template <typename Value> Stream & operator<<(Value const &) { return *this; }
 };
+
 struct Input
 {
     unsigned advances{};
     bool next_available{}, allow_non_finite{};
     std::uint64_t next_time{};
 };
+
 bool read_row(Input & stream, std::uint64_t * row, bool allow_non_finite = false)
 {
     ++stream.advances;
@@ -37,6 +41,7 @@ bool read_row(Input & stream, std::uint64_t * row, bool allow_non_finite = false
     row[0] = stream.next_time;
     return stream.next_available;
 }
+
 struct Lifecycle
 {
     struct Value
@@ -46,9 +51,12 @@ struct Lifecycle
             bool active{};
         } vertical_position;
     } value;
+
     Value const & state() const { return value; }
 };
+
 void write_gnss_lifecycle(Stream &, Lifecycle::Value const &, Lifecycle::Value const &, std::uint64_t, std::uint64_t) {}
+
 struct Navigation
 {
     std::uint64_t navigation_row[1]{}, time{}, last_navigation_time{}, max_alignment_us{};
@@ -59,7 +67,9 @@ struct Navigation
     Lifecycle gnss_lifecycle;
     Lifecycle::Value previous_lifecycle;
     std::optional<unsigned> quality_parameters;
+
     void capture_vertical_evidence(bool) { ++captures; }
+
     void step()
     {
         // Original loop guard. The do/while(false) represents one iteration;
@@ -153,14 +163,19 @@ struct Vector3
 {
     std::uint64_t identity{};
 };
+
 Vector3 vector3(std::uint64_t x, std::uint64_t, std::uint64_t) { return {x}; }
+
 Vector3 operator-(Vector3, Vector3) { return {}; }
+
 bool reference_different;
 } // namespace
+
 namespace formal_eskf::linalg
 {
 double max_abs(Vector3) { return reference_different ? 1.0 : 0.0; }
 } // namespace formal_eskf::linalg
+
 namespace
 {
 struct Context
@@ -169,11 +184,14 @@ struct Context
     {
         unsigned reference_id{};
     } source;
+
     Vector3 m_n;
 } supplied_context;
+
 unsigned context_calls;
 std::uint64_t expected_source;
 bool context_ok;
+
 Context read_magnetic_context(unsigned, std::uint64_t epoch, Context const &)
 {
     ++context_calls;
@@ -184,6 +202,7 @@ Context read_magnetic_context(unsigned, std::uint64_t epoch, Context const &)
     }
     return supplied_context;
 }
+
 struct Magnetic
 {
     std::uint64_t magnetic_row[4]{}, time{}, last_magnetic_time{}, magnetic_time{};
@@ -191,11 +210,14 @@ struct Magnetic
     bool has_magnetometer{}, model_heading{};
     Vector3 magnetic_sample, seed_field;
     Context magnetic_context;
+
     struct Parameters
     {
         Vector3 m_n;
     } magnetic;
+
     Input magnetometer;
+
     void step()
     {
 #include "replay_magnetic.inc"

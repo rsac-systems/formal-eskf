@@ -153,6 +153,7 @@ template <typename Linalg, std::size_t Size> struct NavigationInnovationCheck
     bool innovation_limited = false;
 
     NavigationInnovationCheck() = default;
+
     explicit NavigationInnovationCheck(MeasurementCheck<Linalg, Size> const & check)
         : gate(check), fusion_innovation(check.innovation)
     {

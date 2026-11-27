@@ -26,6 +26,7 @@ using contract_proof::same;
 using contract_proof::Scalar;
 using Bias = formal_eskf::runtime::HeightBias<Scalar>;
 namespace settings = formal_eskf::px4::profile::height_bias;
+
 auto parameters()
 {
     using Manager = formal_eskf::runtime::HeightAiding<contract_proof::Linalg>;
@@ -38,13 +39,16 @@ static_assert(settings::initial_maximum_variance == 2.0 && settings::initial_int
                   settings::offset_ratio == 0.2 && settings::offset_duration_s == 10.0 &&
                   settings::offset_variance_multiplier == 1000.0 && settings::ratio_filter_time_s == 10.0,
               "height bias deployment defaults match the specified constants");
+
 bool same_bias(Bias const & a, Bias const & b)
 {
     return same(a.value, b.value) && same(a.variance, b.variance) && same(a.maximum_variance, b.maximum_variance) &&
            same(a.signed_ratio, b.signed_ratio) && same(a.positive_time, b.positive_time) &&
            same(a.negative_time, b.negative_time) && same(a.dt, b.dt);
 }
+
 Scalar clipped(Scalar v, Scalar lo, Scalar hi) { return v < lo ? lo : (hi < v ? hi : v); }
+
 void verify_height_bias_initialization(Bias arbitrary)
 {
     Bias bias{parameters()};
@@ -60,6 +64,7 @@ void verify_height_bias_initialization(Bias arbitrary)
     __ESBMC_assert(arbitrary.formal_eskf_proof_finite() == expected && same_bias(arbitrary, before),
                    "R-HEIGHT-FUSION: finite predicate covers precisely its five fields and is pure");
 }
+
 void verify_height_bias_prediction(Bias bias, Scalar dt)
 {
     // Internal producer domain: committed variance/ceiling and tick interval.
@@ -88,6 +93,7 @@ void verify_height_bias_prediction(Bias bias, Scalar dt)
                                                      bias.variance <= bias.maximum_variance),
                    "R-HEIGHT-FUSION: arbitrary nonfinite scratch preserves the finite variance domain");
 }
+
 void verify_height_bias_update(Bias bias, Scalar measurement, Scalar measurement_variance, Scalar sensor_variance)
 {
     __ESBMC_assume(std::isfinite(sensor_variance) && sensor_variance > Scalar{0});
@@ -125,4 +131,5 @@ void verify_height_bias_update(Bias bias, Scalar measurement, Scalar measurement
     // The owner rejects nonfinite scratch. This producer has no failure-return
     // contract and intentionally admits NaN/overflow in all remaining arguments.
 }
+
 int main() { return 0; }

@@ -34,10 +34,12 @@ template <typename Matrix> bool same_bits(Matrix const & a, Matrix const & b)
 template <typename Runtime = Session> struct Fixture
 {
     Runtime session;
+
     struct Inputs
     {
         typename Runtime::observation_history_type::GnssSample gnss{};
         typename Runtime::observation_history_type::BarometerSample barometer{};
+
         struct Magnetic
         {
             std::uint64_t time_us{};
@@ -46,6 +48,7 @@ template <typename Runtime = Session> struct Fixture
             typename Runtime::vector3_type field_gauss{};
         } magnetic;
     } input{};
+
     typename Runtime::ImuInput imu{};
     typename Runtime::ContextInput context{};
     typename Runtime::magnetic_model_type::sample_type model{0, std::atan2(40., 20.), std::hypot(20., 40.)};
@@ -54,6 +57,7 @@ template <typename Runtime = Session> struct Fixture
     bool configured{};
     bool send_barometer = true, send_gnss = true, send_magnetic = true;
     bool at_rest = true;
+
     explicit Fixture(typename Runtime::Parameters const & parameters = ins_test_profile::parameters<Runtime>())
         : session(parameters)
     {
@@ -81,6 +85,7 @@ template <typename Runtime = Session> struct Fixture
         imu.angular_period_us = imu.acceleration_period_us = 4000;
         imu.delta_velocity_b = Vector::from_row_major({0, 0, -9.80665 * 0.004});
     }
+
     bool tick(bool complete = true)
     {
         auto const now = std::uint64_t{1000000} + 4000 * std::uint64_t{step};
@@ -136,6 +141,7 @@ template <typename Runtime = Session> struct Fixture
         }
         return !session.fault();
     }
+
     bool run(unsigned count)
     {
         for (unsigned n = 0; n < count; ++n)

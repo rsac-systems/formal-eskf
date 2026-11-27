@@ -31,6 +31,7 @@ template <> inline contract_proof::Scalar squared_norm(contract_proof::Vector3 c
 {
     using maps_proof::SquaredNormContract;
     __ESBMC_assert(SquaredNormContract::calls == 0U, "Exp norm contract: at most one request");
+
     ++SquaredNormContract::calls;
     SquaredNormContract::received = input;
     return SquaredNormContract::result;
@@ -43,14 +44,17 @@ template <> inline contract_proof::Scalar squared_norm(contract_proof::Vector3 c
 void verify_squared_norm_producer(Vector3 value)
 {
     __ESBMC_assert(!FORMAL_ESKF_PROOF_SQUARED_NORM_CONTRACT, "Runner error: squared-norm producer must be actual");
+
     auto const before = value;
     auto const actual = formal_eskf::linalg::squared_norm(value);
     __ESBMC_assert(same(actual, ordered_squared_norm(before)) && same_vector(value, before),
                    "SO3-EXP: actual squared norm is the ordered sum and preserves its input");
+
     // Concrete feasibility evidence for zero, exact cutoff and regular cases.
     // These dyadic inputs are exactly representable in their respective formats.
     Vector3 boundary;
     __ESBMC_assert(formal_eskf::linalg::squared_norm(boundary) == Scalar{0}, "SO3-SMALL-ANGLE: zero is reachable");
+
 #if FORMAL_ESKF_PROOF_BINARY64
     boundary(0U) = Scalar{0x1p-26};
 #else
@@ -59,6 +63,7 @@ void verify_squared_norm_producer(Vector3 value)
 #endif
     __ESBMC_assert(formal_eskf::linalg::squared_norm(boundary) == std::numeric_limits<Scalar>::epsilon(),
                    "SO3-SMALL-ANGLE: exact epsilon boundary is reachable");
+
     boundary(0U) *= Scalar{2};
     __ESBMC_assert(formal_eskf::linalg::squared_norm(boundary) > std::numeric_limits<Scalar>::epsilon(),
                    "SO3-SMALL-ANGLE: regular side is reachable");
@@ -74,6 +79,7 @@ void verify_log_arithmetic(Scalar q0, Scalar q0_squared, Scalar squared, Scalar 
                    "SO3-SMALL-ANGLE: exact ordered Taylor scale expression on all IEEE arguments");
     __ESBMC_assert(same(formal_eskf::so3::detail::log_closed_form_scale(norm, angle), Scalar{2} * angle / norm),
                    "SO3-LOG: exact ordered regular scale expression on all IEEE arguments");
+
     auto const before = qv;
     auto const candidate = qv * scale;
     for (std::size_t i = 0U; i < 3U; ++i)
@@ -81,6 +87,7 @@ void verify_log_arithmetic(Scalar q0, Scalar q0_squared, Scalar squared, Scalar 
         __ESBMC_assert(same(candidate(i), qv(i) * scale),
                        "SO3-LOG: each candidate coefficient uses the supplied scale");
     }
+
     __ESBMC_assert(same_vector(qv, before), "SO3-LOG: pure scale candidate preserves input");
 }
 
@@ -142,6 +149,7 @@ void verify_exp_behavior(Vector3 theta, Scalar minimum, Quaternion output, Quate
 {
     __ESBMC_assert(FORMAL_ESKF_PROOF_CONSTRUCTOR_CONTRACT && FORMAL_ESKF_PROOF_SQUARED_NORM_CONTRACT,
                    "Runner error: Exp requires constructor and squared-norm boundaries");
+
     auto const before = output;
     auto const theta_before = theta;
     maps_proof::SquaredNormContract::result = squared;
@@ -201,6 +209,7 @@ void verify_exp_behavior(Vector3 theta, Scalar minimum, Quaternion output, Quate
                 }
             }
         }
+
         if (expected == Status::success)
         {
             if (!std::isfinite(coefficients(0U)) || !std::isfinite(scale))
@@ -217,7 +226,9 @@ void verify_exp_behavior(Vector3 theta, Scalar minimum, Quaternion output, Quate
             }
         }
     }
+
     __ESBMC_assert(actual == expected, "SO3-EXP: exact status precedence, scalar failures and constructor outcome");
+
     bool const norm_call = finite_vector(theta_before) && std::isfinite(minimum) && minimum > Scalar{0};
     __ESBMC_assert(maps_proof::SquaredNormContract::calls == (norm_call ? 1U : 0U),
                    "SO3-EXP: squared norm is requested exactly after input validation");
@@ -232,12 +243,14 @@ void verify_exp_behavior(Vector3 theta, Scalar minimum, Quaternion output, Quate
     __ESBMC_assert(!trig_call || (same(OpaqueMath::sin.argument, Scalar{0.5} * root) &&
                                   same(OpaqueMath::cos.argument, Scalar{0.5} * root)),
                    "SO3-EXP: both trigonometric functions consume the half angle");
+
     if (constructor_call)
     {
         __ESBMC_assert(same_vector(ConstructorContract::received, coefficients) &&
                            same(ConstructorContract::minimum, minimum),
                        "SO3-EXP: all four Taylor/regular coefficients and the unchanged threshold reach normalization");
     }
+
     __ESBMC_assert(actual != Status::success || same_vector(output.coefficients(), normalized.coefficients()),
                    "SO3-EXP: exact successful publication");
     __ESBMC_assert(actual == Status::success || same_vector(output.coefficients(), before.coefficients()),
@@ -251,6 +264,7 @@ void verify_exp_behavior(Vector3 theta, Scalar minimum, Quaternion output, Quate
 void verify_log_behavior(Quaternion q, Vector3 output, Scalar root, Scalar half_angle)
 {
     __ESBMC_assert(!FORMAL_ESKF_PROOF_SQUARED_NORM_CONTRACT, "Runner error: Log uses the actual squared norm");
+
     auto const q_before = q.coefficients();
     auto const before = output;
     OpaqueMath::prepare(root, Scalar{0}, Scalar{0}, half_angle);
@@ -262,6 +276,7 @@ void verify_log_behavior(Quaternion q, Vector3 output, Scalar root, Scalar half_
     {
         qv(i) = sign * q_before(i + 1U);
     }
+
     Scalar const squared = ordered_squared_norm(qv);
     bool root_call = false;
     bool atan_call = false;
@@ -318,6 +333,7 @@ void verify_log_behavior(Quaternion q, Vector3 output, Scalar root, Scalar half_
                 }
             }
         }
+
         if (expected == Status::success)
         {
             if (!std::isfinite(scale))
@@ -330,6 +346,7 @@ void verify_log_behavior(Quaternion q, Vector3 output, Scalar root, Scalar half_
                 {
                     candidate(i) = qv(i) * scale;
                 }
+
                 if (!finite_vector(candidate))
                 {
                     expected = Status::non_finite_result;
@@ -337,6 +354,7 @@ void verify_log_behavior(Quaternion q, Vector3 output, Scalar root, Scalar half_
             }
         }
     }
+
     __ESBMC_assert(actual == expected, "SO3-LOG: complete zero/Taylor/regular status and overflow behavior");
     __ESBMC_assert(
         OpaqueMath::sqrt.calls == (root_call ? 1U : 0U) && OpaqueMath::atan2.calls == (atan_call ? 1U : 0U),

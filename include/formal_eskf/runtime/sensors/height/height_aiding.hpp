@@ -63,6 +63,7 @@ template <typename Scalar> struct HeightBias
     Scalar dt{};
 
     HeightBias() = default;
+
     explicit HeightBias(HeightBiasParameters<Scalar> const & parameters)
         : maximum_variance(parameters.initial_maximum_variance), dt(parameters.initial_interval_s)
     {
@@ -92,6 +93,7 @@ template <typename Scalar> struct HeightBias
             value += K * residual;
             variance = std::clamp((Scalar{1} - K) * variance, parameters.minimum_variance, maximum_variance);
         }
+
         Scalar const sign = residual > Scalar{0} ? Scalar{1} : (residual < Scalar{0} ? Scalar{-1} : Scalar{0});
         signed_ratio += dt / (dt + parameters.ratio_filter_time_s) *
                         (std::clamp(sign * ratio, Scalar{-1}, Scalar{1}) - signed_ratio);
@@ -237,6 +239,7 @@ public:
     [[nodiscard]] bool configure_timing(TimingParameters const & timing);
     [[nodiscard]] bool can_configure(TimingParameters const & timing) const;
     bool valid_parameters() const;
+
     value_type ground_effect_deadzone() const { return m_parameters.ground_effect_deadzone_m; }
 
     unsigned barometer_warmup_samples() const { return m_parameters.barometer_warmup_samples; }
@@ -247,6 +250,7 @@ public:
         {
             return Status::domain_error;
         }
+
         *this = HeightAiding{m_parameters};
         m_origin_altitude = origin_altitude;
         m_started = now_us;
@@ -264,6 +268,7 @@ public:
 
     /** Inspect one sensor session; source must be barometer or gnss. */
     Session const & session(Source source) const { return m_sessions[index(source)]; }
+
     typename runtime::VerticalAccelerationHealth<Linalg>::Innovation vertical_innovation(Source source) const
     {
         auto const & aid = session(source);
@@ -271,9 +276,12 @@ public:
         {
             return {};
         }
+
         return {true, -aid.fusion_innovation, aid.fusion.innovation_variance(0U)};
     }
+
     Source reference() const { return m_reference; }
+
     value_type origin_altitude() const { return m_origin_altitude; }
 
     /** Relabel one physical point without adding measurement information.
@@ -286,6 +294,7 @@ public:
         {
             return Status::domain_error;
         }
+
         auto sessions = m_sessions;
         for (auto & aid : sessions)
         {
@@ -293,6 +302,7 @@ public:
             {
                 continue;
             }
+
             auto const status = transport_height_offset<typename Linalg::scalar_math_type>(
                 height_old, height_new, aid.bias.value, aid.bias.value);
             if (!succeeded(status))
@@ -308,11 +318,14 @@ public:
         {
             return status;
         }
+
         m_sessions = sessions;
         m_origin_altitude = new_origin_altitude;
         return Status::success;
     }
+
     std::uint64_t progress_time() const { return m_last_height_progress; }
+
     bool reset_required(std::uint64_t now_us,
                         runtime::GnssFusion::VerticalAccelerationTimes const & acceleration = {0U, 0U}) const
     {
@@ -320,6 +333,7 @@ public:
         return acceleration.reset_required(now_us) ||
                (progress != 0U && now_us > progress && now_us - progress > m_parameters.fusion_timeout_us);
     }
+
     bool valid(std::uint64_t now_us) const
     {
         return m_last_height_progress != 0U && now_us >= m_last_height_progress &&
@@ -328,12 +342,15 @@ public:
 
 private:
     static constexpr std::size_t index(Source source) { return source == Source::barometer ? 0U : 1U; }
+
     static bool warmup_count(TimingParameters const & timing, unsigned & output);
+
     bool valid_altitude(value_type altitude) const
     {
         return std::isfinite(altitude) && altitude > m_parameters.minimum_altitude_m &&
                altitude < m_parameters.maximum_altitude_m;
     }
+
     [[nodiscard]] Status height_prediction(state_type const & state, Geometry const * geometry,
                                            prediction_type & output) const;
     [[nodiscard]] Status height_frame(state_type const & state, Geometry const & geometry,
@@ -375,6 +392,7 @@ template <typename Linalg> bool HeightAiding<Linalg>::warmup_count(TimingParamet
     {
         return false;
     }
+
     output = static_cast<unsigned>(count);
     return true;
 }
@@ -392,6 +410,7 @@ template <typename Linalg> bool HeightAiding<Linalg>::configure_timing(TimingPar
     {
         return false;
     }
+
     m_parameters.barometer_warmup_samples = count;
     return true;
 }
@@ -427,18 +446,21 @@ Status HeightAiding<Linalg>::height_prediction(state_type const & state, Geometr
     {
         return runtime::predict_height(state.p_n, m_origin_altitude, output);
     }
+
     if constexpr (std::numeric_limits<value_type>::digits == 53)
     {
         if (geometry->datum.initialized())
         {
             return runtime::predict_height(state.p_n, geometry->frame, geometry->datum, output);
         }
+
         if (std::isfinite(geometry->relative_reference_ellipsoid_m))
         {
             return runtime::predict_relative_height(state.p_n, geometry->frame,
                                                     geometry->relative_reference_ellipsoid_m, output);
         }
     }
+
     return Status::domain_error;
 }
 
@@ -453,11 +475,13 @@ Status HeightAiding<Linalg>::height_frame(state_type const & state, Geometry con
     {
         status = geodesy::ecef_to_geodetic<Linalg>(ecef, geographic);
     }
+
     geodesy::LocalNed<Linalg> at_estimate;
     if (succeeded(status))
     {
         status = at_estimate.set_origin(geographic);
     }
+
     return succeeded(status) ? geometry.frame.transform_to(at_estimate, transform) : status;
 }
 
@@ -496,6 +520,7 @@ void HeightAiding<Linalg>::reset_height(Source source, std::uint64_t now_us, val
         {
             result.status = height_frame(state, *geometry, transform);
         }
+
         if (!succeeded(result.status))
         {
             evidence.reset_status = result.status;
@@ -515,15 +540,18 @@ void HeightAiding<Linalg>::reset_height(Source source, std::uint64_t now_us, val
     {
         result.status = Status::domain_error;
     }
+
     if (!succeeded(result.status))
     {
         evidence.reset_status = result.status;
         return;
     }
+
     for (auto & aid : m_sessions)
     {
         aid.bias.value += delta; // Preserve each corrected altitude relative to the reset state.
     }
+
     result.position_delta_n = result.position_delta_n + (state.p_n - previous_position);
     result.height_delta = result.height_resets == 0U ? delta : result.height_delta + delta;
     ++result.height_resets;
@@ -549,8 +577,10 @@ bool HeightAiding<Linalg>::admit(Source source, std::uint64_t now_us, Sample con
         {
             stop(source, StopReason::no_data);
         }
+
         return false;
     }
+
     aid.sample_time = sample.time_us;
     if (now_us - sample.time_us >= maximum_age)
     {
@@ -559,8 +589,10 @@ bool HeightAiding<Linalg>::admit(Source source, std::uint64_t now_us, Sample con
         {
             stop(source, StopReason::no_data);
         }
+
         return false;
     }
+
     if (sample.device_id == 0U || !valid_altitude(sample.altitude) || !std::isfinite(sample.variance) ||
         sample.variance <= value_type{0})
     {
@@ -568,6 +600,7 @@ bool HeightAiding<Linalg>::admit(Source source, std::uint64_t now_us, Sample con
         ++result.rejected;
         return false;
     }
+
     if (aid.device_id != sample.device_id || aid.calibration_count != sample.calibration_count ||
         aid.generation != sample.generation)
     {
@@ -583,12 +616,14 @@ bool HeightAiding<Linalg>::admit(Source source, std::uint64_t now_us, Sample con
             m_barometer_samples = 0U;
         }
     }
+
     if (!sample.qualified)
     {
         stop(source, StopReason::quality);
         ++result.rejected;
         return false;
     }
+
     aid.data_time = sample.time_us;
     return true;
 }
@@ -606,11 +641,13 @@ bool HeightAiding<Linalg>::prepare_barometer(Sample const & sample, value_type a
         aid.bias.value = m_barometer_lpf - altitude;
         return false;
     }
+
     if (aid.fault)
     {
         ++result.rejected;
         return false;
     }
+
     return true;
 }
 
@@ -629,12 +666,14 @@ void HeightAiding<Linalg>::recover(Source source, std::uint64_t now_us, Sample c
         {
             return;
         }
+
         prediction_type prediction;
         result.status = height_prediction(state, geometry, prediction);
         if (!succeeded(result.status))
         {
             return;
         }
+
         aid.bias.value = (barometer ? m_barometer_lpf : sample.altitude) - prediction.altitude;
         if (barometer && !vertical_velocity_aiding && m_parameters.zero_velocity_on_barometer_reset)
         {
@@ -653,6 +692,7 @@ void HeightAiding<Linalg>::recover(Source source, std::uint64_t now_us, Sample c
                 {
                     return;
                 }
+
                 vector_type variances, delta;
                 variances(2) = m_parameters.reset_velocity_variance;
                 result.status = runtime::reset_navigation_in_frame(
@@ -664,6 +704,7 @@ void HeightAiding<Linalg>::recover(Source source, std::uint64_t now_us, Sample c
             {
                 result.status = Status::domain_error;
             }
+
             result.velocity_delta_n = state.v_n - previous_velocity;
             if (succeeded(result.status))
             {
@@ -691,6 +732,7 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
     {
         return;
     }
+
     prediction_type prediction;
     result.status = height_prediction(state, geometry, prediction);
     if (!succeeded(result.status))
@@ -700,6 +742,7 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
         evidence.fusion.status = result.status;
         return;
     }
+
     value_type const altitude = prediction.altitude;
     auto const height_variance =
         geometry == nullptr ? covariance(2, 2) : (prediction.H * covariance * linalg::transpose(prediction.H))(0, 0);
@@ -711,6 +754,7 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
         evidence.fusion.status = result.status;
         return;
     }
+
     if (barometer && !prepare_barometer(sample, altitude, result))
     {
         if (!succeeded(result.status))
@@ -719,8 +763,10 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
             evidence.evaluated = true;
             evidence.fusion.status = result.status;
         }
+
         return;
     }
+
     value_type const variance = !barometer && m_sessions[index(Source::barometer)].active
                                     ? std::min(sample.variance, m_parameters.maximum_aided_gnss_variance)
                                     : sample.variance;
@@ -732,20 +778,24 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
         {
             return;
         }
+
         aid.active = true;
         aid.stop_reason = StopReason::none;
         if (m_reference == Source::none)
         {
             m_reference = source;
         }
+
         return; // One real reset, no second use as an ordinary correction.
     }
+
     if (!aid.active)
     {
         if (barometer && !receipt_recent)
         {
             return;
         }
+
         if (source == Source::gnss)
         {
             reset_height(source, now_us, sample.altitude, variance, state, covariance, result, geometry);
@@ -753,6 +803,7 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
             {
                 return;
             }
+
             aid.bias = HeightBias<value_type>{m_parameters.bias};
             m_reference = source;
         }
@@ -760,6 +811,7 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
         {
             aid.bias.value = m_barometer_lpf - altitude;
         }
+
         aid.active = true;
         aid.stop_reason = StopReason::none;
         aid.progress_time = now_us; // Startup grace, distinct from a successful correction.
@@ -775,11 +827,13 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
         evidence.fusion.status = result.status;
         return;
     }
+
     value_type const observation_variance = variance + aid.bias.variance;
     if (m_reference != source)
     {
         aid.bias.fuse(sample.altitude - altitude, variance + height_variance, variance, m_parameters.bias);
     }
+
     aid.fusion_reset = false;
     // Both paths use the same frozen observation; geometry chooses its Down row.
     auto const deadzone = barometer && ground_effect ? m_parameters.ground_effect_deadzone_m : value_type{0};
@@ -805,6 +859,7 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
     {
         return;
     }
+
     if (aid.fusion.decision == runtime::FusionDecision::fused)
     {
         result.status = runtime::limit_bias(state, m_parameters.bias_limits);
@@ -812,6 +867,7 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
         {
             return;
         }
+
         aid.fused_time = aid.progress_time = m_last_height_progress = now_us;
         ++result.fused;
     }
@@ -819,6 +875,7 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
     {
         ++result.rejected;
     }
+
     recover(source, now_us, sample, variance, vertical_velocity_aiding, state, covariance, result, acceleration,
             geometry);
 }
@@ -837,6 +894,7 @@ HeightAiding<Linalg>::update(std::uint64_t now_us, Sample const & barometer, Sam
         result.status = Status::out_of_range;
         return result;
     }
+
     if (barometer_receipt.latest_time_us < now_us ||
         barometer_receipt.push_time_us > barometer_receipt.latest_time_us ||
         acceleration.times.update_time_us > now_us ||
@@ -846,16 +904,19 @@ HeightAiding<Linalg>::update(std::uint64_t now_us, Sample const & barometer, Sam
         result.status = Status::out_of_range;
         return result;
     }
+
     if (!std::isfinite(state.p_n(2U)) || !std::isfinite(covariance(2U, 2U)))
     {
         result.status = Status::non_finite_input;
         return result;
     }
+
     if (covariance(2U, 2U) < value_type{0})
     {
         result.status = Status::domain_error;
         return result;
     }
+
     auto candidate = *this;
     auto next_state = state;
     auto next_covariance = covariance;
@@ -883,10 +944,12 @@ HeightAiding<Linalg>::update(std::uint64_t now_us, Sample const & barometer, Sam
                 continue;
             }
         }
+
         if (aid.active && candidate.m_reference != source)
         {
             aid.bias.predict(dt, m_parameters.bias);
         }
+
         candidate.process(source, now_us, source == Source::barometer ? barometer : gnss, vertical_velocity_aiding,
                           next_state, next_covariance, result, bias_update, acceleration, ground_effect, geometry,
                           receipt_recent, numerical_reset_required && result.height_resets == 0);
@@ -898,12 +961,14 @@ HeightAiding<Linalg>::update(std::uint64_t now_us, Sample const & barometer, Sam
             return failure;
         }
     }
+
     if (candidate.m_reference == Source::none)
     {
         candidate.m_reference = candidate.session(Source::gnss).active        ? Source::gnss
                                 : candidate.session(Source::barometer).active ? Source::barometer
                                                                               : Source::none;
     }
+
     if (std::any_of(candidate.m_sessions.begin(), candidate.m_sessions.end(),
                     [](Session const & aid) { return !aid.bias.finite(); }))
     {
@@ -912,6 +977,7 @@ HeightAiding<Linalg>::update(std::uint64_t now_us, Sample const & barometer, Sam
         failure.evidence = result.evidence;
         return failure;
     }
+
     candidate.m_tick = now_us;
     *this = candidate;
     state = next_state;

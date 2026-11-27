@@ -40,17 +40,20 @@ enum Event : unsigned
     magnetic,
     event_count
 };
+
 struct Trace
 {
     unsigned seen{};
     unsigned last{};
     bool success[event_count]{};
+
     void record(Event event)
     {
         __ESBMC_assert(seen == 0 || unsigned(event) > last, "Delayed stages execute once in prescribed order");
         seen |= 1U << event;
         last = event;
     }
+
     bool has(Event event) const { return (seen & (1U << event)) != 0; }
 } trace;
 
@@ -58,26 +61,34 @@ struct Vector
 {
     unsigned origin{};
 };
+
 Vector operator-(Vector, Vector) { return {}; }
+
 struct State
 {
     unsigned q_nb{};
     Vector b_a{};
 };
+
 struct Rates
 {
     bool held{};
     Vector specific_force_b{};
 };
+
 struct Input
 {
     std::uint64_t time_us{};
     std::uint32_t angular_period_us{}, acceleration_period_us{};
     std::uint8_t accelerometer_clipping{};
+
     Rates mean_rates() const { return {}; }
+
     double angular_interval_s() const { return double(angular_period_us) * profile::seconds_per_microsecond; }
+
     double acceleration_interval_s() const { return double(acceleration_period_us) * profile::seconds_per_microsecond; }
 };
+
 struct History
 {
     struct Interval
@@ -86,8 +97,10 @@ struct History
         Rates held_rate{true};
         std::uint32_t hold_period_us{};
     };
+
     using interval_type = Interval;
 };
+
 History::interval_type const * borrowed;
 std::uint64_t * main_epoch;
 State * main_state;
@@ -100,6 +113,7 @@ status_type result(Event event)
     trace.record(event);
     return trace.success[event] ? status_type::success : status_type::out_of_range;
 }
+
 struct Observations
 {
     unsigned prediction_context(History::interval_type const & interval, std::uint64_t maximum_age)
@@ -109,6 +123,7 @@ struct Observations
                        "Prediction context belongs to the borrowed delayed interval");
         return 1;
     }
+
     bool begin_fusion(History::interval_type const & interval)
     {
         trace.record(begin);
@@ -117,9 +132,11 @@ struct Observations
         return trace.success[begin];
     }
 };
+
 struct Heading
 {
     void reset_acceleration() { trace.record(clear_acceleration); }
+
     status_type update_acceleration(Vector, double interval)
     {
         __ESBMC_assert(interval == borrowed->sample.acceleration_interval_s(),
@@ -127,12 +144,14 @@ struct Heading
         return result(heading_acceleration);
     }
 };
+
 struct VerticalHealth
 {
     struct State
     {
         bool bad_vertical_acceleration{};
     } value;
+
     State const & state() const { return value; }
 };
 } // namespace
@@ -141,6 +160,7 @@ namespace formal_eskf::so3
 {
 Vector rotate(unsigned, Vector) { return {}; }
 } // namespace formal_eskf::so3
+
 namespace formal_eskf::runtime
 {
 status_type predict_imu(State & state, unsigned & P, Rates const & rates, double dt, unsigned const & settings,
@@ -177,15 +197,18 @@ struct Flow
     State m_state;
     unsigned m_covariance{}, m_parameters{};
     Observations m_observations;
+
     struct Magnetic
     {
         Heading heading;
     } m_magnetic;
+
     VerticalHealth m_vertical_health;
 
     bool check(status_type status);
     bool check_timing(bool succeeded);
     void predict_and_fuse(imu_history_type::interval_type const & interval);
+
     void reset_imu_observations()
     {
         trace.record(clear_imu);
@@ -193,35 +216,43 @@ struct Flow
         m_vertical_health.value.bad_vertical_acceleration = false;
         old_bad_acceleration = false;
     }
+
     bool update_imu_bias(Input const & sample, Rates const & rates)
     {
         __ESBMC_assert(&sample == &borrowed->sample && !rates.held && m_imu_context == 1,
                        "Bias learning uses the delayed sample and its historical context");
         return check(result(bias));
     }
+
     void select_observations()
     {
         __ESBMC_assert(m_time_us == borrowed->sample.time_us, "Sensor selection uses the committed delayed epoch");
         check(result(select));
     }
+
     void fuse_gps(Rates const & rates)
     {
         __ESBMC_assert(!rates.held, "GNSS rotational compensation uses delayed real-interval rates");
         check(result(gps));
     }
+
     bool update_imu_health(std::uint8_t clipping)
     {
         __ESBMC_assert(clipping == borrowed->sample.accelerometer_clipping && trace.has(gps) && !trace.has(height),
                        "Health sees current GNSS evidence and preceding height evidence");
         return check(result(health));
     }
+
     void update_ground_effect() { trace.record(ground); }
+
     void fuse_height() { check(result(height)); }
+
     void fuse_gravity(Input const & sample, Rates const & rates)
     {
         __ESBMC_assert(&sample == &borrowed->sample && !rates.held, "Gravity sampling uses the delayed IMU interval");
         check(result(gravity));
     }
+
     void fuse_mag() { check(result(magnetic)); }
 };
 

@@ -27,26 +27,33 @@ using Quaternion = formal_eskf::so3::UnitQuaternion<Backend>;
 using Permissions = formal_eskf::configuration::Ins::BiasUpdate;
 using Status = formal_eskf::Status;
 static_assert(sizeof(Backend::value_type) == sizeof(double));
+
 Vector vector3(double x, double y, double z) { return Vector::from_row_major({x, y, z}); }
+
 double square(double x) { return x * x; }
+
 struct Source
 {
     std::uint32_t device_id{};
     std::uint8_t calibration_count{};
 };
+
 struct Raw
 {
     struct Stamp
     {
         Source source;
     } stamp;
+
     double altitude_m{}, altitude_msl_m{}, vertical_accuracy_m{};
 };
+
 struct Observation
 {
     std::uint64_t time_us{}, generation{};
     Raw sample;
 };
+
 struct Health
 {
     struct State
@@ -54,8 +61,10 @@ struct Health
         bool bad_vertical_acceleration{};
         std::uint64_t last_update_time_us{}, last_good_time_us{};
     } value;
+
     State const & state() const { return value; }
 };
+
 struct Boundary
 {
     Observation barometer, gps;
@@ -68,17 +77,21 @@ struct Boundary
     Permissions const * permissions{};
     Actual::Result result;
 } boundary;
+
 struct Height
 {
     using Source = Actual::Source;
     using Sample = Actual::Sample;
     using Acceleration = Actual::Acceleration;
     using Result = Actual::Result;
+
     struct Session
     {
         std::uint64_t fused_time{};
     } barometer, gnss;
+
     unsigned session_reads{};
+
     Session const & session(Source source)
     {
         ++session_reads;
@@ -88,6 +101,7 @@ struct Height
         }
         return gnss;
     }
+
     Result update(std::uint64_t now, Sample const & baro, Sample const & gps, bool velocity_active, unsigned & state,
                   unsigned & covariance, Permissions const & permissions, Acceleration const & acceleration,
                   bool ground_effect)
@@ -129,10 +143,12 @@ struct Height
         return boundary.result;
     }
 };
+
 struct Reporting
 {
     unsigned height_calls{}, velocity_calls{};
     std::uint8_t odometry_count{};
+
     void record_height(std::uint64_t now, double delta, std::uint8_t count)
     {
         __ESBMC_assert(now == boundary.epoch && boundary.notified && boundary.notification &&
@@ -141,6 +157,7 @@ struct Reporting
                        "Height reset reporting follows accepted output notification, with the original delta/count");
         ++height_calls;
     }
+
     void record_vertical_velocity(std::uint64_t now, double delta)
     {
         __ESBMC_assert(now == boundary.epoch && boundary.notified && boundary.notification &&
@@ -149,6 +166,7 @@ struct Reporting
         ++velocity_calls;
     }
 };
+
 struct Flow
 {
     using status_type = Status;
@@ -157,13 +175,16 @@ struct Flow
     unsigned m_state{}, m_covariance{}, m_errors{}, m_rejections{}, m_baro_updates{};
     bool m_fault{};
     Observation m_barometer;
+
     struct Gnss
     {
         Observation input;
+
         struct Sample
         {
             std::uint64_t time_us{};
         } sample;
+
         struct Lifecycle
         {
             struct State
@@ -173,26 +194,36 @@ struct Flow
                     bool active{};
                 } velocity;
             } value;
+
             State const & state() const { return value; }
         } lifecycle;
+
         unsigned corrections{};
     } m_gnss;
+
     Health m_vertical_health;
     Height m_height_aiding;
     Reporting m_resets;
+
     struct Bias
     {
         Permissions bias_update;
     } m_bias_learning_result;
+
     struct Ground
     {
         bool active{};
     } m_ground_effect;
+
     Vector offset;
     bool qualified{};
+
     Vector gnss_position_offset() const { return offset; }
+
     bool gps_good() const { return qualified; }
+
     bool check(Status status);
+
     bool reset_output(Quaternion const & q, Vector const & velocity, Vector const & position)
     {
         __ESBMC_assert(boundary.called && formal_eskf::succeeded(boundary.result.status) && q.q0() == 1. &&
@@ -204,12 +235,15 @@ struct Flow
         m_fault |= !boundary.notification;
         return boundary.notification;
     }
+
     void fuse_height();
 };
+
 #include "module_status_check.inc"
 #define max formal_eskf_proof_max
 #include "module_height.inc"
 #undef max
+
 Observation symbolic_observation()
 {
     Observation value;

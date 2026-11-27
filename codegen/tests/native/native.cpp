@@ -41,6 +41,7 @@ template <typename Matrix> void write_matrix(char const * name, Matrix const & v
             first = false;
         }
     }
+
     std::cout << ']';
 }
 
@@ -71,11 +72,13 @@ template <typename S> void native_checks()
         if (prediction_status == 0)
         {
             require(covariance_status == 0 && capture(state, combined) == capture(state, covariance));
+
             auto nominal = original.state;
             require(static_cast<int>(formal_eskf::predict_nominal(original.state, original.imu, original.dt,
                                                                   original.parameters, nominal)) == 0);
             require(capture(state, combined) == capture(nominal, combined));
         }
+
         auto const expected_cov = capture(original.state, covariance);
         auto const expected_predict = capture(state, combined);
         for (unsigned alias = 0U; alias < 4U; ++alias)
@@ -93,6 +96,7 @@ template <typename S> void native_checks()
             auto const after_input = capture(f.state, f.P);
             require(status == prediction_status);
             require(status == 0 ? after == expected_predict : before == after);
+
             for (unsigned i = 0U; i < 241U; ++i)
             {
                 if (i < 16U ? !(alias & 1U) : !(alias & 2U))
@@ -100,8 +104,10 @@ template <typename S> void native_checks()
                     require(before_input[i] == after_input[i]);
                 }
             }
+
             ++calls;
         }
+
         for (bool alias : {false, true})
         {
             auto f = original;
@@ -113,25 +119,31 @@ template <typename S> void native_checks()
                 static_cast<int>(formal_eskf::predict_covariance(f.state, f.P, f.imu, f.dt, f.parameters, out));
             require(status == covariance_status);
             require(status == 0 ? capture(f.state, out) == expected_cov : capture(f.state, out) == before);
+
             if (!alias)
             {
                 require(before_input == capture(f.state, f.P));
             }
+
             ++calls;
         }
+
         std::cout << "{\"kind\":\"status\",\"bits\":" << sizeof(S) * 8U << ",\"seed\":" << seed
                   << ",\"covariance\":" << covariance_status << ",\"predict\":" << prediction_status << "}\n";
         if (covariance_status != 0)
         {
             continue;
         }
+
         require(formal_eskf::linalg::all_finite(covariance));
+
         bool symmetric = true;
         for (unsigned i = 0U; i < 15U; ++i)
         {
             for (unsigned j = 0U; j < 15U; ++j)
             {
                 require(bits(covariance(i, j)) == bits(covariance(j, i)));
+
                 symmetric &= original.P(i, j) == original.P(j, i);
             }
         }
@@ -140,11 +152,13 @@ template <typename S> void native_checks()
         {
             continue;
         }
+
         auto const F = transition(original);
         auto const R = formal_eskf::so3::to_rotation_matrix(original.state.q_nb);
         formal_eskf::linalg::Matrix<L, 12U, 12U> Q_i;
         require(static_cast<int>(
                     formal_eskf::discretize_process_noise(original.parameters.process_noise, original.dt, Q_i)) == 0);
+
 #if GENERATED
         auto const direct = formal_eskf::detail::generated::ins_covariance(F, original.P, R, Q_i);
         require(capture(original.state, direct) == expected_cov);
@@ -157,6 +171,7 @@ template <typename S> void native_checks()
         write_matrix("output", covariance);
         std::cout << "}\n";
     }
+
     std::cout << "{\"kind\":\"contracts\",\"bits\":" << sizeof(S) * 8U << ",\"calls\":" << calls
               << ",\"failures\":0}\n";
 }
@@ -166,6 +181,7 @@ template <typename S> __attribute__((noinline)) void full_predict(Fixture<S> con
     auto state = f.state;
     auto P = f.P;
     require(static_cast<int>(formal_eskf::predict(f.state, f.P, f.imu, f.dt, f.parameters, state, P)) == 0);
+
     asm volatile("" : "+m"(state), "+m"(P) : : "memory");
 }
 
@@ -178,6 +194,7 @@ template <typename S> __attribute__((noinline)) void full_cycle(Fixture<S> const
                                                                 f.bias)) == 0);
     require(static_cast<int>(formal_eskf::correct_magnetometer(
                 f.state, f.P, f.m_b, f.m_n, f.V, f.parameters.minimum_quaternion_norm, f.state, f.P, f.bias)) == 0);
+
     asm volatile("" : "+m"(f) : : "memory");
 }
 
@@ -195,6 +212,7 @@ template <typename S> double timing(Operation op, unsigned count)
         require(static_cast<int>(formal_eskf::discretize_process_noise(inputs[i].parameters.process_noise, inputs[i].dt,
                                                                        impulses[i])) == 0);
     }
+
     auto const begin = std::chrono::steady_clock::now();
     for (unsigned i = 0U; i < count; ++i)
     {
@@ -213,6 +231,7 @@ template <typename S> double timing(Operation op, unsigned count)
             full_cycle(inputs[j]);
         }
     }
+
     return std::chrono::duration<double, std::nano>(std::chrono::steady_clock::now() - begin).count() / count;
 }
 } // namespace codegen_test
@@ -225,6 +244,7 @@ using codegen_test::timing;
 int main(int argc, char ** argv)
 {
     require(std::fegetround() == FE_TONEAREST);
+
 #ifndef FORMAL_ESKF_TEST_PX4_MATRIX
     Eigen::internal::set_is_malloc_allowed(false);
 #endif
@@ -240,6 +260,7 @@ int main(int argc, char ** argv)
     else
     {
         require(argc == 2 && std::string(argv[1]) == "benchmark");
+
         for (unsigned scalar : {4U, 8U})
         {
             for (Operation op : {Operation::covariance, Operation::prediction, Operation::correction_cycle})
@@ -251,6 +272,7 @@ int main(int argc, char ** argv)
                     {
                         continue;
                     }
+
                     std::cout << "{\"bytes\":" << scalar << ",\"op\":" << static_cast<unsigned>(op)
                               << ",\"sample\":" << sample - 2U << ",\"ns\":" << ns << "}\n";
                 }

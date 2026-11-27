@@ -19,6 +19,7 @@ static_assert(formal_eskf::px4::profile::history::minimum_period_us == 3800);
 static_assert(formal_eskf::px4::profile::history::maximum_period_us == 4200);
 static_assert(formal_eskf::px4::profile::history::maximum_lag_us == 300000);
 static_assert(formal_eskf::px4::profile::imu::maximum_interval_us == 50000);
+
 struct Metadata
 {
     std::size_t length;
@@ -49,6 +50,7 @@ bool admitted_time(AdmittedInput input)
 }
 
 std::size_t next(std::size_t index, std::size_t length) { return index + 1 == length ? 0 : index + 1; }
+
 std::size_t newest(Metadata state)
 {
     return state.count == 0 ? 0 : (state.write == 0 ? state.length - 1 : state.write - 1);
@@ -242,6 +244,7 @@ void verify_imu_temporal_configure(Metadata state, std::size_t candidate_length,
     state.minimum_lag = candidate_lag;
     __ESBMC_assert(common(state) && state.count == 0, "Configure preserves the empty temporal metadata");
 }
+
 void verify_imu_temporal_empty(Metadata state, unsigned char observer, std::uint64_t endpoint, std::uint64_t start,
                                std::uint64_t tag, std::uint64_t predecessor)
 {
@@ -249,6 +252,7 @@ void verify_imu_temporal_empty(Metadata state, unsigned char observer, std::uint
     __ESBMC_assert(slot(state, observer, endpoint, start, tag, predecessor),
                    "Empty temporal metadata entails every slot clause independently of payloads");
 }
+
 void verify_imu_temporal_seed(Metadata state, AdmittedInput input)
 {
     __ESBMC_assume(common(state) && state.previous == 0 && state.length > 0 && admitted_time(input));
@@ -258,6 +262,7 @@ void verify_imu_temporal_seed(Metadata state, AdmittedInput input)
     state.acceleration_period = input.acceleration_period;
     __ESBMC_assert(common(state) && state.count == 0, "Seed preserves the empty temporal metadata");
 }
+
 void verify_imu_temporal_reset(Metadata state)
 {
     __ESBMC_assume(common(state));

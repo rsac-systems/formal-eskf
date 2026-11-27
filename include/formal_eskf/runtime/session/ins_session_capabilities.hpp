@@ -36,6 +36,7 @@ InsCapabilities InsSession<Linalg, Layout>::capabilities(std::uint64_t now_us) c
     {
         result.heading_reference = m_heading_reference;
     }
+
     auto age_less = [this](std::uint64_t time, std::uint64_t limit)
     { return time != 0 && m_time_us >= time && m_time_us - time < limit; };
     result.heading.aiding_time_us = m_external_heading ? 0 : heading_time;
@@ -49,6 +50,7 @@ InsCapabilities InsSession<Linalg, Layout>::capabilities(std::uint64_t now_us) c
                 ? Reason::none
                 : Reason::unqualified;
     }
+
     result.heading.reasons |=
         navigation_variance(6)(2) < m_settings.magnetic.maximum_heading_variance ? Reason::none : Reason::uncertainty;
     result.heading.available = result.heading.reasons == 0;
@@ -90,6 +92,7 @@ InsCapabilities InsSession<Linalg, Layout>::capabilities(std::uint64_t now_us) c
     {
         result.vertical_velocity = translation(std::max(velocity_time, height_time), m_navigation_frame.initialized());
     }
+
     if (m_navigation_frame.initialized())
     {
         auto const delayed = frame_admission(m_state.p_n, m_state.v_n, result.output_time_us);
@@ -107,6 +110,7 @@ InsCapabilities InsSession<Linalg, Layout>::capabilities(std::uint64_t now_us) c
             }
         }
     }
+
     bool const gnss_aiding = gnss_current && gps_good();
     result.horizontal_position.aided &= gnss_aiding && gnss.horizontal_position.active;
     result.horizontal_velocity.aided &= gnss_aiding && gnss.velocity.active;
@@ -129,15 +133,18 @@ InsCapabilities InsSession<Linalg, Layout>::capabilities(std::uint64_t now_us) c
         {
             withdraw(axis == 2 ? result.vertical_position : result.horizontal_position);
         }
+
         if (numerical.velocity.affected(direction))
         {
             withdraw(axis == 2 ? result.vertical_velocity : result.horizontal_velocity);
         }
     }
+
     if (numerical.heading)
     {
         withdraw(result.heading);
     }
+
     result.global_position = result.horizontal_position;
     result.msl_altitude = result.vertical_position;
     bool const datum = m_msl_initialized && m_height_datum.initialized() &&

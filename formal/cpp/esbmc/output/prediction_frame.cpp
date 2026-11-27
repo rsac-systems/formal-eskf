@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "selected_frame.hpp"
+
 namespace
 {
 using namespace output_boundary;
@@ -13,10 +14,12 @@ bool held_ok, real_ok;
 unsigned advances, means, stores;
 bool holding;
 } // namespace
+
 namespace formal_eskf::runtime
 {
 template <> ImuSample<output_proof::Backend> ImuInput<output_proof::Backend>::mean_rates() const { return mean; }
 } // namespace formal_eskf::runtime
+
 namespace formal_eskf::runtime
 {
 template <>
@@ -45,6 +48,7 @@ bool OutputPredictor<output_proof::Backend, 64>::advance(Sample & candidate, Imu
     return ok;
 }
 } // namespace formal_eskf::runtime
+
 template <> void formal_eskf::runtime::RingBuffer<output_proof::Sample, 64>::push(Sample const & sample)
 {
     check_selected();
@@ -60,6 +64,7 @@ template <> void formal_eskf::runtime::RingBuffer<output_proof::Sample, 64>::pus
     capture_selected_history();
     ++stores;
 }
+
 void verify_output_prediction_frame(Output object, Interval interval, Sample hold, Sample real, Rates rates,
                                     bool hold_success, bool real_success)
 {

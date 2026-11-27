@@ -32,8 +32,10 @@ Dense multiply(Dense const & a, Dense const & b)
             }
         }
     }
+
     return result;
 }
+
 Dense transpose(Dense const & a)
 {
     Dense result{};
@@ -44,8 +46,10 @@ Dense transpose(Dense const & a)
             result[i][j] = a[j][i];
         }
     }
+
     return result;
 }
+
 Dense joseph(Dense const & P, Column const & H, Column const & K, long double noise)
 {
     Dense A{};
@@ -56,6 +60,7 @@ Dense joseph(Dense const & P, Column const & H, Column const & K, long double no
             A[i][j] = (i == j ? 1.L : 0.L) - K[i] * H[j];
         }
     }
+
     auto result = multiply(multiply(A, P), transpose(A));
     for (std::size_t i = 0; i < 15; ++i)
     {
@@ -64,8 +69,10 @@ Dense joseph(Dense const & P, Column const & H, Column const & K, long double no
             result[i][j] += K[i] * noise * K[j];
         }
     }
+
     return result;
 }
+
 Dense dense(Matrix const & P)
 {
     Dense result{};
@@ -76,8 +83,10 @@ Dense dense(Matrix const & P)
             result[i][j] = P(i, j);
         }
     }
+
     return result;
 }
+
 Matrix covariance(double scale = 2e6)
 {
     Matrix P;
@@ -88,8 +97,10 @@ Matrix covariance(double scale = 2e6)
             P(i, j) = scale * (double((i + 1) * (j + 1)) / 256. + (i == j ? 1. : 0.));
         }
     }
+
     return P; // Positive definite I + u u^T, with every cross-block nonzero.
 }
+
 bool same(Matrix const & a, Matrix const & b)
 {
     for (std::size_t i = 0; i < 15; ++i)
@@ -102,8 +113,10 @@ bool same(Matrix const & a, Matrix const & b)
             }
         }
     }
+
     return true;
 }
+
 bool near(Matrix const & actual, Dense const & expected, double scale)
 {
     // Conservative envelope for a fixed chain of length-15 matrix products,
@@ -119,8 +132,10 @@ bool near(Matrix const & actual, Dense const & expected, double scale)
             }
         }
     }
+
     return true;
 }
+
 void translation(Context & test, std::string_view profile)
 {
     auto const P = covariance();
@@ -131,6 +146,7 @@ void translation(Context & test, std::string_view profile)
         {
             T[i][i] = 1;
         }
+
         for (std::size_t block = 0; block < 2; ++block)
         {
             for (std::size_t i = 0; i < 3; ++i)
@@ -141,6 +157,7 @@ void translation(Context & test, std::string_view profile)
                 }
             }
         }
+
         auto const prior = multiply(multiply(T, dense(P)), transpose(T));
         for (unsigned mask = 0; mask < 64; ++mask)
         {
@@ -149,17 +166,21 @@ void translation(Context & test, std::string_view profile)
             {
                 allowed[i] = (mask & (1U << i)) != 0;
             }
+
             for (std::size_t axis = 0; axis < 6; ++axis)
             {
                 Matrix actual = P;
                 auto const result = f::runtime::regularize_translation_covariance(P, B, allowed, axis, 1e6, actual);
                 test.expect(result.status == f::Status::success && result.applied == allowed[axis], profile,
                             "only unavailable directions exceeding the trigger are selected");
+
                 if (!allowed[axis])
                 {
                     test.expect(same(actual, P), profile, "ineligible guard preserves the whole matrix");
+
                     continue;
                 }
+
                 Column H{}, K{};
                 H[axis] = 1;
                 auto const noise = 10.L * prior[axis][axis];
@@ -169,14 +190,17 @@ void translation(Context & test, std::string_view profile)
                     test.expect(result.affected[i] == (K[i] != 0), profile,
                                 "provenance includes every affected local direction, not only the trigger axis");
                 }
+
                 auto const posterior = joseph(prior, H, K, noise);
                 auto const expected = multiply(multiply(transpose(T), posterior), T);
                 test.expect(near(actual, expected, la::max_abs(P)), profile,
                             "full covariance matches independent transformed long-double Joseph oracle");
+
                 auto const actual_local = multiply(multiply(T, dense(actual)), transpose(T));
                 auto const bound = 2048.L * std::numeric_limits<double>::epsilon() * la::max_abs(P);
                 test.expect(std::abs(actual_local[axis][axis] - 10.L * prior[axis][axis] / 11.L) <= bound, profile,
                             "selected marginal decreases by 10/11");
+
                 for (std::size_t i = 0; i < 15; ++i)
                 {
                     for (std::size_t j = 0; j < 15; ++j)
@@ -191,6 +215,7 @@ void translation(Context & test, std::string_view profile)
             }
         }
     }
+
     std::array<bool, 6> const allowed{true, true, true, true, true, true};
     Matrix P_limit = Matrix::identity() * 1e6;
     Matrix output = P;
@@ -198,25 +223,30 @@ void translation(Context & test, std::string_view profile)
                         .applied &&
                     same(output, P),
                 profile, "threshold equality preserves output");
+
     P_limit(0, 0) = std::nextafter(1e6, INFINITY);
     test.expect(
         f::runtime::regularize_translation_covariance(P_limit, Rotation::identity(), allowed, 0, 1e6, output).applied,
         profile, "first representable value above threshold triggers");
+
     auto const saved = output;
     P_limit(0, 0) = std::numeric_limits<double>::max();
     auto result = f::runtime::regularize_translation_covariance(P_limit, Rotation::identity(), allowed, 0, 1e6, output);
     test.expect(result.status == f::Status::non_finite_result && !result.applied && same(saved, output), profile,
                 "overflow leaves covariance and intervention facts uncommitted");
+
     P_limit(1, 2) = NAN;
     result = f::runtime::regularize_translation_covariance(P_limit, Rotation::identity(), allowed, 0, 1e6, output);
     test.expect(result.status == f::Status::non_finite_input && same(saved, output), profile,
                 "invalid prior is not repaired by numerical protection");
 }
+
 void heading(Context & test, std::string_view profile)
 {
     Quaternion tilted;
     test.expect(Quaternion::from_coefficients(2., 1., -1., 1., 1e-6, tilted) == f::Status::success, profile,
                 "admitted tilted unit attitude");
+
     auto const P = covariance(.3);
     for (auto const & q : {Quaternion{}, tilted})
     {
@@ -226,6 +256,7 @@ void heading(Context & test, std::string_view profile)
         {
             H[6 + i] = R(2, i);
         }
+
         auto const prior = dense(P);
         long double variance{};
         for (std::size_t i = 0; i < 15; ++i)
@@ -235,15 +266,18 @@ void heading(Context & test, std::string_view profile)
                 variance += H[i] * prior[i][j] * H[j];
             }
         }
+
         for (std::size_t i = 0; i < 15; ++i)
         {
             K[i] = H[i] * variance / (variance + .25L);
         }
+
         Matrix actual = P;
         auto const result = f::runtime::regularize_heading_covariance(actual, q, .09, .25, actual);
         test.expect(result.status == f::Status::success && result.applied &&
                         near(actual, joseph(prior, H, K, .25L), la::max_abs(P)),
                     profile, "in-place heading guard agrees with full independent constrained Joseph");
+
         auto C = Dense{};
         for (std::size_t i = 0; i < 15; ++i)
         {
@@ -252,6 +286,7 @@ void heading(Context & test, std::string_view profile)
                 C[i][j] = (i == j ? 1.L : 0.L) - H[i] * H[j];
             }
         }
+
         auto const protected_before = multiply(multiply(C, prior), transpose(C));
         auto const protected_after = multiply(multiply(C, dense(actual)), transpose(C));
         auto const bound = 2048.L * std::numeric_limits<double>::epsilon() * la::max_abs(P);
@@ -264,20 +299,24 @@ void heading(Context & test, std::string_view profile)
             }
         }
     }
+
     Matrix at_limit = Matrix::identity() * .09;
     Matrix output = P;
     test.expect(!f::runtime::regularize_heading_covariance(at_limit, Quaternion{}, .09, .25, output).applied &&
                     same(output, P),
                 profile, "heading trigger equality is not an update");
+
     at_limit(8, 8) = std::nextafter(.09, INFINITY);
     test.expect(f::runtime::regularize_heading_covariance(at_limit, Quaternion{}, .09, .25, output).applied, profile,
                 "first representable heading variance above trigger updates");
+
     auto const saved = output;
     auto const invalid = f::runtime::regularize_heading_covariance(P, tilted, .09, 0., output);
     test.expect(invalid.status == f::Status::domain_error && same(saved, output), profile,
                 "invalid artificial noise cannot commit a result");
 }
 } // namespace
+
 int main(int argc, char ** argv)
 {
     f::test::configure_backend_test();

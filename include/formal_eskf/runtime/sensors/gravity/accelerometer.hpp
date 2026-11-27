@@ -49,6 +49,7 @@ public:
     void reset() { *this = AccelerometerMagnitude{}; }
 
     bool initialized() const { return m_initialized; }
+
     vector_type const & filtered_specific_force_b() const { return m_filtered_specific_force_b; }
 
     /** First valid sample seeds all axes. Failure preserves history and returns no valid diagnostics. */

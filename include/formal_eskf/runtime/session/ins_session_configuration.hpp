@@ -41,6 +41,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::val
     {
         return false;
     }
+
     auto const & noise = e.process_noise;
     for (std::size_t i = 0; i < 3; ++i)
     {
@@ -51,6 +52,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::val
             return false;
         }
     }
+
     for (double value : {s.projection_radius_m,
                          s.gnss.gate_sigma,
                          s.gnss.maximum_position_noise_m,
@@ -91,6 +93,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::val
     {
         return false;
     }
+
     std::array const required_ages{s.gnss.context_maximum_age_us,
                                    s.gnss.maximum_sample_age_us,
                                    s.gnss.maximum_aiding_age_us,
@@ -114,6 +117,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::val
     {
         return false;
     }
+
     if constexpr (Layout::barometer_aiding)
     {
         if (!positive(s.height.barometer_variance))
@@ -121,6 +125,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::val
             return false;
         }
     }
+
     if constexpr (Layout::ground_effect && Layout::barometer_aiding)
     {
         if (s.height.ground_effect_timeout_us == 0)
@@ -128,6 +133,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::val
             return false;
         }
     }
+
     return nonnegative(s.bias_limits.accelerometer) && nonnegative(s.bias_limits.gyroscope) &&
            nonnegative(s.imu.faulty_specific_force_variance) && nonnegative(s.magnetic.field.strength_tolerance) &&
            nonnegative(s.magnetic.field.inclination_tolerance) &&
@@ -175,6 +181,7 @@ bool InsSession<Linalg, Layout>::configure_timing(TimingParameters const & timin
     {
         return false;
     }
+
     if constexpr (Layout::barometer_aiding && Layout::ground_effect)
     {
         if (ground_effect_type::required_length(std::uint64_t(timing.fusion_delay_ms) * 1000,
@@ -183,6 +190,7 @@ bool InsSession<Linalg, Layout>::configure_timing(TimingParameters const & timin
             return false;
         }
     }
+
     m_configured = m_imu_history.configure(timing, m_imu_timing) &&
                    m_observations.configure(timing, Layout::imu_capacity) && m_output.configure(timing) &&
                    (!Layout::barometer_aiding || m_height_aiding.configure_timing(timing));
@@ -192,6 +200,7 @@ bool InsSession<Linalg, Layout>::configure_timing(TimingParameters const & timin
                                                                  static_cast<std::uint32_t>(timing.filter_interval_us),
                                                                  m_settings.height.ground_effect_timeout_us);
     }
+
     return m_configured;
 }
 
@@ -201,6 +210,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::con
     {
         return false;
     }
+
     m_gravity_enabled = enabled;
     return true;
 }
@@ -213,6 +223,7 @@ bool InsSession<Linalg, Layout>::configure_magnetic(typename magnetic_model_type
     {
         return false;
     }
+
     m_magnetic_settings = settings;
     return true;
 }
@@ -224,6 +235,7 @@ bool InsSession<Linalg, Layout>::configure_sensor_positions(SensorPositions cons
     {
         return false;
     }
+
     m_sensor_positions = positions;
     return true;
 }

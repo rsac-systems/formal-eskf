@@ -26,6 +26,7 @@ enum class FrameAction
     next_fusion,
     views
 };
+
 void verify_observation_storage_frame(Observations owner, Stamp stamp, std::uint64_t now, Limits limits,
                                       std::uint64_t effective, unsigned char action, imu_proof::Interval interval,
                                       formal_eskf::runtime::TimingParameters parameters)
@@ -71,6 +72,7 @@ void verify_observation_storage_frame(Observations owner, Stamp stamp, std::uint
         gnss_flags[i][1] = owner.m_gnss.m_samples[i].sample.spoofed;
     }
 #endif
+
 #if FORMAL_ESKF_PROOF_FRAME == 1
     auto const magnetic_length = owner.m_magnetic.m_length;
     auto const magnetic_count = owner.m_magnetic.m_count;
@@ -95,6 +97,7 @@ void verify_observation_storage_frame(Observations owner, Stamp stamp, std::uint
         magnetic_tags[i][0] = owner.m_magnetic.m_samples[i].sample.stamp.source.calibration_count;
     }
 #endif
+
 #if FORMAL_ESKF_PROOF_FRAME == 2
     auto const barometer_length = owner.m_barometer.m_length;
     auto const barometer_count = owner.m_barometer.m_count;
@@ -117,6 +120,7 @@ void verify_observation_storage_frame(Observations owner, Stamp stamp, std::uint
         barometer_tags[i][0] = owner.m_barometer.m_samples[i].sample.stamp.source.calibration_count;
     }
 #endif
+
 #if FORMAL_ESKF_PROOF_FRAME == 3
     auto const context_length = owner.m_context.m_length;
     auto const context_count = owner.m_context.m_count;
@@ -184,6 +188,7 @@ void verify_observation_storage_frame(Observations owner, Stamp stamp, std::uint
     __ESBMC_assert(owner.m_gnss.m_count == gnss_count, "Complete gnss metadata frame count");
     __ESBMC_assert(owner.m_gnss.m_oldest == gnss_oldest, "Complete gnss metadata frame oldest");
     __ESBMC_assert(owner.m_gnss.m_write == gnss_write, "Complete gnss metadata frame write");
+
     for (std::size_t i = 0; i < 16; ++i)
     {
         __ESBMC_assert(owner.m_gnss.m_samples[i].time_us == gnss_integers[i][0], "Complete storage frame gnss.time_us");
@@ -238,11 +243,13 @@ void verify_observation_storage_frame(Observations owner, Stamp stamp, std::uint
                        "Complete storage frame gnss.sample.spoofed");
     }
 #endif
+
 #if FORMAL_ESKF_PROOF_FRAME == 1
     __ESBMC_assert(owner.m_magnetic.m_length == magnetic_length, "Complete magnetic metadata frame length");
     __ESBMC_assert(owner.m_magnetic.m_count == magnetic_count, "Complete magnetic metadata frame count");
     __ESBMC_assert(owner.m_magnetic.m_oldest == magnetic_oldest, "Complete magnetic metadata frame oldest");
     __ESBMC_assert(owner.m_magnetic.m_write == magnetic_write, "Complete magnetic metadata frame write");
+
     for (std::size_t i = 0; i < 64; ++i)
     {
         __ESBMC_assert(owner.m_magnetic.m_samples[i].time_us == magnetic_integers[i][0],
@@ -272,11 +279,13 @@ void verify_observation_storage_frame(Observations owner, Stamp stamp, std::uint
                        "Complete storage frame magnetic.sample.stamp.source.calibration_count");
     }
 #endif
+
 #if FORMAL_ESKF_PROOF_FRAME == 2
     __ESBMC_assert(owner.m_barometer.m_length == barometer_length, "Complete barometer metadata frame length");
     __ESBMC_assert(owner.m_barometer.m_count == barometer_count, "Complete barometer metadata frame count");
     __ESBMC_assert(owner.m_barometer.m_oldest == barometer_oldest, "Complete barometer metadata frame oldest");
     __ESBMC_assert(owner.m_barometer.m_write == barometer_write, "Complete barometer metadata frame write");
+
     for (std::size_t i = 0; i < 128; ++i)
     {
         __ESBMC_assert(owner.m_barometer.m_samples[i].time_us == barometer_integers[i][0],
@@ -299,11 +308,13 @@ void verify_observation_storage_frame(Observations owner, Stamp stamp, std::uint
                        "Complete storage frame barometer.sample.stamp.source.calibration_count");
     }
 #endif
+
 #if FORMAL_ESKF_PROOF_FRAME == 3
     __ESBMC_assert(owner.m_context.m_length == context_length, "Complete context metadata frame length");
     __ESBMC_assert(owner.m_context.m_count == context_count, "Complete context metadata frame count");
     __ESBMC_assert(owner.m_context.m_oldest == context_oldest, "Complete context metadata frame oldest");
     __ESBMC_assert(owner.m_context.m_write == context_write, "Complete context metadata frame write");
+
     for (std::size_t i = 0; i < 128; ++i)
     {
         __ESBMC_assert(owner.m_context.m_samples[i].time_us == context_integers[i][0],

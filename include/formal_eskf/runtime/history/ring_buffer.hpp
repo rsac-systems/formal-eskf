@@ -25,6 +25,7 @@ public:
 
     /** Invalid lengths leave valid() false. Storage is never allocated on the heap. */
     explicit RingBuffer(std::size_t length) { (void)allocate(length); }
+
     RingBuffer() = delete;
     RingBuffer(RingBuffer const &) = delete;
     RingBuffer & operator=(RingBuffer const &) = delete;
@@ -33,6 +34,7 @@ public:
 
     /** Startup/restart only: choose 1..Capacity slots. A changed length clears history. */
     [[nodiscard]] bool allocate(std::size_t length);
+
     bool valid() const { return m_length != 0; }
 
     /** Requires valid(). Full histories overwrite the oldest slot, as in PX4. */
@@ -49,17 +51,23 @@ public:
 
     /** Non-consuming views; require entries() > 0. Mutation invalidates saved views. */
     Sample const & get_oldest() const { return m_samples[m_oldest]; }
+
     Sample const & get_newest() const { return m_samples[previous(m_write)]; }
 
     /** Physical slot, index < get_length(). Modify payloads only, never timestamps. */
     Sample & operator[](std::size_t index) { return m_samples[index]; }
+
     Sample const & operator[](std::size_t index) const { return m_samples[index]; }
 
     std::size_t get_length() const { return m_length; }
+
     std::size_t get_oldest_index() const { return m_oldest; }
+
     std::size_t entries() const { return m_count; }
+
     /** Logical occupied bytes; unused backing storage remains reserved. */
     std::size_t get_used_size() const { return sizeof(*this) - sizeof(m_samples) + m_count * sizeof(Sample); }
+
     std::size_t get_total_size() const { return sizeof(*this); }
 
     /** Clear every slot and index, retaining the configured length. */
@@ -67,6 +75,7 @@ public:
 
 private:
     std::size_t next(std::size_t index) const { return index + 1 == m_length ? 0 : index + 1; }
+
     std::size_t previous(std::size_t index) const { return index == 0 ? m_length - 1 : index - 1; }
 
     std::array<Sample, Capacity> m_samples{};

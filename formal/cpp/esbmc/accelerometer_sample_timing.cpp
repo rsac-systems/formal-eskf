@@ -11,6 +11,7 @@
 #include <formal_eskf/eskf/accelerometer.hpp>
 #include <formal_eskf/eskf/types.hpp>
 #include <formal_eskf/runtime/fusion/measurement_fusion.hpp>
+
 // Only std::round is summarized. The producer below checks the actual library
 // model's nearest-integer rule; the clear body also proves its input domain.
 namespace timing_proof
@@ -18,6 +19,7 @@ namespace timing_proof
 inline double rounded{}, argument{};
 inline unsigned rounds{};
 } // namespace timing_proof
+
 namespace std
 {
 inline double formal_eskf_proof_round(double value)
@@ -27,6 +29,7 @@ inline double formal_eskf_proof_round(double value)
     return timing_proof::rounded;
 }
 } // namespace std
+
 #define private public
 #define max formal_eskf_proof_max
 #define round formal_eskf_proof_round
@@ -35,6 +38,7 @@ inline double formal_eskf_proof_round(double value)
 #undef max
 #undef private
 using Sampler = formal_eskf::runtime::AccelerometerSample<contract_proof::Linalg, 10000U>;
+
 void verify_sample_clear(Sampler history, double rounded)
 {
     using namespace timing_proof;
@@ -75,6 +79,7 @@ void verify_sample_clear(Sampler history, double rounded)
                                                    before.m_magnitude.filtered_specific_force_b()),
                    "clear: preserves average and magnitude history");
 }
+
 void verify_sample_round(double ratio)
 {
     __ESBMC_assume(std::isfinite(ratio) && ratio >= 0.02 && ratio <= 50000.0);
@@ -87,4 +92,5 @@ void verify_sample_round(double ratio)
                    "sample: round is finite and in cast range");
     __ESBMC_assert(rounded - ratio <= 0.5 && ratio - rounded <= 0.5, "sample: round differs by at most half a sample");
 }
+
 int main() { return 0; }

@@ -50,6 +50,7 @@ using formal_eskf::linalg::detail::MatrixAccess;
 using solve_proof::Backend;
 using solve_proof::Scalar;
 using solve_proof::Status;
+
 // Representation equality makes identical IEEE expressions cheap to compare.
 // As in the existing oracle, preserve signed zero but do not claim NaN payloads.
 inline bool same(Scalar a, Scalar b)
@@ -57,6 +58,7 @@ inline bool same(Scalar a, Scalar b)
     using Bits = std::conditional_t<sizeof(Scalar) == 4U, std::uint32_t, std::uint64_t>;
     return __builtin_bit_cast(Bits, a) == __builtin_bit_cast(Bits, b) || (std::isnan(a) && std::isnan(b));
 }
+
 template <typename Cell> bool same_cells(Cell const & a, Cell const & b)
 {
     if constexpr (std::is_same_v<Cell, Scalar>)
@@ -93,6 +95,7 @@ template <typename Cell> bool same_cells(Cell const & a, Cell const & b)
         return valid;
     }
 }
+
 template <typename M> bool same_matrix(M const & a, M const & b) { return same_cells(cells(a), cells(b)); }
 #ifndef FORMAL_ESKF_PROOF_CORRECTION_MODEL
 #define FORMAL_ESKF_PROOF_CORRECTION_MODEL 0
@@ -119,6 +122,7 @@ template <typename M> bool nonnegative_diagonal(M const & matrix)
         valid = valid && matrix(i, i) >= Scalar{0};
     return valid;
 }
+
 template <typename M> bool positive_diagonal(M const & matrix)
 {
     bool valid = true;
@@ -126,6 +130,7 @@ template <typename M> bool positive_diagonal(M const & matrix)
         valid = valid && matrix(i, i) > Scalar{0};
     return valid;
 }
+
 template <typename M> bool identity_matrix(M const & matrix)
 {
     bool valid = true;

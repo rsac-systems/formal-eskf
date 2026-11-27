@@ -4,6 +4,7 @@ static_assert(FORMAL_ESKF_PROOF_FRAME >= 0 && FORMAL_ESKF_PROOF_FRAME < 4);
 using observation_proof::Observations;
 using observation_proof::same_context;
 using observation_proof::Timeline;
+
 namespace
 {
 Observations::Context expected_context;

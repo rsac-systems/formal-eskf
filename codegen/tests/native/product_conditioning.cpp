@@ -21,6 +21,7 @@ template <typename M> double difference(M const & a, M const & b)
     {
         std::abort();
     }
+
     double error = 0.0, scale = 1.0;
     for (std::size_t i = 0U; i < M::row_count; ++i)
     {
@@ -31,6 +32,7 @@ template <typename M> double difference(M const & a, M const & b)
                              std::max(std::abs(static_cast<double>(a(i, j))), std::abs(static_cast<double>(b(i, j)))));
         }
     }
+
     return error / scale;
 }
 
@@ -53,16 +55,19 @@ template <typename S, std::size_t M> void cases(Model model, unsigned sensor)
         {
             r(i) = S{0.001} * static_cast<S>(i + 1U);
         }
+
         Matrix<S, 3U, 1U> reference, measurement;
         if constexpr (M == 1U)
         {
             H = formal_eskf::vertical_position_jacobian<Backend<S>>();
         }
+
         if constexpr (M == 2U)
         {
             H = model == Model::horizontal_position ? formal_eskf::horizontal_position_jacobian<Backend<S>>()
                                                     : formal_eskf::horizontal_velocity_jacobian<Backend<S>>();
         }
+
         if constexpr (M == 3U)
         {
             if (model == Model::body_vector)
@@ -74,6 +79,7 @@ template <typename S, std::size_t M> void cases(Model model, unsigned sensor)
                 {
                     h = -h;
                 }
+
                 H.template set_block<0U, 6U>(formal_eskf::so3::hat<Backend<S>>(h));
                 measurement = h + r;
             }
@@ -82,18 +88,21 @@ template <typename S, std::size_t M> void cases(Model model, unsigned sensor)
                 H = formal_eskf::velocity_jacobian<Backend<S>>();
             }
         }
+
         auto const Hu = H * u;
         double norm_squared = 0.0;
         for (std::size_t i = 0U; i < M; ++i)
         {
             norm_squared += static_cast<double>(Hu(i)) * static_cast<double>(Hu(i));
         }
+
         for (unsigned level : {2U, 4U, 6U, 8U, 10U, 12U})
         {
             if (sizeof(S) == 4U && level > 6U)
             {
                 continue;
             }
+
             S const noise = static_cast<S>(std::max(1.0, norm_squared) * std::pow(10.0, -static_cast<double>(level)));
             auto const V = Matrix<S, M, M>::identity() * noise;
             double const condition = M == 1U ? 1.0 : 1.0 + norm_squared / static_cast<double>(noise);
@@ -124,6 +133,7 @@ template <typename S, std::size_t M> void cases(Model model, unsigned sensor)
                 {
                     status = formal_eskf::correct(state, P, r, H, V, S{1e-6}, output[variant], corrected[variant]);
                 }
+
                 if (!formal_eskf::succeeded(status))
                 {
                     std::fprintf(
@@ -134,6 +144,7 @@ template <typename S, std::size_t M> void cases(Model model, unsigned sensor)
                     std::abort();
                 }
             }
+
             double error = difference(corrected[0], corrected[1]);
             error = std::max(error, difference(output[0].q_nb.coefficients(), output[1].q_nb.coefficients()));
             error = std::max(error, difference(output[0].p_n, output[1].p_n));
@@ -144,6 +155,7 @@ template <typename S, std::size_t M> void cases(Model model, unsigned sensor)
             {
                 std::abort();
             }
+
             std::printf("{\"model\":%u,\"sensor\":%u,\"bits\":%zu,\"seed\":%u,\"level\":%u,\"condition_estimate\":%."
                         "17g,\"scaled_difference\":%.17g}\n",
                         static_cast<unsigned>(model), sensor, sizeof(S) * 8U, seed, level, condition, error);
@@ -166,6 +178,7 @@ template <typename S> void all()
         std::fprintf(stderr, "innovation noise was absorbed before product cancellation\n");
         std::abort();
     }
+
     cases<S, 2U>(Model::horizontal_position, 0U);
     cases<S, 1U>(Model::vertical_position, 0U);
     cases<S, 2U>(Model::horizontal_velocity, 0U);
@@ -173,6 +186,7 @@ template <typename S> void all()
     cases<S, 3U>(Model::body_vector, 1U);
     cases<S, 3U>(Model::body_vector, 2U);
 }
+
 int main()
 {
 #ifndef USE_PX4

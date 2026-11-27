@@ -29,6 +29,7 @@ void verify_geodesy_math_model(unsigned index, double root, double sine, double 
     __ESBMC_assert(same(Math::sin(first), sine), "geodesy model: independent sine return");
     __ESBMC_assert(same(Math::cos(first), cosine), "geodesy model: independent cosine return");
     __ESBMC_assert(same(Math::atan2(first, second), angle), "geodesy model: independent angle return");
+
     MathOracle calls;
     calls.roots = index;
     calls.sines = index;
@@ -38,6 +39,7 @@ void verify_geodesy_math_model(unsigned index, double root, double sine, double 
     __ESBMC_assert(same(calls.sine(first), sine), "geodesy model: sine record correspondence");
     __ESBMC_assert(same(calls.cosine(first), cosine), "geodesy model: cosine record correspondence");
     __ESBMC_assert(same(calls.angle(first, second), angle), "geodesy model: angle record correspondence");
+
     calls.finish();
 }
 
@@ -56,6 +58,7 @@ void verify_geodetic_forward(Position input, Vector output)
     __ESBMC_assert(actual != Status::success || all_finite_values(output),
                    "F-GEO-ECEF: successful forward output is finite");
     __ESBMC_assert(same(input, original), "F-GEO-ECEF: forward preserves input");
+
     calls.finish();
 }
 
@@ -81,6 +84,7 @@ void inverse_candidate(Status actual, Position const & output, Position const & 
                                 ? Status::out_of_range
                                 : Status::success;
     __ESBMC_assert(actual == expected, "F-GEO-ECEF: inverse validates all candidate fields and height");
+
     if (actual == Status::success)
     {
         __ESBMC_assert(same(output.latitude_deg, candidate.latitude_deg), "F-GEO-ECEF: inverse latitude equation");
@@ -103,6 +107,7 @@ void verify_geodetic_inverse(InverseVector input, Position output)
         else
             __ESBMC_assume(input(0U) != 0.0 || input(1U) != 0.0);
     }
+
     Math::initialize();
     auto const before = output;
     auto const original = input;
@@ -122,25 +127,31 @@ void verify_geodetic_inverse(InverseVector input, Position output)
     if constexpr (region == InverseRegion::non_finite)
         __ESBMC_assert(actual == Status::non_finite_input && no_calls,
                        "F-GEO-ECEF: reject non-finite coordinates before math");
+
     else if constexpr (region == InverseRegion::axis)
     {
         __ESBMC_assert(no_calls, "F-GEO-ECEF: axial inverse needs no transcendental call");
+
         if (z == 0.0)
             __ESBMC_assert(actual == Status::domain_error, "F-GEO-ECEF: reject Earth center");
+
         else if (outside)
             __ESBMC_assert(actual == Status::out_of_range,
                            "F-GEO-ECEF: reject axial coordinates outside near-surface shell");
+
         else
             inverse_candidate(actual, output, {z > 0.0 ? 90.0 : -90.0, 0.0, std::fabs(z) - semi_minor_axis_m});
     }
     else if (no_calls)
         __ESBMC_assert(actual == Status::out_of_range && outside,
                        "F-GEO-ECEF: general inverse can stop before math only outside near-surface shell");
+
     else if (Math::atan2.count == 10U)
     {
         __ESBMC_assert(!outside, "F-GEO-ECEF: iterative inverse requires shell admission");
         __ESBMC_assert(Math::sqrt.count == 10U && Math::sin.count == 9U && Math::cos.count == 1U,
                        "F-GEO-ECEF: all eight refinements before candidate publication");
+
         Position candidate{Math::atan2.results[8U] * (180.0 / Math::pi()),
                            Math::atan2.results[9U] * (180.0 / Math::pi()),
                            Math::sqrt.results[0U] * Math::cos.results[0U] + z * Math::sin.results[8U] -
@@ -154,6 +165,7 @@ void verify_geodetic_inverse(InverseVector input, Position output)
         __ESBMC_assert(!outside, "F-GEO-ECEF: interrupted inverse requires shell admission");
         __ESBMC_assert(actual == Status::non_finite_result && Math::cos.count == 0U,
                        "F-GEO-ECEF: incomplete refinement must reject a non-finite result");
+
         if (Math::sin.count == 0U)
         {
             __ESBMC_assert(Math::sqrt.count == 1U && Math::atan2.count == 1U &&
@@ -165,6 +177,7 @@ void verify_geodetic_inverse(InverseVector input, Position output)
             __ESBMC_assert(Math::sin.count <= 8U && Math::sqrt.count == Math::sin.count + 1U &&
                                Math::atan2.count == Math::sin.count,
                            "F-GEO-ECEF: failure stops at the current refinement");
+
             for (unsigned index = 1U; index <= 8U; ++index)
             {
                 if (Math::sin.count == index)
@@ -177,6 +190,7 @@ void verify_geodetic_inverse(InverseVector input, Position output)
             }
         }
     }
+
     if (actual != Status::success)
         __ESBMC_assert(same(output, before), "F-GEO-ECEF: every inverse failure preserves all output fields");
     __ESBMC_assert(same_matrix(input, original), "F-GEO-ECEF: inverse preserves input");
@@ -187,12 +201,15 @@ void verify_ned_initialization(Matrix output)
     Frame frame;
     auto const before = output;
     __ESBMC_assert(!frame.initialized(), "F-GEO-NED: constructor clears initialized state");
+
     for (unsigned row = 0U; row < 3U; ++row)
     {
         __ESBMC_assert(same(frame.m_origin_e(row), 0.0), "F-GEO-NED: constructor zeros origin");
+
         for (unsigned col = 0U; col < 3U; ++col)
             __ESBMC_assert(same(frame.m_C_ne(row, col), 0.0), "F-GEO-NED: constructor zeros cached basis");
     }
+
     __ESBMC_assert(frame.rotation_from_ecef(output) == Status::domain_error && same_matrix(output, before),
                    "F-GEO-NED: uninitialized rotation preserves arbitrary output");
 }
@@ -207,20 +224,24 @@ void verify_ned_copy(Frame frame)
         for (unsigned col = 0U; col < 3U; ++col)
             before[3U + row * 3U + col] = frame.m_C_ne(row, col);
     }
+
     Frame copy = frame;
     Frame assigned;
     assigned = frame;
     __ESBMC_assert(same(copy, frame) && same(assigned, frame),
                    "F-GEO-NED: copy construction and assignment preserve all owned fields");
+
     Status const status = copy.set_origin({90.0, 0.0, 0.0});
     __ESBMC_assert(status == Status::success && copy.initialized(),
                    "F-GEO-NED: copied frame can replace its own origin");
     __ESBMC_assert(frame.initialized() == initialized && assigned.initialized() == initialized,
                    "F-GEO-NED: replacing a copy preserves both original flags");
+
     for (unsigned row = 0U; row < 3U; ++row)
     {
         __ESBMC_assert(same(frame.m_origin_e(row), before[row]) && same(assigned.m_origin_e(row), before[row]),
                        "F-GEO-NED: replacing a copy preserves both original positions");
+
         for (unsigned col = 0U; col < 3U; ++col)
             __ESBMC_assert(same(frame.m_C_ne(row, col), before[3U + row * 3U + col]) &&
                                same(assigned.m_C_ne(row, col), before[3U + row * 3U + col]),
@@ -242,6 +263,7 @@ void verify_ned_origin(Frame frame, Position origin, Vector produced, Status pro
     Status const actual = frame.set_origin(origin);
     __ESBMC_assert(ForwardContract::calls == 1U && same(ForwardContract::received, original),
                    "F-GEO-NED: forward complete origin exactly once to the verified producer");
+
     Vector const position = produced;
     MathOracle calls;
     Status expected = producer_status;
@@ -259,17 +281,22 @@ void verify_ned_origin(Frame frame, Position origin, Vector produced, Status pro
             expected = Status::non_finite_result;
         }
     }
+
     __ESBMC_assert(actual == expected, "F-GEO-NED: origin checks coordinates then basis");
+
     if (actual == Status::success)
     {
         __ESBMC_assert(frame.initialized(), "F-GEO-NED: successful origin initializes frame");
+
         for (unsigned row = 0U; row < 3U; ++row)
         {
             __ESBMC_assert(same(frame.m_origin_e(row), position(row)), "F-GEO-NED: publish each origin coefficient");
+
             for (unsigned col = 0U; col < 3U; ++col)
                 __ESBMC_assert(same(frame.m_C_ne(row, col), rotation(row, col)),
                                "F-GEO-NED: publish each cached basis coefficient");
         }
+
         __ESBMC_assert(all_finite_values(frame.m_origin_e) && all_finite_values(frame.m_C_ne),
                        "F-GEO-NED: publish only a finite origin and basis");
     }
@@ -277,7 +304,9 @@ void verify_ned_origin(Frame frame, Position origin, Vector produced, Status pro
     {
         __ESBMC_assert(same(frame, before), "F-GEO-NED: every origin failure preserves complete prior state");
     }
+
     __ESBMC_assert(same(origin, original), "F-GEO-NED: origin input preserved");
+
     calls.finish();
 }
 
@@ -333,15 +362,18 @@ void verify_ned_position(Frame frame, Vector input, Vector output)
             candidate(row) = sum;
 #endif
         }
+
         if (!all_finite_values(candidate))
         {
             expected = Status::non_finite_result;
         }
     }
+
     __ESBMC_assert(actual == expected, "F-GEO-NED: position input/init/result failure precedence");
     __ESBMC_assert(actual == Status::success ? same_matrix(target, candidate) : same_matrix(target, before),
                    "F-GEO-NED: ordered affine position equations or complete output rollback, including aliases");
     __ESBMC_assert(same(frame, original), "F-GEO-NED: affine conversion preserves cached origin/basis");
+
 #if !FORMAL_ESKF_PROOF_ALIAS
     __ESBMC_assert(same_matrix(input, input_before), "F-GEO-NED: separate input preserved");
 #endif

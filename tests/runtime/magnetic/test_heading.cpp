@@ -22,16 +22,19 @@ using Context = formal_eskf::test::Context;
 template <typename Backend> using Heading = formal_eskf::runtime::MagneticHeading<Backend>;
 template <typename Backend> using Vector = typename Heading<Backend>::vector_type;
 template <typename Backend> using Quaternion = formal_eskf::so3::UnitQuaternion<Backend>;
+
 template <typename Backend> auto parameters()
 {
     using Scalar = typename Backend::value_type;
     return typename Heading<Backend>::Parameters{Scalar{0.25}, Scalar{0.5}, Scalar{5}};
 }
+
 template <typename Backend> auto north()
 {
     using Scalar = typename Backend::value_type;
     return Vector<Backend>::from_row_major({Scalar{20}, Scalar{0}, Scalar{40}});
 }
+
 template <typename State> bool same(State const & a, State const & b)
 {
     using Bits = std::array<std::byte, sizeof(a.innovation)>;
@@ -40,6 +43,7 @@ template <typename State> bool same(State const & a, State const & b)
            std::bit_cast<Bits>(a.horizontal_acceleration) == std::bit_cast<Bits>(b.horizontal_acceleration) &&
            a.innovation_valid == b.innovation_valid && a.observable == b.observable && a.consistent == b.consistent;
 }
+
 template <typename Backend> auto seeded(Context & test, std::string_view profile)
 {
     using Scalar = typename Backend::value_type;
@@ -52,6 +56,7 @@ template <typename Backend> auto seeded(Context & test, std::string_view profile
                     monitor.state().consistent && monitor.state().observable &&
                     monitor.state().filtered_innovation != Scalar{0},
                 profile, "nonzero private acceleration and heading histories establish a meaningful baseline");
+
     return monitor;
 }
 
@@ -61,6 +66,7 @@ template <typename Backend> void acceleration(Context & test, std::string_view p
     Heading<Backend> monitor;
     auto const empty = monitor.state();
     test.expect(same(empty, typename Heading<Backend>::State{}), profile, "default state is entirely empty");
+
     std::array<std::array<Scalar, 4>, 4> const samples{{{Scalar{2}, Scalar{0}, Scalar{100}, Scalar{1}},
                                                         {Scalar{-3}, Scalar{4}, Scalar{-200}, Scalar{3}},
                                                         {Scalar{2}, Scalar{-3}, Scalar{999}, Scalar{1}},
@@ -91,6 +97,7 @@ template <typename Backend> void acceleration(Context & test, std::string_view p
                         opposite.state().horizontal_acceleration == Scalar{0},
                     profile, "signed vectors cancel exactly; any finite Down contributes no horizontal excitation");
     }
+
     for (int side : {-1, 0, 1})
     {
         Heading<Backend> boundary;
@@ -130,12 +137,14 @@ template <typename Backend> void innovation(Context & test, std::string_view pro
                             !monitor.state().consistent,
                         profile, "signed heading and one update per magnetic sample follow independent recurrence");
         }
+
         for (unsigned sample = 0; sample < 100; ++sample)
         {
             test.expect(monitor.update(Quaternion<Backend>{}, north<Backend>(), north<Backend>(), params, true, true) ==
                             Status::success,
                         profile, "consume good recovery samples without excitation");
         }
+
         test.expect(!monitor.state().consistent, profile,
                     "small innovation without excitation cannot acquire consistency");
         test.expect(monitor.update_acceleration(Vector<Backend>::from_row_major({Scalar{2}, Scalar{0}, Scalar{0}}),
@@ -148,11 +157,13 @@ template <typename Backend> void innovation(Context & test, std::string_view pro
                             Status::success &&
                         monitor.state().consistent,
                     profile, "renewed independent aiding and excitation recover consistency");
+
         monitor.reset_acceleration();
         test.expect(monitor.update(Quaternion<Backend>{}, north<Backend>(), north<Backend>(), params, true, true) ==
                             Status::success &&
                         monitor.state().consistent && !monitor.state().observable,
                     profile, "low-excitation history retains acquired latch");
+
         auto const field = Vector<Backend>::from_row_major({Scalar{-20}, static_cast<Scalar>(-sign), Scalar{40}});
         auto const reference = Vector<Backend>::from_row_major({Scalar{-20}, static_cast<Scalar>(sign), Scalar{40}});
         test.expect(monitor.update(Quaternion<Backend>{}, field, reference, params, true, true) == Status::success &&
@@ -160,12 +171,14 @@ template <typename Backend> void innovation(Context & test, std::string_view pro
                                  sign * 2 * std::atan2(1.0L, 20.0L)) <= 8 * std::numeric_limits<Scalar>::epsilon(),
                     profile, "heading residual wraps across both pi cuts");
     }
+
     Quaternion<Backend> cyclic, negative;
     test.expect(Quaternion<Backend>::from_coefficients(Scalar{0.5}, Scalar{0.5}, Scalar{0.5}, Scalar{0.5},
                                                        Scalar{0.125}, cyclic) == Status::success &&
                     Quaternion<Backend>::from_coefficients(Scalar{-0.5}, Scalar{-0.5}, Scalar{-0.5}, Scalar{-0.5},
                                                            Scalar{0.125}, negative) == Status::success,
                 profile, "exact tilted quaternion pair");
+
     auto const body = Vector<Backend>::from_row_major({Scalar{20}, Scalar{40}, Scalar{0}});
     for (auto const & q : {cyclic, negative})
     {
@@ -175,10 +188,12 @@ template <typename Backend> void innovation(Context & test, std::string_view pro
                                  std::numbers::pi_v<long double> / 2) <= 8 * std::numeric_limits<Scalar>::epsilon(),
                     profile, "independent cyclic map produces East heading for either quaternion sign");
     }
+
     Heading<Backend> probe;
     auto const east = Vector<Backend>::from_row_major({Scalar{0}, Scalar{20}, Scalar{40}});
     test.expect(probe.update(Quaternion<Backend>{}, east, north<Backend>(), params, true, false) == Status::success,
                 profile, "record represented first residual for comparator-only boundary");
+
     Scalar const threshold = probe.state().filtered_innovation;
     for (int side : {-1, 0, 1})
     {
@@ -214,6 +229,7 @@ template <typename Backend> void weak_field(Context & test, std::string_view pro
                                weak_reference ? weak : north<Backend>(), params, true, true) == Status::success &&
                     monitor.state().innovation_valid == (side >= 0) && monitor.state().consistent == (side >= 0),
                 profile, "both horizontal norms require inclusive minimum equality");
+
             if (side < 0)
             {
                 test.expect(monitor.state().innovation == Scalar{0} &&
@@ -226,6 +242,7 @@ template <typename Backend> void weak_field(Context & test, std::string_view pro
             }
         }
     }
+
     auto monitor = baseline;
     auto const huge = Vector<Backend>::from_row_major({std::numeric_limits<Scalar>::max(), Scalar{0}, Scalar{0}});
     test.expect(monitor.update(Quaternion<Backend>{}, huge, huge, params, false, true) == Status::success &&
@@ -246,6 +263,7 @@ template <typename Backend> void resets(Context & test, std::string_view profile
     monitor.reset_acceleration();
     test.expect(same(monitor.state(), expected), profile,
                 "acceleration reset changes only acceleration and observability");
+
     monitor = baseline;
     expected = baseline.state();
     expected.innovation = Scalar{0};
@@ -255,9 +273,11 @@ template <typename Backend> void resets(Context & test, std::string_view profile
     monitor.reset_heading();
     test.expect(same(monitor.state(), expected) && same(monitor.state(), expected), profile,
                 "heading reset clears only heading history and explicitly establishes consistency; queries pure");
+
     monitor.reset();
     test.expect(same(monitor.state(), typename Heading<Backend>::State{}), profile,
                 "full reset returns false latch and zero histories");
+
     Heading<Backend> fresh;
     auto const sample = Vector<Backend>::from_row_major({Scalar{1}, Scalar{2}, Scalar{3}});
     test.expect(monitor.update_acceleration(sample, Scalar{1}) == fresh.update_acceleration(sample, Scalar{1}) &&
@@ -277,6 +297,7 @@ template <typename Backend> void failures(Context & test, std::string_view profi
         auto control = baseline;
         test.expect(action(monitor) == expected && same(monitor.state(), baseline.state()), profile,
                     "failed operation preserves every public history field");
+
         auto const next = Vector<Backend>::from_row_major({Scalar{-2}, Scalar{1}, Scalar{-100}});
         test.expect(monitor.update_acceleration(next, Scalar{0.5}) == control.update_acceleration(next, Scalar{0.5}) &&
                         monitor.update(Q{}, north<Backend>(), north<Backend>(), params, true, true) ==
@@ -314,15 +335,18 @@ template <typename Backend> void failures(Context & test, std::string_view profi
                 }
             }
         }
+
         unchanged(
             baseline, [&](auto & m) { return m.update_acceleration(north<Backend>(), invalid); },
             Status::non_finite_input);
     }
+
     for (auto dt : {Scalar{0}, Scalar{-1}, std::nextafter(std::numeric_limits<Scalar>::min(), Scalar{0})})
     {
         unchanged(
             baseline, [&](auto & m) { return m.update_acceleration(north<Backend>(), dt); }, Status::domain_error);
     }
+
     for (auto dt : {std::numeric_limits<Scalar>::min(), std::numeric_limits<Scalar>::max()})
     {
         Monitor monitor;
@@ -331,6 +355,7 @@ template <typename Backend> void failures(Context & test, std::string_view profi
                         monitor.state().horizontal_acceleration == Scalar{0},
                     profile, "positive normal dt endpoints accepted for finite zero recurrence");
     }
+
     for (bool aligned : {false, true})
     {
         for (auto p : {typename Monitor::Parameters{}, typename Monitor::Parameters{Scalar{0}, Scalar{0}, Scalar{1}},
@@ -344,6 +369,7 @@ template <typename Backend> void failures(Context & test, std::string_view profi
                 Status::domain_error);
         }
     }
+
     auto const huge = Vector<Backend>::from_row_major({std::numeric_limits<Scalar>::max(), Scalar{0}, Scalar{0}});
     unchanged(
         baseline, [&](auto & m) { return m.update_acceleration(huge, Scalar{1}); }, Status::non_finite_result);
@@ -359,12 +385,14 @@ template <typename Backend> void failures(Context & test, std::string_view profi
     test.expect(Q::from_coefficients(tiny, tiny / Scalar{2}, Scalar{0}, Scalar{0}, std::numeric_limits<Scalar>::min(),
                                      malformed) == Status::success,
                 profile, "public quaternion guard witness");
+
     for (unsigned step = 0;
          step < 32 && std::isfinite(formal_eskf::linalg::dot(malformed.coefficients(), malformed.coefficients()));
          ++step)
     {
         malformed = malformed * malformed;
     }
+
     unchanged(
         baseline, [&](auto & m) { return m.update(malformed, north<Backend>(), north<Backend>(), params, true, true); },
         Status::non_finite_result);
@@ -372,6 +400,7 @@ template <typename Backend> void failures(Context & test, std::string_view profi
     {
         malformed = malformed * malformed;
     }
+
     for (bool aligned : {false, true})
     {
         unchanged(
@@ -395,22 +424,26 @@ template <typename Backend> void ownership(Context & test, std::string_view prof
         test.expect(immediate.update_acceleration(specific_force, Scalar{0.5}) == Status::success &&
                         idle.update_acceleration(specific_force, Scalar{0.5}) == Status::success,
                     profile, "equal consumed IMU intervals");
+
         auto const before = idle.state();
         for (unsigned queries = 0; queries < 50; ++queries)
         {
             test.expect(same(idle.state(), before), profile,
                         "external idle/read operations consume no hidden filter ticks");
         }
+
         test.expect(
             immediate.update(Quaternion<Backend>{}, east, north<Backend>(), params, true, true) == Status::success &&
                 idle.update(Quaternion<Backend>{}, east, north<Backend>(), params, true, true) == Status::success &&
                 same(immediate.state(), idle.state()),
             profile, "identical consumed sequence has identical history regardless of external idle");
     }
+
     auto const heading = idle.state().filtered_innovation;
     idle.reset_acceleration();
     test.expect(idle.state().filtered_innovation == heading && idle.state().horizontal_acceleration == Scalar{0},
                 profile, "caller declares an IMU gap with explicit acceleration reset, preserving magnetic history");
+
     idle.reset();
     Heading<Backend> fresh;
     test.expect(idle.update(Quaternion<Backend>{}, north<Backend>(), north<Backend>(), params, true, true) ==
@@ -419,6 +452,7 @@ template <typename Backend> void ownership(Context & test, std::string_view prof
                 profile,
                 "caller source/frame reset creates a fresh session without inventing successful heading alignment");
 }
+
 template <typename Backend> void frame_migration(Context & test, std::string_view profile)
 {
     using Scalar = typename Backend::value_type;
@@ -428,6 +462,7 @@ template <typename Backend> void frame_migration(Context & test, std::string_vie
     test.expect(Q::from_coefficients(Scalar{1}, Scalar{0}, Scalar{1}, Scalar{0}, static_cast<Scalar>(0.1), tilt) ==
                     Status::success,
                 profile, "ninety-degree frame tilt");
+
     for (bool const consistent : {false, true})
     {
         Heading<Backend> monitor;
@@ -435,12 +470,14 @@ template <typename Backend> void frame_migration(Context & test, std::string_vie
         {
             monitor.reset_heading();
         }
+
         auto const force = Vector<Backend>::from_row_major({Scalar{2}, Scalar{4}, Scalar{6}});
         test.expect(monitor.update_acceleration(force, Scalar{1}) == Status::success &&
                         monitor.rebase(tilt) == Status::success && monitor.state().consistent == consistent &&
                         !monitor.state().innovation_valid && !monitor.state().observable &&
                         std::abs(monitor.state().horizontal_acceleration - std::sqrt(Scalar{13})) < tolerance,
                     profile, "full filtered Down rotates into horizontal; no recovery or consumed sample");
+
         auto const field = Vector<Backend>::from_row_major({Scalar{20}, Scalar{10}, Scalar{40}});
         auto params = parameters<Backend>();
         // Weak field cannot consume the pending scalar seed.
@@ -451,16 +488,19 @@ template <typename Backend> void frame_migration(Context & test, std::string_vie
                         monitor.state().filtered_innovation == monitor.state().innovation &&
                         !monitor.state().consistent,
                     profile, "first valid new-frame innovation seeds immediately and rejects large error");
+
         auto const first = monitor.state().innovation;
         test.expect(monitor.update(Q{}, north<Backend>(), north<Backend>(), params, true, false) == Status::success &&
                         std::abs(monitor.state().filtered_innovation - first * static_cast<Scalar>(0.9)) < tolerance,
                     profile, "later samples resume the ordinary recurrence without reacquiring consistency");
     }
+
     Heading<Backend> overflow;
     auto const large_down =
         Vector<Backend>::from_row_major({Scalar{0}, Scalar{0}, std::numeric_limits<Scalar>::max() / Scalar{4}});
     test.expect(overflow.update_acceleration(large_down, Scalar{1}) == Status::success, profile,
                 "finite retained vertical force");
+
     auto control = overflow;
     auto const before = overflow.state();
     auto const continuation = Vector<Backend>::from_row_major({Scalar{20}, Scalar{2}, Scalar{40}});
@@ -474,6 +514,7 @@ template <typename Backend> void frame_migration(Context & test, std::string_vie
                 profile, "failed migration preserves private filter and pending seed");
 }
 } /* end namespace */
+
 int main(int argc, char ** argv)
 {
     formal_eskf::test::configure_backend_test();

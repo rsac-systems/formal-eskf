@@ -317,10 +317,12 @@ FormalEskf::observation_history_type::GnssSample FormalEskf::decode_gnss(sensor_
     result.spoofed = sample.spoofing_state == sensor_gps_s::SPOOFING_STATE_MULTIPLE;
     return result;
 }
+
 FormalEskf::observation_history_type::BarometerSample FormalEskf::decode_barometer(vehicle_air_data_s const & sample)
 {
     return {{sample.timestamp_sample, {sample.baro_device_id, sample.calibration_count}}, sample.baro_alt_meter};
 }
+
 FormalEskf::observation_history_type::MagneticSample FormalEskf::decode_magnetic(vehicle_magnetometer_s const & sample)
 {
     return {{sample.timestamp_sample, {sample.device_id, sample.calibration_count}},
@@ -353,6 +355,7 @@ FormalEskf::lookup_magnetic_model(session_type::ModelRequest const & request) co
     }
     return model;
 }
+
 void FormalEskf::process_imu(ImuInput const & sample)
 {
     if (m_session.fault())

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "boundary.hpp"
+
 // Quaternion producers are pure except for the designated normalization output.
 // Their summaries check all operands, output identity and call order; neither
 // havocs the owner. The complete step postcondition checks every owner/history/
@@ -16,6 +17,7 @@ Quaternion::vector4_type expected_coefficients;
 unsigned normalizations, products;
 Quaternion raw_product, expected_left, expected_right;
 } // namespace
+
 namespace formal_eskf::so3
 {
 template <>
@@ -28,6 +30,7 @@ UnitQuaternion<output_proof::Backend>::operator*(UnitQuaternion const & other) c
     {
         return {};
     }
+
     __ESBMC_assert(products == 0 && normalizations == 0, "Output reset forms the left product before normalization");
     __ESBMC_assert(same(q0(), expected_left.q0()) && same(other.q0(), expected_right.q0()),
                    "Output Hamilton product complete operand order: coefficient 0");
@@ -37,9 +40,11 @@ UnitQuaternion<output_proof::Backend>::operator*(UnitQuaternion const & other) c
                    "Output Hamilton product complete operand order: coefficient 2");
     __ESBMC_assert(same(q3(), expected_left.q3()) && same(other.q3(), expected_right.q3()),
                    "Output Hamilton product complete operand order: coefficient 3");
+
     ++products;
     return raw_product;
 }
+
 template <>
 Status UnitQuaternion<output_proof::Backend>::from_coefficients(vector4_type const & input, value_type minimum,
                                                                 UnitQuaternion & result)
@@ -48,20 +53,25 @@ Status UnitQuaternion<output_proof::Backend>::from_coefficients(vector4_type con
                    "Output reset normalizes the current staged record exactly once");
     __ESBMC_assert(same(minimum, static_cast<Scalar>(profile::minimum_quaternion_norm)),
                    "Output reset forwards the profile normalization threshold");
+
     for (std::size_t i = 0; i < 4; ++i)
     {
         __ESBMC_assert(same(input(i), expected_coefficients(i)),
                        "Output reset forwards every left Hamilton product coefficient");
     }
+
     if (returned_status == Status::success)
     {
         result = returned_q;
     }
+
     ++normalizations;
     return returned_status;
 }
 } // namespace formal_eskf::so3
+
 #include <source_steps.hpp>
+
 void verify_output_transform_step(Output object, Quaternion delta_q, Vector velocity, Vector position,
                                   Quaternion normalized, formal_eskf::Status status, Quaternion product)
 {
@@ -91,6 +101,7 @@ void verify_output_transform_step(Output object, Quaternion delta_q, Vector velo
         original.v_n(i) = seed_only ? object.m_current.v_n(i) : object.m_history.m_samples[slot].v_n(i);
         original.p_n(i) = seed_only ? object.m_current.p_n(i) : object.m_history.m_samples[slot].p_n(i);
     }
+
     auto const b = original.q_nb.coefficients();
     expected_left = delta_q;
     expected_right = original.q_nb;
@@ -105,6 +116,7 @@ void verify_output_transform_step(Output object, Quaternion delta_q, Vector velo
     {
         staged_values[slot][i] = b(i);
     }
+
     bool finite = true;
     for (std::size_t i = 0; i < 3; ++i)
     {
@@ -112,6 +124,7 @@ void verify_output_transform_step(Output object, Quaternion delta_q, Vector velo
         staged_values[slot][7 + i] = original.p_n(i) + position(i);
         finite = std::isfinite(staged_values[slot][4 + i]) & std::isfinite(staged_values[slot][7 + i]) & finite;
     }
+
     returned_q = normalized;
     returned_status = status;
     normalizations = 0;
@@ -121,6 +134,7 @@ void verify_output_transform_step(Output object, Quaternion delta_q, Vector velo
     __ESBMC_assert(result == expected && normalizations == 1 && products == 1 &&
                        index == (expected ? (slot + 1 == integers[field::length] ? 0 : slot + 1) : slot),
                    "Output reset step propagates normalization/finite failures before cursor advancement");
+
     if (status == formal_eskf::Status::success)
     {
         auto const q = normalized.coefficients();
@@ -129,10 +143,12 @@ void verify_output_transform_step(Output object, Quaternion delta_q, Vector velo
             staged_values[slot][i] = q(i);
         }
     }
+
     if (!expected)
     {
         fault = Output::Fault::numerical_failure;
     }
+
     check();
     auto const unchanged = delta_q.coefficients();
     auto const original_q = input_q.coefficients();
@@ -140,10 +156,12 @@ void verify_output_transform_step(Output object, Quaternion delta_q, Vector velo
     {
         __ESBMC_assert(same(unchanged(i), original_q(i)), "Output reset step preserves the external attitude delta");
     }
+
     for (std::size_t i = 0; i < 3; ++i)
     {
         __ESBMC_assert(same(velocity(i), input_v(i)) && same(position(i), input_p(i)),
                        "Output reset step preserves external translation deltas");
     }
+
     output_proof::check_parameters(object);
 }

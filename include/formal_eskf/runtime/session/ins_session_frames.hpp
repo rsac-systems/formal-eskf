@@ -31,17 +31,20 @@ InsSession<Linalg, Layout>::geographic_frame(vector3_type const & position,
     {
         result.status = formal_eskf::geodesy::ecef_to_geodetic<backend_type>(result.ecef, result.point);
     }
+
     formal_eskf::geodesy::LocalNed<backend_type> frame;
     if (formal_eskf::succeeded(result.status))
     {
         result.status = frame.set_origin(result.point);
     }
+
     if (formal_eskf::succeeded(result.status))
     {
         formal_eskf::geodesy::NedTransform<backend_type> transform;
         result.status = working.transform_to(frame, transform);
         result.rotation = transform.rotation;
     }
+
     return result;
 }
 
@@ -56,6 +59,7 @@ InsSession<Linalg, Layout>::gnss_frame(formal_eskf::geodesy::NedTransform<backen
     {
         status = m_navigation_frame.working().transform_to(frame, transform);
     }
+
     return status;
 }
 
@@ -78,6 +82,7 @@ bool InsSession<Linalg, Layout>::update_height_datum(std::uint64_t time_us,
     {
         return false;
     }
+
     m_height_datum = datum;
     m_origin_control.datum_frame = frame;
     return true;
@@ -94,6 +99,7 @@ InsSession<Linalg, Layout>::frame_admission(vector3_type const & position, vecto
     {
         return result;
     }
+
     auto const & geographic = result.frame.point;
     auto const speed = formal_eskf::linalg::norm(velocity);
     result.within_domain = std::abs(geographic.latitude_deg) <= m_settings.origin.maximum_latitude_deg &&
@@ -128,10 +134,12 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::att
     {
         return true;
     }
+
     if (!m_output.ready() || m_output.fusion_time_us() != m_time_us || m_imu_history.fusion_time_us() != m_time_us)
     {
         return false;
     }
+
     auto const & gps = m_gnss.input.sample;
     geodesy::LocalNed<backend_type> antenna;
     vector3_type ecef;
@@ -141,24 +149,29 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::att
     {
         status = antenna.ned_to_ecef(-gnss_position_offset(), ecef);
     }
+
     if (succeeded(status))
     {
         status = geodesy::ecef_to_geodetic<backend_type>(ecef, origin);
     }
+
     auto datum = m_height_datum;
     if (succeeded(status) && gps.stamp.time_us > datum.time_us() && std::isfinite(gps.altitude_msl_m))
     {
         status = datum.update(gps.stamp.time_us, gps.altitude_ellipsoid_m, gps.altitude_msl_m);
     }
+
     double origin_msl{};
     if (succeeded(status) && datum.initialized())
     {
         status = datum.to_msl(origin.height_ellipsoid_m, origin_msl);
     }
+
     if (!succeeded(status))
     {
         return false;
     }
+
     auto anchor = m_state.p_n;
     if (m_msl_initialized)
     {
@@ -166,12 +179,14 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::att
         // must not silently replace that estimate or hide a real height reset.
         anchor(2) = m_height_aiding.origin_altitude() - origin_msl;
     }
+
     status = m_navigation_frame.prepare_attachment(origin, m_state, m_covariance, anchor,
                                                    m_parameters.minimum_quaternion_norm);
     if (!succeeded(status))
     {
         return false;
     }
+
     auto const & candidate = m_navigation_frame.candidate();
     auto height = m_height_aiding;
     status = height.change_reference(origin_msl, height.origin_altitude() - m_state.p_n(2),
@@ -215,6 +230,7 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::upd
     {
         return;
     }
+
     auto const & output = m_output.current();
     auto const delayed = frame_admission(m_state.p_n, m_state.v_n, output.time_us);
     auto const current = frame_admission(output.p_n, output.v_n, output.time_us);
@@ -226,6 +242,7 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::upd
             m_origin_control.output_axes = body.rotation;
         }
     }
+
     auto const elapsed = [this](std::uint64_t prior, std::uint64_t interval)
     { return prior == 0 || (m_time_us >= prior && m_time_us - prior >= interval); };
     if (!delayed.request || !delayed.within_domain || !current.within_domain || !delayed.datum_usable ||
@@ -234,6 +251,7 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::upd
     {
         return;
     }
+
     m_origin_control.attempt_time_us = m_time_us;
     if (formal_eskf::succeeded(rebase_navigation(delayed, current)))
     {
@@ -254,16 +272,19 @@ InsSession<Linalg, Layout>::rebase_navigation(FrameAdmission const & delayed, Fr
     {
         return status_type::domain_error;
     }
+
     auto const & output = m_output.current();
     if (!delayed.within_domain || !current.within_domain || !delayed.datum_usable || !current.datum_usable)
     {
         return status_type::domain_error;
     }
+
     auto status = m_navigation_frame.prepare(m_state, m_covariance, m_parameters.minimum_quaternion_norm);
     if (!formal_eskf::succeeded(status))
     {
         return status;
     }
+
     auto const & candidate = m_navigation_frame.candidate();
     auto const new_position = candidate.transform.rotation * output.p_n + candidate.transform.translation;
     auto const new_axes = current.frame.rotation * formal_eskf::linalg::transpose(candidate.transform.rotation);
@@ -272,6 +293,7 @@ InsSession<Linalg, Layout>::rebase_navigation(FrameAdmission const & delayed, Fr
     {
         return status_type::domain_error;
     }
+
     auto heading = m_magnetic.heading;
     auto tilt = m_tilt_alignment;
     auto continuity = m_continuity;
@@ -280,14 +302,17 @@ InsSession<Linalg, Layout>::rebase_navigation(FrameAdmission const & delayed, Fr
     {
         status = tilt.rebase(candidate.state.q_nb, candidate.covariance.template block<6, 6, 3, 3>());
     }
+
     if (succeeded(status))
     {
         status = continuity.rebase(candidate.transform.rotation, m_navigation_frame.generation() + 1);
     }
+
     if (!succeeded(status))
     {
         return status;
     }
+
     if (!m_output.prepare_rebase(candidate.rotation, candidate.transform.translation))
     {
         return status_type::non_finite_result;
@@ -329,6 +354,7 @@ InsSession<Linalg, Layout>::navigation_variance(std::size_t start, matrix3_type 
             P(i, j) = m_covariance(start + i, start + j);
         }
     }
+
     auto const A = start == 6 ? rotation * formal_eskf::so3::to_rotation_matrix(m_state.q_nb) : rotation;
     auto const rotated = formal_eskf::linalg::sandwich(A, P);
     return vector3(rotated(0, 0), rotated(1, 1), rotated(2, 2));
@@ -361,6 +387,7 @@ InsSession<Linalg, Layout>::body_output(vector3_type const & position, vector3_t
         {
             return body;
         }
+
         body.rotation = matrix3_type::identity();
         body.q_nb = attitude;
         body.msl_available = m_msl_initialized;
@@ -368,6 +395,7 @@ InsSession<Linalg, Layout>::body_output(vector3_type const & position, vector3_t
         {
             body.altitude_msl_m = m_origin.altitude_msl_m - (position - position_offset_n)(2);
         }
+
         body.position_n = position - position_offset_n;
         body.velocity_n = velocity - velocity_offset_n;
         body.status = linalg::all_finite(body.position_n) && linalg::all_finite(body.velocity_n) &&
@@ -376,12 +404,14 @@ InsSession<Linalg, Layout>::body_output(vector3_type const & position, vector3_t
                           : status_type::non_finite_result;
         return body;
     }
+
     body = geographic_output(position, velocity, attitude, angular_rate, m_navigation_frame.working(), m_height_datum,
                              m_origin);
     if (succeeded(body.status) && output_frame_supported(position, body.geographic, body.rotation))
     {
         return body;
     }
+
     body = {};
     body.rotation = m_origin_control.output_axes;
     quaternion_type rotation;
@@ -411,6 +441,7 @@ typename InsSession<Linalg, Layout>::BodyOutput InsSession<Linalg, Layout>::geog
     {
         return body;
     }
+
     body.rotation = frame.rotation;
     body.geographic = frame.point;
     body.geographic_available = true;
@@ -421,14 +452,17 @@ typename InsSession<Linalg, Layout>::BodyOutput InsSession<Linalg, Layout>::geog
     {
         body.status = formal_eskf::runtime::frame_rotation(frame.rotation, rotation);
     }
+
     if (formal_eskf::succeeded(body.status))
     {
         body.status = formal_eskf::so3::normalize(rotation * attitude, m_parameters.minimum_quaternion_norm, body.q_nb);
     }
+
     if (!formal_eskf::succeeded(body.status))
     {
         return body;
     }
+
     float north{}, east{};
     origin.projection.project(body.geographic.latitude_deg, body.geographic.longitude_deg, north, east);
     double const down = body.msl_available ? origin.altitude_msl_m - body.altitude_msl_m
@@ -439,6 +473,7 @@ typename InsSession<Linalg, Layout>::BodyOutput InsSession<Linalg, Layout>::geog
     {
         body.status = status_type::non_finite_result;
     }
+
     return body;
 }
 
@@ -465,6 +500,7 @@ typename InsSession<Linalg, Layout>::OutputValidity InsSession<Linalg, Layout>::
         result.navigation =
             delayed.within_domain && delayed.within_frame && current.within_domain && current.within_frame;
     }
+
     const bool gps_current =
         m_observations.gnss_source().device_id != 0 && m_observations.gnss_generation() == m_gnss.generation;
     const bool magnetic_current = m_observations.magnetic_source().device_id != 0 &&
@@ -494,6 +530,7 @@ typename InsSession<Linalg, Layout>::matrix3_type InsSession<Linalg, Layout>::de
     {
         return matrix3_type::identity();
     }
+
     auto const frame = delayed_body_frame();
     bool const supported = succeeded(frame.status) && output_frame_supported(m_state.p_n, frame.point, frame.rotation);
     return supported ? frame.rotation : m_origin_control.output_axes;

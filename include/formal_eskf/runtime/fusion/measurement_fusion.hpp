@@ -46,6 +46,7 @@ template <typename Linalg, std::size_t Size> struct FusionResult
     linalg::Vector<Linalg, Size> test_ratio{};
 
     FusionResult() = default;
+
     explicit FusionResult(MeasurementCheck<Linalg, Size> const & check)
         : status(check.status), diagnostics_valid(check.diagnostics_valid), innovation(check.innovation),
           innovation_variance(check.innovation_variance), test_ratio(check.test_ratio)

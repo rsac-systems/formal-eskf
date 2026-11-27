@@ -27,6 +27,7 @@ namespace formal_eskf::testing
 {
 class InsSessionTest;
 }
+
 namespace formal_eskf::runtime
 {
 /** Bounded single-writer geographic INS session. Layout selects storage and compiled features only.
@@ -65,6 +66,7 @@ public:
 
     using ImuSource = formal_eskf::runtime::ImuSource;
     using ImuInput = formal_eskf::runtime::ImuInput<backend_type>;
+
     struct ImuSourceChanges
     {
         // Input epochs of accepted changes, not the delayed state/reset epoch.
@@ -77,6 +79,7 @@ public:
         formal_eskf::runtime::ObservationHistory<backend_type, Layout::gnss_capacity, Layout::magnetic_capacity,
                                                  Layout::barometer_capacity, Layout::context_capacity>;
     using output_predictor_type = formal_eskf::runtime::OutputPredictor<backend_type, Layout::imu_capacity>;
+
     struct NavigationOrigin
     {
         projection_type projection{0};
@@ -261,11 +264,13 @@ public:
         typename observation_history_type::LandState land{};
         typename observation_history_type::VehicleState vehicle{};
     };
+
     struct InitialAttitude
     {
         quaternion_type q_nb{};             // Body FRD to true-North local NED at the seed endpoint.
         std::array<double, 3> variance_n{}; // Small-angle variances in NED, rad^2; strictly positive.
     };
+
     struct InitialNavigation
     {
         InitialAttitude attitude{};
@@ -274,6 +279,7 @@ public:
         vector3_type velocity_n{};                                          // IMU velocity in the same local NED, m/s.
         std::array<double, 3> position_variance_n{}, velocity_variance_n{}; // m^2, (m/s)^2.
     };
+
     struct ModelRequest
     {
         bool required{};
@@ -292,6 +298,7 @@ public:
         bool clear{}, measurement{}, reset{};
         std::uint64_t time_us{};
         double innovation{}, test_ratio{};
+
         void record(std::uint64_t time, double residual, double ratio)
         {
             measurement = true;
@@ -299,12 +306,14 @@ public:
             innovation = residual;
             test_ratio = ratio;
         }
+
         void record_reset(std::uint64_t time)
         {
             reset = true;
             time_us = time;
         }
     };
+
     struct Innovations
     {
         std::array<InnovationEvent, 2> position{};
@@ -312,6 +321,7 @@ public:
         std::array<typename height_type::DiagnosticUpdate, 2> height{};
         bool clear_height{};
     };
+
     struct Statistics
     {
         std::uint64_t arrival_rejections{}, rate_rejections{}, stale_arrivals{}, source_discards{}, overflows{},
@@ -328,6 +338,7 @@ public:
         gravity,
         magnetic
     };
+
     struct AdmissionReport
     {
         typename observation_history_type::SourceStamp input{};
@@ -352,11 +363,13 @@ public:
         owner_rejected,
         session_fault
     };
+
     struct HeightStatus
     {
         bool active{}, fault{};
         typename height_type::StopReason stop_reason = height_type::StopReason::none;
     };
+
     struct Diagnostics
     {
         std::uint64_t session_id{}, capture_time_us{}, output_time_us{}, covariance_time_us{}, completed_fusion_us{};
@@ -401,11 +414,13 @@ public:
         std::uint64_t ground_effect_hold_us{};
         bool ground_effect_supported{};
     };
+
     /** Pure bounded copy at a public-operation boundary, including pending/fault phases.
      * Caller owns synchronization and the capture clock. Reads neither drain
      * innovation events nor advance policies; availability uses existing owner deadlines.
      */
     Diagnostics diagnostics(std::uint64_t now_us) const;
+
     EvaluationEpoch const & gnss_quality_epoch() const { return m_gnss_quality_epoch; }
 
     explicit InsSession(Parameters const & parameters);
@@ -413,7 +428,9 @@ public:
     [[nodiscard]] bool configure_gravity(bool enabled);
     [[nodiscard]] bool configure_magnetic(typename magnetic_model_type::Settings const & settings);
     [[nodiscard]] bool configure_sensor_positions(SensorPositions const & positions);
+
     [[nodiscard]] bool startup_valid() const { return m_parameters_valid; }
+
     // One writer supplies coherent snapshots; complete a pending phase before admitting another IMU.
     void process_imu(ImuInput const & sample, std::uint64_t arrival_us, ContextInput const & context);
     /** Alternative first input, using a caller-qualified attitude at sample.time_us.
@@ -434,44 +451,79 @@ public:
     /** Alternative input for calibrated pressure in Pa, never both inputs for the same observation. */
     void receive_barometer_pressure(typename observation_history_type::SourceStamp const & stamp, double pressure_pa,
                                     std::uint64_t arrival_us);
+
     bool fusion_ready() const { return m_imu_history.delayed() != nullptr && !m_fault; }
+
     void begin_fusion();
     [[nodiscard]] bool complete_fusion(std::optional<typename magnetic_model_type::sample_type> const & model);
+
     ModelRequest const & model_request() const { return m_model_request; }
+
     Phase phase() const { return m_phase; }
+
     Innovations take_innovations();
     [[nodiscard]] bool prepare_output(BodyOutput & body);
     vector3_type navigation_variance(std::size_t start) const;
     BodyOutput body_output() const;
+
     Statistics const & statistics() const { return m_statistics; }
+
     status_type failure_status() const { return m_failure_status; }
+
     state_type const & state() const { return m_state; }
+
     covariance_type const & covariance() const { return m_covariance; }
+
     typename types_type::parameter_type const & estimator_parameters() const { return m_parameters; }
+
     imu_history_type const & imu_history() const { return m_imu_history; }
+
     output_predictor_type const & output_predictor() const { return m_output; }
+
     typename observation_history_type::Context const & imu_context() const { return m_imu_context; }
+
     NavigationOrigin const & navigation_origin() const { return m_origin; }
+
     NavigationFrame<backend_type> const & navigation_frame() const { return m_navigation_frame; }
+
     OriginControl const & origin_control() const { return m_origin_control; }
+
     std::uint64_t fusion_time_us() const { return m_time_us; }
+
     bool initialized() const { return m_initialized; }
+
     InsCapabilities capabilities(std::uint64_t now_us) const;
+
     ImuSourceChanges const & imu_source_changes() const { return m_imu_source_changes; }
+
     ResetReport const & resets() const { return m_resets; }
+
     height_type const & height_aiding() const { return m_height_aiding; }
+
     GroundEffect const & ground_effect() const { return m_ground_effect.state(); }
+
     void receive_ground_effect(GroundEffectEvent const & event);
+
     TiltAlignment<backend_type> const & tilt_alignment() const { return m_tilt_alignment; }
+
     Gravity const & gravity() const { return m_gravity; }
+
     bool gravity_enabled() const { return m_gravity_enabled; }
+
     typename bias_learning_type::Result const & bias_learning_result() const { return m_bias_learning_result; }
+
     vertical_health_type const & vertical_health() const { return m_vertical_health; }
+
     Magnetic const & magnetic_state() const { return m_magnetic; }
+
     bool heading_aligned() const { return m_heading_aligned; }
+
     magnetic_model_type const & magnetic_model() const { return m_magnetic_model; }
+
     Gnss const & gnss_state() const { return m_gnss; }
+
     bool fault() const { return m_fault; }
+
     typename continuity_type::State const & continuity_state() const { return m_continuity.state(); }
 
     bool recent(uint64_t sample, uint64_t max_age) const;
@@ -501,8 +553,11 @@ private:
     static bool valid_parameters(Parameters const & parameters);
     static constexpr double seconds_per_microsecond = 1e-6;
     static constexpr double microtesla_per_gauss = 100.;
+
     static vector3_type vector3(double x, double y, double z) { return vector3_type::from_row_major({x, y, z}); }
+
     static double square(double x) { return x * x; }
+
     template <std::size_t Size> static void clear_innovations(std::array<InnovationEvent, Size> & events)
     {
         for (auto & event : events)
@@ -511,6 +566,7 @@ private:
             event.clear = true;
         }
     }
+
     typename observation_history_type::Context startup_context(std::uint64_t epoch, std::uint64_t maximum_age) const;
     bool seed(state_type const & seed_state, covariance_type const & seed_covariance, ImuInput const & sample,
               std::uint64_t arrival_us, height_type const * prepared_height = nullptr);
@@ -532,7 +588,9 @@ private:
     void record_selection(std::size_t source, typename observation_history_type::PopResult const & result);
     template <typename Observation> EvaluationEpoch evaluation_epoch(Observation const & input);
     EvaluationEpoch gravity_epoch(ImuInput const & input, std::uint64_t interval_us);
+
     FusionDiagnostic & report(Group group) { return m_reports[static_cast<std::size_t>(group)]; }
+
     void record_height(typename height_type::Result const & result, bool committed);
 
     void reset_imu_observations();
@@ -545,6 +603,7 @@ private:
     bool update_imu_health(ImuInput const & sample);
     bool record_gps_fusion(gnss_lifecycle_type::Group group, formal_eskf::runtime::FusionDecision decision,
                            status_type status);
+
     void update_gps_quality();
     formal_eskf::runtime::GnssQualitySample<backend_type> gnss_quality_sample() const;
     formal_eskf::runtime::GnssQualityMotion gnss_motion() const;
@@ -555,9 +614,11 @@ private:
     void check_gnss_velocity_observation(GnssVelocityObservation const & observation);
     bool fuse_gps_velocity(GnssVelocityObservation const & observation);
     bool fuse_gps_position();
+
     void update_ground_effect();
     void fuse_height(ObservationReceipt const & barometer_receipt);
     void fuse_gravity(ImuInput const & sample, imu_type const & imu);
+
     magnetic_lifecycle_type::Conditions magnetic_conditions() const;
     MagneticSample consume_magnetic_sample();
     status_type prepare_magnetic_observation(MagneticSample const & sample,
@@ -565,10 +626,12 @@ private:
                                              magnetic_lifecycle_type::Sample & event);
     bool fuse_magnetic_observation(MagneticSample const & sample);
     status_type reset_magnetic_heading(std::uint64_t sample_time_us);
+
     matrix3_type continuity_basis() const;
     void restrict_bias_learning();
     bool maintain_continuity();
     bool limit_velocity(matrix3_type const & basis, vector3_type const & velocity, std::array<bool, 3> const & limited);
+
     static double frame_angle(matrix3_type const & A);
     matrix3_type delayed_output_axes() const;
     bool output_frame_supported(vector3_type const & position, geodesy::GeodeticPosition const & geographic,
@@ -581,22 +644,26 @@ private:
                                    std::uint64_t output_time_us) const;
     void update_origin();
     status_type rebase_navigation(FrameAdmission const & main, FrameAdmission const & current);
+
     state_type m_state{};
     covariance_type m_covariance{};
     typename types_type::parameter_type m_parameters;
     startup_type m_startup;
     continuity_type m_continuity;
     std::uint64_t m_velocity_seed_time_us{};
+
     imu_history_type m_imu_history{};
     observation_history_type m_observations;
     output_predictor_type m_output;
     typename observation_history_type::Context m_imu_context{};
     typename observation_history_type::BarometerObservation m_barometer{};
+
     NavigationOrigin m_origin{};
     NavigationFrame<backend_type> m_navigation_frame{};
     HeightDatum<backend_type> m_height_datum{};
     OriginControl m_origin_control{};
     SensorPositions m_sensor_positions{};
+
     std::uint64_t m_time_us{};
     bool m_initialized{}, m_fault{}, m_parameters_valid{}, m_configured{};
     bool m_msl_initialized{};
@@ -604,6 +671,7 @@ private:
     std::uint32_t m_heading_reference_id{};
     InsCapabilities::HeadingReference m_heading_reference = InsCapabilities::HeadingReference::relative;
     ResetReport m_resets{};
+
     height_type m_height_aiding;
     barometric_type m_barometric{};
     ground_effect_type m_ground_effect{};

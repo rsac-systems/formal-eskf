@@ -114,12 +114,14 @@ inline reset_proof::Matrix Matrix<contract_proof::Linalg, reset_proof::size, res
 {
     using reset_proof::ProductContract;
     __ESBMC_assert(ProductContract::calls < 2U, "E-RESET product contract: two matrix products in the sandwich");
+
     if (ProductContract::calls++ == 0U)
     {
         ProductContract::first_left = *this;
         ProductContract::first_right = other;
         return *ProductContract::first_result;
     }
+
     ProductContract::second_left = *this;
     ProductContract::second_right = other;
     return *ProductContract::second_result;
@@ -134,6 +136,7 @@ template <> inline bool all_finite(reset_proof::Matrix const & matrix)
 {
     using reset_proof::FiniteContract;
     __ESBMC_assert(FiniteContract::calls == 0U, "E-RESET finalizer contract: exactly one complete candidate check");
+
     ++FiniteContract::calls;
     FiniteContract::received = matrix;
     return FiniteContract::result;
@@ -150,12 +153,14 @@ inline Status right_jacobian<contract_proof::Linalg>(contract_proof::Vector3 con
 {
     using reset_proof::JacobianContract;
     __ESBMC_assert(JacobianContract::calls == 0U, "E-RESET contract: at most one right Jacobian");
+
     ++JacobianContract::calls;
     JacobianContract::received = input;
     if (JacobianContract::status == Status::success)
     {
         output = JacobianContract::result;
     }
+
     return JacobianContract::status;
 }
 } // namespace formal_eskf::so3
@@ -167,6 +172,7 @@ inline reset_proof::Matrix sandwich(reset_proof::Matrix const & transform, reset
 {
     using reset_proof::SandwichContract;
     __ESBMC_assert(SandwichContract::calls == 0U, "E-RESET contract: at most one full covariance sandwich");
+
     ++SandwichContract::calls;
     SandwichContract::transform = transform;
     SandwichContract::covariance = covariance;
@@ -182,6 +188,7 @@ inline reset_proof::Matrix ins_reset(reset_proof::Matrix const & covariance, res
 {
     using reset_proof::GeneratedContract;
     __ESBMC_assert(GeneratedContract::calls++ == 0U, "E-RESET generated: one reset kernel call");
+
     GeneratedContract::covariance = covariance;
     GeneratedContract::jacobian = jacobian;
     return GeneratedContract::result;
@@ -198,11 +205,13 @@ template <> inline Status publish_covariance(reset_proof::Matrix const & candida
     using namespace reset_proof;
     __ESBMC_assert(FinishContract::calls++ == 0U && GeneratedContract::calls == 1U,
                    "E-RESET generated: publish only after the kernel");
+
     FinishContract::received = candidate;
     if (FinishContract::status == Status::success)
     {
         output = candidate;
     }
+
     return FinishContract::status;
 }
 #else
@@ -211,6 +220,7 @@ template <> inline Status finish_covariance(reset_proof::Matrix & candidate, res
     using reset_proof::FinishContract;
     __ESBMC_assert(FinishContract::calls == 0U && reset_proof::SandwichContract::calls == 1U,
                    "E-RESET contract: one finalizer after the sandwich");
+
     ++FinishContract::calls;
     FinishContract::received = candidate;
     if (FinishContract::status == Status::success)
@@ -218,6 +228,7 @@ template <> inline Status finish_covariance(reset_proof::Matrix & candidate, res
         candidate = FinishContract::result;
         output = FinishContract::result;
     }
+
     return FinishContract::status;
 }
 #endif
@@ -234,6 +245,7 @@ void verify_reset_storage(Matrix source, Matrix output, std::size_t row, std::si
     constexpr bool configured = FORMAL_ESKF_PROOF_INS && !FORMAL_ESKF_PROOF_RESET_CONTRACT &&
                                 !FORMAL_ESKF_PROOF_FINITE_CONTRACT && !FORMAL_ESKF_PROOF_ACCESS_CONTRACT;
     __ESBMC_assert(configured, "Runner error: reset storage producer requires actual INS storage");
+
     if constexpr (!configured)
     {
         return;
@@ -245,6 +257,7 @@ void verify_reset_storage(Matrix source, Matrix output, std::size_t row, std::si
     output = source;
     __ESBMC_assert(same_matrix(copy, original) && same_matrix(output, original),
                    "E-RESET storage: actual complete copy construction and assignment");
+
     auto const zero = Matrix::zero();
     Scalar zeros[size * size]{};
     flatten(zero, zeros);
@@ -252,12 +265,14 @@ void verify_reset_storage(Matrix source, Matrix output, std::size_t row, std::si
     {
         __ESBMC_assert(same(zeros[i], Scalar{0}), "E-RESET storage: actual initialization of every positive-zero cell");
     }
+
     auto const index = row * size + column;
     Scalar before[size * size]{}, after[size * size]{};
     flatten(original, before);
     auto const & const_source = source;
     __ESBMC_assert(same(source(row, column), before[index]) && same(const_source(row, column), before[index]),
                    "E-RESET storage: actual mutable and const access uses row-major coordinates");
+
     source(row, column) = replacement;
     flatten(source, after);
     bool frame = true;
@@ -265,6 +280,7 @@ void verify_reset_storage(Matrix source, Matrix output, std::size_t row, std::si
     {
         frame = same(after[i], i == index ? replacement : before[i]) && frame;
     }
+
     __ESBMC_assert(frame, "E-RESET storage: actual setter changes exactly the requested cell");
     __ESBMC_assert(same_matrix(output, original), "E-RESET storage: separate copied output has no shared cells");
 #else
@@ -282,6 +298,7 @@ void verify_reset(Error error, Matrix covariance, Matrix output, Matrix3 jacobia
     constexpr bool configured = FORMAL_ESKF_PROOF_RESET_CONTRACT && !FORMAL_ESKF_PROOF_CONSTRUCTOR_CONTRACT &&
                                 FORMAL_ESKF_PROOF_FINITE_CONTRACT;
     __ESBMC_assert(configured, "Runner error: reset caller requires its explicit callee summaries");
+
     if constexpr (!configured)
     {
         return;
@@ -320,6 +337,7 @@ void verify_reset(Error error, Matrix covariance, Matrix output, Matrix3 jacobia
     __ESBMC_assert(actual == expected, "E-RESET: consumed-input validation and complete callee status propagation");
     __ESBMC_assert(FiniteContract::calls == (call_finite ? 1U : 0U),
                    "E-RESET: covariance is classified exactly after the consumed attitude error");
+
     if (call_finite)
     {
         __ESBMC_assert(same_matrix(FiniteContract::received, covariance_before),
@@ -341,6 +359,7 @@ void verify_reset(Error error, Matrix covariance, Matrix output, Matrix3 jacobia
         __ESBMC_assert(same_vector(JacobianContract::received, error_before.delta_theta_b),
                        "E-RESET: right Jacobian receives the pre-reset local attitude correction");
     }
+
     if (call_sandwich)
     {
         // Literal signed entries, not a call to production hat/set_block.
@@ -359,6 +378,7 @@ void verify_reset(Error error, Matrix covariance, Matrix output, Matrix3 jacobia
                                "E-RESET generated: every exact or first-order J entry reaches the kernel");
             }
         }
+
         __ESBMC_assert(same_matrix(GeneratedContract::covariance, covariance_before),
                        "E-RESET generated: preserve the full old covariance at the kernel boundary");
 #else
@@ -373,16 +393,19 @@ void verify_reset(Error error, Matrix covariance, Matrix output, Matrix3 jacobia
                     entry = ESKF_RESET_APPROX ? entry - skew[row - attitude_offset][column - attitude_offset]
                                               : jacobian(row - attitude_offset, column - attitude_offset);
                 }
+
                 __ESBMC_assert(same(SandwichContract::transform(row, column), entry),
                                "E-RESET: every entry of G, including identity and all attitude cross-block positions");
             }
         }
+
         __ESBMC_assert(same_matrix(SandwichContract::covariance, covariance_before),
                        "E-RESET: the entire prior covariance is forwarded, with no dropped cross-covariances");
 #endif
         __ESBMC_assert(same_matrix(FinishContract::received, product),
                        "E-RESET: the complete sandwich result is finalized");
     }
+
     if (actual == Status::success)
     {
 #if ESKF_CODEGEN && FORMAL_ESKF_PROOF_INS
@@ -395,7 +418,9 @@ void verify_reset(Error error, Matrix covariance, Matrix output, Matrix3 jacobia
     {
         __ESBMC_assert(same_matrix(target, before), "E-RESET: every output coefficient is preserved on failure");
     }
+
     __ESBMC_assert(same_error(error, error_before), "E-RESET: every error component is read-only, never zeroed here");
+
 #if !FORMAL_ESKF_PROOF_ALIAS
     __ESBMC_assert(same_matrix(covariance, covariance_before), "E-RESET: distinct prior covariance is unchanged");
 #endif
@@ -419,6 +444,7 @@ void verify_reset_sandwich(Matrix transform, Matrix covariance, Matrix first, Ma
 {
     constexpr bool configured = !FORMAL_ESKF_PROOF_RESET_CONTRACT && FORMAL_ESKF_PROOF_PRODUCT_CONTRACT;
     __ESBMC_assert(configured, "Runner error: actual sandwich requires only its product summary");
+
     if constexpr (!configured)
     {
         return;
@@ -434,6 +460,7 @@ void verify_reset_sandwich(Matrix transform, Matrix covariance, Matrix first, Ma
                        same_matrix(ProductContract::first_right, covariance_before) &&
                        same_matrix(ProductContract::second_left, first) && same_matrix(actual, second),
                    "E-RESET sandwich: ordered G times the entire P, then returned product times G transpose");
+
     Scalar g[size * size]{}, transposed[size * size]{};
     flatten(transform_before, g);
     flatten(ProductContract::second_right, transposed);
@@ -445,6 +472,7 @@ void verify_reset_sandwich(Matrix transform, Matrix covariance, Matrix first, Ma
             entries = same(transposed[row * size + column], g[column * size + row]) && entries;
         }
     }
+
     __ESBMC_assert(entries, "E-RESET sandwich: every entry of the actual right-hand transpose");
     __ESBMC_assert(same_matrix(transform, transform_before) && same_matrix(covariance, covariance_before),
                    "E-RESET sandwich: both input matrices are unchanged");
@@ -464,10 +492,12 @@ void verify_covariance_product(Matrix left, Matrix right, Matrix entries)
     constexpr bool configured =
         !FORMAL_ESKF_PROOF_PRODUCT_CONTRACT && (!FORMAL_ESKF_PROOF_INS || FORMAL_ESKF_PROOF_PRODUCT_ENTRY_CONTRACT);
     __ESBMC_assert(configured, "Runner error: actual covariance product requires the matching entry boundary");
+
     if constexpr (!configured)
     {
         return;
     }
+
     auto const left_before = left;
     auto const right_before = right;
 #if FORMAL_ESKF_PROOF_INS && FORMAL_ESKF_PROOF_PRODUCT_ENTRY_CONTRACT
@@ -494,9 +524,11 @@ void verify_covariance_product(Matrix left, Matrix right, Matrix entries)
             {
                 sum += a[row * size + k] * b[k * size + column];
             }
+
             expected(row, column) = sum;
         }
     }
+
     auto const actual = left * right;
     for (std::size_t row = 0U; row < size; ++row)
     {
@@ -520,6 +552,7 @@ void verify_covariance_entry(Matrix left, Matrix right, std::size_t row, std::si
     constexpr bool configured = FORMAL_ESKF_PROOF_INS && !FORMAL_ESKF_PROOF_PRODUCT_ENTRY_CONTRACT &&
                                 FORMAL_ESKF_PROOF_DOT_CONTRACT && FORMAL_ESKF_PROOF_ACCESS_CONTRACT;
     __ESBMC_assert(configured, "Runner error: actual INS entry requires dot and access summaries");
+
     if constexpr (!configured)
     {
         return;
@@ -564,10 +597,12 @@ void verify_covariance_dot(formal_eskf::linalg::Vector<Linalg, 15U> left,
                            formal_eskf::linalg::Vector<Linalg, 15U> right)
 {
     __ESBMC_assert(!FORMAL_ESKF_PROOF_DOT_CONTRACT, "Runner error: covariance dot producer must be actual");
+
     if constexpr (FORMAL_ESKF_PROOF_DOT_CONTRACT)
     {
         return;
     }
+
     auto const left_before = left;
     auto const right_before = right;
     Scalar expected{0};
@@ -575,6 +610,7 @@ void verify_covariance_dot(formal_eskf::linalg::Vector<Linalg, 15U> left,
     {
         expected += left_before(k) * right_before(k);
     }
+
     auto const actual = formal_eskf::linalg::dot(left, right);
     __ESBMC_assert(same(actual, expected), "E-RESET dot: actual positive-zero initialized ordered IEEE reduction");
     __ESBMC_assert(same_vector(left, left_before) && same_vector(right, right_before),
@@ -587,6 +623,7 @@ void verify_finish_case(Matrix candidate, Matrix output, bool finite)
 {
     constexpr bool configured = !FORMAL_ESKF_PROOF_RESET_CONTRACT && FORMAL_ESKF_PROOF_FINITE_CONTRACT;
     __ESBMC_assert(configured, "Runner error: actual covariance finalizer requires only the finite-predicate summary");
+
     if constexpr (!configured)
     {
         return;
@@ -607,6 +644,7 @@ void verify_finish_case(Matrix candidate, Matrix output, bool finite)
                    "E-RESET finalizer: the complete original candidate is checked before any mutation");
     __ESBMC_assert(actual == (finite ? Status::success : Status::non_finite_result),
                    "E-RESET finalizer: success exactly for a completely finite candidate");
+
     Scalar prior[size * size]{}, old_output[size * size]{}, current[size * size]{}, result[size * size]{};
     flatten(candidate_before, prior);
     flatten(before, old_output);
@@ -627,6 +665,7 @@ void verify_finish_case(Matrix candidate, Matrix output, bool finite)
                 auto const high = row < column ? column : row;
                 expected = Scalar{0.5} * prior[low * size + high] + Scalar{0.5} * prior[high * size + low];
             }
+
             coefficients = same(current[row * size + column], expected) && coefficients;
             publication =
                 same(result[row * size + column], finite ? expected : old_output[row * size + column]) && publication;
@@ -636,6 +675,7 @@ void verify_finish_case(Matrix candidate, Matrix output, bool finite)
             }
         }
     }
+
     __ESBMC_assert(coefficients, "E-RESET finalizer: unchanged diagonal, paired means, candidate rollback on failure");
     __ESBMC_assert(publication, "E-RESET finalizer: complete successful publication or output rollback");
     __ESBMC_assert(symmetric, "E-RESET finalizer: successful output is symmetric, not a PSD guarantee");
@@ -659,10 +699,12 @@ void verify_reset_finite(Matrix candidate)
 {
     constexpr bool configured = !FORMAL_ESKF_PROOF_FINITE_CONTRACT && !FORMAL_ESKF_PROOF_RESET_CONTRACT;
     __ESBMC_assert(configured, "Runner error: covariance finite predicate must be actual");
+
     if constexpr (!configured)
     {
         return;
     }
+
     auto const before = candidate;
     __ESBMC_assert(formal_eskf::linalg::all_finite(candidate) == finite_matrix(before),
                    "E-RESET finite: true exactly when every covariance entry is finite");

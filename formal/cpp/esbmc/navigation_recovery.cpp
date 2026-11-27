@@ -35,23 +35,27 @@ using Result = formal_eskf::runtime::NavigationFusionResult<Backend, width>;
 using Conditions = formal_eskf::runtime::GnssVelocityConditions<Scalar>;
 using Permissions = formal_eskf::configuration::Ins::BiasUpdate;
 static_assert(step_correction_proof::state_size == 15U && (width == 1U || width == 3U));
+
 bool same_check(Check const & a, Check const & b)
 {
     return a.status == b.status && a.diagnostics_valid == b.diagnostics_valid && a.rejected == b.rejected &&
            same_matrix(a.innovation, b.innovation) && same_matrix(a.innovation_variance, b.innovation_variance) &&
            same_matrix(a.test_ratio, b.test_ratio);
 }
+
 bool same_navigation(NavigationCheck const & a, NavigationCheck const & b)
 {
     return same_check(a.gate, b.gate) && same_matrix(a.fusion_innovation, b.fusion_innovation) &&
            a.innovation_limited == b.innovation_limited;
 }
+
 bool diagnostic_contract(Check const & check, Scalar sigma)
 {
     if (!check.diagnostics_valid)
     {
         return true;
     }
+
     bool valid = check.status == Status::success && std::isfinite(sigma) && sigma > Scalar{0};
     for (std::size_t i = 0U; i < width; ++i)
     {
@@ -59,8 +63,10 @@ bool diagnostic_contract(Check const & check, Scalar sigma)
                 check.innovation_variance(i) > Scalar{0} && std::isfinite(check.test_ratio(i)) &&
                 check.test_ratio(i) >= Scalar{0};
     }
+
     return valid;
 }
+
 Scalar clamp_innovation(Scalar innovation, Scalar bound)
 {
     return innovation < -bound ? -bound : (innovation > bound ? bound : innovation);
@@ -72,17 +78,20 @@ NavigationCheck limited(NavigationCheck check, std::size_t axis, Scalar sigma, b
     {
         return check;
     }
+
     if (!std::isfinite(root))
     {
         check.gate.status = Status::non_finite_result;
         return check;
     }
+
     Scalar const bound = sigma * root;
     if (!std::isfinite(bound))
     {
         check.gate.status = Status::non_finite_result;
         return check;
     }
+
     Scalar const raw = check.gate.innovation(axis);
     check.fusion_innovation(axis) = clamp_innovation(raw, bound);
     check.gate.status = Status::success;
@@ -90,12 +99,14 @@ NavigationCheck limited(NavigationCheck check, std::size_t axis, Scalar sigma, b
     check.innovation_limited = true;
     return check;
 }
+
 struct Preparation
 {
     inline static Noise S;
     inline static Status status;
     inline static unsigned count{};
 };
+
 struct Call
 {
     inline static State const * state{};
@@ -118,6 +129,7 @@ struct Call
     inline static bool limit_allowed{};
     inline static Status correction_status{};
 };
+
 void assert_H(Jacobian const & H)
 {
     for (std::size_t i = 0; i < width; ++i)
@@ -136,9 +148,11 @@ namespace recovery_proof
 {
 inline Scalar expected_root_argument{}, expected_root_result{};
 }
+
 namespace solve_proof
 {
 bool Math::is_finite(Scalar value) { return std::isfinite(value); }
+
 void Math::record_root(Scalar input, Scalar result, unsigned index)
 {
     __ESBMC_assert(index == 0U && same(input, recovery_proof::expected_root_argument) &&
@@ -159,6 +173,7 @@ correction_covariances<recovery_proof::Backend, 15U, recovery_proof::width,
     recovery_proof::Noise const &, recovery_proof::Scalar, correction_proof::Gain &, recovery_proof::Noise & S)
 {
     __ESBMC_assert(recovery_proof::Preparation::count++ == 0U, "R-GNSS-VERTICAL-RECOVERY: one covariance preparation");
+
     S = recovery_proof::Preparation::S;
     return recovery_proof::Preparation::status;
 }
@@ -178,11 +193,13 @@ inline void limit_vertical_innovation<recovery_proof::Backend, recovery_proof::w
             same(sigma, Call::sigma) && allowed == Call::limit_allowed && same_navigation(check, *Call::limit_input) &&
             diagnostic_contract(check.gate, sigma),
         "R-GNSS-VERTICAL-RECOVERY: limiter follows the gate with exact vertical axis, policy and raw diagnostics");
+
     // Exact functional summary established by verify_navigation_limit for
     // this backend/shape, including arbitrary root returns and failures within the diagnostic contract.
     check = limited(check, axis, sigma, allowed, Call::root);
 }
 } // namespace formal_eskf::runtime::detail
+
 namespace formal_eskf::runtime
 {
 template <>
@@ -199,10 +216,12 @@ check_measurement<recovery_proof::Backend, recovery_proof::width,
                        same_matrix(P, *Call::P) && same_matrix(r, *Call::raw) && same_matrix(V, *Call::V) &&
                        same(minimum, Call::minimum) && same(sigma, Call::sigma),
                    "R-GNSS-VERTICAL-RECOVERY: gate forwards original prior, residual, noise and thresholds once");
+
     assert_H(H);
     return Call::check;
 }
 } // namespace formal_eskf::runtime
+
 namespace formal_eskf
 {
 template <>
@@ -224,12 +243,14 @@ inline Status correct<recovery_proof::Backend, recovery_proof::width,
                        same_state(state_output, *Call::state_before) &&
                        same_matrix(covariance_output, *Call::covariance_before),
                    "R-GNSS-VERTICAL-RECOVERY: outputs remain unpublished before checked correction");
+
     assert_H(H);
     if (Call::correction_status == Status::success)
     {
         state_output = *Call::next_state;
         covariance_output = *Call::next_P;
     }
+
     return Call::correction_status;
 }
 } // namespace formal_eskf
@@ -290,6 +311,7 @@ void verify_navigation_limit_product(Scalar sigma, Scalar root)
         !std::isfinite(bound) || bound >= Scalar{0},
         "R-GNSS-VERTICAL-RECOVERY: a finite limit is nonnegative under the explicit nonnegative-root premise");
 }
+
 void verify_navigation_clamp(Scalar innovation, Scalar bound)
 {
     __ESBMC_assume(std::isfinite(innovation) && std::isfinite(bound) && bound >= Scalar{0});
@@ -297,6 +319,7 @@ void verify_navigation_clamp(Scalar innovation, Scalar bound)
     __ESBMC_assert(result >= -bound && result <= bound && (innovation < Scalar{0} || result >= Scalar{0}) &&
                        (innovation > Scalar{0} || result <= Scalar{0}),
                    "R-GNSS-VERTICAL-RECOVERY: scalar clamp obeys the bound and preserves numerical sign");
+
     if (innovation >= -bound && innovation <= bound)
     {
         __ESBMC_assert(same(result, innovation),
@@ -342,10 +365,12 @@ void verify_navigation_recovery(State state, Covariance P, Residual observation,
     {
         state_target = &state;
     }
+
     if constexpr ((FORMAL_ESKF_PROOF_STEP_ALIAS & 2U) != 0U)
     {
         P_target = &P;
     }
+
     auto const before_state = *state_target;
     auto const before_P = *P_target;
     Residual raw;
@@ -360,6 +385,7 @@ void verify_navigation_recovery(State state, Covariance P, Residual observation,
             raw(i) = observation(i) - state.p_n(2U);
         }
     }
+
     Status prefix = Status::success;
     if constexpr (width == 3U)
     {
@@ -385,10 +411,12 @@ void verify_navigation_recovery(State state, Covariance P, Residual observation,
             prefix = Status::domain_error;
         }
     }
+
     if (prefix == Status::success && !correction_proof::finite_matrix(raw))
     {
         prefix = Status::non_finite_result;
     }
+
     bool allowed = bad_acceleration;
     if constexpr (width == 3U)
     {
@@ -396,6 +424,7 @@ void verify_navigation_recovery(State state, Covariance P, Residual observation,
                   conditions.speed_accuracy < conditions.maximum_speed_accuracy && gate.test_ratio(2U) > Scalar{1} &&
                   gate.test_ratio(0U) < Scalar{1} && gate.test_ratio(1U) < Scalar{1};
     }
+
     NavigationCheck expected;
     if (prefix != Status::success)
     {
@@ -416,6 +445,7 @@ void verify_navigation_recovery(State state, Covariance P, Residual observation,
             }
         }
     }
+
     bool const corrected =
         expected.gate.status == Status::success && expected.gate.diagnostics_valid && !expected.gate.rejected;
     Call::state = &old_state;

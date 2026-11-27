@@ -4,12 +4,14 @@
 #define FORMAL_ESKF_PROOF_FRAME_FIRST 0
 #define FORMAL_ESKF_PROOF_FRAME_END 0
 #include "boundary.hpp"
+
 namespace output_boundary
 {
 constexpr std::size_t selected_slot = FORMAL_ESKF_PROOF_SLOT;
 static_assert(selected_slot < 64);
 Scalar selected_history_values[10], selected_workspace_values[10];
 std::uint64_t selected_history_integers[3], selected_workspace_integers[3];
+
 void capture_selected_history()
 {
     selected_history_integers[0] = owner->m_history.m_samples[selected_slot].time_us;
@@ -26,6 +28,7 @@ void capture_selected_history()
     selected_history_values[8] = owner->m_history.m_samples[selected_slot].p_n.m_storage.values.tail.head;
     selected_history_values[9] = owner->m_history.m_samples[selected_slot].p_n.m_storage.values.tail.tail.head;
 }
+
 void capture_selected_workspace()
 {
     selected_workspace_integers[0] = owner->m_staged[selected_slot].time_us;
@@ -42,11 +45,13 @@ void capture_selected_workspace()
     selected_workspace_values[8] = owner->m_staged[selected_slot].p_n.m_storage.values.tail.head;
     selected_workspace_values[9] = owner->m_staged[selected_slot].p_n.m_storage.values.tail.tail.head;
 }
+
 void capture_selected()
 {
     capture_selected_history();
     capture_selected_workspace();
 }
+
 void restore_selected_workspace()
 {
     owner->m_staged[selected_slot].time_us = selected_workspace_integers[0];
@@ -63,6 +68,7 @@ void restore_selected_workspace()
     owner->m_staged[selected_slot].p_n.m_storage.values.tail.head = selected_workspace_values[8];
     owner->m_staged[selected_slot].p_n.m_storage.values.tail.tail.head = selected_workspace_values[9];
 }
+
 void check_selected()
 {
     __ESBMC_assert(owner->m_history.m_samples[selected_slot].time_us == selected_history_integers[0],

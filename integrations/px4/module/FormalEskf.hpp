@@ -182,7 +182,9 @@ private:
     void update_innovations();
     void report_session_failure(std::uint64_t previous_errors) const;
     uint16_t gps_failure_flags() const;
+
     static vector3_type vector3(double x, double y, double z) { return vector3_type::from_row_major({x, y, z}); }
+
     static double square(double x) { return x * x; }
 
     uORB::SubscriptionCallbackWorkItem m_imu_sub{this, ORB_ID(vehicle_imu)};

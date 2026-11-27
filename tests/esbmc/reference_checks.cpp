@@ -12,15 +12,21 @@ struct Object
     unsigned index;
     unsigned calls;
     int * pointer;
+
     int & get()
     {
         ++calls;
         return data[index];
     }
+
     int const & get_const() const { return data[index]; }
+
     int * view(bool visible) { return visible ? &get() : nullptr; }
+
     int * view_const(bool visible) { return visible ? const_cast<int *>(&get_const()) : nullptr; }
+
     int *& pointer_ref() { return pointer; }
+
     int (&array_ref())[64] { return data; }
 };
 
@@ -63,8 +69,11 @@ void verify_reference_array(Object value)
 }
 
 int function(int x) { return x; }
+
 using Function = int(int);
+
 Function & function_ref() { return function; }
+
 void verify_reference_function()
 {
     auto * p = &function_ref();
@@ -77,6 +86,7 @@ void verify_negative_identity(Object value)
     value.calls = 0;
     __ESBMC_assert(&value.get() == &value.data[(value.index + 1U) % 64U], "negative identity");
 }
+
 void verify_negative_write(Object value)
 {
     value.index = 0;
@@ -85,6 +95,7 @@ void verify_negative_write(Object value)
     *(&value.get()) = 42;
     __ESBMC_assert(value.data[1] == 42, "negative write");
 }
+
 void verify_negative_calls(Object value)
 {
     __ESBMC_assume(value.index < 64);

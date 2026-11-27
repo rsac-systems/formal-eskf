@@ -21,6 +21,7 @@ std::size_t original_write;
 constexpr std::size_t observed_slot = FORMAL_ESKF_PROOF_SLOT;
 static_assert(observed_slot < 64);
 Interval expected_slot;
+
 bool same_interval(Interval const & a, Interval const & b)
 {
     bool equal = a.time_us == b.time_us && a.start_time_us == b.start_time_us && a.hold_period_us == b.hold_period_us &&

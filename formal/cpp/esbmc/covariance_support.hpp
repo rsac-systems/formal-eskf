@@ -47,12 +47,14 @@ template <typename Cell> struct CovarianceRow
     Cell c14{};
 
     CovarianceRow() = default;
+
     CovarianceRow(CovarianceRow const & other)
         : c0(other.c0), c1(other.c1), c2(other.c2), c3(other.c3), c4(other.c4), c5(other.c5), c6(other.c6),
           c7(other.c7), c8(other.c8), c9(other.c9), c10(other.c10), c11(other.c11), c12(other.c12), c13(other.c13),
           c14(other.c14)
     {
     }
+
     CovarianceRow & operator=(CovarianceRow const & other)
     {
         c0 = other.c0;
@@ -110,7 +112,9 @@ template <typename Cell> struct CovarianceRow
             return row.c14;
         }
     }
+
     Cell & operator[](std::size_t index) { return at(*this, index); }
+
     Cell const & operator[](std::size_t index) const { return at(*this, index); }
 };
 
@@ -138,6 +142,7 @@ template <typename Number> struct CovarianceCells
         __ESBMC_assert(index < 225U, "covariance storage index is in bounds");
         return rows[index / 15U][index % 15U];
     }
+
     Number const & operator[](std::size_t index) const
     {
         __ESBMC_assert(index < 225U, "covariance storage index is in bounds");

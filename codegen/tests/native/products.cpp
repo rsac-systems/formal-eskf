@@ -45,15 +45,18 @@ enum class Scenario : unsigned
     nonfinite
 };
 template <typename S, std::size_t R, std::size_t C> using Matrix = formal_eskf::linalg::Matrix<Backend<S>, R, C>;
+
 struct Random
 {
     std::uint64_t state;
+
     template <typename S> S value()
     {
         state = state * 6364136223846793005ULL + 1442695040888963407ULL;
         return static_cast<S>(static_cast<double>(state >> 11U) / 9007199254740992.0 * 2.0 - 1.0);
     }
 };
+
 template <typename M> void fill(M & a, Random & random)
 {
     using S = typename M::value_type;
@@ -65,6 +68,7 @@ template <typename M> void fill(M & a, Random & random)
         }
     }
 }
+
 template <typename M> void positive(M & a, Random & random)
 {
     M l;
@@ -80,6 +84,7 @@ template <typename M> void positive(M & a, Random & random)
         std::abort();
     }
 }
+
 template <typename M> void print_matrix(char const * name, M const & a)
 {
     using S = typename M::value_type;
@@ -102,6 +107,7 @@ template <typename M> void print_matrix(char const * name, M const & a)
     }
     std::printf("]");
 }
+
 template <typename M> bool same_bits(M const & a, M const & b)
 {
     using Bytes = std::array<std::byte, sizeof(typename M::value_type)>;
@@ -117,7 +123,9 @@ template <typename M> bool same_bits(M const & a, M const & b)
     }
     return true;
 }
+
 volatile double checksum;
+
 template <typename S>
 __attribute__((noinline)) auto dense_ins_reset(Matrix<S, 15U, 15U> const & P, Matrix<S, 3U, 3U> const & J)
 {
@@ -125,11 +133,13 @@ __attribute__((noinline)) auto dense_ins_reset(Matrix<S, 15U, 15U> const & P, Ma
     G.template set_block<6U, 6U>(J);
     return formal_eskf::linalg::sandwich(G, P);
 }
+
 template <typename S>
 __attribute__((noinline)) auto generated_ins_reset(Matrix<S, 15U, 15U> const & P, Matrix<S, 3U, 3U> const & J)
 {
     return formal_eskf::detail::generated::ins_reset(P, J);
 }
+
 template <typename S>
 __attribute__((noinline)) auto block_ins_reset(Matrix<S, 15U, 15U> const & P, Matrix<S, 3U, 3U> const & J)
 {
@@ -140,16 +150,19 @@ __attribute__((noinline)) auto block_ins_reset(Matrix<S, 15U, 15U> const & P, Ma
     result.template set_block<6U, 6U>(cross.template block<0U, 6U, 3U, 3U>() * formal_eskf::linalg::transpose(J));
     return result;
 }
+
 template <typename S> __attribute__((noinline)) auto dense_ins_horizontal_position_cross(Matrix<S, 15U, 15U> const & P)
 {
     auto const H = formal_eskf::horizontal_position_jacobian<Backend<S>>();
     return P * formal_eskf::linalg::transpose(H);
 }
+
 template <typename S>
 __attribute__((noinline)) auto generated_ins_horizontal_position_cross(Matrix<S, 15U, 15U> const & P)
 {
     return formal_eskf::detail::generated::ins_horizontal_position_cross(P);
 }
+
 template <typename S>
 __attribute__((noinline)) auto dense_ins_horizontal_position_innovation(Matrix<S, 15U, 2U> const & C,
                                                                         Matrix<S, 2U, 2U> const & V)
@@ -157,12 +170,14 @@ __attribute__((noinline)) auto dense_ins_horizontal_position_innovation(Matrix<S
     auto const H = formal_eskf::horizontal_position_jacobian<Backend<S>>();
     return H * C + V;
 }
+
 template <typename S>
 __attribute__((noinline)) auto generated_ins_horizontal_position_innovation(Matrix<S, 15U, 2U> const & C,
                                                                             Matrix<S, 2U, 2U> const & V)
 {
     return formal_eskf::detail::generated::ins_horizontal_position_innovation(C, V);
 }
+
 template <typename S>
 __attribute__((noinline)) auto
 dense_ins_horizontal_position_joseph(Matrix<S, 15U, 15U> const & P, Matrix<S, 15U, 15U> const & A,
@@ -170,6 +185,7 @@ dense_ins_horizontal_position_joseph(Matrix<S, 15U, 15U> const & P, Matrix<S, 15
 {
     return formal_eskf::linalg::sandwich(A, P) + formal_eskf::linalg::sandwich(K, V);
 }
+
 template <typename S>
 __attribute__((noinline)) auto
 generated_ins_horizontal_position_joseph(Matrix<S, 15U, 15U> const & P, Matrix<S, 15U, 15U> const & A,
@@ -177,16 +193,19 @@ generated_ins_horizontal_position_joseph(Matrix<S, 15U, 15U> const & P, Matrix<S
 {
     return formal_eskf::detail::generated::ins_horizontal_position_joseph(P, A, K, V);
 }
+
 template <typename S> __attribute__((noinline)) auto dense_ins_vertical_position_cross(Matrix<S, 15U, 15U> const & P)
 {
     auto const H = formal_eskf::vertical_position_jacobian<Backend<S>>();
     return P * formal_eskf::linalg::transpose(H);
 }
+
 template <typename S>
 __attribute__((noinline)) auto generated_ins_vertical_position_cross(Matrix<S, 15U, 15U> const & P)
 {
     return formal_eskf::detail::generated::ins_vertical_position_cross(P);
 }
+
 template <typename S>
 __attribute__((noinline)) auto dense_ins_vertical_position_innovation(Matrix<S, 15U, 1U> const & C,
                                                                       Matrix<S, 1U, 1U> const & V)
@@ -194,12 +213,14 @@ __attribute__((noinline)) auto dense_ins_vertical_position_innovation(Matrix<S, 
     auto const H = formal_eskf::vertical_position_jacobian<Backend<S>>();
     return H * C + V;
 }
+
 template <typename S>
 __attribute__((noinline)) auto generated_ins_vertical_position_innovation(Matrix<S, 15U, 1U> const & C,
                                                                           Matrix<S, 1U, 1U> const & V)
 {
     return formal_eskf::detail::generated::ins_vertical_position_innovation(C, V);
 }
+
 template <typename S>
 __attribute__((noinline)) auto
 dense_ins_vertical_position_joseph(Matrix<S, 15U, 15U> const & P, Matrix<S, 15U, 15U> const & A,
@@ -207,6 +228,7 @@ dense_ins_vertical_position_joseph(Matrix<S, 15U, 15U> const & P, Matrix<S, 15U,
 {
     return formal_eskf::linalg::sandwich(A, P) + formal_eskf::linalg::sandwich(K, V);
 }
+
 template <typename S>
 __attribute__((noinline)) auto
 generated_ins_vertical_position_joseph(Matrix<S, 15U, 15U> const & P, Matrix<S, 15U, 15U> const & A,
@@ -214,16 +236,19 @@ generated_ins_vertical_position_joseph(Matrix<S, 15U, 15U> const & P, Matrix<S, 
 {
     return formal_eskf::detail::generated::ins_vertical_position_joseph(P, A, K, V);
 }
+
 template <typename S> __attribute__((noinline)) auto dense_ins_horizontal_velocity_cross(Matrix<S, 15U, 15U> const & P)
 {
     auto const H = formal_eskf::horizontal_velocity_jacobian<Backend<S>>();
     return P * formal_eskf::linalg::transpose(H);
 }
+
 template <typename S>
 __attribute__((noinline)) auto generated_ins_horizontal_velocity_cross(Matrix<S, 15U, 15U> const & P)
 {
     return formal_eskf::detail::generated::ins_horizontal_velocity_cross(P);
 }
+
 template <typename S>
 __attribute__((noinline)) auto dense_ins_horizontal_velocity_innovation(Matrix<S, 15U, 2U> const & C,
                                                                         Matrix<S, 2U, 2U> const & V)
@@ -231,12 +256,14 @@ __attribute__((noinline)) auto dense_ins_horizontal_velocity_innovation(Matrix<S
     auto const H = formal_eskf::horizontal_velocity_jacobian<Backend<S>>();
     return H * C + V;
 }
+
 template <typename S>
 __attribute__((noinline)) auto generated_ins_horizontal_velocity_innovation(Matrix<S, 15U, 2U> const & C,
                                                                             Matrix<S, 2U, 2U> const & V)
 {
     return formal_eskf::detail::generated::ins_horizontal_velocity_innovation(C, V);
 }
+
 template <typename S>
 __attribute__((noinline)) auto
 dense_ins_horizontal_velocity_joseph(Matrix<S, 15U, 15U> const & P, Matrix<S, 15U, 15U> const & A,
@@ -244,6 +271,7 @@ dense_ins_horizontal_velocity_joseph(Matrix<S, 15U, 15U> const & P, Matrix<S, 15
 {
     return formal_eskf::linalg::sandwich(A, P) + formal_eskf::linalg::sandwich(K, V);
 }
+
 template <typename S>
 __attribute__((noinline)) auto
 generated_ins_horizontal_velocity_joseph(Matrix<S, 15U, 15U> const & P, Matrix<S, 15U, 15U> const & A,
@@ -251,33 +279,39 @@ generated_ins_horizontal_velocity_joseph(Matrix<S, 15U, 15U> const & P, Matrix<S
 {
     return formal_eskf::detail::generated::ins_horizontal_velocity_joseph(P, A, K, V);
 }
+
 template <typename S> __attribute__((noinline)) auto dense_ins_velocity_cross(Matrix<S, 15U, 15U> const & P)
 {
     auto const H = formal_eskf::velocity_jacobian<Backend<S>>();
     return P * formal_eskf::linalg::transpose(H);
 }
+
 template <typename S> __attribute__((noinline)) auto generated_ins_velocity_cross(Matrix<S, 15U, 15U> const & P)
 {
     return formal_eskf::detail::generated::ins_velocity_cross(P);
 }
+
 template <typename S>
 __attribute__((noinline)) auto dense_ins_velocity_innovation(Matrix<S, 15U, 3U> const & C, Matrix<S, 3U, 3U> const & V)
 {
     auto const H = formal_eskf::velocity_jacobian<Backend<S>>();
     return H * C + V;
 }
+
 template <typename S>
 __attribute__((noinline)) auto generated_ins_velocity_innovation(Matrix<S, 15U, 3U> const & C,
                                                                  Matrix<S, 3U, 3U> const & V)
 {
     return formal_eskf::detail::generated::ins_velocity_innovation(C, V);
 }
+
 template <typename S>
 __attribute__((noinline)) auto dense_ins_velocity_joseph(Matrix<S, 15U, 15U> const & P, Matrix<S, 15U, 15U> const & A,
                                                          Matrix<S, 15U, 3U> const & K, Matrix<S, 3U, 3U> const & V)
 {
     return formal_eskf::linalg::sandwich(A, P) + formal_eskf::linalg::sandwich(K, V);
 }
+
 template <typename S>
 __attribute__((noinline)) auto generated_ins_velocity_joseph(Matrix<S, 15U, 15U> const & P,
                                                              Matrix<S, 15U, 15U> const & A,
@@ -285,6 +319,7 @@ __attribute__((noinline)) auto generated_ins_velocity_joseph(Matrix<S, 15U, 15U>
 {
     return formal_eskf::detail::generated::ins_velocity_joseph(P, A, K, V);
 }
+
 template <typename S>
 __attribute__((noinline)) auto dense_ins_body_vector_cross(Matrix<S, 15U, 15U> const & P, Matrix<S, 3U, 1U> const & h)
 {
@@ -292,12 +327,14 @@ __attribute__((noinline)) auto dense_ins_body_vector_cross(Matrix<S, 15U, 15U> c
     H.template set_block<0U, 6U>(formal_eskf::so3::hat<Backend<S>>(h));
     return P * formal_eskf::linalg::transpose(H);
 }
+
 template <typename S>
 __attribute__((noinline)) auto generated_ins_body_vector_cross(Matrix<S, 15U, 15U> const & P,
                                                                Matrix<S, 3U, 1U> const & h)
 {
     return formal_eskf::detail::generated::ins_body_vector_cross(P, h);
 }
+
 template <typename S>
 __attribute__((noinline)) auto
 dense_ins_body_vector_innovation(Matrix<S, 15U, 3U> const & C, Matrix<S, 3U, 1U> const & h, Matrix<S, 3U, 3U> const & V)
@@ -306,6 +343,7 @@ dense_ins_body_vector_innovation(Matrix<S, 15U, 3U> const & C, Matrix<S, 3U, 1U>
     H.template set_block<0U, 6U>(formal_eskf::so3::hat<Backend<S>>(h));
     return H * C + V;
 }
+
 template <typename S>
 __attribute__((noinline)) auto generated_ins_body_vector_innovation(Matrix<S, 15U, 3U> const & C,
                                                                     Matrix<S, 3U, 1U> const & h,
@@ -313,6 +351,7 @@ __attribute__((noinline)) auto generated_ins_body_vector_innovation(Matrix<S, 15
 {
     return formal_eskf::detail::generated::ins_body_vector_innovation(C, h, V);
 }
+
 template <typename S>
 __attribute__((noinline)) auto dense_ins_body_vector_joseph(Matrix<S, 15U, 15U> const & P,
                                                             Matrix<S, 15U, 15U> const & A, Matrix<S, 15U, 3U> const & K,
@@ -320,6 +359,7 @@ __attribute__((noinline)) auto dense_ins_body_vector_joseph(Matrix<S, 15U, 15U> 
 {
     return formal_eskf::linalg::sandwich(A, P) + formal_eskf::linalg::sandwich(K, V);
 }
+
 template <typename S>
 __attribute__((noinline)) auto
 generated_ins_body_vector_joseph(Matrix<S, 15U, 15U> const & P, Matrix<S, 15U, 15U> const & A,
@@ -434,6 +474,7 @@ template <typename S> void test_ins_reset(bool bench)
         }
     }
 }
+
 template <typename S> void test_ins_horizontal_position_cross(bool bench)
 {
     for (unsigned seed = 0; seed < (bench ? 8U : 72U); ++seed)
@@ -520,6 +561,7 @@ template <typename S> void test_ins_horizontal_position_cross(bool bench)
         }
     }
 }
+
 template <typename S> void test_ins_horizontal_position_innovation(bool bench)
 {
     for (unsigned seed = 0; seed < (bench ? 8U : 72U); ++seed)
@@ -595,6 +637,7 @@ template <typename S> void test_ins_horizontal_position_innovation(bool bench)
         }
     }
 }
+
 template <typename S> void test_ins_horizontal_position_joseph(bool bench)
 {
     for (unsigned seed = 0; seed < (bench ? 8U : 72U); ++seed)
@@ -719,6 +762,7 @@ template <typename S> void test_ins_horizontal_position_joseph(bool bench)
         }
     }
 }
+
 template <typename S> void test_ins_vertical_position_cross(bool bench)
 {
     for (unsigned seed = 0; seed < (bench ? 8U : 72U); ++seed)
@@ -805,6 +849,7 @@ template <typename S> void test_ins_vertical_position_cross(bool bench)
         }
     }
 }
+
 template <typename S> void test_ins_vertical_position_innovation(bool bench)
 {
     for (unsigned seed = 0; seed < (bench ? 8U : 72U); ++seed)
@@ -880,6 +925,7 @@ template <typename S> void test_ins_vertical_position_innovation(bool bench)
         }
     }
 }
+
 template <typename S> void test_ins_vertical_position_joseph(bool bench)
 {
     for (unsigned seed = 0; seed < (bench ? 8U : 72U); ++seed)
@@ -1004,6 +1050,7 @@ template <typename S> void test_ins_vertical_position_joseph(bool bench)
         }
     }
 }
+
 template <typename S> void test_ins_horizontal_velocity_cross(bool bench)
 {
     for (unsigned seed = 0; seed < (bench ? 8U : 72U); ++seed)
@@ -1090,6 +1137,7 @@ template <typename S> void test_ins_horizontal_velocity_cross(bool bench)
         }
     }
 }
+
 template <typename S> void test_ins_horizontal_velocity_innovation(bool bench)
 {
     for (unsigned seed = 0; seed < (bench ? 8U : 72U); ++seed)
@@ -1165,6 +1213,7 @@ template <typename S> void test_ins_horizontal_velocity_innovation(bool bench)
         }
     }
 }
+
 template <typename S> void test_ins_horizontal_velocity_joseph(bool bench)
 {
     for (unsigned seed = 0; seed < (bench ? 8U : 72U); ++seed)
@@ -1289,6 +1338,7 @@ template <typename S> void test_ins_horizontal_velocity_joseph(bool bench)
         }
     }
 }
+
 template <typename S> void test_ins_velocity_cross(bool bench)
 {
     for (unsigned seed = 0; seed < (bench ? 8U : 72U); ++seed)
@@ -1374,6 +1424,7 @@ template <typename S> void test_ins_velocity_cross(bool bench)
         }
     }
 }
+
 template <typename S> void test_ins_velocity_innovation(bool bench)
 {
     for (unsigned seed = 0; seed < (bench ? 8U : 72U); ++seed)
@@ -1449,6 +1500,7 @@ template <typename S> void test_ins_velocity_innovation(bool bench)
         }
     }
 }
+
 template <typename S> void test_ins_velocity_joseph(bool bench)
 {
     for (unsigned seed = 0; seed < (bench ? 8U : 72U); ++seed)
@@ -1573,6 +1625,7 @@ template <typename S> void test_ins_velocity_joseph(bool bench)
         }
     }
 }
+
 template <typename S> void test_ins_body_vector_cross(bool bench)
 {
     for (unsigned seed = 0; seed < (bench ? 8U : 72U); ++seed)
@@ -1674,6 +1727,7 @@ template <typename S> void test_ins_body_vector_cross(bool bench)
         }
     }
 }
+
 template <typename S> void test_ins_body_vector_innovation(bool bench)
 {
     for (unsigned seed = 0; seed < (bench ? 8U : 72U); ++seed)
@@ -1764,6 +1818,7 @@ template <typename S> void test_ins_body_vector_innovation(bool bench)
         }
     }
 }
+
 template <typename S> void test_ins_body_vector_joseph(bool bench)
 {
     for (unsigned seed = 0; seed < (bench ? 8U : 72U); ++seed)
@@ -1915,6 +1970,7 @@ template <typename S> void test_ins_body_vector_joseph(bool bench)
         }
     }
 }
+
 int main(int argc, char ** argv)
 {
     if (std::fegetround() != FE_TONEAREST)

@@ -114,6 +114,7 @@ template <typename B, std::size_t Size, std::size_t Columns> struct KnownFixture
     using Solution = formal_eskf::linalg::Matrix<B, Size, Columns>;
     System system;
     Solution solution;
+
     KnownFixture()
     {
         // L has diagonal 2 and lower triangle 1/2. All operations in S=L*L^T,
@@ -328,6 +329,7 @@ template <typename Base> struct ControlledSolve : Base
     static inline Status status{};
     static inline Scalar candidate_value{};
     static inline unsigned calls{};
+
     template <std::size_t Size, std::size_t Columns>
     static Status solve_spd(Storage<Size, Size> const &, Storage<Size, Columns> const &,
                             Storage<Size, Columns> & output)
@@ -374,6 +376,7 @@ template <typename B> void result_failure(Context & test, std::string_view profi
     expect_failure(test, profile, Actual::identity() * Scalar{0.5},
                    Actual::identity() * std::numeric_limits<Scalar>::max(), Status::non_finite_result);
 }
+
 template <typename Linalg> void test_scaling(TestContext & test, std::string_view profile)
 {
     using value_type = typename Linalg::value_type;

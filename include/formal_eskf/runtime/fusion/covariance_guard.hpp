@@ -24,10 +24,12 @@ template <typename Linalg> Status guard_covariance_input(linalg::Matrix<Linalg, 
     {
         return Status::non_finite_input;
     }
+
     if (!linalg::detail::is_symmetric_finite(covariance, typename Linalg::value_type{0}))
     {
         return Status::domain_error;
     }
+
     for (std::size_t i = 0; i < 15; ++i)
     {
         if (covariance(i, i) < 0)
@@ -35,6 +37,7 @@ template <typename Linalg> Status guard_covariance_input(linalg::Matrix<Linalg, 
             return Status::domain_error;
         }
     }
+
     return Status::success;
 }
 } // namespace detail
@@ -60,25 +63,30 @@ regularize_translation_covariance(linalg::Matrix<Linalg, 15, 15> const & covaria
     {
         return result;
     }
+
     if (!linalg::all_finite(basis) || !std::isfinite(variance_limit))
     {
         result.status = Status::non_finite_input;
         return result;
     }
+
     if (axis >= 6 || variance_limit <= 0)
     {
         result.status = Status::domain_error;
         return result;
     }
+
     if (!unavailable[axis])
     {
         return result;
     }
+
     linalg::Matrix<Linalg, 1, 15> H;
     for (std::size_t i = 0; i < 3; ++i)
     {
         H(0, (axis / 3) * 3 + i) = basis(axis % 3, i);
     }
+
     auto const cross = covariance * linalg::transpose(H);
     auto const variance = (H * cross)(0);
     if (!std::isfinite(variance))
@@ -86,15 +94,18 @@ regularize_translation_covariance(linalg::Matrix<Linalg, 15, 15> const & covaria
         result.status = Status::non_finite_result;
         return result;
     }
+
     if (variance < 0)
     {
         result.status = Status::domain_error;
         return result;
     }
+
     if (variance <= variance_limit)
     {
         return result;
     }
+
     auto const noise = value_type{10} * variance;
     auto const innovation = variance + noise;
     if (!std::isfinite(innovation) || !(innovation > 0))
@@ -102,6 +113,7 @@ regularize_translation_covariance(linalg::Matrix<Linalg, 15, 15> const & covaria
         result.status = Status::non_finite_result;
         return result;
     }
+
     linalg::Vector<Linalg, 15> K;
     for (std::size_t block = 0; block < 2; ++block)
     {
@@ -110,18 +122,21 @@ regularize_translation_covariance(linalg::Matrix<Linalg, 15, 15> const & covaria
         {
             column(i) = cross(3 * block + i);
         }
+
         auto gain = basis * column;
         for (std::size_t i = 0; i < 3; ++i)
         {
             gain(i) = unavailable[3 * block + i] ? gain(i) / innovation : value_type{0};
             result.affected[3 * block + i] = gain(i) != 0;
         }
+
         auto const working = linalg::transpose(basis) * gain;
         for (std::size_t i = 0; i < 3; ++i)
         {
             K(3 * block + i) = working(i);
         }
     }
+
     linalg::Vector<Linalg, 15> zero_correction;
     result.status = formal_eskf::detail::apply_correction_gain(covariance, linalg::Vector<Linalg, 1>{}, H,
                                                                linalg::Matrix<Linalg, 1, 1>::from_row_major({noise}), K,
@@ -131,6 +146,7 @@ regularize_translation_covariance(linalg::Matrix<Linalg, 15, 15> const & covaria
     {
         result.affected = {};
     }
+
     return result;
 }
 
@@ -150,49 +166,58 @@ regularize_heading_covariance(linalg::Matrix<Linalg, 15, 15> const & covariance,
     {
         return result;
     }
+
     if (!linalg::all_finite(attitude.coefficients()) || !std::isfinite(variance_limit) ||
         !std::isfinite(noise_variance))
     {
         result.status = Status::non_finite_input;
         return result;
     }
+
     if (variance_limit < 0 || !(noise_variance > 0))
     {
         result.status = Status::domain_error;
         return result;
     }
+
     auto const R = so3::to_rotation_matrix(attitude);
     linalg::Matrix<Linalg, 1, 15> H;
     for (std::size_t i = 0; i < 3; ++i)
     {
         H(0, 6 + i) = R(2, i);
     }
+
     auto const variance = (H * covariance * linalg::transpose(H))(0);
     if (!std::isfinite(variance))
     {
         result.status = Status::non_finite_result;
         return result;
     }
+
     if (variance < 0)
     {
         result.status = Status::domain_error;
         return result;
     }
+
     if (variance <= variance_limit)
     {
         return result;
     }
+
     auto const innovation = variance + noise_variance;
     if (!std::isfinite(innovation) || !(innovation > 0))
     {
         result.status = Status::non_finite_result;
         return result;
     }
+
     linalg::Vector<Linalg, 15> K;
     for (std::size_t i = 0; i < 3; ++i)
     {
         K(6 + i) = R(2, i) * (variance / innovation);
     }
+
     linalg::Vector<Linalg, 15> zero_correction;
     result.status = formal_eskf::detail::apply_correction_gain(
         covariance, linalg::Vector<Linalg, 1>{}, H, linalg::Matrix<Linalg, 1, 1>::from_row_major({noise_variance}), K,

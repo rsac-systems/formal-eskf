@@ -255,6 +255,7 @@ void failure(Context & test, std::string_view profile)
     test.expect(frame.ned_to_ecef(input, input) == Status::non_finite_result && same(input, before), profile,
                 "overflow preserves aliased input/output");
 }
+
 void frame_transform(Context & test, std::string_view profile)
 {
     Frame source, destination;
@@ -266,11 +267,13 @@ void frame_transform(Context & test, std::string_view profile)
                     same(transform.rotation, Matrix::from_row_major({1, 0, 0, 0, 0, 1, 0, -1, 0})) &&
                     la::max_abs(transform.translation - Vector::from_row_major({0, -6378137, 6378137})) == 0.0,
                 profile, "hand-calculated source-to-destination rotation and translation");
+
     struct OriginPair
     {
         geo::GeodeticPosition source;
         geo::GeodeticPosition destination;
     };
+
     for (OriginPair const origins : {OriginPair{{25, 121, 100}, {-33, 151, 70}},
                                      {{0, 179.999, 10}, {0, -179.999, 10}},
                                      {{0, 0, 0}, {90, 80, 0}},

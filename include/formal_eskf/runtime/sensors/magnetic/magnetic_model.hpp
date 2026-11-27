@@ -55,13 +55,21 @@ public:
                                      bool position_valid, bool origin_updated = false);
 
     vector_type const & observation_n() const { return m_observation; }
+
     vector_type const & health_n() const { return m_model.state().field_n; }
+
     bool available() const { return m_model.state().reference_id != 0U; }
+
     std::uint32_t reference_id() const { return m_reference_id; }
+
     std::uint32_t model_revision() const { return m_model.state().reference_id; }
+
     std::uint64_t lookup_count() const { return m_lookup_count; }
+
     std::uint64_t last_lookup_time() const { return m_last_lookup_time; }
+
     HeadingSource heading_source() const { return m_heading_source; }
+
     value_type declination() const { return m_declination; }
 
     /** Express a local geographic NED model in a caller-specified reference NED. */

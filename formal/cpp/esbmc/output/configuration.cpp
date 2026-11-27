@@ -8,11 +8,14 @@
 #define configure_timing output_verified_timing
 #include <formal_eskf/runtime/history/timing.hpp>
 #undef configure_timing
+
 namespace formal_eskf::runtime
 {
 bool configure_timing(TimingParameters const &, ImuTiming const &, std::size_t, TimingConfiguration &);
 }
+
 #include "boundary.hpp"
+
 namespace
 {
 using namespace output_boundary;
@@ -22,6 +25,7 @@ formal_eskf::runtime::TimingParameters expected_parameters;
 formal_eskf::runtime::TimingConfiguration timing_result;
 bool timing_success;
 } // namespace
+
 namespace formal_eskf::runtime
 {
 bool configure_timing(TimingParameters const & parameters, ImuTiming const & timing, std::size_t capacity,
@@ -46,6 +50,7 @@ bool configure_timing(TimingParameters const & parameters, ImuTiming const & tim
     return timing_success;
 }
 } // namespace formal_eskf::runtime
+
 template <> void formal_eskf::runtime::RingBuffer<output_proof::Sample, 64>::reset()
 {
     using namespace output_boundary;
@@ -62,6 +67,7 @@ template <> void formal_eskf::runtime::RingBuffer<output_proof::Sample, 64>::res
     capture_storage();
     ++resets;
 }
+
 void verify_output_configuration(Output input_owner, formal_eskf::runtime::TimingParameters parameters,
                                  formal_eskf::runtime::TimingConfiguration output, bool success)
 {

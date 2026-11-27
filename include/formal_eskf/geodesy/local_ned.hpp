@@ -28,7 +28,9 @@ public:
     using matrix_type = linalg::Matrix<Linalg, 3U, 3U>;
 
     [[nodiscard]] Status set_origin(GeodeticPosition const & origin);
+
     bool initialized() const { return m_initialized; }
+
     [[nodiscard]] Status ecef_to_ned(vector_type const & position_e, vector_type & position_n) const;
     [[nodiscard]] Status ned_to_ecef(vector_type const & position_n, vector_type & position_e) const;
     [[nodiscard]] Status rotation_from_ecef(matrix_type & C_ne) const;

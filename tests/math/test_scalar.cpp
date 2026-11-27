@@ -28,24 +28,31 @@ struct Interval
     long double low;
     long double high;
 };
+
 long double down(long double value) { return std::nextafter(value, -std::numeric_limits<long double>::infinity()); }
+
 long double up(long double value) { return std::nextafter(value, std::numeric_limits<long double>::infinity()); }
+
 Interval add(Interval const & a, Interval const & b) { return {down(a.low + b.low), up(a.high + b.high)}; }
+
 Interval multiply(Interval const & a, Interval const & b)
 {
     std::array const products{a.low * b.low, a.low * b.high, a.high * b.low, a.high * b.high};
     return {down(*std::min_element(products.begin(), products.end())),
             up(*std::max_element(products.begin(), products.end()))};
 }
+
 Interval divide(Interval const & value, long double positive)
 {
     return {down(value.low / positive), up(value.high / positive)};
 }
+
 Interval pi_interval()
 {
     constexpr long double pi = 3.141592653589793238462643383279502884L;
     return {down(pi), up(pi)};
 }
+
 std::array<Interval, 2> trig_reference(long double angle, int turns)
 {
     Interval x = add({angle, angle}, multiply({-2.0L * turns, -2.0L * turns}, pi_interval()));
@@ -320,25 +327,30 @@ template <typename Scalar> struct ControlledMath
     using value_type = Scalar;
     static inline Scalar sqrt_result{}, sine_result{}, cosine_result{}, atan_result{}, first{}, second{};
     static inline unsigned calls{};
+
     static bool is_finite(Scalar value) { return std::isfinite(value); }
+
     static Scalar sqrt(Scalar value)
     {
         ++calls;
         first = value;
         return sqrt_result;
     }
+
     static Scalar sin(Scalar value)
     {
         ++calls;
         first = value;
         return sine_result;
     }
+
     static Scalar cos(Scalar value)
     {
         ++calls;
         second = value;
         return cosine_result;
     }
+
     static Scalar atan2(Scalar y, Scalar x)
     {
         ++calls;
@@ -402,10 +414,12 @@ template <typename Scalar> void positive_power(Context & test, std::string_view 
 {
     using Math = formal_eskf::scalar::StandardMath<Scalar>;
     using F = std::numeric_limits<Scalar>;
+
     struct Fixture
     {
         Scalar base, exponent, result;
     };
+
     for (auto const & f : {Fixture{Scalar{4}, Scalar{0.5}, Scalar{2}}, Fixture{Scalar{2}, Scalar{-3}, Scalar{0.125}},
                            Fixture{Scalar{0.5}, Scalar{0}, Scalar{1}}, Fixture{Scalar{1}, F::max(), Scalar{1}}})
     {
@@ -447,7 +461,9 @@ template <typename Scalar> struct PowerObserver
     using value_type = Scalar;
     static inline Scalar result{}, first{}, second{};
     static inline unsigned calls{};
+
     static bool is_finite(Scalar value) { return std::isfinite(value); }
+
     static Scalar pow(Scalar base, Scalar exponent)
     {
         ++calls;

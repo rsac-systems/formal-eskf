@@ -28,6 +28,7 @@ enum class Kind
     vertical_velocity,
     position
 };
+
 struct Boundary
 {
     Kind kind{};
@@ -42,6 +43,7 @@ struct Boundary
 } boundary;
 
 Vector vector3(double x, double y, double z) { return Vector::from_row_major({x, y, z}); }
+
 void reset_frame(unsigned & state, unsigned & covariance, unsigned & output, unsigned & output_covariance)
 {
     __ESBMC_assert(!boundary.reset_called && &state == boundary.state && &covariance == boundary.covariance &&
@@ -50,6 +52,7 @@ void reset_frame(unsigned & state, unsigned & covariance, unsigned & output, uns
     boundary.reset_called = true;
 }
 } // namespace
+
 namespace formal_eskf::runtime
 {
 Status reset_velocity(unsigned & state, unsigned & covariance, Vector const & value, Vector const & variance,
@@ -62,6 +65,7 @@ Status reset_velocity(unsigned & state, unsigned & covariance, Vector const & va
     delta = boundary.delta;
     return boundary.core;
 }
+
 Status reset_vertical_velocity(unsigned & state, unsigned & covariance, double value, double variance,
                                unsigned & output, unsigned & output_covariance, double & delta)
 {
@@ -72,6 +76,7 @@ Status reset_vertical_velocity(unsigned & state, unsigned & covariance, double v
     delta = boundary.delta(2);
     return boundary.core;
 }
+
 Status reset_gnss_horizontal_position(unsigned & state, unsigned & covariance, Vector2 const & value,
                                       Vector2 const & variance, unsigned & output, unsigned & output_covariance,
                                       Vector2 & delta)
@@ -85,11 +90,13 @@ Status reset_gnss_horizontal_position(unsigned & state, unsigned & covariance, V
     return boundary.core;
 }
 } // namespace formal_eskf::runtime
+
 namespace
 {
 struct Lifecycle
 {
     using Group = formal_eskf::runtime::GnssFusion::Group;
+
     Status record_reset(Group group, std::uint64_t time, bool success)
     {
         __ESBMC_assert(boundary.reset_called && !boundary.feedback_called && time == boundary.sample_time &&
@@ -100,9 +107,11 @@ struct Lifecycle
         return boundary.feedback;
     }
 };
+
 struct Ratio
 {
     bool reset_called{};
+
     void reset(std::uint64_t time)
     {
         __ESBMC_assert(boundary.notification_called && boundary.notification && time == boundary.sample_time,
@@ -110,11 +119,13 @@ struct Ratio
         reset_called = true;
     }
 };
+
 struct Reporting
 {
     unsigned calls{};
     std::uint8_t odometry_count{};
     std::uint64_t expected_epoch{};
+
     void record_velocity(std::uint64_t time, Vector const & delta)
     {
         __ESBMC_assert(boundary.notification_called && boundary.notification && time == expected_epoch &&
@@ -122,6 +133,7 @@ struct Reporting
                        "Velocity reset is reported only after output history accepted the same delta");
         ++calls;
     }
+
     void record_vertical_velocity(std::uint64_t time, double delta)
     {
         __ESBMC_assert(boundary.notification_called && boundary.notification && time == expected_epoch &&
@@ -129,6 +141,7 @@ struct Reporting
                        "Down velocity report retains the reset delta and main epoch");
         ++calls;
     }
+
     void record_position(std::uint64_t time, Vector2 const & delta)
     {
         __ESBMC_assert(boundary.notification_called && boundary.notification && time == expected_epoch &&
@@ -138,6 +151,7 @@ struct Reporting
         ++calls;
     }
 };
+
 struct Flow
 {
     using status_type = Status;
@@ -147,17 +161,20 @@ struct Flow
     unsigned m_state{}, m_covariance{}, m_errors{};
     std::uint64_t m_time_us{};
     bool m_fault{};
+
     struct Gnss
     {
         struct Sample
         {
             std::uint64_t time_us{};
         } sample;
+
         struct Innovation
         {
             bool active{};
             double innovation{}, variance{};
         } vertical_innovation;
+
         Lifecycle lifecycle;
         std::array<Ratio, 3> velocity_ratios;
         std::array<Ratio, 2> position_ratios;
@@ -165,8 +182,10 @@ struct Flow
         double position_test_ratio{};
         bool velocity_rejected{}, position_rejected{};
     } m_gnss;
+
     Reporting m_resets;
     bool check(Status status);
+
     bool reset_output(Quaternion const & q, Vector const & velocity, Vector const & position)
     {
         __ESBMC_assert(boundary.reset_called && formal_eskf::succeeded(boundary.core) &&
@@ -196,10 +215,12 @@ struct Flow
         m_fault |= !boundary.notification;
         return boundary.notification;
     }
+
     bool velocity_reset_path(Vector const & velocity, Vector const & velocity_variances);
     bool vertical_velocity_reset_path(Vector const & velocity, Vector const & velocity_variances);
     bool position_reset_path(Vector2 const & xy, double position_variance);
 };
+
 #include "module_status_check.inc"
 #include "module_reset_paths.inc"
 
@@ -209,7 +230,9 @@ Status symbolic_status()
     __ESBMC_assume(value <= unsigned(Status::non_finite_result));
     return static_cast<Status>(value);
 }
+
 Vector symbolic_vector() { return vector3(nondet_double(), nondet_double(), nondet_double()); }
+
 void verify_reset_path(Kind kind)
 {
     Flow flow;
@@ -255,6 +278,9 @@ void verify_reset_path(Kind kind)
                    "Reset counters/deltas are published only after successful output notification");
 }
 } // namespace
+
 extern "C" void verify_module_velocity_reset() { verify_reset_path(Kind::velocity); }
+
 extern "C" void verify_module_vertical_reset() { verify_reset_path(Kind::vertical_velocity); }
+
 extern "C" void verify_module_position_reset() { verify_reset_path(Kind::position); }

@@ -55,6 +55,7 @@ template <typename Matrix> bool same_bits(Matrix const & a, Matrix const & b)
             }
         }
     }
+
     return true;
 }
 
@@ -66,6 +67,7 @@ template <typename State> bool same_state(State const & a, State const & b)
         equal = equal && same_bits(a.p_n, b.p_n) && same_bits(a.v_n, b.v_n) && same_bits(a.b_a, b.b_a) &&
                 same_bits(a.b_g, b.b_g);
     }
+
     return equal;
 }
 
@@ -105,6 +107,7 @@ template <typename Linalg, typename Configuration> struct Fixture
     Ins::BiasUpdate bias_update{};
     bool default_permissions = false;
     formal_eskf::runtime::MagneticFieldChecks checks{};
+
     Fixture()
     {
         for (std::size_t row = 0; row < size; ++row)
@@ -114,6 +117,7 @@ template <typename Linalg, typename Configuration> struct Fixture
                 P(row, column) += static_cast<value_type>((row + 1) * (column + 1)) / value_type{256};
             }
         }
+
         for (std::size_t row = 0; row < 3; ++row)
         {
             for (std::size_t column = 0; column < 3; ++column)
@@ -122,6 +126,7 @@ template <typename Linalg, typename Configuration> struct Fixture
             }
         }
     }
+
     auto fuse(state_type & output, covariance_type & output_P) const
     {
         Vector<Linalg> const * reference_pointer = nullptr;
@@ -139,6 +144,7 @@ template <typename Linalg, typename Configuration> struct Fixture
             reference_pointer = &sample;
             break;
         }
+
         if constexpr (is_ins)
         {
             if (default_permissions)
@@ -147,6 +153,7 @@ template <typename Linalg, typename Configuration> struct Fixture
                                                                parameters, heading_observable, minimum_norm, sigma,
                                                                output, output_P);
             }
+
             return formal_eskf::runtime::fuse_magnetometer(state, P, sample, reference, reference_pointer, V,
                                                            parameters, heading_observable, minimum_norm, sigma, output,
                                                            output_P, bias_update, checks);
@@ -158,6 +165,7 @@ template <typename Linalg, typename Configuration> struct Fixture
                                                            output_P, checks);
         }
     }
+
     void prepare_reference()
     {
         // Independent unit-quaternion rotation, transposed, followed by explicit
@@ -174,8 +182,10 @@ template <typename Linalg, typename Configuration> struct Fixture
             {
                 h[row] += rotation[column][row] * reference(column);
             }
+
             r(row) = static_cast<value_type>(sample(row) - h[row]);
         }
+
         H = {};
         H(0, attitude_offset + 1) = static_cast<value_type>(-h[2]);
         H(0, attitude_offset + 2) = static_cast<value_type>(h[1]);
@@ -196,12 +206,15 @@ template <typename Linalg> auto non_finite_quaternion(TestContext & test, std::s
     test.expect(Q::from_coefficients(tiny, tiny / Scalar{2}, Scalar{0}, Scalar{0}, std::numeric_limits<Scalar>::min(),
                                      q) == Status::success,
                 profile, "public gradual-underflow quaternion witness avoids private layout assumptions");
+
     for (unsigned step = 0; step < 32 && formal_eskf::linalg::all_finite(q.coefficients()); ++step)
     {
         q = q * q;
     }
+
     test.expect(!formal_eskf::linalg::all_finite(q.coefficients()), profile,
                 "public raw products reach a nonfinite quaternion input guard");
+
     return q;
 }
 
@@ -230,6 +243,7 @@ void failure(TestContext & test, std::string_view profile, F const & fixture, Fu
                         same_bits(current.sample, fixture.sample) && same_bits(current.reference, fixture.reference) &&
                         same_bits(current.health, fixture.health),
                     profile, "exact stage outcome preserves all output aliases and borrowed numerical inputs");
+
         if (!gate_valid)
         {
             test.expect(result.fusion.innovation(0) == Scalar{0} && result.fusion.innovation(1) == Scalar{0} &&
@@ -260,11 +274,13 @@ template <typename Linalg, typename Configuration> void stages(TestContext & tes
             bad.health_role = Health::absent;
             bad.checks.require_reference = true;
         }
+
         bad.V(2, 2) = std::numeric_limits<Scalar>::quiet_NaN();
         bad.P(0, 0) = Scalar{-1};
         bad.sigma = Scalar{0};
         failure(test, profile, bad, FusionDecision::rejected, Status::success, true, false, false);
     }
+
     bad = fixture;
     bad.heading_observable = false;
     bad.P = {};
@@ -283,6 +299,7 @@ template <typename Linalg, typename Configuration> void stages(TestContext & tes
             }
         }
     }
+
     bad = fixture;
     bad.state.q_nb = non_finite_quaternion<Linalg>(test, profile);
     bad.sample = {};
@@ -302,6 +319,7 @@ template <typename Linalg, typename Configuration> void stages(TestContext & tes
     test.expect(result.fusion.decision == FusionDecision::fused && result.fusion.test_ratio(0) == Scalar{1} &&
                     result.fusion.test_ratio(1) == Scalar{1},
                 profile, "physical-field and two innovation equalities pass");
+
     fixture.V(0, 0) = std::nextafter(Scalar{9}, Scalar{0});
     failure(test, profile, fixture, FusionDecision::rejected, Status::success, true, true, true);
 }
@@ -315,6 +333,7 @@ template <typename Linalg, typename Configuration> void correction(TestContext &
                                                                 fixture.minimum_norm,
                                                                 fixture.state.q_nb) == Status::success,
                 profile, "exact nonzero-tilt cyclic prior");
+
     fixture.sample = Vector<Linalg>::from_row_major({Scalar{0.5}, Scalar{40.25}, Scalar{30}});
     std::array<unsigned, 14> const masks{63, 0, 1, 2, 4, 8, 16, 32, 62, 61, 59, 55, 47, 31};
     for (bool opposite : {false, true})
@@ -324,6 +343,7 @@ template <typename Linalg, typename Configuration> void correction(TestContext &
         {
             signed_fixture.state.q_nb = -signed_fixture.state.q_nb;
         }
+
         for (std::size_t mask_index = 0; mask_index < (F::is_ins ? masks.size() + 1U : 1U); ++mask_index)
         {
             auto expected_fixture = signed_fixture;
@@ -334,6 +354,7 @@ template <typename Linalg, typename Configuration> void correction(TestContext &
                 expected_fixture.bias_update.accelerometer[axis] = (mask & (1U << axis)) != 0;
                 expected_fixture.bias_update.gyroscope[axis] = (mask & (1U << (axis + 3))) != 0;
             }
+
             expected_fixture.prepare_reference();
             auto const expected = formal_eskf::test::reference::reference_correction(
                 expected_fixture, ESKF_RESET_APPROX != 0, expected_fixture.bias_update, ESKF_MAG_TILT != 0);
@@ -358,6 +379,7 @@ template <typename Linalg, typename Configuration> void correction(TestContext &
                             profile,
                             "independent projected/full gain, Joseph and reset oracle covers both signs, aliases and "
                             "forwarding masks");
+
                 for (std::size_t axis = 0; axis < 3; ++axis)
                 {
                     long double const variance = HPHt[axis][axis] + expected_fixture.V(axis, axis);
@@ -370,6 +392,7 @@ template <typename Linalg, typename Configuration> void correction(TestContext &
                                 profile,
                                 "gate always uses unprojected full H/P/V independent of correction permissions");
                 }
+
                 test.expect(((aliases & 1U) != 0 || same_state(current.state, expected_fixture.state)) &&
                                 ((aliases & 2U) != 0 || same_bits(current.P, expected_fixture.P)) &&
                                 same_bits(current.sample, expected_fixture.sample) &&
@@ -397,6 +420,7 @@ template <typename Linalg, typename Configuration> void correction(TestContext &
     {
         expected(F::attitude_offset + 1, F::attitude_offset + 1) = Scalar{0.75};
     }
+
     test.expect(result.fusion.decision == FusionDecision::fused && same_state(output, exact.state) &&
                     same_bits(P, expected),
                 profile, "exact S=256 dyadic zero-residual control verifies yaw-only versus full posterior covariance");
@@ -436,6 +460,7 @@ template <typename Linalg, typename Configuration> void failures(TestContext & t
                                                                 bad.state.q_nb) == Status::success &&
                         bad.state.q_nb.q0() == Scalar{0.875},
                     profile, "public subunit scalar quaternion fixture");
+
         bad.minimum_norm = Scalar{1};
         bad.reference = Vector<Linalg>::from_row_major({Scalar{8}, Scalar{0}, Scalar{0}});
         bad.sample = bad.reference / Scalar{0.765625};
@@ -449,6 +474,7 @@ template <typename Linalg, typename Configuration> void failures(TestContext & t
                         actual.fusion.innovation_variance(0) == Scalar{1024},
                     profile, "late normalization failure retains meaningful field and original gate evidence");
     }
+
     auto bad = fixture;
     bad.health_role = Health::absent;
     bad.checks = {false, false, false};
@@ -458,6 +484,7 @@ template <typename Linalg, typename Configuration> void failures(TestContext & t
                                                             std::numeric_limits<Scalar>::min(),
                                                             bad.state.q_nb) == Status::success,
                 profile, "public growing scalar quaternion witness");
+
     for (unsigned step = 0; step < 32; ++step)
     {
         auto const next = bad.state.q_nb * bad.state.q_nb;
@@ -465,12 +492,15 @@ template <typename Linalg, typename Configuration> void failures(TestContext & t
         {
             break;
         }
+
         bad.state.q_nb = next;
     }
+
     Scalar const scale = bad.state.q_nb.q0() * bad.state.q_nb.q0();
     Scalar const reference_scale = std::sqrt(std::numeric_limits<Scalar>::max()) / Scalar{4};
     test.expect(std::isfinite(scale) && scale > std::sqrt(std::numeric_limits<Scalar>::max()) * Scalar{8}, profile,
                 "finite rotation coefficient can overflow inverse action while tiny measured field remains finite");
+
     bad.sample = Vector<Linalg>::from_row_major({Scalar{32} / scale, Scalar{0}, Scalar{0}});
     bad.reference = Vector<Linalg>::from_row_major({reference_scale, Scalar{0}, Scalar{0}});
     bad.heading_observable = false;
@@ -501,6 +531,7 @@ template <typename Linalg, typename Configuration> void health_roles(TestContext
                     profile,
                     "accepted independent/absent/shared/aliased health data never changes the observation correction");
     }
+
     fixture.health_role = Health::separate;
     fixture.health = fixture.health * Scalar{2};
     failure(test, profile, fixture, FusionDecision::rejected, Status::success, true, false, false);
@@ -513,12 +544,14 @@ template <typename Linalg, typename Configuration> void health_roles(TestContext
     auto P = fixture.P;
     test.expect(fixture.fuse(output, P).fusion.decision == FusionDecision::fused, profile,
                 "disabled physical checks ignore invalid unused health vector");
+
     fixture.checks = {true, false, false};
     fixture.health = Vector<Linalg>::from_row_major({Scalar{0}, Scalar{0}, Scalar{50}});
     test.expect(fixture.fuse(output, P).fusion.decision == FusionDecision::fused, profile,
                 "strength-only health reference need not have horizontal information");
 }
 } /* end namespace */
+
 int main(int argc, char ** argv)
 {
     formal_eskf::test::configure_backend_test();

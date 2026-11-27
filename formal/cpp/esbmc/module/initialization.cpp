@@ -18,6 +18,7 @@ extern void __ESBMC_assert(bool, char const *);
 namespace
 {
 #include "module_constants.inc"
+
 enum Event : unsigned
 {
     collect,
@@ -35,38 +36,48 @@ enum Event : unsigned
     output_seed,
     event_count
 };
+
 struct Trace
 {
     bool success[event_count]{};
     unsigned seen{}, last{};
+
     void record(Event event)
     {
         __ESBMC_assert(seen == 0 || unsigned(event) > last, "Initialization preserves correction and seed order");
         seen |= 1U << event;
         last = event;
     }
+
     bool has(Event event) const { return (seen & (1U << event)) != 0; }
 } trace;
+
 struct Input
 {
     std::uint64_t time_us{};
     std::uint8_t accelerometer_clipping{};
 };
+
 struct Raw
 {
     unsigned stamp{};
 };
+
 struct Observation
 {
     Raw sample;
 };
+
 std::uint64_t clock_time;
+
 std::uint64_t hrt_absolute_time() { return clock_time; }
+
 std::uint64_t epoch;
 unsigned state_identity;
 unsigned altitude_identity;
 Input const * input;
 unsigned gnss_stamp, magnetic_stamp, barometer_stamp;
+
 struct Height
 {
     formal_eskf::Status initialize(std::uint64_t time, unsigned altitude)
@@ -77,6 +88,7 @@ struct Height
         return trace.success[height_origin] ? formal_eskf::Status::success : formal_eskf::Status::domain_error;
     }
 };
+
 struct History
 {
     bool seed(Input const & sample, std::uint64_t now)
@@ -86,6 +98,7 @@ struct History
         return trace.success[imu_seed];
     }
 };
+
 struct Observations
 {
     struct Seed
@@ -93,6 +106,7 @@ struct Observations
         std::uint64_t context{};
         unsigned gnss{}, magnetic{}, barometer{};
     };
+
     bool seed(Seed const & sample)
     {
         trace.record(observation_seed);
@@ -102,9 +116,11 @@ struct Observations
         return trace.success[observation_seed];
     }
 };
+
 struct Output
 {
     unsigned const * state{};
+
     bool seed(unsigned const & candidate, std::uint64_t time)
     {
         trace.record(output_seed);
@@ -114,6 +130,7 @@ struct Output
         return trace.success[output_seed];
     }
 };
+
 struct Flow
 {
     using ImuInput = Input;
@@ -127,31 +144,39 @@ struct Flow
     History m_imu_history;
     Observations m_observations;
     Output m_output;
+
     struct Gps
     {
         unsigned altitude_msl_m{};
     } m_gps;
+
     struct Mag
     {
         std::uint64_t timestamp_sample{};
         unsigned stamp{};
     } m_mag;
+
     struct Gnss
     {
         Observation input;
     } m_gnss;
+
     Observation m_barometer;
+
     struct Source
     {
         unsigned reference_id{};
     };
+
     struct Initialization
     {
         Source magnetic_source;
     } m_initialization;
+
     struct MagneticModel
     {
         unsigned id{};
+
         unsigned reference_id() const { return id; }
     } m_magnetic_model;
 
@@ -171,11 +196,13 @@ struct Flow
         __ESBMC_assert(rates == 1, "Initialization consumes the admitted mean rates");
         return trace.success[collect];
     }
+
     bool initialization_ready()
     {
         trace.record(ready);
         return trace.success[ready];
     }
+
     bool initialize_attitude(double & yaw)
     {
         trace.record(attitude);
@@ -183,11 +210,13 @@ struct Flow
         failure(trace.success[attitude] || !attitude_fault);
         return trace.success[attitude];
     }
+
     void initialize_navigation(unsigned rates)
     {
         trace.record(navigation);
         __ESBMC_assert(rates == 1 && !m_initialized, "Navigation initialization precedes initialized state");
     }
+
     void initialize_magnetic_aiding(Source const & source, std::uint64_t time)
     {
         trace.record(magnetic_alignment);
@@ -195,6 +224,7 @@ struct Flow
                            time == m_mag.timestamp_sample,
                        "Magnetic startup transfers model identity and the actual sample watermark");
     }
+
     bool update_imu_bias(Input const & sample, unsigned rates)
     {
         trace.record(bias);
@@ -202,6 +232,7 @@ struct Flow
         failure(trace.success[bias]);
         return trace.success[bias];
     }
+
     void fuse_gps(unsigned rates)
     {
         trace.record(gps);
@@ -210,6 +241,7 @@ struct Flow
         m_state = nondet_value();
         state_identity = m_state;
     }
+
     bool update_imu_health(std::uint8_t clipping)
     {
         trace.record(health);
@@ -217,6 +249,7 @@ struct Flow
         failure(trace.success[health]);
         return trace.success[health];
     }
+
     void fuse_height()
     {
         trace.record(height);
@@ -224,13 +257,16 @@ struct Flow
         m_state = nondet_value();
         state_identity = m_state;
     }
+
     std::uint64_t startup_context(std::uint64_t time, std::uint64_t age)
     {
         __ESBMC_assert(time == epoch && age == profile::gnss::context_maximum_age_us,
                        "Seed context is evaluated at the alignment epoch");
         return time;
     }
+
     static Raw decode_magnetic(Mag sample) { return {sample.stamp}; }
+
     bool check_timing(bool succeeded);
     void initialize(Input const & sample, unsigned const & imu);
 };

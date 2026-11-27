@@ -172,11 +172,13 @@ void forward_failure(Context & test, std::string_view profile)
 {
     double const nan = std::numeric_limits<double>::quiet_NaN();
     double const inf = std::numeric_limits<double>::infinity();
+
     struct Invalid
     {
         geo::GeodeticPosition input;
         Status expected = Status::success;
     };
+
     Invalid const invalid[]{
         {{nan, 0.0, 0.0}, Status::non_finite_input},
         {{0.0, inf, 0.0}, Status::non_finite_input},
@@ -213,11 +215,13 @@ void reverse_failure(Context & test, std::string_view profile)
     double const nan = std::numeric_limits<double>::quiet_NaN();
     double const inf = std::numeric_limits<double>::infinity();
     double const max = std::numeric_limits<double>::max();
+
     struct Invalid
     {
         std::array<double, 3U> input{};
         Status expected = Status::success;
     };
+
     Invalid const invalid[]{
         {{nan, 0.0, 0.0}, Status::non_finite_input},
         {{0.0, inf, 0.0}, Status::non_finite_input},

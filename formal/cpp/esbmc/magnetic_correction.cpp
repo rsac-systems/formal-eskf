@@ -19,6 +19,7 @@ using namespace step_correction_proof;
 using correction_proof::Gain;
 using Observation = formal_eskf::detail::MagneticObservation<Backend>;
 constexpr std::size_t attitude_offset = state_size == 15U ? 6U : 0U;
+
 struct Results
 {
     Observation observation;
@@ -29,6 +30,7 @@ struct Results
     State injected;
     Status projector_status, gain_status, projection_status, correction_status, injection_status, reset_status;
 };
+
 struct Calls
 {
     inline static Results const * results = nullptr;
@@ -45,12 +47,14 @@ struct Calls
     inline static Scalar minimum{};
     inline static unsigned observation{}, projector{}, gain{}, projection{}, correction{}, injection{}, reset{};
 };
+
 void unpublished()
 {
     __ESBMC_assert(same_state(*Calls::state_target, *Calls::state_before) &&
                        same_matrix(*Calls::covariance_target, *Calls::covariance_before),
                    "E-MAG-TILT: public outputs remain unpublished until final reset succeeds");
 }
+
 bool jacobian_matches(Jacobian const & H)
 {
     auto const & h = Calls::results->observation.h_m_b;
@@ -97,6 +101,7 @@ prepare_magnetic_observation<magnetic_proof::Backend>(magnetic_proof::Quaternion
     unpublished();
     return Calls::results->observation;
 }
+
 template <>
 inline Status magnetic_tilt_projector<magnetic_proof::Backend>(magnetic_proof::Matrix3 const & R,
                                                                magnetic_proof::Matrix3 & output)
@@ -113,6 +118,7 @@ inline Status magnetic_tilt_projector<magnetic_proof::Backend>(magnetic_proof::M
         output = Calls::results->projector;
     return Calls::results->projector_status;
 }
+
 template <>
 inline Status
 compute_correction_gain<magnetic_proof::Backend, magnetic_proof::state_size, 3U,
@@ -138,6 +144,7 @@ compute_correction_gain<magnetic_proof::Backend, magnetic_proof::state_size, 3U,
     output = Calls::results->gain;
     return Calls::results->gain_status;
 }
+
 template <>
 inline Status
 project_magnetic_gain<magnetic_proof::attitude_offset, magnetic_proof::Backend, magnetic_proof::state_size, 3U>(
@@ -159,6 +166,7 @@ project_magnetic_gain<magnetic_proof::attitude_offset, magnetic_proof::Backend, 
         gain.template set_block<attitude_offset, 0U>(Calls::results->attitude_gain);
     return Calls::results->projection_status;
 }
+
 template <>
 inline Status
 apply_correction_gain<magnetic_proof::Backend, magnetic_proof::state_size, 3U,
@@ -199,6 +207,7 @@ apply_correction_gain<magnetic_proof::Backend, magnetic_proof::state_size, 3U,
     return Calls::results->correction_status;
 }
 } // namespace formal_eskf::detail
+
 namespace formal_eskf
 {
 template <>
@@ -243,6 +252,7 @@ inline Status reset_covariance<magnetic_proof::Backend>(magnetic_proof::Error co
 } // namespace formal_eskf
 
 using namespace magnetic_proof;
+
 void verify_magnetic_correction(State state, Covariance covariance, Vector3 measurement, Vector3 reference, Noise V,
                                 Scalar minimum, State state_output, Covariance covariance_output, Results results,
                                 bias_proof::permissions_type permissions)
@@ -319,4 +329,5 @@ void verify_magnetic_correction(State state, Covariance covariance, Vector3 meas
                        same_matrix(V, old_V) && bias_proof::same_permissions(permissions, old_permissions),
                    "E-MAG-TILT: preserve fields, noise and caller permissions");
 }
+
 int main() { return 0; }

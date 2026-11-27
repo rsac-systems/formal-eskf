@@ -10,24 +10,29 @@ class InsSessionTest
     using Event = runtime::GroundEffectEvent;
     using Fixture = ins_test::Fixture<>;
     using Session = ins_test::Session;
+
     static Event event(std::uint64_t time, bool request = true, bool in_air = true, bool fixed = false)
     {
         return {time, time - 10, time - 20, 0, Event::land_updated, in_air, fixed, request};
     }
+
     static void setup(Policy & owner, Context & t)
     {
         t.expect(owner.configure(200000, 4000, 10000000), "configuration", "50 slots and ten-second hold");
     }
+
     static void adopt(Policy & owner, Context & t, std::uint64_t time, bool request = true, bool in_air = true,
                       bool fixed = false)
     {
         t.expect(owner.push(event(time, request, in_air, fixed), 2000, 212000) && owner.update(time), "event",
                  "admit a new source event and evaluate at a distinct delayed endpoint");
     }
+
     static void warm(Fixture & f, Context & t)
     {
         t.expect(f.configured && f.run(8000) && f.session.initialized(), "session", "actual session startup");
     }
+
     static void request(Fixture & f) { f.session.receive_ground_effect(event(f.imu.time_us)); }
 
 public:
@@ -55,6 +60,7 @@ public:
                      "invalid D rejects session startup");
         }
     }
+
     static void priority(Context & t, std::string_view)
     {
         for (bool air : {false, true})
@@ -67,6 +73,7 @@ public:
                          "landed/fixed-wing override positive request");
             }
     }
+
     static void negative(Context & t, std::string_view)
     {
         Policy p;
@@ -76,6 +83,7 @@ public:
         t.expect(p.state().active && p.state().last_detection_us == 1000000 && p.state().adoption_time_us == 1020000,
                  "hold", "negative request records event but neither clears nor renews");
     }
+
     static void timeout(Context & t, std::string_view)
     {
         Policy p;
@@ -87,6 +95,7 @@ public:
                      "no three-second timeout; strict H boundary");
         }
     }
+
     static void flight_exit(Context & t, std::string_view)
     {
         for (bool fixed : {false, true})
@@ -100,6 +109,7 @@ public:
                      "old positive timestamp cannot reactivate");
         }
     }
+
     static void restart(Context & t, std::string_view)
     {
         Policy p;
@@ -115,6 +125,7 @@ public:
         t.expect(!p.state().active && p.entries() == 0 && p.state().last_detection_us == 0 && p.counts().admitted == 0,
                  "restart", "history, latch and identity cleared");
     }
+
     static void selection(Context & t, std::string_view)
     {
         for (auto age : {99999ULL, 100000ULL, 100001ULL})
@@ -136,6 +147,7 @@ public:
         t.expect(p.update(1051000) && p.entries() == 0 && p.counts().superseded == 48, "selection",
                  "consume future batch only once");
     }
+
     static void invalid(Context & t, std::string_view)
     {
         Policy p;
@@ -150,6 +162,7 @@ public:
         t.expect(p.state().active && p.state().last_detection_us == 1000000 && p.counts().rate_rejected == 1,
                  "preservation", "rejection cannot change latch");
     }
+
     static void frozen(Context & t, std::string_view)
     {
         Policy p;
@@ -162,6 +175,7 @@ public:
                      s.event.half_period_us == 2000 && s.event.land_time_us == 1000990 && s.last_detection_us == 999000,
                  "clocks", "frozen offset, raw source, processing and detection epochs are distinct");
     }
+
     static void delayed(Context & t, std::string_view)
     {
         Fixture f;
@@ -178,6 +192,7 @@ public:
         t.expect(f.session.ground_effect().evaluation_time_us == saved && !f.session.output_healthy(input + 30000000),
                  "no-IMU", "status reads withdraw output without advancing policy");
     }
+
     static void numerical(Context & t, std::string_view)
     {
         using Cov = Session::covariance_type;
@@ -204,6 +219,7 @@ public:
                 }
         }
     }
+
     static void residual(Context & t, std::string_view)
     {
         runtime::HeightPrediction<ins_test::Backend> h;
@@ -224,6 +240,7 @@ public:
                      "nonzero origin and prior offset use the same Down deadzone");
         }
     }
+
     static void gate_order(Context & t, std::string_view)
     {
         for (bool bad_acceleration : {false, true})
@@ -247,6 +264,7 @@ public:
                 t.expect(ins_test::same_bits(P, out) && next.p_n(2) == 0., "rejection", "outputs unchanged");
         }
     }
+
     static void failure(Context & t, std::string_view)
     {
         Fixture f;
@@ -270,6 +288,7 @@ public:
         t.expect(s.fault() && ins_test::same_bits(s.m_covariance, invalid_covariance) && s.ground_effect().active,
                  "failure", "height failure preserves covariance and earlier policy event");
     }
+
     static void diagnostics(Context & t, std::string_view)
     {
         for (double deadzone : {0., 4.})
@@ -294,6 +313,7 @@ public:
                      "report", "mode is not a correction success");
         }
     }
+
     static void context(Context & t, std::string_view)
     {
         Fixture f;

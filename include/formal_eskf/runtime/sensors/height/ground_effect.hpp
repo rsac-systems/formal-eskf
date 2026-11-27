@@ -23,6 +23,7 @@ struct GroundEffectEvent
         vehicle_available = 8,
         all_sources = land_updated | vehicle_updated | land_available | vehicle_available
     };
+
     std::uint64_t time_us{}, land_time_us{}, vehicle_time_us{};
     std::uint32_t half_period_us{};
     std::uint8_t sources{};
@@ -43,6 +44,7 @@ public:
         std::uint64_t evaluation_time_us{}, adoption_time_us{}, last_detection_us{};
         bool active{};
     };
+
     struct Counts
     {
         std::uint64_t admitted{}, rejected{}, rate_rejected{}, overwritten{}, expired{}, superseded{}, selected{};
@@ -171,9 +173,13 @@ public:
         m_counts = {};
         m_last_processing_us = m_last_selection_us = 0;
     }
+
     State const & state() const { return m_state; }
+
     Counts const & counts() const { return m_counts; }
+
     std::size_t entries() const { return m_history.entries(); }
+
     std::size_t length() const { return m_hold_us == 0 ? 0 : m_history.get_length(); }
 
 private:

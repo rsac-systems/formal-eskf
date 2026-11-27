@@ -4,6 +4,7 @@
 #define private public
 #include <formal_eskf/runtime/history/observation_history.hpp>
 #undef private
+
 namespace observation_proof
 {
 using Observations = formal_eskf::runtime::ObservationHistory<imu_proof::Backend, 16, 64, 128, 128>;
@@ -39,19 +40,23 @@ inline bool same_land(Observations::LandState const & a, Observations::LandState
     return a.time_us == b.time_us && a.known == b.known && a.landed == b.landed && a.at_rest == b.at_rest &&
            a.in_ground_effect == b.in_ground_effect;
 }
+
 inline bool same_vehicle(Observations::VehicleState const & a, Observations::VehicleState const & b)
 {
     return a.time_us == b.time_us && a.known == b.known && a.armed == b.armed && a.fixed_wing == b.fixed_wing;
 }
+
 inline bool same_context(Observations::Context const & a, Observations::Context const & b)
 {
     return a.time_us == b.time_us && same_land(a.land, b.land) && same_vehicle(a.vehicle, b.vehicle);
 }
+
 inline bool same_double(double a, double b)
 {
     return (__builtin_bit_cast(std::uint64_t, a) == __builtin_bit_cast(std::uint64_t, b)) |
            (std::isnan(a) & std::isnan(b));
 }
+
 inline bool same_timing(formal_eskf::runtime::ObservationTiming const & a,
                         formal_eskf::runtime::ObservationTiming const & b)
 {
@@ -68,11 +73,13 @@ inline void assume_timing(Observations const & owner)
 {
     __ESBMC_assume(same_timing(owner.m_timing, profile::history::observation_timing));
 }
+
 inline void check_timing(Observations const & owner)
 {
     __ESBMC_assert(same_timing(owner.m_timing, profile::history::observation_timing),
                    "Owner preserves every observation timing field");
 }
+
 inline bool same_interval(imu_proof::Interval const & a, imu_proof::Interval const & b)
 {
     bool equal = a.time_us == b.time_us && a.start_time_us == b.start_time_us && a.hold_period_us == b.hold_period_us &&

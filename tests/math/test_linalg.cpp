@@ -25,6 +25,7 @@ template <typename Scalar> bool same_scalar(Scalar a, Scalar b)
     using bytes = std::array<std::byte, sizeof(Scalar)>;
     return (std::isnan(a) && std::isnan(b)) || std::bit_cast<bytes>(a) == std::bit_cast<bytes>(b);
 }
+
 template <typename Matrix> bool same(Matrix const & a, Matrix const & b)
 {
     for (std::size_t row = 0; row < Matrix::row_count; ++row)
@@ -547,11 +548,13 @@ template <typename Base> struct ControlledNorm : Base
     using Storage = typename Base::template storage_type<Rows, Columns>;
     static inline Scalar norm_result{}, division_result{}, forwarded_divisor{};
     static inline unsigned norm_calls{}, division_calls{};
+
     template <std::size_t Size> static Scalar norm(Storage<Size, 1> const &)
     {
         ++norm_calls;
         return norm_result;
     }
+
     template <std::size_t Rows, std::size_t Columns>
     static void divide(Storage<Rows, Columns> const & input, Scalar divisor, Storage<Rows, Columns> & output)
     {

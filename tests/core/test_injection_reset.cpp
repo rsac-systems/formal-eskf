@@ -48,6 +48,7 @@ template <typename Matrix> bool same_fields(Matrix const & a, Matrix const & b)
             }
         }
     }
+
     return true;
 }
 
@@ -59,6 +60,7 @@ template <typename State> bool same_state(State const & a, State const & b)
         same = same && same_fields(a.p_n, b.p_n) && same_fields(a.v_n, b.v_n) && same_fields(a.b_a, b.b_a) &&
                same_fields(a.b_g, b.b_g);
     }
+
     return same;
 }
 
@@ -70,6 +72,7 @@ template <typename Error> bool same_error(Error const & a, Error const & b)
         same = same && same_fields(a.delta_p_n, b.delta_p_n) && same_fields(a.delta_v_n, b.delta_v_n) &&
                same_fields(a.delta_b_a, b.delta_b_a) && same_fields(a.delta_b_g, b.delta_b_g);
     }
+
     return same;
 }
 
@@ -163,6 +166,7 @@ void test_injection_mode(TestContext & test, std::string_view profile)
         {
             correct = correct && near(coefficients(index), static_cast<value_type>(expected[index]), tolerance);
         }
+
         test.expect(correct && near(formal_eskf::linalg::norm(coefficients), value_type{1}, tolerance), profile,
                     "nominal attitude matches right-multiplied Exp and remains normalized");
     };
@@ -178,6 +182,7 @@ void test_injection_mode(TestContext & test, std::string_view profile)
     auto output = fixture.state;
     Status const status = inject_nominal(fixture.state, fixture.error, fixture.minimum_norm, output);
     test.expect(status == Status::success, profile, "nominal injection succeeds");
+
     if constexpr (fixture_type::is_ins)
     {
         test.expect(same_fields(output.p_n, fixture.state.p_n + fixture.error.delta_p_n) &&
@@ -186,12 +191,14 @@ void test_injection_mode(TestContext & test, std::string_view profile)
                         same_fields(output.b_g, fixture.state.b_g + fixture.error.delta_b_g),
                     profile, "all INS additive errors reach the correct state components");
     }
+
     auto negative = fixture.state;
     negative.q_nb = -negative.q_nb;
     Status const negative_status = inject_nominal(negative, fixture.error, fixture.minimum_norm, negative);
     test.expect(negative_status == Status::success &&
                     same_fields(negative.q_nb.coefficients(), -output.q_nb.coefficients()),
                 profile, "in-place injection respects quaternion sign equivalence");
+
     auto inverse_error = fixture.error;
     inverse_error.delta_theta_b = -inverse_error.delta_theta_b;
     Status const inverse_status = inject_nominal(output, inverse_error, fixture.minimum_norm, output);
@@ -221,6 +228,7 @@ void test_covariance_reset(TestContext & test, std::string_view profile)
     {
         G[index * size + index] = 1.0;
     }
+
     long double const x = static_cast<long double>(fixture.error.delta_theta_b(0U));
     long double const y = static_cast<long double>(fixture.error.delta_theta_b(1U));
     long double const z = static_cast<long double>(fixture.error.delta_theta_b(2U));
@@ -243,9 +251,11 @@ void test_covariance_reset(TestContext & test, std::string_view profile)
             {
                 square += W[row * 3U + inner] * W[inner * 3U + column];
             }
+
             G[(offset + row) * size + offset + column] += -skew_scale * W[row * 3U + column] + square_scale * square;
         }
     }
+
     auto output = fixture.covariance;
     Status const status = reset_covariance(fixture.error, fixture.covariance, output);
     bool correct = status == Status::success;
@@ -262,9 +272,11 @@ void test_covariance_reset(TestContext & test, std::string_view profile)
                         G[row * size + a] * static_cast<long double>(fixture.covariance(a, b)) * G[column * size + b];
                 }
             }
+
             correct = correct && near(output(row, column), static_cast<value_type>(expected), tolerance);
         }
     }
+
     test.expect(correct, profile, "full G*P*G^T agrees with independent oracle, including cross-covariances");
     test.expect(formal_eskf::linalg::is_symmetric(output, value_type{0}), profile, "reset restores exact symmetry");
     test.expect(!same_fields(output, fixture.covariance), profile, "nonzero correction does not silently use G=I");
@@ -273,6 +285,7 @@ void test_covariance_reset(TestContext & test, std::string_view profile)
     Status const alias_status = reset_covariance(fixture.error, alias, alias);
     test.expect(alias_status == Status::success && same_fields(alias, output), profile,
                 "reset supports aliased output");
+
     typename fixture_type::error_type const zero_error{};
     Status const zero_status = reset_covariance(zero_error, fixture.covariance, output);
     test.expect(zero_status == Status::success && same_fields(output, fixture.covariance), profile,
@@ -287,6 +300,7 @@ void test_covariance_reset(TestContext & test, std::string_view profile)
             output(row, column) = std::numeric_limits<value_type>::max();
         }
     }
+
     auto const large = output;
     Status const large_status = reset_covariance(zero_error, output, output);
     test.expect(large_status == Status::success && same_fields(output, large), profile,
@@ -305,6 +319,7 @@ void test_covariance_reset(TestContext & test, std::string_view profile)
             rank_one(row, column) = u * v;
         }
     }
+
     auto axis_error = fixture.error;
     axis_error.delta_theta_b = {};
     axis_error.delta_theta_b(0U) = value_type{0.25};
@@ -313,6 +328,7 @@ void test_covariance_reset(TestContext & test, std::string_view profile)
     test.expect(reset_covariance(axis_error, rank_one, output) == Status::success && same_fields(output, rank_one) &&
                     same_fields(rank_one, rank_before) && same_error(axis_error, axis_before),
                 profile, "rotation-axis rank-one PSD and cross-covariances are exactly invariant; inputs preserved");
+
     typename fixture_type::covariance_type const zero_covariance{};
     test.expect(reset_covariance(fixture.error, zero_covariance, output) == Status::success &&
                     same_fields(output, zero_covariance),
@@ -339,6 +355,7 @@ void test_atomic_injection(TestContext & test, std::string_view profile)
     test.expect(inject_nominal(fixture.state, fixture.error, fixture.minimum_norm, expected_state) == Status::success &&
                     reset_covariance(fixture.error, fixture.covariance, expected_covariance) == Status::success,
                 profile, "separately called injection and reset steps succeed");
+
     for (unsigned mask = 0U; mask < 8U; ++mask)
     {
         auto input = fixture;
@@ -365,6 +382,7 @@ void test_atomic_injection(TestContext & test, std::string_view profile)
                         ((mask & 4U) == 0U || same_error(error_output, error_before)),
                     profile, "unused separate output objects remain unchanged");
     }
+
     auto exact = fixture;
     exact.error.delta_theta_b = {};
     for (unsigned mask = 0U; mask < 8U; ++mask)
@@ -381,6 +399,7 @@ void test_atomic_injection(TestContext & test, std::string_view profile)
                         same_fields(state.q_nb.coefficients(), exact.state.q_nb.coefficients()) &&
                         same_fields(covariance, exact.covariance) && same_error(error, zero_error),
                     profile, "independent zero-angle transaction preserves covariance and publishes zero error");
+
         if constexpr (fixture_type::is_ins)
         {
             using value_type = typename fixture_type::value_type;
@@ -394,6 +413,7 @@ void test_atomic_injection(TestContext & test, std::string_view profile)
             }
         }
     }
+
     auto const initial_state = fixture.state;
     auto const initial_covariance = fixture.covariance;
     auto error = zero_error;
@@ -429,6 +449,7 @@ void expect_failed_injection(TestContext & test, std::string_view profile, Fixtu
         sentinel.error.delta_v_n(1U) = infinity;
         sentinel.error.delta_b_a(2U) = -value_type{0};
     }
+
     for (unsigned mask = 0U; mask < 8U; ++mask)
     {
         auto source = input;
@@ -459,6 +480,7 @@ void test_injection_failures(TestContext & test, std::string_view profile)
     {
         expect_failed_injection(test, profile, fixture, minimum_norm, Status::domain_error);
     }
+
     expect_failed_injection(test, profile, fixture, nan, Status::non_finite_input);
     expect_failed_injection(test, profile, fixture, infinity, Status::non_finite_input);
     for (std::size_t axis = 0U; axis < 3U; ++axis)
@@ -521,6 +543,7 @@ template <typename Linalg, typename Configuration> void test_first_failure(TestC
                 profile, "nominal injection rejects the invalid normalization threshold");
     test.expect(reset_covariance(fixture.error, fixture.covariance, covariance_output) == Status::non_finite_input,
                 profile, "covariance reset would return a distinct failure");
+
     expect_failed_injection(test, profile, fixture, value_type{0}, Status::domain_error);
 }
 
@@ -536,6 +559,7 @@ template <typename Linalg, typename Configuration> void test_late_failure(TestCo
     test.expect(inject_nominal(fixture.state, fixture.error, fixture.minimum_norm, state_output) == Status::success &&
                     !same_state(state_output, fixture.state),
                 profile, "nominal injection makes progress before the covariance-only failures");
+
     for (std::size_t row = 0U; row < fixture_type::size; ++row)
     {
         for (std::size_t column = 0U; column < fixture_type::size; ++column)
@@ -545,6 +569,7 @@ template <typename Linalg, typename Configuration> void test_late_failure(TestCo
             expect_failed_injection(test, profile, bad, fixture.minimum_norm, Status::non_finite_input);
         }
     }
+
     auto overflow = fixture;
     // A finite PSD rank-one input whose transformed entries exceed the scalar
     // range in BOTH reset modes (J_r need not amplify an isotropic covariance).
@@ -555,6 +580,7 @@ template <typename Linalg, typename Configuration> void test_late_failure(TestCo
             overflow.covariance(row, column) = maximum;
         }
     }
+
     expect_failed_injection(test, profile, overflow, fixture.minimum_norm, Status::non_finite_result);
 }
 
@@ -567,6 +593,7 @@ template <typename Linalg, typename Configuration> void test_local_map(TestConte
                                                                             value_type{0}, fixture.minimum_norm,
                                                                             fixture.state.q_nb) == Status::success,
                 profile, "construct exact half-turn about body x");
+
     value_type const small = std::ldexp(value_type{1}, -std::numeric_limits<value_type>::digits);
     for (bool const zero : {true, false})
     {
@@ -588,6 +615,7 @@ template <typename Linalg, typename Configuration> void test_local_map(TestConte
                 {
                     prior.q_nb = -prior.q_nb;
                 }
+
                 auto const prior_before = prior;
                 auto const error_before = fixture.error;
                 auto const covariance_before = fixture.covariance;
@@ -595,11 +623,13 @@ template <typename Linalg, typename Configuration> void test_local_map(TestConte
                 auto & output = alias ? prior : separate;
                 test.expect(inject_nominal(prior, fixture.error, fixture.minimum_norm, output) == Status::success,
                             profile, "exact local injection succeeds for either alias/sign");
+
                 for (std::size_t axis = 0U; axis < 4U; ++axis)
                 {
                     test.expect(output.q_nb.coefficients()(axis) == (negative ? -expected[axis] : expected[axis]),
                                 profile, "right-Hamilton tangent coefficients match exact dyadic oracle");
                 }
+
                 if constexpr (fixture_type::is_ins)
                 {
                     for (std::size_t axis = 0U; axis < 3U; ++axis)
@@ -612,6 +642,7 @@ template <typename Linalg, typename Configuration> void test_local_map(TestConte
                                     profile, "independent additive coordinates reach only their named blocks");
                     }
                 }
+
                 test.expect((alias || same_state(prior, prior_before)) && same_error(fixture.error, error_before) &&
                                 same_fields(fixture.covariance, covariance_before),
                             profile, "standalone injection preserves distinct prior, error and covariance");
@@ -635,6 +666,7 @@ void expect_nominal_failure(TestContext & test, std::string_view profile, Fixtur
             output.p_n(0U) = std::numeric_limits<value_type>::quiet_NaN();
             output.v_n(1U) = -value_type{0};
         }
+
         auto const output_before = output;
         auto const error_before = fixture.error;
         auto & result = alias ? prior : output;
@@ -658,10 +690,12 @@ void test_nominal_failure_frame(TestContext & test, std::string_view profile)
     {
         expect_nominal_failure(test, profile, fixture, threshold, Status::non_finite_input);
     }
+
     for (value_type const threshold : {value_type{0}, value_type{-1}, std::nextafter(value_type{1}, value_type{2})})
     {
         expect_nominal_failure(test, profile, fixture, threshold, Status::domain_error);
     }
+
     for (std::size_t axis = 0U; axis < 3U; ++axis)
     {
         for (value_type const invalid : {nan, infinity, -infinity, maximum})
@@ -672,6 +706,7 @@ void test_nominal_failure_frame(TestContext & test, std::string_view profile)
                                    std::isfinite(invalid) ? Status::non_finite_result : Status::non_finite_input);
         }
     }
+
     if constexpr (fixture_type::is_ins)
     {
         using state_type = typename fixture_type::state_type;
@@ -692,6 +727,7 @@ void test_nominal_failure_frame(TestContext & test, std::string_view profile)
                     (bad.error.*errors[group])(axis) = invalid;
                     expect_nominal_failure(test, profile, bad, fixture.minimum_norm, Status::non_finite_input);
                 }
+
                 auto bad = fixture;
                 (bad.state.*states[group])(axis) = maximum;
                 (bad.error.*errors[group])(axis) = maximum;
@@ -709,10 +745,12 @@ void test_nominal_failure_frame(TestContext & test, std::string_view profile)
                     fixture.state.q_nb) == Status::success &&
                     fixture.state.q_nb.q0() == value_type{1} && fixture.state.q_nb.q1() == value_type{0.5},
                 profile, "public construction reaches specified nonunit guard fixture");
+
     fixture.error = {};
     auto repaired = fixture.state;
     test.expect(inject_nominal(fixture.state, fixture.error, fixture.minimum_norm, repaired) == Status::success,
                 profile, "finite nonunit prior is subject to normalization feasibility, not prediction tolerance");
+
     auto large = fixture.state.q_nb;
     value_type const norm_overflow_limit = std::sqrt(maximum);
     for (std::size_t step = 0U;
@@ -721,18 +759,22 @@ void test_nominal_failure_frame(TestContext & test, std::string_view profile)
     {
         large = large * large;
     }
+
     fixture.state.q_nb = large;
     test.expect(std::isfinite(large.q0()) && std::isfinite(large.q1()) &&
                     (std::abs(large.q0()) > norm_overflow_limit || std::abs(large.q1()) > norm_overflow_limit),
                 profile, "public multiplication reaches finite coefficients whose squared norm overflows");
+
     expect_nominal_failure(test, profile, fixture, fixture.minimum_norm, Status::non_finite_result);
     for (std::size_t step = 0U; step < 20U && std::isfinite(large.q0()) && std::isfinite(large.q1()); ++step)
     {
         large = large * large;
     }
+
     fixture.state.q_nb = large;
     test.expect(!std::isfinite(large.q0()) || !std::isfinite(large.q1()), profile,
                 "public multiplication reaches nonfinite prior without layout assumptions");
+
     expect_nominal_failure(test, profile, fixture, fixture.minimum_norm, Status::non_finite_input);
 }
 
@@ -745,6 +787,7 @@ void test_reset_consumption_frame(TestContext & test, std::string_view profile)
     auto reference = fixture.covariance;
     test.expect(reset_covariance(fixture.error, fixture.covariance, reference) == Status::success, profile,
                 "valid reset for consumed-field metamorphic comparison");
+
     if constexpr (fixture_type::is_ins)
     {
         using error_type = typename fixture_type::error_type;
@@ -769,6 +812,7 @@ void test_reset_consumption_frame(TestContext & test, std::string_view profile)
             }
         }
     }
+
     auto check = [&](fixture_type const & input, Status expected)
     {
         for (bool const alias : {false, true})
@@ -797,6 +841,7 @@ void test_reset_consumption_frame(TestContext & test, std::string_view profile)
             check(bad, Status::non_finite_input);
         }
     }
+
     for (std::size_t row = 0U; row < fixture_type::size; ++row)
     {
         for (std::size_t column = 0U; column < fixture_type::size; ++column)
@@ -806,6 +851,7 @@ void test_reset_consumption_frame(TestContext & test, std::string_view profile)
             check(bad, Status::non_finite_input);
         }
     }
+
     auto overflow = fixture;
     for (std::size_t row = 0U; row < fixture_type::size; ++row)
     {
@@ -814,6 +860,7 @@ void test_reset_consumption_frame(TestContext & test, std::string_view profile)
             overflow.covariance(row, column) = std::numeric_limits<value_type>::max();
         }
     }
+
     check(overflow, Status::non_finite_result);
     overflow = fixture;
     overflow.error.delta_theta_b(0U) = std::numeric_limits<value_type>::max();

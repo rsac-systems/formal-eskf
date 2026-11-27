@@ -81,6 +81,7 @@ void verify_context_empty(observation_proof::Observations owner, std::uint64_t q
 using observation_proof::Observations;
 using Context = Observations::Context;
 using Ring = formal_eskf::runtime::RingBuffer<Context, 128>;
+
 void verify_context_views(Ring ring)
 {
     auto const count = imu_proof::nondet_index();

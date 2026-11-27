@@ -80,12 +80,14 @@ public:
     }
 
     [[nodiscard]] bool configure(TimingParameters const & parameters);
+
     [[nodiscard]] bool can_configure(TimingParameters const & parameters) const
     {
         TimingConfiguration candidate;
         return m_current.time_us == 0 && m_fault == Fault::none && valid_parameters() &&
                configure_timing(parameters, m_parameters.timing, Capacity, candidate);
     }
+
     [[nodiscard]] bool seed(state_type const & state, std::uint64_t time_us);
     /** Requires an admitted real interval from ImuHistory::latest(), exactly once. */
     [[nodiscard]] bool predict(interval_type const & interval);
@@ -105,14 +107,21 @@ public:
     void reset();
 
     Sample const & current() const { return m_current; }
+
     /** Body rate used by the latest propagation, including bias/tracking feedback. */
     vector3_type const & angular_rate_b() const { return m_output_angular_rate_b; }
+
     /** Non-consuming view, null during warmup, after correction or on fault. */
     Sample const * delayed() const;
+
     TrackingError const & tracking_error() const { return m_error; }
+
     Fault fault() const { return m_fault; }
+
     std::size_t entries() const { return m_history.entries(); }
+
     std::uint64_t fusion_time_us() const { return m_fusion_time_us; }
+
     /** Readiness does not establish wall-clock freshness or controller acceptance. */
     bool ready() const { return m_tracking && m_fault == Fault::none; }
 

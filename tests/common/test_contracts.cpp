@@ -24,6 +24,7 @@ using formal_eskf::test::Context;
 void status_meanings(Context & test, std::string_view profile)
 {
     test.expect(formal_eskf::succeeded(Status::success), profile, "success is accepted");
+
     for (Status status : {Status::non_finite_input, Status::domain_error, Status::out_of_range,
                           Status::zero_or_unsafe_divisor, Status::invalid_quaternion_norm,
                           Status::not_positive_definite, Status::ill_conditioned, Status::non_finite_result})
@@ -40,20 +41,24 @@ template <typename Scalar> void numerical_profile(Context & test, std::string_vi
                     limits::max_exponent == (binary32 ? 128 : 1024),
                 profile, "selected IEEE binary format");
     test.expect(std::fegetround() == FE_TONEAREST, profile, "round-to-nearest execution mode");
+
     volatile Scalar one = Scalar{1};
     volatile Scalar half_ulp = limits::epsilon() / Scalar{2};
     volatile Scalar odd = Scalar{1} + limits::epsilon();
     test.expect(one + half_ulp == Scalar{1} && odd + half_ulp == Scalar{1} + Scalar{2} * limits::epsilon(), profile,
                 "opposite halfway ties both round to an even significand");
+
     volatile Scalar minimum = limits::min();
     volatile Scalar subnormal = limits::denorm_min();
     test.expect(minimum * Scalar{0.5} > Scalar{0} &&
                     subnormal * std::ldexp(Scalar{1}, limits::digits) == limits::min() * Scalar{2},
                 profile, "this host evidence profile preserves subnormal outputs and inputs");
+
     volatile Scalar nan = limits::quiet_NaN();
     volatile Scalar infinity = limits::infinity();
     test.expect(std::isnan(nan) && !std::isfinite(infinity) && !std::isfinite(-infinity), profile,
                 "exceptional classification survives compiler optimization");
+
 #if defined(__FAST_MATH__)
     test.expect(false, profile, "fast-math is outside this evidence profile");
 #else
@@ -82,6 +87,7 @@ template <typename Linalg> void independent_instances(Context & test, std::strin
                       state.v_n(axis) == (axis == 0 ? velocity : scalar_type{0}) && state.b_a(axis) == scalar_type{0} &&
                       state.b_g(axis) == scalar_type{0};
         }
+
         return matches;
     };
     typename types::imu_sample_type imu{};
@@ -101,6 +107,7 @@ template <typename Linalg> void independent_instances(Context & test, std::strin
                 auto const rejected = formal_eskf::predict_nominal(state, imu, scalar_type{0}, parameters, output);
                 test.expect(rejected == Status::out_of_range && state_matches(output, state.p_n(0), state.v_n(0)),
                             profile, "rejected step does not advance the sequence");
+
                 if (interleave)
                 {
                     auto other_imu = imu;
@@ -112,23 +119,28 @@ template <typename Linalg> void independent_instances(Context & test, std::strin
                         other.b_a(axis) = scalar_type{0.25} * coordinate;
                         other.b_g(axis) = -scalar_type{0.0625} * coordinate;
                     }
+
                     test.expect(formal_eskf::predict_nominal(other, other_imu, scalar_type{0.25}, parameters, other) ==
                                     Status::success,
                                 profile, "independent estimator advances with different data");
                     test.expect(other_magnitude.update(other_imu.specific_force_b).status == Status::success, profile,
                                 "independent runtime filter advances with different data");
+
                     if (step % 2 == 0)
                     {
                         other_magnitude.reset();
                     }
                 }
+
                 test.expect(formal_eskf::predict_nominal(state, imu, scalar_type{0.25}, parameters, state) ==
                                 Status::success,
                             profile, "valid step recovers and advances");
+
                 scalar_type const time = static_cast<scalar_type>(step) * scalar_type{0.25};
                 test.expect(
                     state_matches(state, scalar_type{3} + time + time * time, scalar_type{1} + scalar_type{2} * time),
                     profile, "exact constant-acceleration trajectory is independent of other instances");
+
                 auto sample = imu.specific_force_b;
                 sample(1) = static_cast<scalar_type>(step);
                 auto const result = magnitude.update(sample);
@@ -137,16 +149,19 @@ template <typename Linalg> void independent_instances(Context & test, std::strin
                                 result.within_gravity_band == expected.within_gravity_band &&
                                 result.squared_norm == expected.squared_norm,
                             profile, "interleaving does not change runtime diagnostics");
+
                 for (std::size_t axis = 0; axis < 3; ++axis)
                 {
                     test.expect(magnitude.filtered_specific_force_b()(axis) ==
                                     control.filtered_specific_force_b()(axis),
                                 profile, "interleaving preserves each private filter history observation");
                 }
+
                 sample(0) = std::numeric_limits<scalar_type>::quiet_NaN();
                 test.expect(magnitude.update(sample).status == Status::non_finite_input, profile,
                             "failed sample is not committed to the filter");
             }
+
             magnitude.reset();
             control.reset();
             auto const result = magnitude.update(imu.specific_force_b);

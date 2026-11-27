@@ -16,6 +16,7 @@ struct ResetResult
     Scalar delta;
     Status status;
 };
+
 struct ResetCall
 {
     inline static ResetResult const * result = nullptr;
@@ -43,12 +44,14 @@ inline Status reset_vertical_position<height_transaction_proof::Backend>(
     __ESBMC_assert(ResetCall::count++ == 0U && same(position, ResetCall::position) &&
                        same(variance, ResetCall::variance) && &state == &state_output && &P == &P_output,
                    "Height reset: exact prior, down coordinate, variance and in-place numerical boundary");
+
     if (ResetCall::result->status == Status::success)
     {
         state_output = ResetCall::result->state;
         P_output = ResetCall::result->covariance;
         delta = ResetCall::result->delta;
     }
+
     return ResetCall::result->status;
 }
 
@@ -67,12 +70,14 @@ inline Status reset_vertical_velocity<height_transaction_proof::Backend>(
                        same(variance, static_cast<Scalar>(setting::reset_velocity_variance)) &&
                        &state == &state_output && &P == &P_output,
                    "Height recovery: velocity reset follows successful height reset and receives its candidate");
+
     if (ResetCall::velocity->status == Status::success)
     {
         state_output = ResetCall::velocity->state;
         P_output = ResetCall::velocity->covariance;
         delta = ResetCall::velocity->delta;
     }
+
     return ResetCall::velocity->status;
 }
 } // namespace formal_eskf::runtime
@@ -112,10 +117,12 @@ void verify_height_reset(Manager owner, State state, Covariance P, std::uint64_t
         expected_result.diagnostics[FORMAL_ESKF_PROOF_HEIGHT_SOURCE].reset = true;
         expected_result.position_delta_n = result.position_delta_n + (numerical.state.p_n - old_state.p_n);
     }
+
     owner.reset_height(source, now, altitude, variance, state, P, result, nullptr);
     __ESBMC_assert(ResetCall::count == 1U, "Height reset: exactly one numerical position reset");
     __ESBMC_assert(!control || control_domain(owner),
                    "Height reset/recovery: owner filter, intervals and active reference are preserved");
+
     check_manager(owner, expected);
     check_result(result, expected_result);
     if (numerical.status == Status::success)
@@ -130,6 +137,7 @@ void verify_height_reset(Manager owner, State state, Covariance P, std::uint64_t
         check_state(state, old_state);
         check_matrix(P, old_P);
     }
+
     __ESBMC_assert(history_domain(owner, now), "Height reset: owner history and bias variance domains preserved");
 }
 
@@ -188,6 +196,7 @@ void verify_height_recovery(Manager owner, State state, Covariance P, std::uint6
             {
                 aid.bias.value = (barometer ? expected.m_barometer_lpf : sample.altitude) - altitude_after;
             }
+
             if (vertical)
             {
                 expected_result.status = velocity.status;
@@ -199,6 +208,7 @@ void verify_height_recovery(Manager owner, State state, Covariance P, std::uint6
                 {
                     expected_result.velocity_delta_n = position.state.v_n - position.state.v_n;
                 }
+
                 if (velocity.status == Status::success)
                 {
                     expected_result.velocity_delta = velocity.delta;
@@ -216,14 +226,17 @@ void verify_height_recovery(Manager owner, State state, Covariance P, std::uint6
         {
             expected.m_reference = Source::none;
         }
+
         aid.fault = barometer && !needs_reset;
     }
+
     owner.recover(source, now, sample, variance, velocity_aiding, state, P, result, acceleration, nullptr);
     __ESBMC_assert(ResetCall::count == static_cast<unsigned>(reset) &&
                        ResetCall::velocity_calls == static_cast<unsigned>(vertical),
                    "Height recovery: reference/reset authority, timeout latch and exact partial-result protocol");
     __ESBMC_assert(!control || control_domain(owner),
                    "Height reset/recovery: owner filter, intervals and active reference are preserved");
+
     check_manager(owner, expected);
     check_result(result, expected_result);
     if (vertical && velocity.status == Status::success)
@@ -244,6 +257,7 @@ void verify_height_recovery(Manager owner, State state, Covariance P, std::uint6
         check_state(state, old_state);
         check_matrix(P, old_P);
     }
+
     __ESBMC_assert(history_domain(owner, now), "Height recovery: owner history and bias variance domains preserved");
 }
 

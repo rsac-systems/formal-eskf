@@ -16,14 +16,17 @@ extern void __ESBMC_assert(bool, char const *);
 namespace
 {
 #include "module_constants.inc"
+
 struct Vector
 {
     bool finite{};
 };
+
 struct Message
 {
     std::uint64_t timestamp{}, timestamp_sample{};
 };
+
 using vehicle_attitude_s = Message;
 using vehicle_local_position_s = Message;
 using vehicle_global_position_s = Message;
@@ -32,49 +35,60 @@ using estimator_status_s = Message;
 using estimator_status_flags_s = Message;
 using estimator_sensor_bias_s = Message;
 std::uint64_t clock_time;
+
 std::uint64_t hrt_absolute_time() { return clock_time; }
 } // namespace
+
 namespace formal_eskf::linalg
 {
 bool all_finite(Vector vector) { return vector.finite; }
 } // namespace formal_eskf::linalg
+
 namespace
 {
 struct Flow
 {
     using imu_type = unsigned;
     using status_type = formal_eskf::Status;
+
     struct OutputValidity
     {
         bool healthy{};
     } validity;
+
     struct BodyOutput
     {
         Vector position_n{}, velocity_n{};
     } body;
+
     struct Output
     {
         struct Sample
         {
             std::uint64_t time_us{};
         } sample;
+
         Sample const & current() const { return sample; }
     } m_output;
+
     std::uint64_t m_time_us{}, m_last_output{};
     bool m_fault{}, validity_called{}, body_called{};
     unsigned m_errors{}, publications{};
+
     OutputValidity output_validity(std::uint64_t now)
     {
         __ESBMC_assert(now == clock_time && publications == 0, "Navigation validity is checked before publication");
         validity_called = true;
         return validity;
     }
+
     BodyOutput body_output()
     {
         __ESBMC_assert(validity_called && validity.healthy, "Body conversion follows a healthy output gate");
         body_called = true;
         return body;
     }
+
     Message publish_local_position(std::uint64_t now, unsigned const & imu, BodyOutput const & value,
                                    OutputValidity const & result)
     {
@@ -84,6 +98,7 @@ struct Flow
         ++publications;
         return local_epochs(now);
     }
+
     void publish_global_position(std::uint64_t now, Message const & local, BodyOutput const &, OutputValidity const &)
     {
         __ESBMC_assert(publications == 1 && local.timestamp == now &&
@@ -91,12 +106,14 @@ struct Flow
                        "Global publication receives the same current local output and epoch");
         ++publications;
     }
+
     void publish_odometry(std::uint64_t now, unsigned const & imu, BodyOutput const &)
     {
         __ESBMC_assert(publications == 2 && now == clock_time && imu == 1,
                        "Odometry completes the same current-output publication group");
         ++publications;
     }
+
     bool check(status_type status);
     void publish(unsigned const & imu);
     Message attitude_epochs(std::uint64_t now) const;
@@ -107,6 +124,7 @@ struct Flow
     Message flags_epochs(std::uint64_t now) const;
     Message bias_epochs(std::uint64_t now) const;
 };
+
 #include "module_status_check.inc"
 #include "module_publication.inc"
 #include "module_epochs.inc"

@@ -58,12 +58,14 @@ template <typename Cell> void check_cells(Cell const & a, Cell const & b)
 #undef HEIGHT_CELL
     }
 }
+
 // Compare every coefficient in the actual fixed-size proof storage. No input
 // or output-property partition is selected by the registered owner profiles.
 template <typename Matrix> void check_matrix(Matrix const & a, Matrix const & b)
 {
     check_cells(covariance_oracle::cells(a), covariance_oracle::cells(b));
 }
+
 inline void check_state(State const & a, State const & b)
 {
     check_matrix(a.p_n, b.p_n);
@@ -87,6 +89,7 @@ inline void check_bias(Bias const & a, Bias const & b)
     HEIGHT_FIELD(dt);
 #undef HEIGHT_FIELD
 }
+
 inline void check_session(Session const & a, Session const & b)
 {
     check_bias(a.bias, b.bias);
@@ -105,6 +108,7 @@ inline void check_session(Session const & a, Session const & b)
             a.fusion_reset == b.fusion_reset && a.fault == b.fault && a.stop_reason == b.stop_reason,
         "Height frame: complete session timestamps, identity, lifecycle and diagnostics");
 }
+
 inline void check_manager(Manager const & a, Manager const & b)
 {
     __ESBMC_assert(same_parameters(a.m_parameters, b.m_parameters), "Height frame: complete copied settings");
@@ -117,6 +121,7 @@ inline void check_manager(Manager const & a, Manager const & b)
                        a.m_last_height_progress == b.m_last_height_progress,
                    "Height frame: reference, warmup counter and owner clocks");
 }
+
 inline void check_result(Result const & a, Result const & b)
 {
     __ESBMC_assert(same_diagnostic(a.diagnostics[0], b.diagnostics[0]) &&

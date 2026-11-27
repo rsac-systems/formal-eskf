@@ -22,6 +22,7 @@ template <typename Value> constexpr Value const & formal_eskf_proof_min(Value co
     }
     return first;
 }
+
 template <typename Iterator, typename Predicate>
 bool formal_eskf_proof_any_of(Iterator first, Iterator last, Predicate predicate)
 {

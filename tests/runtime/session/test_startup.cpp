@@ -207,6 +207,7 @@ void seed_priors(Context & test, std::string_view profile)
                     profile, "initial covariance never masquerades as completed tilt alignment");
     }
 }
+
 void prealignment_refinement(Context & test, std::string_view profile)
 {
     auto const p = parameters();

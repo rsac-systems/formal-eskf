@@ -29,6 +29,7 @@ public:
     {
         std::uint32_t device_id{};        // Zero is an explicit unavailable-source indication.
         std::uint8_t calibration_count{}; // GNSS uses zero.
+
         bool matches(Source const & other) const
         {
             return device_id == other.device_id && calibration_count == other.calibration_count;
@@ -143,6 +144,7 @@ public:
         empty,
         selected
     };
+
     struct PopResult
     {
         Selection decision = Selection::not_ready;
@@ -156,12 +158,14 @@ public:
     }
 
     [[nodiscard]] bool configure(TimingParameters const & parameters, std::size_t imu_capacity);
+
     [[nodiscard]] bool can_configure(TimingParameters const & parameters, std::size_t imu_capacity) const
     {
         TimingConfiguration candidate;
         return m_seed_time_us == 0 && valid_timing() &&
                configure_timing(parameters, m_timing.imu, imu_capacity, candidate);
     }
+
     [[nodiscard]] bool seed(Seed const & initial);
     /** Exactly once per newly admitted real IMU interval; no synthetic context samples. */
     [[nodiscard]] bool record_imu(interval_type const & interval, LandState const & land, VehicleState const & vehicle);
@@ -185,26 +189,38 @@ public:
     Context context(std::uint64_t time_us, std::uint64_t maximum_age_us) const;
     /** Historical permission for the next retained IMU, before prediction; no selection or clock advance. */
     Context prediction_context(interval_type const & interval, std::uint64_t maximum_age_us) const;
+
     Source const & gnss_source() const { return m_gnss_time.source; }
+
     Source const & magnetic_source() const { return m_magnetic_time.source; }
+
     Source const & barometer_source() const { return m_barometer_time.source; }
+
     std::uint64_t gnss_generation() const { return m_gnss_time.generation; }
+
     std::uint64_t magnetic_generation() const { return m_magnetic_time.generation; }
+
     std::uint64_t barometer_generation() const { return m_barometer_time.generation; }
+
     ObservationReceipt barometer_receipt() const
     {
         return {m_latest_time_us, m_barometer_push_time_us, m_barometer_time.generation};
     }
+
     std::uint64_t fusion_time_us() const { return m_fusion_time_us; }
+
     std::uint32_t half_period_us() const { return static_cast<std::uint32_t>(m_average_period_us * 0.5); }
+
     std::array<std::size_t, 3> entries() const
     {
         return {m_gnss.entries(), m_magnetic.entries(), m_barometer.entries()};
     }
+
     std::array<std::size_t, 3> capacities() const
     {
         return {m_gnss.get_length(), m_magnetic.get_length(), m_barometer.get_length()};
     }
+
     void reset(); // Retain startup configuration; clear histories, watermarks, context and timing average.
 
 private:
@@ -213,6 +229,7 @@ private:
         Source source{};
         std::uint64_t sample_time_us{}, arrival_time_us{}, admitted_time_us{}, selection_time_us{}, generation{};
     };
+
     struct Limits
     {
         std::uint64_t delay_us{}, arrival_age_us{}, spacing_us{};
@@ -231,6 +248,7 @@ private:
     RingBuffer<GnssObservation, GnssCapacity> m_gnss{GnssCapacity};
     RingBuffer<MagneticObservation, MagneticCapacity> m_magnetic{MagneticCapacity};
     RingBuffer<BarometerObservation, BarometerCapacity> m_barometer{BarometerCapacity};
+
     // Group equal-alignment fields in retained storage. The public context keeps
     // source-oriented fields; this avoids per-source tail padding in every slot.
     struct ContextRecord
@@ -239,6 +257,7 @@ private:
         bool land_known{}, landed{}, at_rest{}, in_ground_effect{}, vehicle_known{}, armed{}, fixed_wing{};
 
         ContextRecord() = default;
+
         explicit ContextRecord(Context const & c)
             : time_us(c.time_us), land_time_us(c.land.time_us), vehicle_time_us(c.vehicle.time_us),
               land_known(c.land.known), landed(c.land.landed), at_rest(c.land.at_rest),
@@ -246,6 +265,7 @@ private:
               fixed_wing(c.vehicle.fixed_wing)
         {
         }
+
         Context context() const
         {
             return {time_us,
@@ -253,6 +273,7 @@ private:
                     {vehicle_time_us, vehicle_known, armed, fixed_wing}};
         }
     };
+
     RingBuffer<ContextRecord, ContextCapacity> m_context{ContextCapacity};
     ObservationTiming m_timing{};
     Timeline m_gnss_time{}, m_magnetic_time{}, m_barometer_time{};

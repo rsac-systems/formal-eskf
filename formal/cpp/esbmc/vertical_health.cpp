@@ -23,20 +23,24 @@ using formal_eskf::Status;
 // Every IEEE root return is admitted independently. The optional observer only
 // records scalar calls; it never changes a primitive's return or production state.
 extern Scalar nondet_health_root();
+
 struct HealthMath : formal_eskf::scalar::StandardMath<Scalar>
 {
     struct Root
     {
         Scalar operator()(Scalar value);
     };
+
     inline static Root sqrt{};
     static bool is_finite(Scalar value);
 };
+
 struct Profile
 {
     using value_type = Scalar;
     using scalar_math_type = HealthMath;
 };
+
 using Monitor = formal_eskf::runtime::VerticalAccelerationHealth<Profile>;
 using History = Monitor::State;
 using Likelihood = Monitor::Likelihood;
@@ -66,6 +70,7 @@ bool same_likelihood_scalar(Scalar a, Scalar b)
     using Bits = std::conditional_t<sizeof(Scalar) == 4, std::uint32_t, std::uint64_t>;
     return __builtin_bit_cast(Bits, a) == __builtin_bit_cast(Bits, b) || (std::isnan(a) && std::isnan(b));
 }
+
 struct LikelihoodTrace
 {
     inline static bool enabled = false;
@@ -87,12 +92,14 @@ struct LikelihoodTrace
     inline static Scalar root{}, consumed_innovation{};
     inline static Status status{};
 };
+
 Scalar HealthMath::Root::operator()(Scalar value)
 {
     if (!LikelihoodTrace::enabled)
     {
         return nondet_health_root();
     }
+
     check_likelihood_protocol(LikelihoodTrace::cursor < 6 &&
                                   LikelihoodTrace::stage == LikelihoodTrace::Stage::root_call &&
                                   LikelihoodTrace::status == Status::success,
@@ -103,12 +110,14 @@ Scalar HealthMath::Root::operator()(Scalar value)
     LikelihoodTrace::root = nondet_health_root();
     return LikelihoodTrace::root;
 }
+
 bool HealthMath::is_finite(Scalar value)
 {
     if (!LikelihoodTrace::enabled)
     {
         return std::isfinite(value);
     }
+
     bool const valid = std::isfinite(value);
     check_likelihood_protocol(LikelihoodTrace::status == Status::success, "no consumption after first failure");
     check_likelihood_protocol(LikelihoodTrace::cursor < 6, "all checks belong to active source");
@@ -122,6 +131,7 @@ bool HealthMath::is_finite(Scalar value)
         {
             LikelihoodTrace::status = Status::non_finite_input;
         }
+
         LikelihoodTrace::stage = LikelihoodTrace::Stage::variance;
     }
     else if (LikelihoodTrace::stage == LikelihoodTrace::Stage::variance)
@@ -158,6 +168,7 @@ bool HealthMath::is_finite(Scalar value)
         {
             LikelihoodTrace::status = Status::non_finite_result;
         }
+
         LikelihoodTrace::stage = LikelihoodTrace::Stage::ratio;
     }
     else
@@ -172,13 +183,16 @@ bool HealthMath::is_finite(Scalar value)
         {
             LikelihoodTrace::status = Status::non_finite_result;
         }
+
         LikelihoodTrace::minimum[LikelihoodTrace::cursor] = value > Scalar{1};
         LikelihoodTrace::limit[LikelihoodTrace::cursor] = value > Scalar{3};
         LikelihoodTrace::cursor = LikelihoodTrace::next_source[LikelihoodTrace::cursor];
         LikelihoodTrace::stage = LikelihoodTrace::Stage::innovation;
     }
+
     return valid;
 }
+
 bool same_history(History const & a, History const & b)
 {
     return a.likelihood == b.likelihood && a.clip_count == b.clip_count && a.bad_clipping == b.bad_clipping &&
@@ -186,6 +200,7 @@ bool same_history(History const & a, History const & b)
            a.last_bad_time_us == b.last_bad_time_us && a.last_good_time_us == b.last_good_time_us &&
            a.last_update_time_us == b.last_update_time_us;
 }
+
 bool clock_invariant(History const & state)
 {
     return state.last_bad_time_us <= state.last_update_time_us &&
@@ -213,13 +228,16 @@ bool same_observations(Monitor::Observations const & a, Monitor::Observations co
             return false;
         }
     }
+
     return true;
 }
+
 struct FallingResult
 {
     Status status;
     Likelihood likelihood;
 };
+
 struct FallingCall
 {
     inline static FallingResult result{};
@@ -235,6 +253,7 @@ inline Status VerticalAccelerationHealth<Profile>::falling_likelihood(Observatio
 {
     __ESBMC_assert(FallingCall::calls++ == 0U && same_observations(observations, FallingCall::input),
                    "vertical health caller: exactly one original observation request after validation");
+
     // Failure may dirty the candidate: the caller must not publish it.
     output = FallingCall::result.likelihood;
     return FallingCall::result.status;
@@ -279,6 +298,7 @@ void verify_vertical_likelihood(Monitor::Observations observations, Monitor::Lik
             next = i - 1;
         }
     }
+
     LikelihoodTrace::cursor = next;
     LikelihoodTrace::stage = LikelihoodTrace::Stage::innovation;
     LikelihoodTrace::status = Status::success;
@@ -290,6 +310,7 @@ void verify_vertical_likelihood(Monitor::Observations observations, Monitor::Lik
         check_likelihood_protocol(output == old, "failure atomicity");
         return;
     }
+
     check_likelihood_protocol(LikelihoodTrace::cursor == 6 &&
                                   LikelihoodTrace::stage == LikelihoodTrace::Stage::innovation,
                               "all active inputs validated before verdict");
@@ -329,6 +350,7 @@ void verify_vertical_initialization(History arbitrary)
     Monitor monitor;
     __ESBMC_assert(same_history(monitor.state(), History{}) && clock_invariant(monitor.state()),
                    "R-VERTICAL-ACCELERATION: constructor establishes empty history and clock invariant");
+
     // The underlying object is mutable. Seed the published history for induction
     // without rewriting update() or assuming that arbitrary prior history is reachable.
     const_cast<History &>(monitor.state()) = arbitrary;
@@ -381,6 +403,7 @@ void verify_vertical_transition(History prior, Monitor::Sample sample, Monitor::
     {
         expected_status = falling.status;
     }
+
     if (expected_status == Status::success)
     {
         expected.likelihood = falling.likelihood;
@@ -396,6 +419,7 @@ void verify_vertical_transition(History prior, Monitor::Sample sample, Monitor::
             warnings += expected.clip_count[axis] >= count_limit / 2U;
             critical += expected.clip_count[axis] >= count_limit;
         }
+
         expected.bad_clipping = critical != 0U || warnings == 3U;
         bool const frequent = expected.bad_clipping || expected.clip_count[2U] >= count_limit / 2U;
         expected.bad_sample = high || (medium && frequent);
@@ -405,6 +429,7 @@ void verify_vertical_transition(History prior, Monitor::Sample sample, Monitor::
         expected.bad_vertical_acceleration =
             expected.last_bad_time_us != 0U && sample.time_us - expected.last_bad_time_us < 3'000'000U;
     }
+
     auto const status = monitor.update(sample, observations);
     __ESBMC_assert(
         status == expected_status && same_history(monitor.state(), expected),

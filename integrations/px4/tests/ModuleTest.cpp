@@ -60,6 +60,7 @@ void trace_bytes(void const * data, std::size_t size)
     {
         std::fprintf(trace_file, "%02x", bytes[i]);
     }
+
     std::fputc('\n', trace_file);
 }
 
@@ -76,6 +77,7 @@ template <typename Matrix> bool same_bits(Matrix const & a, Matrix const & b)
             }
         }
     }
+
     return true;
 }
 
@@ -122,6 +124,7 @@ extern "C" void __wrap_hrt_call_after(hrt_call *, hrt_abstime delay, hrt_callout
     ++watchdog_calls;
     watchdog_delay = static_cast<std::uint32_t>(delay);
 }
+
 extern "C" void __wrap_hrt_cancel(hrt_call *) {}
 // Resource tests inject returned dependency errors; all normal calls use the
 // actual PX4 implementation. Injection is disabled during concurrent tests.
@@ -130,16 +133,19 @@ extern "C" int __wrap_pthread_mutex_init(pthread_mutex_t * mutex, pthread_mutexa
 {
     return mutex == failed_init_mutex ? ENOMEM : __real_pthread_mutex_init(mutex, attr);
 }
+
 extern "C" int __real_pthread_mutex_lock(pthread_mutex_t *);
 extern "C" int __wrap_pthread_mutex_lock(pthread_mutex_t * mutex)
 {
     return mutex == failed_lock_mutex ? EINVAL : __real_pthread_mutex_lock(mutex);
 }
+
 extern "C" int __real_pthread_mutex_trylock(pthread_mutex_t *);
 extern "C" int __wrap_pthread_mutex_trylock(pthread_mutex_t * mutex)
 {
     return mutex == failed_trylock_mutex ? EINVAL : __real_pthread_mutex_trylock(mutex);
 }
+
 extern "C" int __real__ZN4uORB7Manager11orb_publishEPK12orb_metadataPvPKv(orb_id_t, orb_advert_t, void const *);
 extern "C" int __wrap__ZN4uORB7Manager11orb_publishEPK12orb_metadataPvPKv(orb_id_t topic, orb_advert_t handle,
                                                                           void const * data)
@@ -148,11 +154,13 @@ extern "C" int __wrap__ZN4uORB7Manager11orb_publishEPK12orb_metadataPvPKv(orb_id
                ? PX4_ERROR
                : __real__ZN4uORB7Manager11orb_publishEPK12orb_metadataPvPKv(topic, handle, data);
 }
+
 extern "C" void * __real__ZnwmRKSt9nothrow_t(std::size_t, std::nothrow_t const &);
 extern "C" void * __wrap__ZnwmRKSt9nothrow_t(std::size_t size, std::nothrow_t const & tag)
 {
     return failed_allocation ? nullptr : __real__ZnwmRKSt9nothrow_t(size, tag);
 }
+
 extern "C" perf_counter_t __real_perf_alloc(perf_counter_type, char const *);
 extern "C" perf_counter_t __wrap_perf_alloc(perf_counter_type type, char const * name)
 {
@@ -171,11 +179,13 @@ public:
         {
             model = filter.lookup_magnetic_model(session.model_request());
         }
+
         session.complete_magnetic(model);
         session.m_phase = FormalEskf::session_type::Phase::idle;
         session.m_model_request = {};
         filter.update_innovations();
     }
+
     static void update_magnetic_model(FormalEskf & filter)
     {
         auto & session = filter.m_session;
@@ -185,6 +195,7 @@ public:
         {
             session.apply_magnetic_model(filter.lookup_magnetic_model(session.model_request()));
         }
+
         session.m_model_request = {};
         session.m_phase = FormalEskf::session_type::Phase::idle;
     }
@@ -200,11 +211,13 @@ public:
         m_sample.accel_device_id = 101U;
         m_sample.gyro_device_id = 102U;
         expect(m_filter.init(), "module startup parameters and callback registration");
+
         for (std::size_t i = 0U; i < m_topics.size(); ++i)
         {
             m_outputs[i] = orb_subscribe(m_topics[i]);
             expect(m_outputs[i] >= 0, "subscribe to estimator output");
         }
+
         capture_outputs(false);
     }
 
@@ -222,17 +235,22 @@ public:
         {
             bool updated = false;
             expect(orb_check(m_outputs[i], &updated) == 0, "read output publication status");
+
             if (!updated)
             {
                 continue;
             }
+
             std::array<unsigned char, 512U> message{};
             expect(m_topics[i]->o_size <= message.size(), "topic fits bounded capture storage");
+
             if (m_topics[i]->o_size > message.size())
             {
                 std::abort();
             }
+
             expect(orb_copy(m_topics[i], m_outputs[i], message.data()) == 0, "copy actual uORB output");
+
             if (record)
             {
                 ++publications;
@@ -269,6 +287,7 @@ public:
         {
             m_gps_pub.publish(gps);
         }
+
         vehicle_magnetometer_s mag{};
         mag.timestamp = clock_us;
         mag.timestamp_sample = clock_us;
@@ -281,6 +300,7 @@ public:
         {
             m_mag_pub.publish(mag);
         }
+
         vehicle_air_data_s baro{};
         baro.timestamp = clock_us;
         baro.timestamp_sample = clock_us;
@@ -290,6 +310,7 @@ public:
         {
             m_baro_pub.publish(baro);
         }
+
         vehicle_land_detected_s land{};
         land.timestamp = clock_us;
         land.landed = m_landed;
@@ -299,6 +320,7 @@ public:
         {
             m_land_pub.publish(land);
         }
+
         vehicle_status_s vehicle{};
         vehicle.timestamp = clock_us;
         vehicle.arming_state = m_armed ? vehicle_status_s::ARMING_STATE_ARMED : vehicle_status_s::ARMING_STATE_DISARMED;
@@ -308,6 +330,7 @@ public:
         {
             m_status_pub.publish(vehicle);
         }
+
         m_imu_pub.publish(m_sample);
         auto const calls = watchdog_calls;
         m_filter.Run();
@@ -324,9 +347,11 @@ public:
             test.m_sample.timestamp_sample += 4000;
             test.tick();
         }
+
         auto const cap = test.m_filter.m_session.capabilities(clock_us);
         expect(cap.attitude.available && !cap.heading.available && !cap.horizontal_position.available,
                "real module cold start supports tilt without external aiding");
+
         auto const mode = param_find("SENS_IMU_MODE");
         int32_t saved{}, single = 1;
         param_get(mode, &saved);
@@ -386,6 +411,7 @@ public:
         expect(rates_sub.update(&rates) && std::isfinite(rates.roll) && std::isfinite(rates.pitch) &&
                    std::isfinite(rates.yaw) && rates.timestamp == clock_us,
                "unmodified multicopter attitude controller consumes tilt-only output and emits finite rates");
+
         // The controller must consume a real first-heading reset, not a test
         // replay of a fabricated quaternion/counter message.
         manual.roll = 0;
@@ -412,8 +438,10 @@ public:
             {
                 expect(rates_sub.copy(&rates) && std::abs(rates.yaw) < 1e-3f,
                        "heading reset leaves no persistent yaw control error on the following update");
+
                 check_next_rate = false;
             }
+
             if (attitude_sub.update(&attitude) && attitude.quat_reset_counter != previous_count)
             {
                 ++reset_publications;
@@ -426,11 +454,14 @@ public:
                 auto const expected = -2.f * yaw_gain / yaw_weight * std::sin(.5f * yaw_weight * delta);
                 expect(std::abs(rates.yaw - expected) < 32.f * FLT_EPSILON * yaw_gain,
                        "pinned manual controller has the predicted single-cycle reset response");
+
                 check_next_rate = true;
             }
         }
+
         expect(test.m_filter.m_session.resets().attitude_count == reset_count + 1 && reset_publications == 1,
                "real magnetic acquisition delivers one reset to the unchanged attitude consumer");
+
         auto advance = [&](unsigned count)
         {
             for (unsigned i = 0; i < count; ++i)
@@ -448,16 +479,19 @@ public:
         expect(relative.vertical_position.available && !relative.vertical_velocity.available &&
                    !relative.msl_altitude.available,
                "relative barometer permits PX4 altitude support without fabricated velocity or MSL");
+
         test.m_send_gps = true;
         advance(15000);
         verify_modes(true, true, true);
         expect(test.m_filter.m_session.capabilities(clock_us).global_position.available,
                "genuine qualified GNSS and heading attach full navigation without estimator restart");
+
         test.m_send_gps = test.m_send_magnetic = false;
         advance(3000);
         verify_modes(true, true, false);
         expect(!test.m_filter.m_session.capabilities(clock_us).heading.available,
                "loss of referenced heading and GNSS preserves tilt and independent barometric altitude");
+
         test.m_send_gps = test.m_send_magnetic = true;
         advance(15000);
         verify_modes(true, true, true);
@@ -477,6 +511,7 @@ public:
             test.m_sample.timestamp_sample += 4000;
             test.tick();
         }
+
         auto const cap = test.m_filter.m_session.capabilities(clock_us);
         expect(cap.attitude.available && !cap.heading.available && !cap.geographic_attached,
                "weak near-pole model cannot manufacture heading or a geographic attachment");
@@ -525,6 +560,7 @@ public:
             expect(attitude_sub.copy(&attitude) && local_sub.copy(&local) && global_sub.copy(&global) &&
                        odometry_sub.copy(&odometry),
                    "snapshot real publications before first-attachment fault injection");
+
             auto const state = session.m_state;
             auto const P = session.m_covariance;
             auto const height = session.m_height_aiding;
@@ -550,12 +586,14 @@ public:
                 session.m_sensor_positions.imu_b(0) = 1e300;
                 break;
             }
+
             auto const injected_P = session.m_covariance;
             expect(!session.attach_navigation() && !session.m_navigation_frame.initialized() &&
                        same_bits(session.m_state.p_n, state.p_n) &&
                        same_bits(session.m_state.q_nb.coefficients(), state.q_nb.coefficients()) &&
                        same_bits(session.m_covariance, injected_P),
                    "failed attachment participant commits neither geographic state nor covariance");
+
             // Remove only the injected fault; retain the actual post-attempt
             // state, history, references and reset notifications for comparison.
             switch (participant)
@@ -576,6 +614,7 @@ public:
                 session.m_sensor_positions = sensors;
                 break;
             }
+
             publish_current();
             vehicle_attitude_s after_attitude{};
             vehicle_local_position_s after_local{};
@@ -590,6 +629,7 @@ public:
                    "failed first attachment leaks no mixed-frame output or reset notification to real uORB");
             expect(session.attach_navigation() && session.m_navigation_frame.initialized() && !session.fault(),
                    "restored participants admit a coherent first-attachment retry");
+
             publish_current();
             expect(local_sub.copy(&after_local) && after_local.xy_global && after_local.z_global &&
                        std::abs(after_local.z - local.z) < 1e-5f,
@@ -608,17 +648,21 @@ public:
             test.m_sample.timestamp_sample += 4000;
             test.tick();
         }
+
         auto & session = test.m_filter.m_session;
         test.m_send_gps = test.m_send_magnetic = test.m_send_barometer = false;
         pthread_attr_t attributes;
         if (pthread_attr_init(&attributes) != 0)
         {
             expect(false, "initialize host stack-budget test attributes");
+
             return;
         }
+
         auto const configured =
             pthread_attr_setstacksize(&attributes, formal_eskf::px4::profile::work_queue_stack_bytes);
         expect(configured == 0, "host thread accepts the actual configured SITL stack reservation");
+
         pthread_t worker;
         auto execute = [](void * opaque) -> void *
         {
@@ -634,6 +678,7 @@ public:
                     {
                         fixture.m_filter.m_session.m_covariance(i, i) += 2e6;
                     }
+
                     for (std::size_t i = 0; i < 3; ++i)
                     {
                         for (std::size_t j = 0; j < 3; ++j)
@@ -642,13 +687,16 @@ public:
                         }
                     }
                 }
+
                 if (step == 2000)
                 {
                     fixture.m_send_gps = fixture.m_send_magnetic = fixture.m_send_barometer = true;
                 }
+
                 fixture.m_sample.timestamp_sample += 4000;
                 fixture.tick();
             }
+
             return nullptr;
         };
         int started = configured;
@@ -656,18 +704,23 @@ public:
         {
             started = pthread_create(&worker, &attributes, execute, &test);
         }
+
         pthread_attr_destroy(&attributes);
         expect(started == 0, "start bounded-stack production-module execution");
+
         if (started != 0)
         {
             return;
         }
+
         expect(pthread_join(worker, nullptr) == 0, "join completed stack-budget fixture");
+
         auto const & continuity = session.continuity_state();
         expect(
             !session.fault() && continuity.translation_updates >= 6 && continuity.heading_updates > 0 &&
                 session.capabilities(clock_us).global_position.available,
             "actual production call chain exercises numerical sweeps and genuine recovery within the SITL reservation");
+
         std::printf("Staged stack fixture: %u-byte reservation; %llu translation and %llu heading guards\n",
                     unsigned(formal_eskf::px4::profile::work_queue_stack_bytes),
                     static_cast<unsigned long long>(continuity.translation_updates),
@@ -684,17 +737,20 @@ public:
             expect(m_filter.m_session.configure_magnetic({false, true, 0.2}),
                    "frame-policy fixture declares its independent heading reference");
         }
+
         for (unsigned i = 0; i < 8500U; ++i)
         {
             m_sample.timestamp_sample += 4000U;
             tick();
         }
+
         expect(m_filter.m_session.m_initialized && !m_filter.m_session.m_fault,
                "stationary real sensor sequence initializes the estimator");
         expect(m_filter.m_session.m_tilt_alignment.aligned(),
                "real gravity refinement completes tilt alignment before navigation");
         expect(m_filter.m_session.m_statistics.predictions > 0U, "post-startup ticks run prediction");
         expect(m_filter.m_session.m_gnss.corrections > 0U, "post-startup ticks run GNSS correction");
+
         snapshot("initialized");
     }
 
@@ -704,6 +760,7 @@ public:
         {
             return;
         }
+
         std::fprintf(trace_file, "%s %llu %u %u %u %u %llu %llu %llu %llu %u %u\n", label,
                      static_cast<unsigned long long>(m_filter.m_session.m_time_us), m_filter.m_session.m_initialized,
                      m_filter.m_session.m_fault, unsigned(m_filter.m_session.m_startup.ready()),
@@ -722,10 +779,12 @@ public:
             values[10U + i] = state.b_a(i);
             values[13U + i] = state.b_g(i);
         }
+
         for (std::size_t i = 0; i < 4U; ++i)
         {
             values[6U + i] = state.q_nb.coefficients()(i);
         }
+
         for (std::size_t row = 0; row < 15U; ++row)
         {
             for (std::size_t col = 0; col < 15U; ++col)
@@ -733,6 +792,7 @@ public:
                 values[16U + 15U * row + col] = m_filter.m_session.m_covariance(row, col);
             }
         }
+
         trace_bytes(values.data(), sizeof(values));
         std::fprintf(trace_file, "gravity %u %u %llu %llu %llu\n",
                      unsigned(m_filter.m_session.m_tilt_alignment.aligned()),
@@ -762,6 +822,7 @@ public:
         {
             magnetic_values[4U + i] = m_filter.m_session.m_resets.attitude_delta.coefficients()(i);
         }
+
         trace_bytes(magnetic_values.data(), sizeof(magnetic_values));
         auto const & gnss = m_filter.m_session.m_gnss.lifecycle.state();
         for (auto const & group : {gnss.velocity, gnss.horizontal_position})
@@ -772,6 +833,7 @@ public:
                          static_cast<unsigned long long>(group.last_reset_time_us),
                          static_cast<unsigned long long>(group.start_time_us));
         }
+
         std::fprintf(trace_file, "navigation %llu %llu %u %u %u %llu %llu\n",
                      static_cast<unsigned long long>(m_filter.m_session.m_gnss.corrections),
                      static_cast<unsigned long long>(m_filter.m_session.m_statistics.baro_updates),
@@ -834,6 +896,7 @@ public:
         // public Run startup is exercised independently.
         expect(formal_eskf::succeeded(f.m_session.m_tilt_alignment.update({}, FormalEskf::matrix3_type{})),
                "navigation-owner fixture has aligned tilt");
+
         f.m_session.m_time_us = clock_us;
         f.m_session.m_covariance = FormalEskf::covariance_type::identity();
         f.m_session.m_origin.projection.set_origin(47.397742, 8.545594, clock_us);
@@ -842,6 +905,7 @@ public:
         expect(formal_eskf::succeeded(f.m_session.m_navigation_frame.initialize({47.397742, 8.545594, 535.})) &&
                    f.m_session.update_height_datum(clock_us, {47.397742, 8.545594, 535.}, 488.),
                "prepare geometric frame and paired height datum");
+
         f.m_gps.device_id = 201U;
         f.m_gps.latitude_deg = 47.397742;
         f.m_gps.longitude_deg = 8.545594;
@@ -874,10 +938,12 @@ public:
             f.m_gps.timestamp_sample = clock_us;
             f.m_session.m_gnss.sample = {clock_us, f.m_session.m_gnss.quality_result.decision};
         }
+
         if (barometer)
         {
             f.m_baro.timestamp_sample = clock_us;
         }
+
         select_navigation_inputs();
         f.m_session.fuse_gps({});
         f.update_innovations();
@@ -887,6 +953,7 @@ public:
             f.m_session.fuse_height(navigation_receipt());
             f.update_innovations();
         }
+
         f.publish(FormalEskf::imu_type{});
         f.publish_status(clock_us);
         capture_outputs();
@@ -901,6 +968,7 @@ public:
         {
             navigation_tick();
         }
+
         expect(!m_filter.m_session.m_fault &&
                    m_filter.m_session.m_height_aiding.session(FormalEskf::height_type::Source::barometer).active,
                "two-source navigation startup");
@@ -915,6 +983,7 @@ public:
         expect(f.m_session.m_resets.position_count == 1U && f.m_session.m_resets.velocity_count == 1U &&
                    f.m_session.m_resets.height_count == 1U && f.m_session.m_gnss.corrections == 0U,
                "first qualified sample resets three groups without counting correction");
+
         f.m_session.m_covariance = FormalEskf::covariance_type::identity();
         f.m_session.m_covariance(3, 9) = f.m_session.m_covariance(9, 3) = 0.2;
         f.m_session.m_covariance(0, 12) = f.m_session.m_covariance(12, 0) = 0.2;
@@ -927,6 +996,7 @@ public:
                "velocity then position then height each count a correction");
         expect((f.m_session.m_state.b_a(0) == 0.) == inhibit && (f.m_session.m_state.b_g(0) == 0.) == inhibit,
                "permissions reach velocity and horizontal gain rows");
+
         auto const position_progress = f.m_session.m_gnss.lifecycle.state().horizontal_position.last_fuse_time_us;
         f.m_gps.latitude_deg += 1.;
         f.m_gps.vel_n_m_s = 1.1f;
@@ -965,7 +1035,9 @@ public:
             f.m_session.update_gps_quality();
             f.update_innovations();
         }
+
         expect(f.m_session.gps_good(), "real monitor qualifies after ten seconds");
+
         auto const seen = f.m_session.m_gnss.sample_time_us;
         auto const previous = f.m_session.m_gnss.previous_fix.time_us();
         clock_us += 600000U;
@@ -995,6 +1067,7 @@ public:
             f.m_gps.satellites_used = 1U;
             break;
         }
+
         test.select_navigation_inputs();
         f.m_session.update_gps_quality();
         f.update_innovations();
@@ -1002,27 +1075,32 @@ public:
                              scenario == GnssInputCase::stale || scenario == GnssInputCase::velocity_invalid;
         expect((f.m_session.m_gnss.sample.time_us == 0U) == ignored && !f.m_session.m_fault,
                "admission precedes qualification");
+
         if (ignored)
         {
             expect(f.m_session.m_gnss.previous_fix.time_us() == previous,
                    "ignored arrival does not advance drift reference");
         }
+
         if (scenario == GnssInputCase::metadata_invalid)
         {
             expect(!f.m_session.m_gnss.metadata_valid && !f.m_session.m_gnss.sample.quality_available &&
                        f.m_session.m_statistics.rejections == 1U,
                    "malformed coordinates revoke metadata, not a bad-fix substitute");
         }
+
         if (scenario == GnssInputCase::receiver || scenario == GnssInputCase::quality)
         {
             expect(!f.m_session.gps_good(), "changed receiver and failed checks cannot retain qualification");
         }
+
         if (scenario == GnssInputCase::receiver)
         {
             expect(f.m_position_ratios[0].time_us == 0 && f.m_velocity_ratios[0].time_us == 0 &&
                        std::isnan(f.m_velocity_ratios[0].filtered),
                    "receiver replacement clears innovation reporting history before requalification");
         }
+
         test.snapshot("GNSS-admission");
     }
 
@@ -1034,14 +1112,17 @@ public:
         auto const resets = f.m_session.m_resets.height_count;
         test.navigation_tick(false, true, 999999U);
         expect(f.m_session.m_height_aiding.reference() == FormalEskf::height_type::Source::gnss, "height data grace");
+
         test.navigation_tick(false, true, 1U);
         expect(f.m_session.m_height_aiding.reference() == FormalEskf::height_type::Source::barometer &&
                    f.m_session.m_resets.height_count == resets,
                "fallback switches reference without reset");
+
         test.navigation_tick(false, true, 6000001U);
         expect(!f.m_session.m_gnss.lifecycle.state().velocity.active &&
                    !f.m_session.gps_velocity_valid(formal_eskf::px4::profile::gnss::maximum_aiding_age_us),
                "seven-second GNSS stop");
+
         f.m_gps.altitude_msl_m += 5.;
         test.navigation_tick();
         expect(!f.m_session.m_fault && f.m_session.m_resets.height_count == std::uint8_t(resets + 1U) &&
@@ -1057,6 +1138,7 @@ public:
         {
             test.navigation_tick();
         }
+
         auto & f = test.m_filter;
         auto const velocity_resets = f.m_session.m_resets.velocity_count;
         auto const position_resets = f.m_session.m_resets.position_count;
@@ -1121,10 +1203,12 @@ public:
             f.m_gps.timestamp_sample = clock_us;
             break;
         }
+
         test.select_navigation_inputs();
         f.m_session.fuse_height(test.navigation_receipt());
         f.update_innovations();
         expect(!f.m_session.m_fault, "height admission rejection is not an estimator fault");
+
         if (scenario != HeightInputCase::unqualified)
         {
             expect(f.m_session.m_height_aiding.progress_time() == progress,
@@ -1135,11 +1219,13 @@ public:
             expect(!f.m_session.m_height_aiding.session(FormalEskf::height_type::Source::gnss).active,
                    "unqualified GNSS cannot claim height fusion");
         }
+
         if (scenario == HeightInputCase::calibration)
         {
             expect(f.m_height_ratios[0].time_us == 0,
                    "barometer calibration clears diagnostic filtering with its bias history");
         }
+
         test.snapshot("height-admission");
     }
 
@@ -1172,6 +1258,7 @@ public:
                    formal_eskf::linalg::max_abs(f.m_session.m_state.p_n - prior.p_n) == 0. &&
                    f.m_session.m_covariance(2, 2) == covariance(2, 2),
                "failed height transaction leaves estimator/history intact");
+
         test.snapshot("height-rollback");
     }
 
@@ -1187,6 +1274,7 @@ public:
         test.navigation_tick();
         expect(!session.height_aiding().session(FormalEskf::height_type::Source::gnss).active,
                "stop height source before testing its real reset");
+
         auto const output = session.m_output.current();
         auto const prior = session.state();
         auto const covariance = session.covariance();
@@ -1199,6 +1287,7 @@ public:
         // its history; the session discovers it at the next reset dependency.
         expect(!session.m_output.apply_reset({}, {}, FormalEskf::vector3(NAN, 0., 0.)),
                "inject a failed output participant through its checked operation");
+
         clock_us += 20000;
         session.m_time_us = clock_us;
         session.m_gnss.sample = {clock_us, formal_eskf::runtime::GnssQualityDecision::accepted};
@@ -1220,6 +1309,7 @@ public:
                "failed output dependency preserves its history/counters and withdraws usable output");
         expect(f.m_height_ratios[1].time_us == diagnostic_time,
                "failed staged recovery cannot publish a successful reset diagnostic");
+
         auto const repeated = session.take_innovations();
         expect(!repeated.height[1].reset && !repeated.height[1].measurement,
                "failed recovery does not leave a consumable success event");
@@ -1242,6 +1332,7 @@ public:
                    f.m_session.m_gnss.lifecycle.state().velocity.last_fuse_time_us == progress &&
                    f.m_session.m_gnss.corrections == corrections,
                "active rejected-quality source supplies health evidence without fusion");
+
         f.m_session.m_gnss.metadata_valid = false;
         test.navigation_tick();
         expect(!f.m_session.m_gnss.vertical_innovation.active, "invalid metadata clears velocity evidence");
@@ -1260,11 +1351,13 @@ public:
         {
             test.navigation_tick();
         }
+
         expect(f.m_session.m_gnss.position_rejected && f.m_session.m_gnss.velocity_rejected,
                "rejected production navigation records actual decisions");
         expect(f.m_session.m_resets.position_count == position_resets &&
                    f.m_session.m_resets.velocity_count == velocity_resets,
                "coupled timeout is strict at seven seconds");
+
         test.navigation_tick();
         expect(!f.m_session.m_fault && f.m_session.m_resets.position_count == position_resets + 1U &&
                    f.m_session.m_resets.velocity_count == velocity_resets + 1U,
@@ -1288,6 +1381,7 @@ public:
         {
             test.navigation_tick(false);
         }
+
         auto const position = f.m_session.m_state.p_n(2);
         auto const height_resets = f.m_session.m_resets.height_count;
         auto const vertical_resets = f.m_session.m_resets.vertical_velocity_count;
@@ -1319,6 +1413,7 @@ public:
         // Ground/rest checks reject velocity; fresh land overrides armed state.
         expect(!f.m_session.m_fault && f.m_session.m_gnss.quality_result.failures.horizontal_speed == fresh_land,
                "fresh land context overrides arming; exactly three-second-old land is unavailable");
+
         test.snapshot("GNSS-context");
     }
 
@@ -1332,6 +1427,7 @@ public:
         expect(f.m_session.reset_output({}, expected_velocity - f.m_session.m_output.current().v_n,
                                         expected_position - f.m_session.m_output.current().p_n),
                "set distinct current output for mapping");
+
         f.m_session.m_state.p_n = FormalEskf::vector3(100., 200., 300.);
         f.m_session.m_state.v_n = FormalEskf::vector3(-4., -5., -6.);
         f.m_session.m_state.b_a = FormalEskf::vector3(0.01, 0.02, 0.03);
@@ -1351,6 +1447,7 @@ public:
         {
             clock_us += 100000U;
         }
+
         FormalEskf::imu_type imu{FormalEskf::vector3(0.1, 0.2, -9.7), FormalEskf::vector3(0.4, 0.5, 0.6)};
         f.publish(imu);
         f.publish_status(clock_us);
@@ -1368,9 +1465,11 @@ public:
         expect(status.reset_count_pod_d == 254U && status.reset_count_vel_d == 252U &&
                    flags.cs_inertial_dead_reckoning == (stale || fault),
                "status reset and validity mapping");
+
         bool updated{};
         orb_check(test.m_outputs[1], &updated);
         expect(updated == (!stale && !fault), "stale or faulted output cannot publish navigation");
+
         if (updated)
         {
             vehicle_local_position_s local{};
@@ -1385,6 +1484,7 @@ public:
                        local.z_reset_counter == global.alt_reset_counter && odometry.reset_counter == 251U &&
                        odometry.q[0] == float(output.q_nb.coefficients()(0)),
                    "navigation reads current output, with reset signs/counters and published rounding");
+
             double latitude{}, longitude{};
             MapProjection{f.m_session.m_origin.projection.latitude_deg(),
                           f.m_session.m_origin.projection.longitude_deg()}
@@ -1399,6 +1499,7 @@ public:
                        local.heading_var == float(f.m_session.rotation_variance_n()(2)),
                    "current navigation and delayed covariance proxy have explicitly different epochs");
         }
+
         test.capture_outputs();
         test.snapshot("output-mapping");
     }
@@ -1421,11 +1522,13 @@ public:
             expect(f.m_last_output == (tick == 3 ? clock_us : last),
                    "250 Hz input realizes the navigation limit at twelve milliseconds");
         }
+
         f.m_session.m_initialized = false;
         f.publish_status(clock_us);
         bool updated{};
         orb_check(test.m_outputs[6], &updated);
         expect(!updated, "uninitialized status does not publish bias estimates");
+
         test.capture_outputs();
         test.snapshot("output-cadence");
     }
@@ -1456,6 +1559,7 @@ public:
                    !flags.cs_tilt_align && !flags.cs_yaw_align && bias.timestamp == 0U && !bias.accel_bias_valid &&
                    !bias.gyro_bias_valid,
                "preparation marks no estimate, never a fabricated valid sample");
+
         test.warmup();
         auto & f = test.m_filter;
         f.m_last_output = clock_us - 10000U;
@@ -1465,6 +1569,7 @@ public:
         failed_publication = nullptr;
         expect(f.m_publication_failures == 1U && !f.m_session.m_fault && same_bits(state.p_n, f.m_session.m_state.p_n),
                "publication error is counted without pretending estimator failure or delivery success");
+
         f.update_diagnostics(clock_us);
         FormalEskf::Diagnostics view;
         expect(f.read_diagnostics(view) && view.publication_failures == 1U,
@@ -1478,14 +1583,17 @@ public:
             FormalEskf filter;
             failed_init_mutex = &filter.m_diagnostics_mutex;
             expect(!filter.init() && !filter.m_diagnostics_ready, "mutex setup failure prevents callback startup");
+
             failed_init_mutex = nullptr;
         }
+
         {
             failed_perf = true;
             FormalEskf filter;
             failed_perf = false;
             expect(!filter.init(), "perf allocation failure prevents callback startup");
         }
+
         for (orb_id_t topic : {ORB_ID(vehicle_attitude), ORB_ID(vehicle_local_position),
                                ORB_ID(vehicle_global_position), ORB_ID(vehicle_odometry), ORB_ID(estimator_status),
                                ORB_ID(estimator_status_flags), ORB_ID(estimator_sensor_bias)})
@@ -1493,11 +1601,14 @@ public:
             FormalEskf filter;
             failed_publication = topic;
             expect(!filter.init(), "each failed topic preparation prevents startup");
+
             failed_publication = nullptr;
         }
+
         failed_allocation = true;
         expect(FormalEskf::task_spawn(0, nullptr) == PX4_ERROR && FormalEskf::get_instance() == nullptr,
                "module allocation failure returns an error without constructing a session");
+
         failed_allocation = false;
     }
 
@@ -1508,22 +1619,27 @@ public:
         auto & f = test.m_filter;
         FormalEskf::Diagnostics before, after;
         expect(f.read_diagnostics(before), "read coherent pre-contention snapshot");
+
         auto const predictions = f.m_session.m_statistics.predictions;
         expect(pthread_mutex_lock(&f.m_diagnostics_mutex) == 0, "hold snapshot exchange");
+
         test.m_sample.timestamp_sample += 4000U;
         test.tick();
         expect(f.m_session.m_statistics.predictions == predictions + 1U && f.m_diagnostics.sequence == before.sequence,
                "busy diagnostics skip only snapshot, never block a real Run update");
         expect(pthread_mutex_unlock(&f.m_diagnostics_mutex) == 0, "release snapshot exchange");
+
         test.m_sample.timestamp_sample += 4000U;
         test.tick();
         expect(f.read_diagnostics(after) && after.sequence == before.sequence + 2U &&
                    after.skipped == before.skipped + 1U && after.sample_time_us == f.m_session.m_time_us,
                "later snapshot exposes missed sequence and resumes with current state");
+
         failed_lock_mutex = &f.m_diagnostics_mutex;
         auto const old_sequence = after.sequence;
         expect(!f.read_diagnostics(after) && after.sequence == old_sequence,
                "failed reader does not expose live state");
+
         failed_lock_mutex = nullptr;
         failed_trylock_mutex = &f.m_diagnostics_mutex;
         f.update_diagnostics(clock_us);
@@ -1554,6 +1670,7 @@ public:
                             ++incoherent;
                         }
                     }
+
                     ready.store(true);
                 }
             });
@@ -1561,6 +1678,7 @@ public:
         {
             std::this_thread::yield();
         }
+
         for (unsigned i = 1U; i <= 20000U; ++i)
         {
             f.m_session.m_statistics.predictions = i;
@@ -1569,10 +1687,12 @@ public:
             f.m_session.m_state.v_n(0) = -double(i);
             f.update_diagnostics(i);
         }
+
         done.store(true);
         reader.join();
         expect(reads.load() > 0U && incoherent.load() == 0U,
                "concurrent reader never sees mixed diagnostic generations");
+
         f.update_diagnostics(clock_us);
         FormalEskf::Diagnostics final;
         expect(f.read_diagnostics(final) && final.predictions == 20000U,
@@ -1586,10 +1706,13 @@ public:
         FormalEskf::_object.store(instance);
         FormalEskf::_task_id = FormalEskf::task_id_is_work_queue;
         expect(instance->init(), "initialize session for normal module shutdown");
+
         // ModuleBase::status_command holds this lifecycle guard through print_status.
         expect(pthread_mutex_lock(&px4_modules_mutex) == 0, "hold the real module reader lifetime guard");
+
         FormalEskf::Diagnostics view;
         expect(instance->read_diagnostics(view), "read snapshot before shutdown");
+
         instance->request_stop();
         std::atomic<bool> stop_requested{false};
         std::thread owner(
@@ -1602,8 +1725,10 @@ public:
         {
             std::this_thread::yield();
         }
+
         expect(FormalEskf::get_instance() == instance, "reader lifecycle guard prevents concurrent destruction");
         expect(pthread_mutex_unlock(&px4_modules_mutex) == 0, "release module reader lifetime guard");
+
         owner.join();
         expect(FormalEskf::get_instance() == nullptr && FormalEskf::_task_id == -1,
                "normal shutdown releases session after diagnostic reader exits");
@@ -1638,11 +1763,13 @@ public:
         filter.m_session.m_msl_initialized = true;
         expect(formal_eskf::succeeded(filter.m_session.m_tilt_alignment.update({}, FormalEskf::matrix3_type{})),
                "magnetic-owner fixture supplies completed tilt");
+
         filter.m_session.m_origin.projection.set_origin(47.397742, 8.545594, clock_us);
         filter.m_session.m_origin.time_us = clock_us;
         expect(formal_eskf::succeeded(filter.m_session.m_navigation_frame.initialize({47.397742, 8.545594, 535.})) &&
                    filter.m_session.update_height_datum(clock_us, {47.397742, 8.545594, 535.}, 488.),
                "prepare magnetic geometric frame and datum");
+
         filter.m_session.m_mag_model_origin_time = clock_us;
         filter.m_mag.device_id = 301U;
         filter.m_mag.magnetometer_ga[0] = 0.3f;
@@ -1652,6 +1779,7 @@ public:
         expect(formal_eskf::succeeded(
                    filter.m_session.m_magnetic_model.initialize(clock_us, {false, false, 0.}, field, {})),
                "seed magnetic north without an independent health model");
+
         filter.m_session.m_magnetic.sample_time_us = clock_us;
         filter.m_session.m_magnetic.source = {301U, 0U, 1U};
         filter.m_session.m_magnetic.lifecycle.reset(filter.m_session.m_magnetic.source);
@@ -1673,10 +1801,12 @@ public:
         {
             m_filter.m_mag.timestamp_sample = clock_us;
         }
+
         if (fresh_context)
         {
             m_filter.m_land.timestamp = clock_us;
         }
+
         m_filter.m_session.m_magnetic.input = {m_filter.m_mag.timestamp_sample, 0, 0, 0,
                                                FormalEskf::decode_magnetic(m_filter.m_mag)};
         m_filter.m_session.m_context = {m_filter.land_state(), m_filter.vehicle_state()};
@@ -1696,6 +1826,7 @@ public:
                                 m_filter.m_session.m_magnetic.lifecycle.state().last_reset_time_us) == 0U,
                    "strict startup health does not invent fusion");
         }
+
         magnetic_tick();
         expect(!m_filter.m_session.m_fault && m_filter.m_session.m_magnetic.corrections == 1U &&
                    m_filter.m_session.magnetic_heading_aiding(),
@@ -1708,6 +1839,7 @@ public:
         {
             m_filter.publish({});
         }
+
         m_filter.publish_status(clock_us);
         capture_outputs();
     }
@@ -1725,6 +1857,7 @@ public:
                    std::max(filter.m_session.m_magnetic.lifecycle.state().last_fuse_time_us,
                             filter.m_session.m_magnetic.lifecycle.state().last_reset_time_us) == progress,
                "data timeout preserves progress and clears only unaided heading alignment");
+
         test.magnetic_outputs();
         test.magnetic_tick();
         expect(!filter.m_session.m_fault && filter.m_session.m_resets.attitude_count == (aided ? 0U : 1U) &&
@@ -1732,6 +1865,7 @@ public:
                "returning data resumes aided fusion or performs one unaided heading reset");
         expect(filter.m_session.m_resets.odometry_count == filter.m_session.m_resets.attitude_count,
                "heading reset reaches odometry bookkeeping exactly once");
+
         test.magnetic_outputs();
         test.magnetic_tick();
         expect(filter.m_session.m_magnetic.corrections == (aided ? 3U : 2U),
@@ -1783,25 +1917,30 @@ public:
             filter.m_mag.device_id = 0U;
             break;
         }
+
         test.magnetic_tick(received, scenario == MagneticInputCase::stale ? 0U : 10000U);
         expect(!filter.m_session.m_fault && filter.m_session.m_magnetic.corrections == 1U &&
                    same_bits(before, filter.m_session.m_covariance),
                "inadmissible magnetic sample does not alter state or latch a numerical fault");
         expect(filter.m_session.m_magnetic_model.lookup_count() == lookups,
                "inadmissible magnetic data cannot trigger geographic lookup");
+
         bool const consumed = scenario != MagneticInputCase::future && scenario != MagneticInputCase::duplicate;
         expect((filter.m_session.m_magnetic.sample_time_us > seen) == consumed &&
                    filter.m_session.m_statistics.rejections == (consumed ? 1U : 0U),
                "admission watermark and rejection count distinguish arrivals from pending/duplicate data");
+
         test.magnetic_outputs();
         if (scenario == MagneticInputCase::future)
         {
             test.magnetic_tick(false);
             expect(filter.m_session.m_magnetic.corrections == 2U,
                    "future observation becomes eligible at its timestamp");
+
             test.magnetic_tick(false);
             expect(filter.m_session.m_magnetic.corrections == 2U, "eligible observation is not reused");
         }
+
         if (scenario == MagneticInputCase::stale)
         {
             test.magnetic_tick(false, 400000U);
@@ -1834,21 +1973,25 @@ public:
         {
             filter.m_land.timestamp = clock_us - 3000000U;
         }
+
         if (scenario == MagneticSourceCase::stale_land || scenario == MagneticSourceCase::land_overrides_arming)
         {
             filter.m_vehicle_status.timestamp = clock_us;
             filter.m_vehicle_status.arming_state = vehicle_status_s::ARMING_STATE_ARMED;
         }
+
         for (unsigned i = 0U; i < 4U; ++i)
         {
             test.magnetic_tick(true, 10000U, fresh_land);
         }
+
         bool const reset = scenario == MagneticSourceCase::ground || scenario == MagneticSourceCase::unaided_air ||
                            scenario == MagneticSourceCase::land_overrides_arming;
         bool const pending = scenario == MagneticSourceCase::unknown;
         expect(!filter.m_session.m_fault && filter.m_session.m_resets.attitude_count == (reset ? 1U : 0U) &&
                    filter.m_session.m_magnetic.corrections == ((!reset && !pending) ? 2U : 1U),
                "source recovery uses ground/air/unknown context with fresh land overriding arming");
+
         if (reset)
         {
             expect(filter.m_magnetic_ratios[0].filtered == 0. &&
@@ -1856,6 +1999,7 @@ public:
                            filter.m_session.m_magnetic.lifecycle.state().last_reset_time_us,
                    "magnetic heading reset clears signed diagnostic history");
         }
+
         test.magnetic_outputs();
         if (pending)
         {
@@ -1880,12 +2024,14 @@ public:
         expect(filter.m_session.m_magnetic.corrections == 2U && filter.m_session.m_state.b_a(0U) == 0. &&
                    filter.m_session.m_state.b_g(0U) != 0. && filter.m_session.m_covariance(9U, 9U) == 1.,
                "magnetic correction forwards independent bias permissions");
+
         filter.m_session.m_state.b_a(0U) = -1.;
         filter.m_session.m_state.b_g(1U) = 1.;
         test.magnetic_tick();
         expect(filter.m_session.m_magnetic.corrections == 3U && filter.m_session.m_state.b_a(0U) == -0.4 &&
                    filter.m_session.m_state.b_g(1U) == 0.15,
                "successful correction applies deployment bias limits");
+
         filter.m_session.m_state.b_a(0U) = -1.;
         auto const before = filter.m_session.m_covariance;
         filter.m_mag.magnetometer_ga[2] = 1.f;
@@ -1894,6 +2040,7 @@ public:
                    same_bits(before, filter.m_session.m_covariance) &&
                    filter.m_session.m_magnetic.lifecycle.state().active && !filter.m_session.magnetic_heading_aiding(),
                "field rejection retains session and estimate without invoking bias limits");
+
         test.magnetic_outputs();
     }
 
@@ -1911,11 +2058,14 @@ public:
         {
             test.magnetic_tick();
         }
+
         expect(!filter.m_session.m_fault && filter.m_session.m_resets.attitude_count == (disturbance ? 0U : 1U),
                "overdue fusion resets only while the field is qualified");
+
         if (disturbance)
         {
             expect(!filter.m_session.m_heading_aligned, "unqualified timeout clears unaided alignment");
+
             test.set_horizontal_aiding(true);
             filter.m_mag.magnetometer_ga[1] = 0.3f;
             filter.m_mag.magnetometer_ga[2] = 0.4f;
@@ -1923,11 +2073,14 @@ public:
             {
                 test.magnetic_tick();
             }
+
             expect(filter.m_session.m_resets.attitude_count == 1U,
                    "returning horizontal aiding does not bypass lost heading alignment");
         }
+
         expect(filter.m_session.m_heading_aligned && filter.m_session.m_resets.odometry_count == 1U,
                "successful heading reset restores alignment and notifies odometry");
+
         test.magnetic_outputs();
     }
 
@@ -1947,6 +2100,7 @@ public:
                 test.magnetic_tick();
             }
         }
+
         test.magnetic_tick();
         using Recovery = formal_eskf::runtime::MagnetometerFusion::RecoveryReason;
         expect(filter.m_session.m_fault && filter.m_session.m_statistics.errors == 1U &&
@@ -1956,6 +2110,7 @@ public:
         expect(filter.m_session.m_magnetic.lifecycle.state().recovery_reason ==
                    (reset ? Recovery::reset_failed : Recovery::fusion_failed),
                "actual numerical result reaches lifecycle repair latch");
+
         test.magnetic_outputs();
     }
 
@@ -1972,8 +2127,10 @@ public:
         {
             test.magnetic_tick();
         }
+
         expect(!filter.m_session.m_magnetic.heading.state().consistent && !filter.m_session.magnetic_heading_aiding(),
                "filtered heading inconsistency inhibits aided navigation updates");
+
         auto const updates = filter.m_session.m_magnetic.corrections;
         filter.m_mag.magnetometer_ga[0] = 0.3f;
         filter.m_mag.magnetometer_ga[1] = 0.f;
@@ -1981,22 +2138,27 @@ public:
         {
             test.magnetic_tick();
         }
+
         expect(filter.m_session.m_magnetic.corrections == updates && filter.m_session.m_resets.attitude_count == 0U,
                "small innovation without excitation cannot restore heading consistency");
+
         for (unsigned i = 0U; i < 200U; ++i)
         {
             expect(formal_eskf::succeeded(
                        filter.m_session.m_magnetic.heading.update_acceleration(FormalEskf::vector3(1., 0., 0.), 0.01)),
                    "feed prediction acceleration to maneuver history");
         }
+
         test.magnetic_tick();
         expect(filter.m_session.m_magnetic.corrections == updates + 1U &&
                    filter.m_session.m_magnetic.heading.state().consistent,
                "maneuver evidence permits consistency recovery");
+
         filter.m_session.m_magnetic.heading.reset_acceleration();
         expect(filter.m_session.m_magnetic.heading.state().horizontal_acceleration == 0. &&
                    filter.m_session.m_magnetic.heading.state().consistent,
                "gap reset clears acceleration without heading loss");
+
         test.snapshot("magnetic-history");
         test.magnetic_outputs();
     }
@@ -2015,6 +2177,7 @@ public:
         expect(filter.m_session.m_magnetic_model.lookup_count() == lookups &&
                    filter.m_session.m_mag_model_origin_time != filter.m_session.m_origin.time_us,
                "invalid input cannot consume pending origin lookup");
+
         filter.m_mag.magnetometer_ga[0] = 0.3f;
         test.magnetic_tick();
         expect(!filter.m_session.m_fault && filter.m_session.m_magnetic_model.lookup_count() == lookups + 1U &&
@@ -2022,6 +2185,7 @@ public:
                    filter.m_session.m_magnetic_model.available() &&
                    same_bits(field, filter.m_session.m_magnetic_model.observation_n()),
                "eligible sample invokes real WMM once, retaining separately selected observation field");
+
         test.magnetic_outputs();
     }
 
@@ -2036,19 +2200,23 @@ public:
         expect(formal_eskf::succeeded(
                    filter.m_session.m_magnetic_model.initialize(clock_us, {geographic, true, 0.}, field, model)),
                "seed independent geographic reference");
+
         test.start_magnetic();
         model.declination = 0.05;
         expect(filter.m_session.m_magnetic_model.update(clock_us + 10000U, model, true, true).changed,
                "adopt a changed reference before magnetic control");
+
         test.magnetic_tick();
         expect(!filter.m_session.m_fault && filter.m_session.m_resets.attitude_count == (geographic ? 1U : 0U) &&
                    filter.m_session.m_magnetic.corrections == (geographic ? 1U : 2U),
                "geographic revision resets resting heading; health-only revision retains correction reference");
+
         if (!geographic)
         {
             model.strength = 80.;
             expect(filter.m_session.m_magnetic_model.update(clock_us + 10000U, model, true, true).changed,
                    "adopt independent health strength");
+
             auto const before = filter.m_session.m_covariance;
             test.magnetic_tick();
             expect(filter.m_session.m_magnetic.corrections == 2U && filter.m_session.m_resets.attitude_count == 0U &&
@@ -2056,6 +2224,7 @@ public:
                        same_bits(before, filter.m_session.m_covariance),
                    "independent health model can reject a seed-matching observation without resetting yaw");
         }
+
         test.magnetic_outputs();
     }
 
@@ -2110,6 +2279,7 @@ public:
         {
             test.prepare_gravity();
         }
+
         auto & filter = test.m_filter;
         FormalEskf::imu_type imu{-filter.m_session.m_parameters.gravity_n, {}};
         std::uint8_t clipping = 0U;
@@ -2119,6 +2289,7 @@ public:
             expect(formal_eskf::succeeded(formal_eskf::so3::exp<FormalEskf::backend_type>(
                        FormalEskf::vector3(0.02, 0., 0.), 1e-6, filter.m_session.m_state.q_nb)),
                    "construct tilted prior for production gravity correction");
+
             break;
         case GravityCase::disabled:
             filter.m_session.m_gravity_enabled = false;
@@ -2136,6 +2307,7 @@ public:
             {
                 filter.m_land.timestamp = filter.m_session.m_time_us - 2000001U;
             }
+
             break;
         case GravityCase::clipped:
             clipping = 1U;
@@ -2147,6 +2319,7 @@ public:
             filter.m_session.m_initialized = false;
             break;
         }
+
         auto const before = filter.m_session.m_covariance;
         auto const before_q = filter.m_session.m_state.q_nb.coefficients();
         auto const count = filter.m_session.m_gravity.corrections;
@@ -2154,22 +2327,27 @@ public:
         {
             test.gravity_sample(imu, 5000U, 5000U, clipping);
         }
+
         bool const eligible = scenario == GravityCase::eligible || scenario == GravityCase::rest_override ||
                               scenario == GravityCase::unaligned;
         expect(!filter.m_session.m_fault && (filter.m_session.m_gravity.corrections > count) == eligible,
                "production gravity conditions admit only eligible samples");
+
         bool const active = eligible || scenario == GravityCase::clipped;
         expect(filter.m_session.m_gravity.active == active, "mode activity is distinct from clipped sample rejection");
+
         if (!eligible)
         {
             expect(same_bits(before, filter.m_session.m_covariance),
                    "ineligible gravity observations leave covariance unchanged");
         }
+
         if (scenario == GravityCase::eligible)
         {
             expect(filter.m_session.m_state.q_nb.q1() < before_q(1U),
                    "gravity correction reduces the injected roll error");
         }
+
         expect(filter.m_session.m_tilt_alignment.aligned() == (scenario != GravityCase::unaligned),
                "alignment evaluation remains independent of gravity enablement and sample eligibility");
     }
@@ -2187,22 +2365,27 @@ public:
         test.gravity_sample(high_force);
         expect(filter.m_session.m_gravity.samples == 1U && filter.m_session.m_tilt_alignment.aligned(),
                "disabled gravity still samples, filters magnitude and evaluates alignment");
+
         filter.m_session.m_gravity_enabled = true;
         test.gravity_sample(imu);
         test.gravity_sample(imu);
         expect(filter.m_session.m_gravity.corrections == 0U && !filter.m_session.m_gravity.active,
                "re-enabling retains LPF history and rejects the first gravity-sized observation");
+
         filter.m_session.reset_imu_observations();
         expect(filter.m_session.m_tilt_alignment.aligned(), "sample-history reset preserves estimator alignment");
+
         test.gravity_sample(imu);
         test.gravity_sample(imu);
         expect(filter.m_session.m_gravity.corrections == 1U,
                "reset discards old LPF history and permits the new observation");
+
         auto const emitted = filter.m_session.m_gravity.samples;
         test.gravity_sample(imu);
         filter.m_session.reset_imu_observations();
         test.gravity_sample(imu);
         expect(filter.m_session.m_gravity.samples == emitted, "partial intervals cannot cross a history reset");
+
         filter.m_session.m_gravity_enabled = false;
         test.gravity_sample(imu);
         expect(!filter.m_session.m_gravity.active, "disabled mode clears previously active gravity");
@@ -2221,6 +2404,7 @@ public:
             a.gravity_sample(imu, 4000U, 5000U);
             b.gravity_sample(equivalent);
         }
+
         expect(same_bits(a.m_filter.m_session.m_covariance, b.m_filter.m_session.m_covariance) &&
                    same_bits(a.m_filter.m_session.m_state.q_nb.coefficients(),
                              b.m_filter.m_session.m_state.q_nb.coefficients()) &&
@@ -2229,6 +2413,7 @@ public:
                    same_bits(a.m_filter.m_session.m_state.b_a, b.m_filter.m_session.m_state.b_a) &&
                    same_bits(a.m_filter.m_session.m_state.b_g, b.m_filter.m_session.m_state.b_g),
                "independent angle/velocity periods retain the same measured angle integral");
+
         auto & filter = a.m_filter;
         filter.m_session.m_state.b_a(0) = 1.;
         filter.m_session.m_state.b_g(1) = -1.;
@@ -2267,6 +2452,7 @@ public:
             test.gravity_sample(imu);
             filter.m_session.m_parameters.gravity_n = {};
         }
+
         auto const before = filter.m_session.m_covariance;
         test.gravity_sample(imu);
         expect(filter.m_session.m_fault && filter.m_session.m_statistics.errors == 1U &&
@@ -2277,6 +2463,7 @@ public:
         expect(filter.m_session.m_tilt_alignment.aligned() == (failure != GravityFailure::tilt) &&
                    filter.m_session.m_gravity.active == (failure == GravityFailure::correction),
                "failed correction preserves already evaluated alignment and mode activity");
+
         filter.publish_status(clock_us);
         test.capture_outputs();
         expect(filter.m_session.m_gravity.corrections == 0U, "failure cannot count as a correction");
@@ -2293,13 +2480,16 @@ public:
                 test.m_sample.timestamp_sample += 4000;
                 test.tick();
             }
+
             expect(test.m_filter.m_session.initialized() && !test.m_filter.m_session.fault() &&
                        !test.m_filter.m_session.tilt_alignment().aligned() &&
                        !test.m_filter.m_session.navigation_frame().initialized() &&
                        test.m_filter.m_session.gravity().corrections == 0,
                    "disabled gravity cannot fabricate staged tilt alignment or navigation");
+
             return;
         }
+
         test.warmup();
         auto const count = test.m_filter.m_session.m_gravity.corrections;
         test.m_send_gps = false;
@@ -2308,9 +2498,11 @@ public:
             test.m_sample.timestamp_sample += 4000U;
             test.tick();
         }
+
         expect(!test.m_filter.m_session.m_fault && test.m_filter.m_session.m_tilt_alignment.aligned() &&
                    (test.m_filter.m_session.m_gravity.corrections > count) == enabled,
                "Run releases gravity after GNSS aiding stops, respecting startup enablement");
+
         test.snapshot("gravity-after-gnss-stop");
         test.m_sample.timestamp_sample += 4000U;
         test.m_sample.delta_velocity_clipping = 8U;
@@ -2319,6 +2511,7 @@ public:
         expect(test.m_filter.m_session.m_time_us == horizon && test.m_filter.m_session.m_tilt_alignment.aligned() &&
                    test.m_filter.m_session.m_fault,
                "invalid IMU metadata faults before gravity without advancing the delayed horizon");
+
         test.snapshot("gravity-invalid-metadata");
     }
 
@@ -2331,6 +2524,7 @@ public:
             test.m_sample.timestamp_sample += 4000U;
             test.tick();
         }
+
         auto & f = test.m_filter;
         expect(f.m_session.m_initialized && !f.m_session.m_fault && f.m_session.m_statistics.predictions > 0,
                "configured profile initializes and predicts on the stationary fixture");
@@ -2342,6 +2536,7 @@ public:
                "configured WMM enable controls lookup and the adopted geographic reference");
         expect(f.m_session.m_gravity_enabled == profile::gravity::enabled,
                "build exclusion takes precedence over the enabled gravity startup parameter");
+
         for (std::size_t axis = 0; axis < 3; ++axis)
         {
             expect(f.m_session.m_parameters.process_noise.specific_force_variance(axis) == ESKF_CFG_ACCEL_VARIANCE &&
@@ -2353,11 +2548,13 @@ public:
                            bool(ESKF_CFG_GYRO_BIAS_LEARNING),
                    "stationary observable bias learning honors each build permission");
         }
+
         auto const & quality = f.m_session.m_gnss.quality_parameters;
         expect(quality.maximum_speed_accuracy == ESKF_CFG_GNSS_MAX_SACC &&
                    quality.minimum_health_time_us == std::uint64_t{ESKF_CFG_GNSS_HEALTH_MS} * 1000U &&
                    quality.enabled_checks.satellites == bool(ESKF_CFG_GNSS_CHECK_SATELLITES),
                "configured GNSS quality thresholds, duration and check mask reach the module");
+
         auto advance = [&](unsigned ticks)
         {
             for (unsigned i = 0; i < ticks; ++i)
@@ -2372,6 +2569,7 @@ public:
         advance(56);
         expect(f.m_session.m_ground_effect.state().active == profile::height::ground_effect_enabled,
                "production delayed flight context honors ground-effect build enable");
+
         f.publish_status(clock_us);
         estimator_status_flags_s ground_flags{};
         estimator_status_s ground_status{};
@@ -2381,6 +2579,7 @@ public:
                    bool(ground_status.control_mode_flags & (1ULL << ground_status.CS_GND_EFFECT)) ==
                        ground_flags.cs_gnd_effect,
                "TC-PX4-BARO-GROUND-EFFECT-10: configured mode is independent of deadzone magnitude");
+
         test.m_baro_altitude -= 3.f;
         advance(60);
         auto const & baro = f.m_session.m_height_aiding.session(FormalEskf::height_type::Source::barometer);
@@ -2398,6 +2597,7 @@ public:
         auto const last_fusion = f.m_session.m_gnss.lifecycle.state().horizontal_position.last_fuse_time_us;
         auto const timeout = profile::gnss::timing.horizontal_timeout_us;
         expect(timeout <= 10000000U, "configuration smoke fixture requires a horizontal timeout of at most 10 s");
+
         if (timeout <= 10000000U)
         {
             advance(static_cast<unsigned>(timeout / 4000U) + 60U);
@@ -2420,11 +2620,13 @@ public:
                 test.m_sample.timestamp_sample += 4000;
                 test.tick();
             }
+
             expect(test.m_filter.m_session.initialized() && !test.m_filter.m_session.fault() &&
                        test.m_filter.m_session.height_aiding().reference() ==
                            FormalEskf::height_type::Source::barometer,
                    "relative barometer-only startup before actual producer composition");
         }
+
         test.m_send_land = false;
         test.m_armed = true;
         land_detector::MulticopterLandDetector detector;
@@ -2497,8 +2699,10 @@ public:
                 vehicle_land_detected_s actual{};
                 expect(land_sub.copy(&actual) && actual.in_ground_effect == scenario.requested && !actual.landed,
                        "TC-PX4-BARO-GROUND-EFFECT-01: real land-detector request and publication truth table");
+
                 test.tick();
             }
+
             auto const & event = test.m_filter.m_session.ground_effect().event;
             expect(event.request == scenario.requested && event.in_air &&
                        (event.sources & formal_eskf::runtime::GroundEffectEvent::land_available) != 0,
@@ -2512,6 +2716,7 @@ public:
             test.m_sample.timestamp_sample += 4000;
             test.tick();
         }
+
         auto const & baro = test.m_filter.m_session.height_aiding().session(FormalEskf::height_type::Source::barometer);
         expect(!test.m_filter.m_session.fault() && test.m_filter.m_session.ground_effect().active &&
                    baro.fusion.decision == formal_eskf::runtime::FusionDecision::fused &&
@@ -2559,15 +2764,18 @@ public:
                         test.m_sample.timestamp_sample += 4000;
                         test.tick();
                     }
+
                     expect(test.m_filter.m_session.ground_effect().active,
                            "active hold prior for source-default boundaries");
                 }
+
                 test.m_send_land = test.m_send_status = false;
                 for (unsigned i = 0; i < 3; ++i)
                 {
                     test.m_sample.timestamp_sample += 4000;
                     test.tick();
                 }
+
                 auto & f = test.m_filter;
                 auto const epoch = test.m_sample.timestamp_sample;
                 f.m_land.timestamp = scenario.land_age == absent
@@ -2589,6 +2797,7 @@ public:
                     test.m_sample.timestamp_sample += 4000;
                     test.tick();
                 }
+
                 auto const & state = f.m_session.ground_effect();
                 auto const & e = state.event;
                 expect(
@@ -2625,6 +2834,7 @@ public:
         advance(100);
         expect(test.m_filter.m_session.ground_effect().last_detection_us > initial,
                "TC-PX4-BARO-GROUND-EFFECT-06: new status update plus cached fresh positive land renews");
+
         advance(750);
         auto const expiry = test.m_filter.m_session.ground_effect().last_detection_us;
         advance(100);
@@ -2645,6 +2855,7 @@ public:
             test.m_sample.timestamp_sample += 4000;
             test.tick();
         }
+
         auto const d = test.m_filter.m_session.diagnostics(clock_us);
         expect(!d.ground_effect_supported && !d.ground_effect.active && d.ground_effect_counts.admitted == 0 &&
                    d.ground_effect_capacity == 0 && d.ground_effect_deadzone_m == 0 &&
@@ -2668,6 +2879,7 @@ public:
         test.m_in_ground_effect = true;
         advance(56);
         expect(!f.m_session.m_ground_effect.state().active, "ground-effect request cannot activate while landed");
+
         test.m_landed = test.m_at_rest = false;
         test.m_armed = true;
         std::uint64_t first_admitted = 0;
@@ -2679,10 +2891,12 @@ public:
             {
                 first_admitted = test.m_sample.timestamp_sample;
             }
+
             expect(f.m_session.ground_effect().active ==
                        (first_admitted != 0 && f.m_session.fusion_time_us() >= first_admitted - 2000),
                    "first admitted request activates only when its frozen selection epoch reaches delayed filtering");
         }
+
         test.m_baro_altitude -= 3.f;
         advance(60);
         auto const & baro = f.m_session.m_height_aiding.session(FormalEskf::height_type::Source::barometer);
@@ -2690,6 +2904,7 @@ public:
                    baro.fusion.innovation(0) > 1. && baro.fusion.innovation(0) < 4. && baro.fusion_innovation == 0. &&
                    !baro.innovation_limited,
                "production Run applies the 4 m deadzone to a selected low barometric altitude");
+
         f.publish_status(clock_us);
         estimator_status_s status{};
         estimator_status_flags_s flags{};
@@ -2697,6 +2912,7 @@ public:
         orb_copy(ORB_ID(estimator_status_flags), test.m_outputs[5], &flags);
         expect(flags.cs_gnd_effect && (status.control_mode_flags & (1ULL << status.CS_GND_EFFECT)) != 0,
                "both PX4 status outputs report the active ground-effect protection");
+
         test.m_in_ground_effect = false;
         advance(56);
         auto const last_detection = f.m_session.m_ground_effect.state().last_detection_us;
@@ -2704,22 +2920,28 @@ public:
         {
             advance(1);
         }
+
         expect(f.m_session.m_ground_effect.state().active && f.m_session.m_time_us - last_detection == 10000000U,
                "negative requests do not clear the latch; exactly ten delayed seconds still held");
+
         advance(1);
         expect(!f.m_session.m_ground_effect.state().active,
                "ground-effect hold expires strictly after ten delayed seconds");
+
         test.m_in_ground_effect = true;
         advance(56);
         expect(f.m_session.m_ground_effect.state().active, "new positive request reactivates after expiry");
+
         test.m_fixed_wing = true;
         advance(56);
         expect(!f.m_session.m_ground_effect.state().active, "historical fixed-wing state disables protection");
+
         test.m_fixed_wing = false;
         test.m_in_ground_effect = false;
         advance(56);
         expect(!f.m_session.m_ground_effect.state().active,
                "cleared latch cannot reactivate from its old detection timestamp");
+
         test.m_in_ground_effect = true;
         advance(56);
         test.m_landed = true;
@@ -2741,27 +2963,33 @@ public:
             test.m_sample.timestamp_sample += 4000U;
             test.tick();
         }
+
         expect(f.m_session.m_ground_effect.state().active, "setup: known rotary-wing flight activates protection");
+
         test.m_send_status = test.m_send_land = false;
         for (unsigned i = 0; i < 56; ++i)
         {
             test.m_sample.timestamp_sample += 4000U;
             test.tick();
         }
+
         auto const last_detection = f.m_session.m_ground_effect.state().last_detection_us;
         for (unsigned i = 0; i < 10; ++i)
         {
             test.m_sample.timestamp_sample += 4000U;
             test.tick();
         }
+
         expect(f.m_session.m_ground_effect.state().active &&
                    f.m_session.m_ground_effect.state().last_detection_us == last_detection,
                "repeated context snapshots cannot renew detection without a new source message");
+
         for (unsigned i = 0; i < 805; ++i)
         {
             test.m_sample.timestamp_sample += 4000U;
             test.tick();
         }
+
         expect(f.m_session.m_ground_effect.state().active && !f.m_session.m_fault &&
                    f.m_session.ground_effect().last_detection_us == last_detection,
                "no new source event: stale input cannot impose an extra three-second latch expiry");
@@ -2776,8 +3004,10 @@ public:
             test.m_sample.timestamp_sample += 4000U;
             test.tick();
         }
+
         expect(f.m_session.m_initialized && !f.m_session.m_fault && !f.m_session.m_output.ready(),
                "alignment seeds, but does not fabricate output history");
+
         auto const seed_time = f.m_session.m_time_us;
         for (unsigned i = 1; i <= 54; ++i)
         {
@@ -2788,17 +3018,21 @@ public:
             expect(f.m_session.m_time_us == seed_time + (i == 54 ? 4000U : 0U) &&
                        f.m_session.m_statistics.predictions == (i == 54 ? 1U : 0U),
                    "exactly 54 real records admit the first delayed prediction");
+
             if (i < 54)
             {
                 expect(!f.m_session.output_validity(clock_us).healthy, "warmup never grants valid current output");
+
                 vehicle_local_position_s local{};
                 orb_copy(ORB_ID(vehicle_local_position), test.m_outputs[1], &local);
                 expect(local.timestamp_sample == 0U, "warmup does not publish a current navigation estimate");
             }
         }
+
         expect(f.m_session.m_output.ready() && f.m_session.m_output.fusion_time_us() == f.m_session.m_time_us &&
                    f.m_session.m_imu_history.fusion_time_us() == f.m_session.m_time_us,
                "feedback acknowledges the exact main/output epoch");
+
         test.m_landed = test.m_at_rest = false;
         test.m_armed = true;
         for (unsigned i = 0; i < 54; ++i)
@@ -2809,6 +3043,7 @@ public:
                    "healthy steps maintain two horizons without skipped or duplicated prediction");
             expect(f.m_session.m_imu_context.land.known && f.m_session.m_imu_context.land.at_rest == (i < 53),
                    "future takeoff context never grants or removes historical rest permission");
+
             if (f.m_session.m_gnss.sample.time_us != 0)
             {
                 expect(f.m_session.m_gnss.sample.time_us == f.m_session.m_gnss.input.sample.stamp.time_us - 2000U &&
@@ -2817,6 +3052,7 @@ public:
                        "selected GNSS time is retained while unaligned startup defers navigation fusion");
             }
         }
+
         auto const fusion_time = f.m_session.m_time_us;
         auto const output_time = f.m_session.m_output.current().time_us;
         auto const predictions = f.m_session.m_statistics.predictions;
@@ -2840,6 +3076,7 @@ public:
                    session.statistics().baro_updates == 0 && session.height_aiding().barometer_warmup_samples() == 0 &&
                    session.m_observations.barometer_receipt().push_time_us == 0 && test.m_filter.m_baro.timestamp == 0,
                "disabled module has no air-data subscription/admission or startup dependency; GNSS height works");
+
         std::printf("Disabled barometer: session=%zu bytes, module=%zu bytes\n", sizeof(session),
                     sizeof(test.m_filter));
         test.snapshot("barometer_disabled");
@@ -2857,18 +3094,21 @@ public:
             test.m_sample.timestamp_sample += 4000;
             test.tick();
         }
+
         auto const source = FormalEskf::height_type::Source::barometer;
         auto const fused = session.height_aiding().session(source).fused_time;
         auto const resets = session.m_resets.height_count;
         expect(session.height_aiding().session(source).active &&
                    session.m_observations.barometer_receipt().push_time_us == received,
                "invalid uORB altitude cannot refresh receipt; source remains active just below expiry");
+
         test.m_sample.timestamp_sample += 4000;
         test.tick();
         expect(!session.fault() && !session.height_aiding().session(source).active &&
                    session.height_aiding().session(source).fused_time == fused &&
                    session.m_resets.height_count == resets,
                "actual Run stops at latest-clock receipt equality without a fake fusion or height reset");
+
         test.snapshot("barometric_receipt");
     }
 
@@ -2887,6 +3127,7 @@ public:
         expect(!session.fault() && session.statistics().arrival_rejections > rejected &&
                    session.m_observations.barometer_generation() == generation + 1,
                "Run rejects out-of-model altitude while retiring the changed source");
+
         test.m_baro_altitude = 538.f;
         // 1 s covers the 212 ms history plus 51 selected events at 12 ms cadence.
         for (unsigned i = 0; i < 250; ++i)
@@ -2894,13 +3135,16 @@ public:
             test.m_sample.timestamp_sample += 4000;
             test.tick();
         }
+
         auto const & sample = session.m_barometer.sample;
         expect(!session.fault() && sample.altitude_m == 538. && sample.stamp.source.device_id == test.m_baro_device &&
                    session.m_barometer.generation == generation + 1,
                "actual uORB ingress keeps supplied metres and new source metadata through delayed selection");
+
         auto const & barometer = session.height_aiding().session(FormalEskf::height_type::Source::barometer);
         expect(barometer.generation == generation + 1 && barometer.active,
                "changed source recovers through ordinary delayed warmup");
+
         auto const corrections = session.statistics().baro_updates;
         unsigned empty_ticks = 0;
         for (unsigned n = 0; n < 60; ++n)
@@ -2912,8 +3156,10 @@ public:
                        session.height_aiding().session(FormalEskf::height_type::Source::barometer).active,
                    "changed source stays active between its slower measurements");
         }
+
         expect(empty_ticks > 0 && session.statistics().baro_updates > corrections,
                "actual Run corrects after source recovery despite empty selection ticks");
+
         test.snapshot("barometric_input");
     }
 
@@ -2932,8 +3178,10 @@ public:
                 test.tick();
             }
         }
+
         auto const reference = gnss_reference ? Source::gnss : Source::barometer;
         expect(session.height_aiding().reference() == reference, "actual source loss selects the intended reference");
+
         auto const generation = session.m_observations.barometer_generation();
         auto const resets = session.resets().height_count;
         auto const offset = session.height_aiding().session(Source::barometer).bias.value;
@@ -2952,6 +3200,7 @@ public:
                             session.m_barometer.sample.altitude_m == static_cast<double>(test.m_baro_altitude) &&
                             session.m_barometer.sample.stamp.source.calibration_count == 0;
             }
+
             auto const & barometer = session.height_aiding().session(Source::barometer);
             bool const inside_gate = std::abs(shift) <= 1.f;
             expect(!session.fault() && barometer.active && !barometer.fault &&
@@ -2965,6 +3214,7 @@ public:
                    "changed and reversed air-data height follows ordinary innovation gates");
             expect(gnss_reference || barometer.bias.value == offset, "barometer reference keeps its offset frozen");
         }
+
         test.snapshot("barometric_reference_change");
     }
 
@@ -2975,6 +3225,7 @@ public:
         using Source = FormalEskf::height_type::Source;
         // A one-metre upward antenna lever arm, set through the production startup API.
         expect(session.configure_sensor_positions({{}, FormalEskf::vector3(0., 0., -1.)}), "configure antenna offset");
+
         test.warmup();
         test.m_send_gps = false;
         test.m_landed = test.m_at_rest = false;
@@ -2983,9 +3234,11 @@ public:
             test.m_sample.timestamp_sample += 4000;
             test.tick();
         }
+
         expect(!session.fault() && session.height_aiding().reference() == Source::barometer &&
                    !session.height_aiding().session(Source::gnss).active,
                "actual delayed GNSS loss falls back to barometer");
+
         auto const resets = session.resets().height_count;
         test.m_send_gps = true;
         test.m_gps_velocity_valid = false;
@@ -2995,9 +3248,11 @@ public:
             test.m_sample.timestamp_sample += 4000;
             test.tick();
         }
+
         expect(!session.fault() && session.resets().height_count == resets &&
                    !session.height_aiding().session(Source::gnss).active,
                "first returning but unqualified height cannot reset the estimator");
+
         test.m_gps_velocity_valid = true;
         bool recovered = false;
         for (unsigned n = 0; n < 5000 && !session.fault() && !recovered; ++n)
@@ -3008,6 +3263,7 @@ public:
             test.tick();
             recovered = session.resets().height_count != resets;
         }
+
         auto const & selected = session.m_gnss.input.sample;
         auto const & aid = session.height_aiding().session(Source::gnss);
         expect(!session.fault() && recovered && session.resets().height_count == std::uint8_t(resets + 1) &&
@@ -3016,6 +3272,7 @@ public:
                    selected.stamp.time_us < test.m_filter.m_gps.timestamp_sample &&
                    selected.altitude_msl_m != test.m_filter.m_gps.altitude_msl_m && selected.altitude_msl_m != 610.,
                "recovery consumes one qualified delayed sample, not the newest or first returning sample");
+
         // Independently project the selected antenna fix, then subtract its body lever arm.
         // The offset is < 2 m: curvature is below 1 micrometre; 10 micrometres covers
         // that and binary64 ECEF subtraction/inversion, not a physical GNSS accuracy claim.
@@ -3024,6 +3281,7 @@ public:
         formal_eskf::geodesy::GeodeticPosition origin;
         expect(formal_eskf::succeeded(session.navigation_frame().geographic({}, origin)),
                "recover working origin for independent ECEF oracle");
+
         matrix::Vector3<double> const expected =
             oracle_ned(origin.latitude_deg, origin.longitude_deg) *
                 (oracle_ecef(test.m_latitude_deg, test.m_longitude_deg, selected.altitude_msl_m + 47.) -
@@ -3034,11 +3292,13 @@ public:
         expect(std::abs(session.m_state.p_n(2) - expected(2)) < 1e-5 &&
                    std::abs(session.m_covariance(2, 2) - variance) < 1e-5,
                "selected IMU-point altitude and sample variance reach the actual geographic reset");
+
         vehicle_local_position_s local{};
         orb_copy(ORB_ID(vehicle_local_position), test.m_outputs[1], &local);
         expect(local.z_reset_counter == session.resets().height_count &&
                    local.delta_z == static_cast<float>(session.resets().height_delta),
                "the real height reset reaches the unchanged PX4 consumer report exactly once");
+
         test.snapshot("barometric_gnss_recovery");
     }
 
@@ -3052,22 +3312,26 @@ public:
                    !test.m_filter.m_session.navigation_frame().initialized() &&
                    !test.m_filter.m_session.tilt_alignment().aligned(),
                "IMU seed requires no GNSS; seed alone is not qualified tilt or navigation");
+
         test.m_armed = true;
         test.m_sample.timestamp_sample += 4000U;
         test.tick();
         expect(test.m_filter.m_session.initialized() && !test.m_filter.m_session.fault(),
                "arming context does not discard a running IMU seed");
+
         test.m_mag_device = 302U;
         test.m_sample.timestamp_sample += 4000U;
         test.tick();
         expect(test.m_filter.m_session.initialized() && !test.m_filter.m_session.fault(),
                "magnetic source switch cannot require whole INS reinitialization");
+
         auto const previous = test.m_filter.m_session.imu_history().latest_time_us();
         test.m_sample.timestamp_sample += 4000U;
         test.m_sample.delta_velocity[0] = std::numeric_limits<float>::quiet_NaN();
         test.tick();
         expect(test.m_filter.m_session.fault() && test.m_filter.m_session.imu_history().latest_time_us() == previous,
                "non-finite required IMU after seeding latches a fault and preserves the last admitted epoch");
+
         test.snapshot("startup");
     }
 
@@ -3081,19 +3345,23 @@ public:
             auto const handle = param_find(name);
             float saved{};
             expect(param_get(handle, &saved) == 0, "sensor installation parameter exists");
+
             for (float value : {std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity(),
                                 -std::numeric_limits<float>::infinity(), -10.01f, 10.01f})
             {
                 param_set_no_notification(handle, &value);
                 expect(!test.m_filter.init(), "invalid installation coordinate prevents startup");
             }
+
             for (float value : {-10.f, 10.f})
             {
                 param_set_no_notification(handle, &value);
                 expect(test.m_filter.init(), "installation bounds are inclusive");
             }
+
             param_set_no_notification(handle, &saved);
         }
+
         auto const imu = param_find("FESKF_IMU_POS_X");
         auto const gps = param_find("FESKF_GPS_POS_Z");
         float imu_saved{}, gps_saved{};
@@ -3105,6 +3373,7 @@ public:
         expect(test.m_filter.init() && test.m_filter.m_session.m_sensor_positions.imu_b(0) == 0.25 &&
                    test.m_filter.m_session.m_sensor_positions.gnss_b(2) == -0.5,
                "actual PX4 parameters bind metres in body FRD");
+
         test.warmup();
         float changed = 9.f;
         param_set_no_notification(imu, &changed);
@@ -3114,6 +3383,7 @@ public:
         expect(!test.m_filter.m_session.m_fault && test.m_filter.m_session.m_sensor_positions.imu_b(0) == 0.25 &&
                    test.m_filter.m_session.m_sensor_positions.gnss_b(2) == -0.5,
                "live parameter updates cannot silently move the sensor or output point");
+
         param_set_no_notification(imu, &imu_saved);
         param_set_no_notification(gps, &gps_saved);
     }
@@ -3135,6 +3405,7 @@ public:
             expect(formal_eskf::succeeded(FormalEskf::quaternion_type::from_coefficients(q(0), q(1), q(2), q(3), 1e-6,
                                                                                          f.m_session.m_state.q_nb)),
                    "rotating-rig attitude");
+
             // Independent rig oracle: differentiate point positions, without a cross product.
             double const dt = 1e-6;
             matrix::Vector3<double> const rotation_rate_n(0.6, -0.7, 2.);
@@ -3150,6 +3421,7 @@ public:
             matrix::Vector3<double> const rate = R.transpose() * rotation_rate_n;
             expect(std::abs(gps_velocity(2) - imu_velocity(2)) > 0.01,
                    "rig exercises vertical rotational velocity as well as horizontal motion");
+
             FormalEskf::imu_type imu;
             imu.angular_rate_b = FormalEskf::vector3(rate(0), rate(1), rate(2)) + f.m_session.m_state.b_g;
             f.m_gps.vel_n_m_s = static_cast<float>(gps_velocity(0));
@@ -3168,6 +3440,7 @@ public:
             expect(observation.variances(0) == expected_variance &&
                        same_bits(raw, f.m_session.m_gnss.input.sample.velocity_n),
                    "compensation preserves raw receiver data and its existing noise policy");
+
             f.m_session.fuse_gps(imu);
             f.update_innovations();
             f.m_session.fuse_height(test.navigation_receipt());
@@ -3178,6 +3451,7 @@ public:
                            std::abs(f.m_session.m_state.v_n(axis) - imu_velocity(axis)) < 2e-7,
                        "qualified GNSS horizontal/height/velocity resets consume compensated observations");
             }
+
             auto const corrections = f.m_session.m_gnss.corrections;
             clock_us += 20000U;
             f.m_session.m_time_us = clock_us;
@@ -3192,6 +3466,7 @@ public:
                        formal_eskf::linalg::norm(f.m_session.m_gnss.velocity_test_ratios) < 1e-12 &&
                        f.m_session.m_gnss.position_test_ratio < 1e-12,
                    "normal velocity, horizontal and height corrections accept the compensated rotating rig");
+
             f.m_session.m_sensor_positions.gnss_b = f.m_session.m_sensor_positions.imu_b;
             expect(formal_eskf::linalg::squared_norm(f.m_session.gnss_position_offset()) == 0. &&
                        formal_eskf::linalg::squared_norm(f.m_session.gnss_velocity_offset(imu)) == 0.,
@@ -3216,6 +3491,7 @@ public:
                    formal_eskf::linalg::norm(current.q_nb.coefficients() - f.m_session.m_state.q_nb.coefficients()) >
                        1e-5,
                "body output oracle uses a genuinely different current attitude from the delayed filter");
+
         auto const & c = current.q_nb.coefficients();
         matrix::Quaternion<double> const q(c(0), c(1), c(2), c(3));
         matrix::Dcm<double> const R(q);
@@ -3250,6 +3526,7 @@ public:
         matrix::Vector3<double> const expected_velocity = point_basis * origin_basis.transpose() * body_velocity;
         expect((actual_ecef - expected_ecef).norm() < 2e-7,
                "published body geographic point agrees with independent ECEF forward geometry");
+
         for (std::size_t axis = 0; axis < 3; ++axis)
         {
             expect(std::abs(body.velocity_n(axis) - expected_velocity(axis)) < 1e-9 &&
@@ -3259,6 +3536,7 @@ public:
             expect(odometry.position_variance[axis] == float(f.m_session.navigation_variance(0)(axis)),
                    "publication consumes the separately tested delayed geographic covariance proxy");
         }
+
         expect(local.x == odometry.position[0] && local.y == odometry.position[1] && local.z == odometry.position[2] &&
                    local.vx == odometry.velocity[0] && local.vy == odometry.velocity[1] &&
                    local.vz == odometry.velocity[2] && local.z_deriv == local.vz &&
@@ -3267,9 +3545,11 @@ public:
                    same_bits(current.p_n, f.m_session.m_output.current().p_n) &&
                    same_bits(current.v_n, f.m_session.m_output.current().v_n),
                "local/global/odometry share one body point without moving the retained IMU state");
+
         FormalEskf::quaternion_type yaw_delta;
         expect(formal_eskf::succeeded(formal_eskf::so3::exp(FormalEskf::vector3(0., 0., 0.7), 1e-6, yaw_delta)),
                "heading reset setup");
+
         auto const positions = f.m_session.m_resets.position_count;
         auto const velocities = f.m_session.m_resets.velocity_count;
         auto const heights = f.m_session.m_resets.height_count;
@@ -3282,11 +3562,13 @@ public:
         f.m_session.m_resets.record_height(f.m_session.m_time_us, 0.6, 1);
         f.m_session.m_resets.record_vertical_velocity(f.m_session.m_time_us, velocity(2));
         expect(f.m_session.reset_output(yaw_delta, {}, {}), "attitude reset transforms output history");
+
         auto const after = f.m_session.body_output();
         auto const quaternion_delta = after.q_nb * body.q_nb.inverse();
         expect(formal_eskf::linalg::max_abs(f.m_session.m_resets.attitude_delta.coefficients() -
                                             quaternion_delta.coefficients()) < 1e-12,
                "reported quaternion reset uses consumer geographic axes");
+
         auto const dp = after.position_n - body.position_n;
         auto const dv = after.velocity_n - body.velocity_n;
         expect(f.m_session.m_resets.position_count == std::uint8_t(positions + 2U) &&
@@ -3298,9 +3580,11 @@ public:
                    std::abs(f.m_session.m_resets.height_delta - 0.6 - dp(2)) < 1e-12 &&
                    std::abs(f.m_session.m_resets.vertical_velocity_delta - velocity(2) - dv(2)) < 1e-12,
                "heading-induced body point changes accumulate with same-step translation reset notifications");
+
         auto const count = f.m_session.m_resets.attitude_count;
         expect(f.m_session.reset_output(yaw_delta.inverse(), {}, {}, {.attitude = true}),
                "second same-tick attitude reset");
+
         auto const combined = f.m_session.body_output().q_nb * body.q_nb.inverse();
         expect(f.m_session.m_resets.attitude_count == std::uint8_t(count + 1) &&
                    formal_eskf::linalg::max_abs(f.m_session.m_resets.attitude_delta.coefficients() -
@@ -3333,6 +3617,7 @@ public:
             horizontal = horizontal_velocity = false;
             vertical_velocity = scenario == CapabilityCase::height_only;
         }
+
         if (scenario == CapabilityCase::horizontal_only || scenario == CapabilityCase::velocity_without_height ||
             scenario == CapabilityCase::no_aiding)
         {
@@ -3342,6 +3627,7 @@ public:
             height = false;
             vertical_velocity = scenario == CapabilityCase::velocity_without_height;
         }
+
         if (scenario == CapabilityCase::horizontal_only)
         {
             horizontal_velocity = vertical_velocity = false;
@@ -3358,6 +3644,7 @@ public:
                        formal_eskf::runtime::FusionDecision::fused)),
                    "position-only successful progress");
         }
+
         if (scenario == CapabilityCase::source_changed)
         {
             ++f.m_session.m_gnss.generation; // Delayed source no longer matches the selected receiver generation.
@@ -3367,17 +3654,20 @@ public:
             // height/dynamics support through a GNSS source change.
             vertical_velocity = height;
         }
+
         if (scenario == CapabilityCase::no_tilt)
         {
             f.m_session.m_tilt_alignment = {};
             horizontal = horizontal_velocity = height = vertical_velocity = attitude = false;
         }
+
         if (scenario == CapabilityCase::stale || scenario == CapabilityCase::fault)
         {
             f.m_session.m_fault = scenario == CapabilityCase::fault;
             clock_us += scenario == CapabilityCase::stale ? 100000U : 0U;
             horizontal = horizontal_velocity = height = vertical_velocity = attitude = false;
         }
+
         f.publish_status(clock_us);
         estimator_status_s status{};
         estimator_status_flags_s flags{};
@@ -3388,15 +3678,18 @@ public:
                                       (unsigned(horizontal) << 4) | (unsigned(height) << 5);
         expect((status.solution_status_flags & 0x3fU) == capabilities,
                "solution bits independently describe attitude, horizontal, height and vertical velocity");
+
         if (!attitude)
         {
             expect(!status.pre_flt_fail_innov_heading, "missing attitude is reported through its producer freshness, "
                                                        "not a fabricated heading innovation failure");
         }
+
         expect(status.filter_fault_flags == 0 && !flags.fs_bad_acc_vertical && !flags.fs_bad_acc_clipping,
                "a generic fault or unavailable aiding is not an accelerometer fault");
         expect(flags.cs_inertial_dead_reckoning == !horizontal,
                "source changes and horizontal loss cannot report fresh horizontal aiding");
+
         if (scenario != CapabilityCase::stale && scenario != CapabilityCase::fault)
         {
             f.m_session.m_covariance(0, 0) = 9.;
@@ -3442,6 +3735,7 @@ public:
                 f.m_session.m_covariance(9 + axis, 9 + axis) = sample.variance[axis];
                 f.m_session.m_covariance(12 + axis, 12 + axis) = sample.variance[axis];
             }
+
             auto const before = f.m_session.m_covariance;
             f.m_session.m_bias_learning_result.bias_update = {{false, false, false}, {false, false, false}};
             f.publish_sensor_bias(clock_us, true);
@@ -3452,6 +3746,7 @@ public:
                     !bias.accel_bias_stable && !bias.gyro_bias_stable && !bias.mag_bias_valid &&
                     same_bits(before, f.m_session.m_covariance),
                 "bias covariance threshold is independent of temporary learning inhibition and calibration stability");
+
             f.publish_sensor_bias(clock_us, false);
             orb_copy(ORB_ID(estimator_sensor_bias), test.m_outputs[6], &bias);
             expect(!bias.accel_bias_valid && !bias.gyro_bias_valid, "unhealthy output revokes both bias-valid flags");
@@ -3464,28 +3759,39 @@ public:
         using formal_eskf::px4::InnovationRatio;
         InnovationRatio ratio;
         expect(std::isnan(ratio.filtered), "unobserved ratio is unavailable");
+
         ratio.update(1000000U, -1., 1.);
         expect(ratio.filtered == 1., "first sample seeds unsigned ratio as in PX4");
+
         ratio.update(1500000U, -1., 1.);
         expect(ratio.filtered == 0., "signed opposite innovation cancels at alpha=0.5");
+
         ratio.update(1500000U, -1., 1.);
         expect(ratio.filtered == 1., "repeated sample epoch reseeds rather than subtracting unsigned time");
+
         ratio.update(1400000U, -1., 2.);
         expect(ratio.filtered == 2., "regressed diagnostic epoch reseeds");
+
         ratio.reset(2000000U);
         ratio.update(2000001U, 1., 1.);
         expect(std::abs(ratio.filtered - 1. / 501.) < 1e-14, "minimum interval is one millisecond");
+
         ratio.reset(3000000U);
         ratio.update(13000000U, -1., 1.);
         expect(std::abs(ratio.filtered + 2. / 3.) < 1e-14, "maximum interval is one second");
+
         ratio.update(14000000U, 1., 100.);
         expect(ratio.filtered == 4., "large positive filtered outlier is limited");
+
         ratio.update(15000000U, -1., 100.);
         expect(ratio.filtered == -4., "large negative filtered outlier is limited");
+
         ratio.update(16000000U, 1., NAN);
         expect(std::isnan(ratio.filtered), "missing diagnostics cannot become a perfect residual");
+
         ratio.update(17000000U, 1., 100.);
         expect(ratio.filtered == 4., "recovered diagnostics are also limited");
+
         ratio.reset(18000000U);
         expect(ratio.filtered == 0. && ratio.time_us == 18000000U, "successful state reset clears reporting history");
     }
@@ -3504,6 +3810,7 @@ public:
         {
             ++test.m_mag_device;
         }
+
         bool unavailable = false, alignment_lost = false, unsafe = false;
         bool horizontal_retained = true;
         estimator_status_s status{};
@@ -3522,6 +3829,7 @@ public:
                 unsafe |= status.pre_flt_fail_innov_heading;
             }
         }
+
         expect(unavailable && alignment_lost && horizontal_retained && !f.m_session.m_fault,
                "real ground magnetic source/calibration replacement loses heading while GNSS remains valid");
         expect(!unsafe, "missing heading does not veto independent tilt-only service during source replacement");
@@ -3547,17 +3855,21 @@ public:
         f.update_status_changes(clock_us + 2);
         expect(f.m_status_changes.innovation_count == before + 2 && f.m_last_status == publication,
                "A-B-A between publications counts two completed transitions, not individual bits");
+
         before = f.m_status_changes.innovation_count;
         f.publish_status(clock_us + 3);
         f.publish_status(clock_us + 4);
         expect(f.m_status_changes.innovation_count == before, "publishing retained masks does not count transitions");
+
         f.m_status_changes.innovation_count = UINT32_MAX;
         f.m_session.m_gnss.position_rejected = true;
         f.update_status_changes(clock_us + 5);
         expect(f.m_status_changes.innovation_count == 0, "external mask count retains uint32 modulo wrap");
+
         auto const control = f.m_status_changes.control_count;
         f.update_status_changes(clock_us + 10000000);
         expect(f.m_status_changes.control_count == control + 1, "no-IMU expiry reaches completed mask comparison");
+
         f.update_diagnostics(clock_us);
         FormalEskf::Diagnostics view;
         expect(f.read_diagnostics(view) && view.session.gnss_quality_evaluated &&
@@ -3578,6 +3890,7 @@ public:
             ratio = {};
             ratio.update(f.m_session.m_time_us, -1., 0.25);
         }
+
         for (std::size_t axis = 0; axis < 3; ++axis)
         {
             f.m_velocity_ratios[axis] = {};
@@ -3585,6 +3898,7 @@ public:
             f.m_magnetic_ratios[axis] = {};
             f.m_magnetic_ratios[axis].update(f.m_session.m_time_us, -1., 0.25);
         }
+
         f.update_status_changes(clock_us);
         f.publish_status(clock_us);
         estimator_status_s status{};
@@ -3597,6 +3911,7 @@ public:
         expect(status.pos_test_ratio == 0.5f && status.vel_test_ratio == 0.5f && std::isnan(status.tas_test_ratio) &&
                    std::isnan(status.hagl_test_ratio),
                "summary ratio is amplitude-scaled; absent estimators do not report perfect zero residual");
+
         auto const initial = flags;
         auto const ratio_before = f.m_magnetic_ratios[0];
         f.update_status_changes(clock_us);
@@ -3604,22 +3919,26 @@ public:
         expect(f.m_magnetic_ratios[0].filtered == ratio_before.filtered &&
                    f.m_magnetic_ratios[0].time_us == ratio_before.time_us,
                "publication does not advance innovation filtering");
+
         orb_copy(ORB_ID(estimator_status_flags), test.m_outputs[5], &flags);
         expect(flags.control_status_changes == initial.control_status_changes &&
                    flags.fault_status_changes == initial.fault_status_changes &&
                    flags.innovation_fault_status_changes == initial.innovation_fault_status_changes,
                "repeated status publication is not a state change");
+
         f.m_session.m_gnss.position_test_ratio = 0.75;
         f.m_session.m_gnss.velocity_test_ratios = FormalEskf::vector3(0.75, 0.75, 0.01);
         for (auto & ratio : f.m_position_ratios)
         {
             ratio.update(f.m_session.m_time_us, -1., 0.75);
         }
+
         for (std::size_t axis = 0; axis < 3; ++axis)
         {
             f.m_velocity_ratios[axis].update(f.m_session.m_time_us, -1., axis == 2 ? 0.01 : 0.75);
             f.m_magnetic_ratios[axis].update(f.m_session.m_time_us, -1., 0.75);
         }
+
         f.update_status_changes(clock_us);
         f.publish_status(clock_us);
         orb_copy(ORB_ID(estimator_status), test.m_outputs[4], &status);
@@ -3628,6 +3947,7 @@ public:
                    status.pre_flt_fail_innov_heading && !status.pre_flt_fail_innov_vel_vert && !flags.reject_hor_pos &&
                    !flags.reject_hor_vel,
                "preflight warning at 0.5 is distinct from measurement rejection at 1");
+
         f.m_session.m_gnss.position_test_ratio = 2.;
         f.m_session.m_gnss.position_rejected = true;
         f.m_session.m_magnetic.observation.field.diagnostics_valid = true;
@@ -3644,6 +3964,7 @@ public:
                    (status.control_mode_flags & (1ULL << 34)) != 0 && flags.cs_gravity_vector &&
                    flags.control_status_changes == initial.control_status_changes + 1,
                "packed and named control flags share disturbance and gravity state");
+
         FormalEskf::vertical_health_type::Sample sample;
         f.m_session.m_vertical_health.reset();
         sample.time_us = f.m_session.m_time_us - 500000U;
@@ -3659,6 +3980,7 @@ public:
             expect(formal_eskf::succeeded(f.m_session.m_vertical_health.update(sample, observations)),
                    "vertical fault setup");
         }
+
         f.update_status_changes(clock_us);
         f.publish_status(clock_us);
         orb_copy(ORB_ID(estimator_status), test.m_outputs[4], &status);
@@ -3668,6 +3990,7 @@ public:
                    (status.solution_status_flags & (1U << 11)) != 0 &&
                    flags.fault_status_changes == initial.fault_status_changes + 1,
                "actual vertical/clipping faults use PX4's current bits, not obsolete bit 16");
+
         f.m_session.m_vertical_health.reset();
         f.update_status_changes(clock_us);
         f.publish_status(clock_us);
@@ -3690,6 +4013,7 @@ public:
             expect(formal_eskf::succeeded(FormalEskf::quaternion_type::from_coefficients(q(0), q(1), q(2), q(3), 1e-6,
                                                                                          f.m_session.m_state.q_nb)),
                    "delayed covariance attitude");
+
             matrix::SquareMatrix<double, 3> P;
             P.setZero();
             P(0, 0) = 0.02;
@@ -3704,10 +4028,12 @@ public:
                     f.m_session.m_covariance(6 + row, 6 + column) = P(row, column);
                 }
             }
+
             auto const before = f.m_session.m_covariance;
             formal_eskf::geodesy::GeodeticPosition point;
             expect(formal_eskf::succeeded(f.m_session.m_navigation_frame.geographic(f.m_session.m_state.p_n, point)),
                    "delayed point");
+
             auto const A =
                 oracle_ned(point.latitude_deg, point.longitude_deg) * oracle_ned(47.397742, 8.545594).transpose();
             auto const expected = A * R * P * R.transpose() * A.transpose();
@@ -3717,9 +4043,11 @@ public:
                 expect(std::abs(variance(axis) - expected(axis, axis)) < 1e-12,
                        "NED variance rotates the complete body covariance, including correlations");
             }
+
             expect(f.m_session.magnetic_heading_aiding(), "heading fixture has active aiding");
             expect(f.m_session.magnetic_heading_valid() == (expected(2, 2) < 0.1),
                    "heading validity uses navigation Down variance, not body Z variance");
+
             f.m_last_output = f.m_session.m_output.current().time_us - 10000U;
             f.publish(FormalEskf::decode_imu(test.m_sample).mean_rates());
             vehicle_local_position_s local{};
@@ -3749,8 +4077,10 @@ public:
             f.m_session.m_navigation_frame = {};
             expect(formal_eskf::succeeded(f.m_session.m_navigation_frame.initialize({0., direction * 179.999, 535.})),
                    "dateline working frame");
+
             f.m_session.m_state.p_n = FormalEskf::vector3(0., direction * 1500., 0.);
             expect(f.m_session.m_output.apply_reset({}, {}, f.m_session.m_state.p_n), "dateline output setup");
+
             auto const state_before = f.m_session.m_state;
             auto const position_counter = f.m_session.m_resets.position_count;
             double latitude{}, longitude{};
@@ -3758,6 +4088,7 @@ public:
                           f.m_session.m_origin.projection.longitude_deg()}
                 .reproject(f.m_session.m_state.p_n(0), f.m_session.m_state.p_n(1), latitude, longitude);
             expect(std::abs(longitude) > 180., "raw projection crosses the longitude convention boundary");
+
             // At the equator this east displacement has an independent atan2 solution.
             auto const point_ecef =
                 oracle_ecef(0., direction * 179.999, 535.) +
@@ -3769,16 +4100,19 @@ public:
                        f.m_session.update_height_datum(f.m_session.m_output.current().time_us, datum_point,
                                                        datum_point.height_ellipsoid_m - 47.),
                    "dateline navigation uses a nearby admitted height pair");
+
             auto const lookups = f.m_session.m_magnetic_model.lookup_count();
             auto const unavailable = f.m_session.m_statistics.mag_model_unavailable;
             f.m_session.m_mag_model_origin_time = 0; // Request a lookup at the current estimated position.
             f.m_session.m_origin.time_us = clock_us;
             expect(f.m_session.gps_position_valid(formal_eskf::px4::profile::gnss::maximum_aiding_age_us),
                    "dateline fixture has qualified horizontal aiding");
+
             update_magnetic_model(f);
             expect(f.m_session.m_magnetic_model.lookup_count() == lookups + 1U &&
                        f.m_session.m_statistics.mag_model_unavailable == unavailable && !f.m_session.m_fault,
                    "crossing the dateline preserves a valid WMM lookup");
+
             f.m_last_output = f.m_session.m_output.current().time_us - 10000U;
             f.publish(FormalEskf::decode_imu(test.m_sample).mean_rates());
             vehicle_global_position_s global{};
@@ -3811,8 +4145,10 @@ public:
         auto const translation = FormalEskf::vector3(600., 400., -120.);
         f.m_session.m_state.p_n = f.m_session.m_state.p_n + translation;
         expect(f.m_session.m_output.apply_reset({}, {}, translation), "move a physical trajectory before the event");
+
         // Current output is a different point and epoch from the selected delayed origin.
         expect(f.m_session.m_output.apply_reset({}, {}, FormalEskf::vector3(2., -1., 0.4)), "distinct output point");
+
         auto const before = f.m_session.body_output();
         auto const old_state = f.m_session.m_state;
         auto const old_P = f.m_session.m_covariance;
@@ -3830,6 +4166,7 @@ public:
         auto const corrections = f.m_session.m_gnss.corrections;
         auto const reference = f.m_session.m_magnetic_model.reference_id();
         expect(request_origin(f) == formal_eskf::Status::success, "prepare and commit live owner transaction");
+
         auto const after = f.m_session.body_output();
         expect(before.status == formal_eskf::Status::success && after.status == formal_eskf::Status::success &&
                    formal_eskf::linalg::max_abs(after.position_n - before.position_n) < 2e-6 &&
@@ -3837,6 +4174,7 @@ public:
                    formal_eskf::linalg::max_abs(after.q_nb.coefficients() - before.q_nb.coefficients()) < 1e-12 &&
                    std::abs(after.geographic.height_ellipsoid_m - before.geographic.height_ellipsoid_m) < 2e-7,
                "frozen physical body point, velocity and attitude survive internal migration");
+
         auto const setpoint = FormalEskf::vector3(1300., 900., -150.);
         expect(formal_eskf::linalg::max_abs((setpoint - after.position_n) - (setpoint - before.position_n)) < 2e-6,
                "unchanged PX4 controller setpoint retains the same position error");
@@ -3866,16 +4204,19 @@ public:
                     bias.value &&
                 same_bits(f.m_session.m_state.b_a, old_state.b_a) && same_bits(f.m_session.m_state.b_g, old_state.b_g),
             "migration neither consumes samples nor refreshes source health, alignment or body bias history");
+
         formal_eskf::geodesy::NedTransform<FormalEskf::backend_type> transform;
         expect(old_frame.transform_to(f.m_session.m_navigation_frame.working(), transform) ==
                    formal_eskf::Status::success,
                "obtain independent full covariance oracle transform");
+
         auto J = FormalEskf::covariance_type::identity();
         J.set_block<0, 0>(transform.rotation);
         J.set_block<3, 3>(transform.rotation);
         expect(formal_eskf::linalg::max_abs(f.m_session.m_covariance - J * old_P * formal_eskf::linalg::transpose(J)) <
                    1e-10,
                "live transaction transports all covariance cross-blocks");
+
         auto const predictions = f.m_session.m_statistics.predictions;
         test.m_sample.timestamp_sample += 4000;
         test.tick();
@@ -3884,6 +4225,7 @@ public:
                    f.m_session.m_imu_history.fusion_time_us() == f.m_session.m_time_us &&
                    f.m_session.m_output.fusion_time_us() == f.m_session.m_time_us,
                "actual Run continues after the event without requesting a redundant migration");
+
         // A new estimator tick permits new height/source feedback; no same-tick replay.
         f.m_session.m_time_us += 4000;
         // Return the receiver to the moved frame's physical estimate, then force normal recovery.
@@ -3891,6 +4233,7 @@ public:
         expect(f.m_session.m_navigation_frame.geographic(f.m_session.m_state.p_n, point) ==
                    formal_eskf::Status::success,
                "receiver physical estimate");
+
         f.m_session.m_gnss.input.sample.latitude_deg = point.latitude_deg;
         f.m_session.m_gnss.input.sample.longitude_deg = point.longitude_deg;
         f.m_session.m_gnss.input.sample.altitude_ellipsoid_m = point.height_ellipsoid_m;
@@ -3898,6 +4241,7 @@ public:
                                                  f.m_session.m_gnss.input.sample.altitude_msl_m) ==
                    formal_eskf::Status::success,
                "receiver height datum");
+
         f.m_session.m_gnss.input.time_us = f.m_session.m_time_us;
         f.m_session.m_gnss.sample = {f.m_session.m_time_us, formal_eskf::runtime::GnssQualityDecision::accepted};
         f.m_session.m_gnss.lifecycle.reset();
@@ -3944,6 +4288,7 @@ public:
                 const_cast<FormalEskf::output_predictor_type::TrackingError &>(f.m_session.m_output.tracking_error());
             error.velocity_n = FormalEskf::vector3(1.7976931348623157e308, 0., -1.7976931348623157e308);
         }
+
         auto const prior = f.m_session.m_state;
         auto const P = f.m_session.m_covariance;
         auto const output = f.m_session.m_output.current();
@@ -3969,6 +4314,7 @@ public:
         auto & f = m_filter;
         f.m_session.m_state.p_n = f.m_session.m_state.p_n + shift;
         expect(f.m_session.m_output.apply_reset({}, {}, shift), "move physical estimate for policy scenario");
+
         formal_eskf::geodesy::GeodeticPosition geographic;
         expect(f.m_session.m_navigation_frame.geographic(f.m_session.m_state.p_n, geographic) ==
                    formal_eskf::Status::success,
@@ -3977,6 +4323,7 @@ public:
             f.m_session.update_height_datum(f.m_session.m_output.current().time_us, geographic,
                                             geographic.height_ellipsoid_m - f.m_session.m_height_datum.separation_m()),
             "accepted paired datum follows the synthetic moving receiver");
+
         m_send_gps = false; // Do not introduce an unrelated jump back to the fixture's stationary receiver.
     }
 
@@ -3994,6 +4341,7 @@ public:
                        admission.within_frame == (distance <= 2000.),
                    "horizontal soft and hard thresholds have inclusive boundaries");
         }
+
         auto const datum_epoch = f.m_session.m_height_datum.time_us();
         expect(f.m_session.frame_admission(zero, zero, datum_epoch + 30000000U).datum_usable &&
                    !f.m_session.frame_admission(zero, zero, datum_epoch + 30000001U).datum_usable &&
@@ -4007,11 +4355,13 @@ public:
         expect(f.m_session.frame_admission(FormalEskf::vector3(999., 0., 0.), zero, epoch).datum_usable &&
                    !f.m_session.frame_admission(FormalEskf::vector3(1001., 0., 0.), zero, epoch).datum_usable,
                "held datum has a physical-distance boundary independent of the moving origin");
+
         auto const datum = f.m_session.m_height_datum;
         expect(!f.m_session.update_height_datum(epoch + 1, {NAN, 0., 500.}, 450.) &&
                    f.m_session.m_height_datum.time_us() == datum.time_us() &&
                    f.m_session.frame_admission(zero, zero, epoch).datum_usable,
                "invalid paired geography preserves both separation and its location");
+
         // Independent physical coordinates exercise geography, rather than calling the predicate on invented angles.
         for (auto height : {-1001., -999., 9999., 10001.})
         {
@@ -4025,9 +4375,11 @@ public:
                        (height > -1000. && height < 10000.),
                    "ellipsoidal height envelope is distinct from MSL altitude");
         }
+
         f.m_session.m_navigation_frame = {};
         expect(f.m_session.m_navigation_frame.initialize({85., 0., 535.}) == formal_eskf::Status::success,
                "high-latitude frame");
+
         auto const east = f.m_session.frame_admission(FormalEskf::vector3(0., 600., 0.), zero, epoch);
         auto const far = f.m_session.frame_admission(FormalEskf::vector3(0., 1100., 0.), zero, epoch);
         expect(east.within_domain && east.request && east.within_frame && far.request && !far.within_frame,
@@ -4044,6 +4396,7 @@ public:
             test.m_latitude_deg = 85.;
             test.m_longitude_deg = 179.999;
         }
+
         test.warmup();
         auto & f = test.m_filter;
         auto const reference = f.m_session.m_origin;
@@ -4055,11 +4408,13 @@ public:
                    f.m_session.m_origin_control.success_time_us == f.m_session.m_time_us &&
                    f.m_session.output_validity(clock_us).navigation,
                "production Run automatically rebases at the completed delayed epoch");
+
         FormalEskf::Diagnostics diagnostics;
         expect(f.read_diagnostics(diagnostics) && diagnostics.origin_generation == 1 &&
                    diagnostics.origin_success_us == f.m_session.m_time_us &&
                    diagnostics.origin_attempt_us == f.m_session.m_time_us,
                "status snapshot identifies the committed frame and its actual attempt/success epoch");
+
         auto const first_time = f.m_session.m_origin_control.success_time_us;
         test.move_origin_estimate(shift);
         for (unsigned i = 0; i < 249; ++i)
@@ -4067,8 +4422,10 @@ public:
             test.m_sample.timestamp_sample += 4000;
             test.tick();
         }
+
         expect(!f.m_session.m_fault && f.m_session.m_navigation_frame.generation() == 1,
                "repeated soft-limit requests do not bypass successful-event dwell");
+
         test.m_sample.timestamp_sample += 4000;
         test.tick();
         expect(!f.m_session.m_fault && f.m_session.m_navigation_frame.generation() == 2 &&
@@ -4076,6 +4433,7 @@ public:
                    f.m_session.m_origin.time_us == reference.time_us &&
                    f.m_session.m_origin.altitude_msl_m == reference.altitude_msl_m,
                "dwell expires exactly once, with fixed publication reference preserved");
+
         auto const generation = f.m_session.m_navigation_frame.generation();
         auto const updates = f.m_session.m_gnss.corrections;
         f.m_session.update_origin();
@@ -4098,18 +4456,22 @@ public:
                    f.m_session.m_origin_control.attempt_time_us == f.m_session.m_time_us &&
                    f.m_session.m_origin_control.success_time_us == 0,
                "failed candidate records one retry epoch and preserves the old frame");
+
         f.m_session.m_covariance = P;
         f.m_session.update_origin();
         expect(f.m_session.m_navigation_frame.generation() == 0 && f.m_session.m_statistics.rejections == rejected + 1,
                "same-epoch retry is suppressed even when the failed input is repaired");
+
         auto const failed_time = f.m_session.m_origin_control.attempt_time_us;
         for (unsigned i = 0; i < 249; ++i)
         {
             test.m_sample.timestamp_sample += 4000;
             test.tick();
         }
+
         expect(!f.m_session.m_fault && f.m_session.m_navigation_frame.generation() == 0,
                "old admitted frame continues through the bounded retry interval");
+
         test.m_sample.timestamp_sample += 4000;
         test.tick();
         expect(!f.m_session.m_fault && f.m_session.m_navigation_frame.generation() == 1 &&
@@ -4131,6 +4493,7 @@ public:
         expect(validity.healthy && !validity.navigation && !validity.gps && !validity.height && !f.m_session.m_fault &&
                    same_bits(before.p_n, f.m_session.m_state.p_n),
                "hard-limit overrun reports navigation unavailable without a numerical fault or partial event");
+
         f.m_last_output = 0;
         f.publish({});
         f.publish_status(clock_us);
@@ -4146,19 +4509,23 @@ public:
                    !global.alt_valid && std::isnan(odometry.position[0]) && std::isnan(odometry.velocity[0]) &&
                    odometry.quality == -1 && (status.solution_status_flags & 0x33eU) == 0,
                "all navigation consumers see unavailable capability, including odometry without validity flags");
+
         f.m_session.m_origin_control.attempt_time_us = 0;
         f.m_session.update_origin();
         expect(!f.m_session.m_fault && f.m_session.m_navigation_frame.generation() == 1 &&
                    f.m_session.output_validity(clock_us).navigation,
                "successful coordinate recovery restores geometry admission without inventing sensor success");
+
         auto const epoch = f.m_session.m_output.current().time_us;
         formal_eskf::geodesy::GeodeticPosition geographic;
         expect(f.m_session.m_navigation_frame.geographic(f.m_session.m_state.p_n, geographic) ==
                    formal_eskf::Status::success,
                "datum expiry location");
+
         f.m_session.m_height_datum.reset();
         expect(f.m_session.update_height_datum(epoch - 30000001U, geographic, geographic.height_ellipsoid_m - 47.),
                "install an expired held pair");
+
         f.m_session.m_origin_control = {f.m_session.m_origin_control.datum_frame, 0, 0};
         auto const generation = f.m_session.m_navigation_frame.generation();
         f.m_session.update_origin();
@@ -4185,6 +4552,7 @@ public:
         auto & f = test.m_filter;
         f.m_session.m_state.p_n = FormalEskf::vector3(0., 600., 0.);
         expect(f.m_session.m_output.apply_reset({}, {}, FormalEskf::vector3(0., -600., 0.)), "opposite newer point");
+
         auto const before = f.m_session.m_state;
         auto const output = f.m_session.m_output.current();
         auto const main = f.m_session.frame_admission(f.m_session.m_state.p_n, f.m_session.m_state.v_n, output.time_us);
@@ -4201,6 +4569,7 @@ public:
     {
         std::int32_t const delay = 239; // Maximum admitted history length for this profile.
         expect(param_set_no_notification(param_find("FESKF_DELAY_MS"), &delay) == 0, "benchmark maximum delay");
+
         InsSessionTest test;
         test.warmup();
         auto & f = test.m_filter;
@@ -4213,6 +4582,7 @@ public:
             auto const shift = translation * (i % 2 == 0 ? 1. : -1.);
             f.m_session.m_state.p_n = f.m_session.m_state.p_n + shift;
             expect(f.m_session.m_output.apply_reset({}, {}, shift), "benchmark physical displacement");
+
             auto const start = std::chrono::steady_clock::now();
             auto const status = request_origin(f);
             auto const changed = std::chrono::steady_clock::now();
@@ -4220,9 +4590,11 @@ public:
             auto const end = std::chrono::steady_clock::now();
             expect(status == formal_eskf::Status::success && output.status == formal_eskf::Status::success,
                    "benchmark executes successful production transaction and publication conversion");
+
             migration_us[i] = std::chrono::duration<double, std::micro>(changed - start).count();
             publication_us[i] = std::chrono::duration<double, std::micro>(end - changed).count();
         }
+
         std::sort(migration_us.begin(), migration_us.end());
         std::sort(publication_us.begin(), publication_us.end());
         std::printf(
@@ -4251,21 +4623,26 @@ public:
             auto const handle = param_find(setting.name);
             std::int32_t saved{};
             expect(param_get(handle, &saved) == 0, "timing parameter is present in the PX4 parameter table");
+
             param_set_no_notification(handle, &setting.rejected);
             expect(!test.m_filter.init(), "unsupported timing combination prevents callback startup");
+
             param_set_no_notification(handle, &saved);
             expect(test.m_filter.init(), "restoring timing parameters restores startup");
         }
+
         auto const handle = param_find("FESKF_DELAY_MS");
         std::int32_t maximum = 239;
         param_set_no_notification(handle, &maximum);
         expect(test.m_filter.init() && test.m_filter.m_session.m_imu_history.configuration().imu_length == 64 &&
                    test.m_filter.m_session.m_height_aiding.barometer_warmup_samples() == 60,
                "239 ms / 4 ms requires 60 warmup events, independently of 64 reserved history slots");
+
         std::int32_t normal = 200;
         param_set_no_notification(handle, &normal);
         expect(test.m_filter.init() && test.m_filter.m_session.m_height_aiding.barometer_warmup_samples() == 50,
                "restore default 200 ms / 4 ms warmup count before initialization");
+
         test.warmup();
         param_set_no_notification(handle, &maximum);
         test.m_sample.timestamp_sample += 4000U;
@@ -4275,6 +4652,7 @@ public:
                    test.m_filter.m_session.m_height_aiding.barometer_warmup_samples() == 50 &&
                    test.m_filter.m_session.m_output.current().time_us - test.m_filter.m_session.m_time_us == 212000U,
                "running parameter changes cannot resize or retime histories");
+
         param_set_no_notification(handle, &normal);
     }
 
@@ -4290,18 +4668,21 @@ public:
             test.m_sample.timestamp_sample += 4000;
             test.tick();
         }
+
         vehicle_attitude_s attitude{};
         orb_copy(ORB_ID(vehicle_attitude), test.m_outputs[0], &attitude);
         FormalEskf::quaternion_type before;
         expect(formal_eskf::succeeded(FormalEskf::quaternion_type::from_coefficients(
                    attitude.q[0], attitude.q[1], attitude.q[2], attitude.q[3], 1e-6, before)),
                "fast-phase attitude is a valid pre-reset output");
+
         auto const transformed = f.m_session.m_resets.attitude_delta * before;
         expect(!f.m_session.m_fault && f.m_session.m_resets.attitude_count == std::uint8_t(counter + 1) &&
                    attitude.quat_reset_counter == counter &&
                    formal_eskf::linalg::norm(transformed.coefficients() -
                                              f.m_session.m_output.current().q_nb.coefficients()) < 1e-6,
                "qualified delayed heading reset applies the common rotation after the already-published fast attitude");
+
         test.m_sample.timestamp_sample += 4000;
         test.tick();
         orb_copy(ORB_ID(vehicle_attitude), test.m_outputs[0], &attitude);
@@ -4338,11 +4719,13 @@ public:
                    f.m_session.m_observations.magnetic_generation() == magnetic_generation + 2 &&
                    f.m_session.m_observations.barometer_generation() == barometer_generation + 2,
                "switch away and back immediately vetoes old-generation aiding, even if rate-limited");
+
         for (unsigned i = 0; i < 75; ++i)
         {
             test.m_sample.timestamp_sample += 4000;
             test.tick();
         }
+
         expect(!f.m_session.m_fault && f.m_session.m_gnss.generation == gnss_generation + 2 &&
                    !f.m_session.m_gnss.quality_result.qualified &&
                    f.m_session.m_magnetic.generation == magnetic_generation + 2 &&
@@ -4359,6 +4742,7 @@ public:
                "queueing replacement data cannot claim a successful GNSS fusion");
         expect(std::isnan(f.m_velocity_ratios[0].filtered) && std::isnan(f.m_magnetic_ratios[0].filtered),
                "switch-away/back cannot retain old generation innovation summaries");
+
         auto const rejected = f.m_session.m_statistics.arrival_rejections;
         auto const fusion_time = f.m_session.m_time_us;
         auto gps = f.m_gps;
@@ -4371,6 +4755,7 @@ public:
                    f.m_session.m_observations.gnss_source().device_id == 201 && f.m_session.m_time_us == fusion_time,
                "future-clock source invalidation is rejected without revoking trusted source identity or advancing "
                "fusion");
+
         gps.timestamp_sample = f.m_gps.timestamp_sample - 2;
         test.m_gps_pub.publish(gps);
         f.Run();
@@ -4409,6 +4794,7 @@ public:
                                              (f.m_session.m_state.p_n - main_before.p_n)) < 1e-12 &&
                    f.m_session.m_output.current().time_us == before.time_us,
                "GNSS reset translates the current output by the main delta without retiming it");
+
         // Failure in delayed covariance occurs after the current attitude phase.
         auto const output_epoch = f.m_session.m_output.current().time_us;
         auto const fusion_epoch = f.m_session.m_time_us;
@@ -4436,6 +4822,7 @@ public:
                        test.m_filter.m_session.m_time_us == 0 && !test.m_filter.m_session.m_startup.ready(),
                    "alignment rejects unsupported IMU periods before accumulation or seeding");
         }
+
         test.m_sample.delta_angle_dt = 4000;
         test.m_sample.timestamp_sample += 4000;
         test.tick();
@@ -4454,26 +4841,32 @@ public:
         expect(param_get(gravity, &saved_gravity) == 0 && param_get(source, &saved_source) == 0 &&
                    param_get(declination, &saved_declination) == 0,
                "read actual PX4 startup settings");
+
         std::int32_t invalid_gravity = -1;
         param_set_no_notification(gravity, &invalid_gravity);
         expect(!test.m_filter.init(), "invalid gravity selection prevents startup");
+
         std::int32_t disabled_gravity = 0;
         std::int32_t invalid_source = 4;
         param_set_no_notification(gravity, &disabled_gravity);
         param_set_no_notification(source, &invalid_source);
         expect(!test.m_filter.init() && !test.m_filter.m_session.m_gravity_enabled,
                "declination rejection preserves the preceding gravity setting assignment");
+
         param_set_no_notification(source, &saved_source);
         float invalid_declination = std::numeric_limits<float>::quiet_NaN();
         param_set_no_notification(declination, &invalid_declination);
         expect(!test.m_filter.init(), "non-finite saved declination prevents startup");
+
         invalid_declination = 181.f;
         param_set_no_notification(declination, &invalid_declination);
         expect(!test.m_filter.init(), "out-of-range saved declination prevents startup");
+
         param_set_no_notification(gravity, &saved_gravity);
         param_set_no_notification(source, &saved_source);
         param_set_no_notification(declination, &saved_declination);
         expect(test.m_filter.init(), "restored PX4 settings permit startup");
+
         test.snapshot("startup-parameters");
     }
 
@@ -4502,6 +4895,7 @@ public:
             {
                 test.m_sample.timestamp_sample += 4000U;
             }
+
             switch (scenario)
             {
             case Input::duplicate:
@@ -4528,6 +4922,7 @@ public:
                 test.m_sample.delta_velocity_clipping = 1;
                 break;
             }
+
             test.tick();
             bool const accepted = scenario == Input::acceleration_clipping;
             expect(test.m_filter.m_session.m_fault != accepted,
@@ -4546,14 +4941,17 @@ public:
         test.tick();
         expect(!test.m_filter.m_session.m_fault && test.m_filter.m_session.m_statistics.gaps == 0U,
                "200 us positive gap is tolerated without synthetic prediction");
+
         test.m_sample.timestamp_sample += 4201U;
         test.tick();
         expect(!test.m_filter.m_session.m_fault &&
                    test.m_filter.m_session.m_imu_history.latest()->hold_period_us == 201U,
                "201 us positive gap is retained for identical output/main propagation");
+
         test.m_sample.timestamp_sample += 3800U;
         test.tick();
         expect(!test.m_filter.m_session.m_fault, "minus 200 us overlap is accepted");
+
         test.m_sample.timestamp_sample += 4000U;
         test.m_sample.delta_velocity_dt = 4200U;
         test.m_sample.delta_angle[0] = 0.00004f;
@@ -4570,6 +4968,7 @@ public:
         expect(test.m_filter.m_session.m_imu_history.latest()->sample.mean_rates().angular_rate_b(0U) ==
                    static_cast<double>(test.m_sample.delta_angle[0]) / (4000. * 1e-6),
                "nonzero angular increment uses the gyro integration period");
+
         for (std::size_t axis = 0U; axis < 3U; ++axis)
         {
             expect(test.m_filter.m_session.m_imu_history.latest()->sample.mean_rates().specific_force_b(axis) ==
@@ -4578,6 +4977,7 @@ public:
                            static_cast<double>(test.m_sample.delta_angle[axis]) / (4000. * 1e-6),
                    "input conversion preserves every FRD axis, sign and independent measured period");
         }
+
         test.snapshot("periods");
         test.m_sample.timestamp_sample += 5000U;
         test.m_sample.delta_velocity_dt = 4000U;
@@ -4591,6 +4991,7 @@ public:
         expect(!test.m_filter.m_session.m_fault &&
                    test.m_filter.m_session.m_imu_history.latest()->hold_period_us == 1000U,
                "gap with distinct previous and current rates is retained");
+
         test.snapshot("held-measured-rate");
         auto const predictions = test.m_filter.m_session.m_statistics.predictions;
         for (unsigned i = 0; i < 54; ++i)
@@ -4598,10 +4999,12 @@ public:
             test.m_sample.timestamp_sample += 4000U;
             test.tick();
         }
+
         expect(!test.m_filter.m_session.m_fault && test.m_filter.m_session.m_statistics.gaps == 2U &&
                    test.m_filter.m_session.m_statistics.predictions == predictions + 54U &&
                    test.m_filter.m_session.m_output.ready(),
                "retained held segments reach the main filter exactly once while matching current-output history");
+
         auto const horizon = test.m_filter.m_session.m_time_us;
         auto const count = publications;
         clock_us += 100000U;
@@ -4609,6 +5012,7 @@ public:
         test.capture_outputs();
         expect(test.m_filter.m_session.m_time_us == horizon && publications == count + 3U,
                "watchdog publishes status without an IMU prediction or estimate publication");
+
         test.snapshot("watchdog");
     }
 
@@ -4630,6 +5034,7 @@ public:
                    "profile minimum/maximum intervals advance one delayed step without a synthetic gap");
             expect(test.m_filter.m_session.m_statistics.gaps == 0U,
                    "matching elapsed and measured periods need no gap hold");
+
             test.snapshot("interval-boundary");
         }
     }
@@ -4652,6 +5057,7 @@ public:
             imu.delta_angle[i] = float(i + 1) * .125f;
             imu.delta_velocity[i] = -float(i + 1) * .25f;
         }
+
         auto const decoded = FormalEskf::decode_imu(imu);
         expect(decoded.time_us == 8000000 && decoded.angular_period_us == 3800 &&
                    decoded.acceleration_period_us == 4200 && decoded.source.accelerometer_id == 41 &&
@@ -4659,15 +5065,18 @@ public:
                    decoded.source.gyroscope_calibration == 19 && decoded.accelerometer_clipping == 5 &&
                    decoded.gyroscope_clipping == 0,
                "IMU decoding preserves sample epoch, independent periods and source/calibration provenance");
+
         for (unsigned i = 0; i < 3; ++i)
         {
             expect(decoded.delta_angle_b(i) == double(imu.delta_angle[i]) &&
                        decoded.delta_velocity_b(i) == double(imu.delta_velocity[i]),
                    "already calibrated body-FRD increments preserve every axis and sign without a second rotation");
         }
+
         imu.timestamp_sample = 0;
         expect(FormalEskf::decode_imu(imu).time_us == 0,
                "missing IMU sample time cannot fall back to publication time");
+
         sensor_gps_s gps{};
         gps.timestamp = 9000000;
         gps.timestamp_sample = 8001000;
@@ -4681,12 +5090,14 @@ public:
         auto const missing = FormalEskf::decode_gnss(gps);
         expect(missing.stamp.source.device_id == 0,
                "unavailable/blended GNSS identity is not replaced by a fabricated ID");
+
         gps.device_id = 201;
         auto const g = FormalEskf::decode_gnss(gps);
         expect(g.stamp.time_us == 8001000 && g.stamp.source.device_id == 201 && g.latitude_deg == 25.125 &&
                    g.longitude_deg == -121.5 && g.altitude_ellipsoid_m == 135 && g.altitude_msl_m == 88 &&
                    g.velocity_n(0) == 1.25 && g.velocity_n(1) == -2.5 && g.velocity_n(2) == .125,
                "GNSS keeps degrees, both metre datums and NED velocity without another time/frame conversion");
+
         vehicle_magnetometer_s magnetic{};
         magnetic.timestamp = 9000000;
         magnetic.timestamp_sample = 8002000;
@@ -4699,6 +5110,7 @@ public:
         expect(m.stamp.time_us == 8002000 && m.stamp.source.device_id == 301 && m.stamp.source.calibration_count == 7 &&
                    m.field_b(0) == 12.5 && m.field_b(1) == -25 && m.field_b(2) == 50,
                "magnetic body-FRD gauss converts exactly once to microtesla");
+
         vehicle_air_data_s barometer{};
         barometer.timestamp = 9000000;
         barometer.timestamp_sample = 8003000;
@@ -4710,9 +5122,11 @@ public:
             b.stamp.time_us == 8003000 && b.stamp.source.device_id == 401 && b.stamp.source.calibration_count == 9 &&
                 b.altitude_m == 123.5,
             "barometer preserves producer pressure altitude, sample epoch and calibration without re-deriving height");
+
         InsSessionTest run;
         run.tick();
         expect(run.m_filter.m_session.initialized(), "seed the actual callback before distinct clock fields");
+
         run.m_sample.timestamp_sample += 4000;
         run.m_sample.timestamp = run.m_sample.timestamp_sample + 500;
         clock_us = run.m_sample.timestamp_sample + 700;
@@ -4722,6 +5136,7 @@ public:
         expect(!session.fault() && session.imu_history().latest_time_us() == run.m_sample.timestamp_sample &&
                    session.output_predictor().current().time_us == run.m_sample.timestamp_sample,
                "actual Run preserves the measurement endpoint despite later publication and callback arrival");
+
         auto const accepted = session.imu_history().latest_time_us();
         run.m_sample.timestamp_sample = 0;
         run.m_sample.timestamp += 4000;
@@ -4783,6 +5198,7 @@ public:
                 test.m_sample.gyro_calibration_count = initial_source.gyroscope_calibration;
                 break;
             }
+
             test.m_sample.timestamp_sample += 4000U;
             test.tick(); // Actual Run: topic decoding, ingress reset, delayed fusion, feedback and publication.
             auto const & source = session.imu_history().source();
@@ -4799,12 +5215,14 @@ public:
                        source.accelerometer_calibration == test.m_sample.accel_calibration_count &&
                        source.gyroscope_calibration == test.m_sample.gyro_calibration_count,
                    "adapter preserves both source IDs and calibration counters without a surrogate");
+
             auto const & event = session.imu_source_changes();
             expect(event.accelerometer_time_us ==
                            (accel_changed ? test.m_sample.timestamp_sample : old_event.accelerometer_time_us) &&
                        event.gyroscope_time_us ==
                            (gyro_changed ? test.m_sample.timestamp_sample : old_event.gyroscope_time_us),
                    "source change epochs identify accepted inputs, not delayed estimates or publication time");
+
             auto const & reset = session.resets();
             expect(reset.attitude_count == initial_resets.attitude_count &&
                        reset.position_count == initial_resets.position_count &&
@@ -4813,6 +5231,7 @@ public:
                        reset.vertical_velocity_count == initial_resets.vertical_velocity_count &&
                        reset.odometry_count == initial_resets.odometry_count,
                    "source changes alone create no controller reset deltas/counters");
+
             test.m_filter.publish_status(clock_us);
             estimator_status_flags_s flags{};
             estimator_sensor_bias_s bias{};
@@ -4822,11 +5241,13 @@ public:
                        bias.gyro_device_id == source.gyroscope_id,
                    "actual status and bias topics retain alignment and identify the new sensors");
         }
+
         for (unsigned i = 0; i < 100; ++i)
         {
             test.m_sample.timestamp_sample += 4000U;
             test.tick();
         }
+
         expect(!session.fault(), "ordinary callbacks drain all source transitions without restarting the session");
     }
 
@@ -4864,6 +5285,7 @@ public:
             test.m_filter.m_session.m_gnss.quality_parameters.velocity_limit = std::numeric_limits<double>::quiet_NaN();
             break;
         }
+
         auto const fusion_before = test.m_filter.m_session.m_time_us;
         for (unsigned i = 0; i < 16 && !test.m_filter.m_session.m_fault; ++i)
         {
@@ -4873,8 +5295,10 @@ public:
                 test.m_sample.timestamp_sample += 4000U;
             }
         }
+
         bool const delayed_failure = kind == Fault::prediction || kind == Fault::quality;
         expect(test.m_filter.m_session.m_fault, "numerical and timing failures latch a restart-required fault");
+
         test.m_filter.publish_status(clock_us);
         estimator_status_s status{};
         estimator_status_flags_s flags{};
@@ -4888,14 +5312,17 @@ public:
         expect(delayed_failure || (test.m_filter.m_session.m_time_us == fusion_before &&
                                    test.m_filter.m_session.m_imu_history.latest_time_us() == previous),
                "IMU admission faults cannot consume either horizon");
+
         auto const completed = test.m_filter.m_session.m_statistics.predictions;
         expect(delayed_failure || completed == predictions, "admission faults do not predict the main filter");
+
         test.snapshot("fault");
         test.m_sample.delta_angle[0] = 0.f;
         test.m_sample.timestamp_sample += 4000U;
         test.tick();
         expect(test.m_filter.m_session.m_fault && test.m_filter.m_session.m_statistics.predictions == completed,
                "a following valid sample does not clear a latched fault");
+
         test.snapshot("fault-latched");
     }
 
@@ -4908,6 +5335,7 @@ public:
         expect(direct.configure_timing(profile::history::parameters) && direct.configure_gravity(true) &&
                    direct.configure_magnetic({true, true, 0}) && direct.configure_sensor_positions({}),
                "standalone caller uses the same explicit module profile");
+
         bool equal = true;
         for (unsigned step = 0; step < 3800 && equal; ++step)
         {
@@ -4916,18 +5344,22 @@ public:
             {
                 ++test.m_gps_device;
             }
+
             if (step == 3500)
             {
                 ++test.m_mag_calibration;
             }
+
             if (step == 3700)
             {
                 ++test.m_sample.accel_device_id;
             }
+
             if (step == 3750)
             {
                 test.m_sample.delta_angle_clipping = 1;
             }
+
             test.m_sample.timestamp_sample += 4000;
             test.tick();
             // A standalone adapter consumes the same canonical decoded records,
@@ -4946,6 +5378,7 @@ public:
                 {
                     direct.receive_gnss(gnss, clock_us);
                 }
+
                 direct.receive_magnetic(magnetic, clock_us);
                 direct.receive_barometer(barometer, clock_us);
                 if (direct.fusion_ready())
@@ -4958,9 +5391,11 @@ public:
                     (void)direct.take_innovations();
                 }
             }
+
             auto const & actual = module.m_session;
             expect(step >= 3750 || (!actual.fault() && !direct.fault()),
                    "source replacement continues until the independent gyro-clipping failure");
+
             auto const & a = actual.state();
             auto const & b = direct.state();
             auto const & ao = actual.output_predictor().current();
@@ -4982,6 +5417,7 @@ public:
                 std::fprintf(stderr, "Standalone/module mismatch at tick %u\n", step);
             }
         }
+
         expect(equal && direct.initialized() && direct.statistics().predictions > 500 && direct.fault(),
                "canonical standalone/module sequence preserves exact state/P, epochs, decisions, resets and fault");
     }
@@ -5021,6 +5457,7 @@ int main(int argc, char ** argv)
         std::fprintf(stderr, "Usage: %s [trace-file | --configuration | --origin-benchmark]\n", argv[0]);
         return 2;
     }
+
     bool const configuration_only = argc == 2 && std::strcmp(argv[1], "--configuration") == 0;
     bool const origin_benchmark = argc == 2 && std::strcmp(argv[1], "--origin-benchmark") == 0;
     if (argc == 2 && !configuration_only && !origin_benchmark)
@@ -5031,6 +5468,7 @@ int main(int argc, char ** argv)
             return 2;
         }
     }
+
     uORB::Manager::initialize();
     param_init();
     if constexpr (!formal_eskf::px4::profile::height::barometer_enabled)
@@ -5039,17 +5477,20 @@ int main(int argc, char ** argv)
         std::printf("PX4 barometer disabled: %u scenarios, %u failures\n", scenarios, failures);
         return failures == 0U ? 0 : 1;
     }
+
     if (origin_benchmark)
     {
         InsSessionTest::origin_benchmark();
         return failures == 0U ? 0 : 1;
     }
+
     if (configuration_only)
     {
         InsSessionTest::configured_profile();
         std::printf("PX4 configuration: %u scenarios, %u failures\n", scenarios, failures);
         return failures == 0U ? 0 : 1;
     }
+
     InsSessionTest::staged_consumers();
     InsSessionTest::staged_attachment_failure();
     InsSessionTest::staged_stack_budget();
@@ -5077,6 +5518,7 @@ int main(int argc, char ** argv)
     {
         InsSessionTest::gravity_conditions(scenario);
     }
+
     InsSessionTest::gravity_history();
     InsSessionTest::gravity_periods_and_bias();
     InsSessionTest::gravity_failure(InsSessionTest::GravityFailure::tilt);
@@ -5093,6 +5535,7 @@ int main(int argc, char ** argv)
     {
         InsSessionTest::magnetic_input(scenario);
     }
+
     using MagneticSourceCase = InsSessionTest::MagneticSourceCase;
     for (auto scenario :
          {MagneticSourceCase::ground, MagneticSourceCase::aided_air, MagneticSourceCase::unaided_air,
@@ -5100,6 +5543,7 @@ int main(int argc, char ** argv)
     {
         InsSessionTest::magnetic_source(scenario);
     }
+
     InsSessionTest::magnetic_bias_and_field();
     InsSessionTest::magnetic_timeout(false);
     InsSessionTest::magnetic_timeout(true);
@@ -5118,6 +5562,7 @@ int main(int argc, char ** argv)
     {
         InsSessionTest::navigation_admission(scenario);
     }
+
     InsSessionTest::navigation_outage();
     InsSessionTest::navigation_failure(false);
     InsSessionTest::navigation_failure(true);
@@ -5127,6 +5572,7 @@ int main(int argc, char ** argv)
     {
         InsSessionTest::height_admission(scenario);
     }
+
     InsSessionTest::height_transaction_failure();
     InsSessionTest::height_output_failure();
     InsSessionTest::navigation_rejected_quality();
@@ -5145,6 +5591,7 @@ int main(int argc, char ** argv)
     {
         InsSessionTest::ground_effect_disabled();
     }
+
     InsSessionTest::navigation_context(true, true);
     InsSessionTest::navigation_context(false, true);
     InsSessionTest::navigation_context(false, false);
@@ -5157,6 +5604,7 @@ int main(int argc, char ** argv)
     {
         InsSessionTest::fault(fault);
     }
+
     FILE * comparison_trace = trace_file;
     trace_file = nullptr; // Deliberate diagnostic/startup changes have independent assertions.
     InsSessionTest::input_decoding();
@@ -5178,6 +5626,7 @@ int main(int argc, char ** argv)
     {
         InsSessionTest::confidence_capabilities(scenario);
     }
+
     InsSessionTest::bias_confidence();
     InsSessionTest::innovation_reporting();
     InsSessionTest::heading_readiness(false);
@@ -5198,6 +5647,7 @@ int main(int argc, char ** argv)
     {
         InsSessionTest::origin_failure(failure);
     }
+
     InsSessionTest::configured_profile();
     InsSessionTest::portable_session_equivalence();
     trace_file = comparison_trace;
@@ -5207,6 +5657,7 @@ int main(int argc, char ** argv)
         int const closed = std::fclose(trace_file);
         expect(written && closed == 0, "write complete comparison trace");
     }
+
     std::printf("Ground-effect resources: enabled=%d event_bytes=%zu owner_bytes=%zu module_bytes=%zu\n",
                 int(formal_eskf::px4::profile::height::ground_effect_enabled),
                 sizeof(formal_eskf::runtime::GroundEffectEvent), sizeof(FormalEskf::session_type::ground_effect_type),

@@ -54,14 +54,19 @@ public:
                                                   UnitQuaternion & output);
 
     constexpr value_type q0() const { return m_q0; }
+
     constexpr value_type q1() const { return m_q1; }
+
     constexpr value_type q2() const { return m_q2; }
+
     constexpr value_type q3() const { return m_q3; }
 
     vector4_type coefficients() const;
 
     constexpr UnitQuaternion operator-() const { return UnitQuaternion(-m_q0, -m_q1, -m_q2, -m_q3); }
+
     constexpr UnitQuaternion operator*(UnitQuaternion const & other) const;
+
     constexpr UnitQuaternion inverse() const { return UnitQuaternion(m_q0, -m_q1, -m_q2, -m_q3); }
 
 private:

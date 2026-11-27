@@ -30,6 +30,7 @@ public:
     }
 
     int failures() const { return m_failures; }
+
     std::size_t assertions() const { return m_assertions; }
 
 private:

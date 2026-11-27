@@ -30,6 +30,7 @@ bool same_state(State const & a, State const & b)
     return same_matrix(a.q_nb.coefficients(), b.q_nb.coefficients()) && same_matrix(a.p_n, b.p_n) &&
            same_matrix(a.v_n, b.v_n) && same_matrix(a.b_a, b.b_a) && same_matrix(a.b_g, b.b_g);
 }
+
 bool same_noise(Noise const & a, Noise const & b)
 {
     return same_matrix(a.specific_force_variance, b.specific_force_variance) &&
@@ -38,22 +39,26 @@ bool same_noise(Noise const & a, Noise const & b)
                        b.accelerometer_bias_random_walk_variance_density) &&
            same_matrix(a.gyroscope_bias_random_walk_variance_density, b.gyroscope_bias_random_walk_variance_density);
 }
+
 bool same_parameters(Parameters const & a, Parameters const & b)
 {
     return same_noise(a.process_noise, b.process_noise) && same_matrix(a.gravity_n, b.gravity_n) &&
            same(a.minimum_quaternion_norm, b.minimum_quaternion_norm) && same(a.dt_min, b.dt_min) &&
            same(a.dt_max, b.dt_max) && same(a.quaternion_squared_norm_tolerance, b.quaternion_squared_norm_tolerance);
 }
+
 bool same_imu(Imu const & a, Imu const & b)
 {
     return same_matrix(a.specific_force_b, b.specific_force_b) && same_matrix(a.angular_rate_b, b.angular_rate_b);
 }
+
 Status variance_status(Scalar value)
 {
     return !std::isfinite(value) ? Status::non_finite_input
            : value < Scalar{0}   ? Status::domain_error
                                  : Status::success;
 }
+
 void first_failure(Status & status, Scalar value)
 {
     if (status == Status::success)
@@ -85,6 +90,7 @@ void verify_prediction_noise(Noise noise, formal_eskf::runtime::ImuNoiseConditio
                        (result == Status::success ? same_noise(output, expected) : same_noise(output, old_output)),
                    "IMU prediction producer: actual same-type selection, ordered validation and pure/atomic frame");
 }
+
 void verify_prediction_bias(Matrix covariance, Noise noise)
 {
     auto const before = noise;
@@ -151,6 +157,7 @@ inline Status select_imu_process_noise<Linalg>(Noise const & noise, ImuNoiseCond
     }
     return Prediction::selection_status;
 }
+
 template <>
 inline Status inhibit_bias_process_noise<Linalg>(Matrix const & covariance, Noise const & noise, Noise & output)
 {
@@ -165,6 +172,7 @@ inline Status inhibit_bias_process_noise<Linalg>(Matrix const & covariance, Nois
     return Prediction::inhibition_status;
 }
 } // namespace formal_eskf::runtime
+
 namespace formal_eskf
 {
 // Same-type E-STEP producer: failure-atomic in-place state/P, pure IMU and

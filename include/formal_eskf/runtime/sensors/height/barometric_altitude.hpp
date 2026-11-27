@@ -73,9 +73,13 @@ public:
     [[nodiscard]] Status admit_altitude(value_type supplied_m, value_type & altitude_m) const;
 
     bool configured() const { return m_configured; }
+
     value_type minimum_pressure_pa() const { return m_minimum_pressure_pa; }
+
     value_type maximum_pressure_pa() const { return m_maximum_pressure_pa; }
+
     value_type minimum_altitude_m() const { return m_minimum_altitude_m; }
+
     value_type maximum_altitude_m() const { return m_maximum_altitude_m; }
 
 private:

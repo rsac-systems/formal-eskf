@@ -16,12 +16,14 @@ using Linalg = formal_eskf::linalg::Px4MatrixBackend<double>;
 using Linalg = formal_eskf::linalg::EigenBackend<double>;
 #endif
 using Vector3 = formal_eskf::linalg::Vector<Linalg, 3>;
+
 inline Vector3 vector3(double x, double y, double z) { return Vector3::from_row_major({x, y, z}); }
 } // namespace replay_demo
 
 namespace replay_session
 {
 inline constexpr auto timing = ins_example::timing;
+
 // Host storage covers both legacy PX4 timing and irregular ~100 Hz OXTS intervals.
 // Logical history lengths still come from each profile; this is not a target layout.
 struct Layout

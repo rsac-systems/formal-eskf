@@ -52,6 +52,7 @@ enum IntegerField : std::size_t
     gyroscope_calibration,
     integer_fields
 };
+
 enum VectorOffset : std::size_t
 {
     angle = 0,
@@ -71,6 +72,7 @@ bool same_stored_scalar(Scalar a, Scalar b)
     // Pure predicates: eager Boolean operators avoid path merges in the oracle.
     return (__builtin_bit_cast(Bits, a) == __builtin_bit_cast(Bits, b)) | (std::isnan(a) & std::isnan(b));
 }
+
 using TypedRing = formal_eskf::runtime::RingBuffer<Imu::interval_type, capacity>;
 
 // The actual ring and sample type are retained. Arbitrary payloads include all
@@ -115,6 +117,7 @@ void verify_imu_storage(TypedRing ring, Imu::interval_type sample)
     source_values[rate + 0] = sample.held_rate.angular_rate_b.m_storage.values.head;
     source_values[rate + 1] = sample.held_rate.angular_rate_b.m_storage.values.tail.head;
     source_values[rate + 2] = sample.held_rate.angular_rate_b.m_storage.values.tail.tail.head;
+
     for (std::size_t index = 0; index < capacity; ++index)
     {
         integers[index][interval_time] = ring.m_samples[index].time_us;
@@ -142,11 +145,14 @@ void verify_imu_storage(TypedRing ring, Imu::interval_type sample)
         values[index][rate + 1] = ring.m_samples[index].held_rate.angular_rate_b.m_storage.values.tail.head;
         values[index][rate + 2] = ring.m_samples[index].held_rate.angular_rate_b.m_storage.values.tail.tail.head;
     }
+
     auto const write = ring.m_write;
     auto const count = ring.m_count;
     auto const length = ring.m_length;
     auto const oldest = ring.m_oldest;
+
     ring.push(sample);
+
     for (std::size_t index = 0; index < capacity; ++index)
     {
         __ESBMC_assert(ring.m_samples[index].time_us ==
@@ -228,6 +234,7 @@ void verify_imu_storage(TypedRing ring, Imu::interval_type sample)
                                index == write ? source_values[rate + 2] : values[index][rate + 2]),
             "typed push frame held_rate.angular_rate_b coefficient");
     }
+
     __ESBMC_assert(sample.time_us == source_integers[interval_time], "typed push preserves source time_us");
     __ESBMC_assert(sample.start_time_us == source_integers[interval_start],
                    "typed push preserves source start_time_us");

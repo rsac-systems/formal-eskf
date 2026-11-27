@@ -50,6 +50,7 @@ bool bias_valid(matrix::Vector3f const & value, matrix::Vector3f const & varianc
             return false;
         }
     }
+
     return variance.longerThan(0.f) && !variance.longerThan(profile::output::maximum_bias_variance_norm);
 }
 } // namespace
@@ -89,11 +90,13 @@ void FormalEskf::publish(imu_type const & imu)
     {
         return;
     }
+
     BodyOutput body;
     if (!m_session.prepare_output(body))
     {
         return;
     }
+
     m_last_output = time;
     auto const variance = m_session.navigation_variances();
     auto const local = publish_local_position(now, imu, body, validity, variance);
@@ -107,11 +110,13 @@ void FormalEskf::publish_attitude(std::uint64_t now)
     {
         return;
     }
+
     BodyOutput body;
     if (!m_session.prepare_output(body))
     {
         return;
     }
+
     vehicle_attitude_s attitude{};
     attitude.timestamp_sample = m_session.output_predictor().current().time_us;
     attitude.timestamp = now;
@@ -120,6 +125,7 @@ void FormalEskf::publish_attitude(std::uint64_t now)
         attitude.q[i] = float(body.q_nb.coefficients()(i));
         attitude.delta_q_reset[i] = float(m_session.resets().attitude_delta.coefficients()(i));
     }
+
     attitude.quat_reset_counter = m_session.resets().attitude_count;
     record_publication(m_attitude_pub.publish(attitude));
 }
@@ -155,6 +161,7 @@ vehicle_local_position_s FormalEskf::publish_local_position(std::uint64_t now, i
         local.delta_xy[axis] = m_session.resets().position_delta(axis);
         local.delta_vxy[axis] = m_session.resets().velocity_delta(axis);
     }
+
     local.delta_vz = m_session.resets().vertical_velocity_delta;
     local.xy_reset_counter = m_session.resets().position_count;
     local.vxy_reset_counter = m_session.resets().velocity_count;
@@ -225,6 +232,7 @@ void FormalEskf::publish_odometry(std::uint64_t now, imu_type const & imu, BodyO
     {
         odometry.q[i] = validity.capabilities.attitude.available ? float(body.q_nb.coefficients()(i)) : NAN;
     }
+
     for (size_t i = 0; i < 3; ++i)
     {
         bool const position_available = i == 2 ? validity.height : validity.gps_position;
@@ -237,6 +245,7 @@ void FormalEskf::publish_odometry(std::uint64_t now, imu_type const & imu, BodyO
         odometry.orientation_variance[i] =
             validity.capabilities.attitude.available ? float(m_session.covariance()(i + 6, i + 6)) : NAN;
     }
+
     odometry.reset_counter = m_session.resets().odometry_count;
     odometry.quality = validity.navigation ? 0 : -1; // Unknown quality when admitted; invalid otherwise.
     record_publication(m_odometry_pub.publish(odometry));
@@ -379,6 +388,7 @@ estimator_status_flags_s FormalEskf::status_flags(std::uint64_t now, OutputValid
         flags.reject_ver_pos =
             !height.fusion_reset && height.fusion.decision == formal_eskf::runtime::FusionDecision::rejected;
     }
+
     flags.reject_yaw =
         m_session.magnetic_state().lifecycle.state().last_reset_time_us < m_session.magnetic_state().sample_time_us &&
         m_session.magnetic_state().observation.fusion.decision == formal_eskf::runtime::FusionDecision::rejected;
@@ -401,6 +411,7 @@ void FormalEskf::publish_sensor_bias(std::uint64_t now, bool healthy)
         bias.accel_bias_variance[i] = m_session.covariance()(i + 9, i + 9);
         bias.gyro_bias_variance[i] = m_session.covariance()(i + 12, i + 12);
     }
+
     bias.accel_bias_valid = healthy && bias.accel_device_id != 0 &&
                             bias_valid(matrix::Vector3f(bias.accel_bias), matrix::Vector3f(bias.accel_bias_variance));
     bias.gyro_bias_valid = healthy && bias.gyro_device_id != 0 &&
@@ -420,6 +431,7 @@ void FormalEskf::update_diagnostics(std::uint64_t now)
         m_diagnostics_errors += locked != EBUSY;
         return;
     }
+
     auto & snapshot = m_diagnostics;
     snapshot.session = m_session.diagnostics(now);
     snapshot.time_us = now;
@@ -430,17 +442,20 @@ void FormalEskf::update_diagnostics(std::uint64_t now)
                           : 0;
     snapshot.output_ready = m_session.output_predictor().ready();
     snapshot.imu_entries = m_session.imu_history().entries();
+
     snapshot.arrival_rejections = m_session.statistics().arrival_rejections;
     snapshot.rate_rejections = m_session.statistics().rate_rejections;
     snapshot.stale_arrivals = m_session.statistics().stale_arrivals;
     snapshot.source_discards = m_session.statistics().source_discards;
     snapshot.overflows = m_session.statistics().overflows;
     snapshot.retired_observations = m_session.statistics().retired_observations;
+
     snapshot.generation_loss = m_generation_loss;
     snapshot.sequence = m_diagnostics_sequence;
     snapshot.skipped = m_diagnostics_skipped;
     snapshot.exchange_errors = m_diagnostics_errors;
     snapshot.publication_failures = m_publication_failures;
+
     auto const & baro = m_session.height_aiding().session(height_type::Source::barometer);
     auto const & gps = m_session.height_aiding().session(height_type::Source::gnss);
     snapshot.origin_generation = m_session.navigation_frame().generation();
@@ -448,28 +463,33 @@ void FormalEskf::update_diagnostics(std::uint64_t now)
     snapshot.origin_success_us = m_session.origin_control().success_time_us;
     snapshot.initialized = m_session.initialized();
     snapshot.fault = m_session.fault();
+
     snapshot.predictions = m_session.statistics().predictions;
     snapshot.gps_updates = m_session.gnss_state().corrections;
     snapshot.mag_updates = m_session.magnetic_state().corrections;
     snapshot.baro_updates = m_session.statistics().baro_updates;
+
     snapshot.gnss_quality = static_cast<int>(snapshot.session.gnss_quality.decision);
     snapshot.qualified = snapshot.session.gnss_quality_evaluated && snapshot.session.gnss_quality.qualified;
     snapshot.metadata_valid = m_session.gnss_state().metadata_valid;
     snapshot.gps_failure_flags = gps_failure_flags();
     snapshot.gps_position_active = m_session.gnss_state().lifecycle.state().horizontal_position.active;
     snapshot.gps_velocity_active = m_session.gnss_state().lifecycle.state().velocity.active;
+
     snapshot.position_resets = m_session.resets().position_count;
     snapshot.velocity_resets = m_session.resets().velocity_count;
     snapshot.rejections = m_session.statistics().rejections;
     snapshot.errors = m_session.statistics().errors;
     snapshot.gaps = m_session.statistics().gaps;
     snapshot.maximum_gps_age_us = m_session.statistics().max_fusion_age;
+
     snapshot.magnetic_active = m_session.magnetic_state().lifecycle.state().active;
     snapshot.heading_aligned = m_session.heading_aligned();
     snapshot.heading_consistent = m_session.magnetic_state().heading.state().consistent;
     snapshot.magnetic_stop = static_cast<unsigned>(m_session.magnetic_state().lifecycle.state().stop_reason);
     snapshot.magnetic_recovery = static_cast<unsigned>(m_session.magnetic_state().lifecycle.state().recovery_reason);
     snapshot.quaternion_resets = m_session.resets().attitude_count;
+
     snapshot.model_available = m_session.magnetic_model().available();
     snapshot.model_checks = m_session.magnetic_model().lookup_count();
     snapshot.model_revision = m_session.magnetic_model().model_revision();
@@ -477,6 +497,7 @@ void FormalEskf::update_diagnostics(std::uint64_t now)
     snapshot.heading_source = static_cast<unsigned>(m_session.magnetic_model().heading_source());
     snapshot.model_unavailable = m_session.statistics().mag_model_unavailable;
     snapshot.declination = m_session.magnetic_model().declination();
+
     snapshot.height_reference = static_cast<unsigned>(m_session.height_aiding().reference());
     snapshot.barometer_active = baro.active;
     snapshot.gnss_height_active = gps.active;
@@ -485,15 +506,18 @@ void FormalEskf::update_diagnostics(std::uint64_t now)
     snapshot.vertical_velocity_resets = m_session.resets().vertical_velocity_count;
     snapshot.barometer_bias = baro.bias.value;
     snapshot.gnss_height_bias = gps.bias.value;
+
     snapshot.high_dynamics = m_session.bias_learning_result().high_dynamics;
     snapshot.health_available = m_session.vertical_health().state().last_update_time_us != 0;
     snapshot.bad_acceleration = m_session.vertical_health().state().bad_vertical_acceleration;
+
     snapshot.gravity_enabled = m_session.gravity_enabled();
     snapshot.tilt_aligned = m_session.tilt_alignment().aligned();
     snapshot.gravity_active = m_session.gravity().active;
     snapshot.gravity_samples = m_session.gravity().samples;
     snapshot.gravity_corrections = m_session.gravity().corrections;
     snapshot.gravity_interval_us = m_session.gravity().interval_us;
+
     snapshot.accelerometer_mask = snapshot.gyroscope_mask = 0U;
     for (std::size_t axis = 0U; axis < 3U; ++axis)
     {
@@ -503,6 +527,7 @@ void FormalEskf::update_diagnostics(std::uint64_t now)
                                        << axis;
         snapshot.gyroscope_mask |= unsigned(m_session.bias_learning_result().bias_update.gyroscope[axis]) << axis;
     }
+
     snapshot.cycle_events = perf_event_count(m_cycle_perf);
     snapshot.cycle_mean_s = perf_mean(m_cycle_perf);
     snapshot.output_mean_s = perf_mean(m_output_perf);
@@ -516,6 +541,7 @@ bool FormalEskf::read_diagnostics(Diagnostics & snapshot)
     {
         return false;
     }
+
     snapshot = m_diagnostics;
     return pthread_mutex_unlock(&m_diagnostics_mutex) == 0;
 }
@@ -528,6 +554,7 @@ int FormalEskf::print_status()
         PX4_ERR("diagnostics unavailable");
         return PX4_ERROR;
     }
+
     PX4_INFO("diagnostics: sequence=%llu sample_us=%llu snapshot_us=%llu", (unsigned long long)snapshot.sequence,
              (unsigned long long)snapshot.sample_time_us, (unsigned long long)snapshot.time_us);
     PX4_INFO("diagnostics: skipped=%llu errors=%llu publication_failures=%llu", (unsigned long long)snapshot.skipped,
@@ -593,6 +620,7 @@ int FormalEskf::print_status()
                  (unsigned long long)group.counts.rejected, (unsigned long long)group.counts.failed,
                  (unsigned long long)group.counts.resets);
     }
+
     PX4_INFO("cycle: %llu events, %.3f us mean (PX4 clock)", (unsigned long long)snapshot.cycle_events,
              double(snapshot.cycle_mean_s) * 1e6);
     PX4_INFO("phases: output=%.3f fusion=%.3f us mean (PX4 clock, not wall-time WCET)",

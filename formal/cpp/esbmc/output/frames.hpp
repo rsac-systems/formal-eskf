@@ -8,9 +8,11 @@
 #endif
 static_assert(0 <= FORMAL_ESKF_PROOF_FRAME_FIRST && FORMAL_ESKF_PROOF_FRAME_FIRST <= FORMAL_ESKF_PROOF_FRAME_END &&
               FORMAL_ESKF_PROOF_FRAME_END <= 64);
+
 namespace output_frames
 {
 using namespace output_proof;
+
 namespace field
 {
 inline constexpr std::size_t q0 = 0;
@@ -65,6 +67,7 @@ inline constexpr std::size_t magnetic_delay = 10;
 inline constexpr std::size_t barometer_delay = 11;
 inline constexpr std::size_t configured_length = 12;
 } // namespace field
+
 Output * owner;
 // Record scalars: q0..q3, NED velocity x/y/z, NED position x/y/z.
 // Record integers: endpoint, start, angular period. Flat snapshots avoid
@@ -79,6 +82,7 @@ Parameters parameter_snapshot;
 Scalar rebase_values[25];
 std::uint64_t rebase_integers[3];
 bool rebase_prepared;
+
 void capture_rebase()
 {
     rebase_prepared = owner->m_rebase.prepared;
@@ -100,6 +104,7 @@ void capture_rebase()
         rebase_values[22 + axis] = owner->m_rebase.position_sum(axis);
     }
 }
+
 void check_rebase()
 {
     __ESBMC_assert(owner->m_rebase.prepared == rebase_prepared &&
@@ -111,6 +116,7 @@ void check_rebase()
     __ESBMC_assert(same(owner->m_rebase.current.q_nb.q1(), rebase_values[1]), "Output rebase quaternion frame q1");
     __ESBMC_assert(same(owner->m_rebase.current.q_nb.q2(), rebase_values[2]), "Output rebase quaternion frame q2");
     __ESBMC_assert(same(owner->m_rebase.current.q_nb.q3(), rebase_values[3]), "Output rebase quaternion frame q3");
+
     for (std::size_t axis = 0; axis < 3; ++axis)
     {
         __ESBMC_assert(same(owner->m_rebase.current.v_n(axis), rebase_values[4 + axis]),
@@ -129,6 +135,7 @@ void check_rebase()
                        "Output rebase vector frame position_sum");
     }
 }
+
 void capture()
 {
     parameter_snapshot = owner->m_parameters;
@@ -216,9 +223,11 @@ void capture()
         staged_values[i][9] = owner->m_staged[i].p_n.m_storage.values.tail.tail.head;
     }
 }
+
 void check()
 {
     __ESBMC_assert(same_parameters(owner->m_parameters, parameter_snapshot), "Output complete parameter frame");
+
     check_rebase();
     __ESBMC_assert(owner->m_current.time_us == integers[field::time], "Output complete owner frame: m_current.time_us");
     __ESBMC_assert(owner->m_current.start_time_us == integers[field::start_time],
@@ -227,6 +236,7 @@ void check()
                    "Output complete owner frame: m_current.angular_period_us");
     __ESBMC_assert(owner->m_fusion_time_us == integers[field::fusion_time],
                    "Output complete owner frame: m_fusion_time_us");
+
     __ESBMC_assert(owner->m_history.m_length == integers[field::length],
                    "Output complete owner frame: m_history.m_length");
     __ESBMC_assert(owner->m_history.m_count == integers[field::count],
@@ -235,6 +245,7 @@ void check()
                    "Output complete owner frame: m_history.m_oldest");
     __ESBMC_assert(owner->m_history.m_write == integers[field::write],
                    "Output complete owner frame: m_history.m_write");
+
     __ESBMC_assert(owner->m_configuration.minimum_lag_us == integers[field::minimum_lag],
                    "Output complete owner frame: m_configuration.minimum_lag_us");
     __ESBMC_assert(owner->m_configuration.gnss_delay_us == integers[field::gnss_delay],
@@ -245,6 +256,7 @@ void check()
                    "Output complete owner frame: m_configuration.barometer_delay_us");
     __ESBMC_assert(owner->m_configuration.imu_length == integers[field::configured_length],
                    "Output complete owner frame: m_configuration.imu_length");
+
     __ESBMC_assert(same(owner->m_current.q_nb.q0(), values[field::q0]),
                    "Output complete owner frame: m_current.q_nb.q0()");
     __ESBMC_assert(same(owner->m_current.q_nb.q1(), values[field::q1]),
@@ -253,30 +265,35 @@ void check()
                    "Output complete owner frame: m_current.q_nb.q2()");
     __ESBMC_assert(same(owner->m_current.q_nb.q3(), values[field::q3]),
                    "Output complete owner frame: m_current.q_nb.q3()");
+
     __ESBMC_assert(same(owner->m_current.v_n.m_storage.values.head, values[field::velocity_x]),
                    "Output complete owner frame: m_current.v_n.m_storage.values.head");
     __ESBMC_assert(same(owner->m_current.v_n.m_storage.values.tail.head, values[field::velocity_y]),
                    "Output complete owner frame: m_current.v_n.m_storage.values.tail.head");
     __ESBMC_assert(same(owner->m_current.v_n.m_storage.values.tail.tail.head, values[field::velocity_z]),
                    "Output complete owner frame: m_current.v_n.m_storage.values.tail.tail.head");
+
     __ESBMC_assert(same(owner->m_current.p_n.m_storage.values.head, values[field::position_x]),
                    "Output complete owner frame: m_current.p_n.m_storage.values.head");
     __ESBMC_assert(same(owner->m_current.p_n.m_storage.values.tail.head, values[field::position_y]),
                    "Output complete owner frame: m_current.p_n.m_storage.values.tail.head");
     __ESBMC_assert(same(owner->m_current.p_n.m_storage.values.tail.tail.head, values[field::position_z]),
                    "Output complete owner frame: m_current.p_n.m_storage.values.tail.tail.head");
+
     __ESBMC_assert(same(owner->m_accel_bias.m_storage.values.head, values[field::accel_bias_x]),
                    "Output complete owner frame: m_accel_bias.m_storage.values.head");
     __ESBMC_assert(same(owner->m_accel_bias.m_storage.values.tail.head, values[field::accel_bias_y]),
                    "Output complete owner frame: m_accel_bias.m_storage.values.tail.head");
     __ESBMC_assert(same(owner->m_accel_bias.m_storage.values.tail.tail.head, values[field::accel_bias_z]),
                    "Output complete owner frame: m_accel_bias.m_storage.values.tail.tail.head");
+
     __ESBMC_assert(same(owner->m_gyro_bias.m_storage.values.head, values[field::gyro_bias_x]),
                    "Output complete owner frame: m_gyro_bias.m_storage.values.head");
     __ESBMC_assert(same(owner->m_gyro_bias.m_storage.values.tail.head, values[field::gyro_bias_y]),
                    "Output complete owner frame: m_gyro_bias.m_storage.values.tail.head");
     __ESBMC_assert(same(owner->m_gyro_bias.m_storage.values.tail.tail.head, values[field::gyro_bias_z]),
                    "Output complete owner frame: m_gyro_bias.m_storage.values.tail.tail.head");
+
     __ESBMC_assert(same(owner->m_angular_rate_correction.m_storage.values.head, values[field::angular_correction_x]),
                    "Output complete owner frame: m_angular_rate_correction.m_storage.values.head");
     __ESBMC_assert(
@@ -285,6 +302,7 @@ void check()
     __ESBMC_assert(
         same(owner->m_angular_rate_correction.m_storage.values.tail.tail.head, values[field::angular_correction_z]),
         "Output complete owner frame: m_angular_rate_correction.m_storage.values.tail.tail.head");
+
     __ESBMC_assert(same(owner->m_output_angular_rate_b.m_storage.values.head, values[field::propagated_rate_x]),
                    "Output complete owner frame: m_output_angular_rate_b.m_storage.values.head");
     __ESBMC_assert(same(owner->m_output_angular_rate_b.m_storage.values.tail.head, values[field::propagated_rate_y]),
@@ -292,39 +310,46 @@ void check()
     __ESBMC_assert(
         same(owner->m_output_angular_rate_b.m_storage.values.tail.tail.head, values[field::propagated_rate_z]),
         "Output complete owner frame: m_output_angular_rate_b.m_storage.values.tail.tail.head");
+
     __ESBMC_assert(same(owner->m_velocity_error_sum.m_storage.values.head, values[field::velocity_sum_x]),
                    "Output complete owner frame: m_velocity_error_sum.m_storage.values.head");
     __ESBMC_assert(same(owner->m_velocity_error_sum.m_storage.values.tail.head, values[field::velocity_sum_y]),
                    "Output complete owner frame: m_velocity_error_sum.m_storage.values.tail.head");
     __ESBMC_assert(same(owner->m_velocity_error_sum.m_storage.values.tail.tail.head, values[field::velocity_sum_z]),
                    "Output complete owner frame: m_velocity_error_sum.m_storage.values.tail.tail.head");
+
     __ESBMC_assert(same(owner->m_position_error_sum.m_storage.values.head, values[field::position_sum_x]),
                    "Output complete owner frame: m_position_error_sum.m_storage.values.head");
     __ESBMC_assert(same(owner->m_position_error_sum.m_storage.values.tail.head, values[field::position_sum_y]),
                    "Output complete owner frame: m_position_error_sum.m_storage.values.tail.head");
     __ESBMC_assert(same(owner->m_position_error_sum.m_storage.values.tail.tail.head, values[field::position_sum_z]),
                    "Output complete owner frame: m_position_error_sum.m_storage.values.tail.tail.head");
+
     __ESBMC_assert(same(owner->m_error.attitude_b.m_storage.values.head, values[field::attitude_error_x]),
                    "Output complete owner frame: m_error.attitude_b.m_storage.values.head");
     __ESBMC_assert(same(owner->m_error.attitude_b.m_storage.values.tail.head, values[field::attitude_error_y]),
                    "Output complete owner frame: m_error.attitude_b.m_storage.values.tail.head");
     __ESBMC_assert(same(owner->m_error.attitude_b.m_storage.values.tail.tail.head, values[field::attitude_error_z]),
                    "Output complete owner frame: m_error.attitude_b.m_storage.values.tail.tail.head");
+
     __ESBMC_assert(same(owner->m_error.velocity_n.m_storage.values.head, values[field::velocity_error_x]),
                    "Output complete owner frame: m_error.velocity_n.m_storage.values.head");
     __ESBMC_assert(same(owner->m_error.velocity_n.m_storage.values.tail.head, values[field::velocity_error_y]),
                    "Output complete owner frame: m_error.velocity_n.m_storage.values.tail.head");
     __ESBMC_assert(same(owner->m_error.velocity_n.m_storage.values.tail.tail.head, values[field::velocity_error_z]),
                    "Output complete owner frame: m_error.velocity_n.m_storage.values.tail.tail.head");
+
     __ESBMC_assert(same(owner->m_error.position_n.m_storage.values.head, values[field::position_error_x]),
                    "Output complete owner frame: m_error.position_n.m_storage.values.head");
     __ESBMC_assert(same(owner->m_error.position_n.m_storage.values.tail.head, values[field::position_error_y]),
                    "Output complete owner frame: m_error.position_n.m_storage.values.tail.head");
     __ESBMC_assert(same(owner->m_error.position_n.m_storage.values.tail.tail.head, values[field::position_error_z]),
                    "Output complete owner frame: m_error.position_n.m_storage.values.tail.tail.head");
+
     __ESBMC_assert(same(owner->m_filter_interval_s, values[field::interval_mean]),
                    "Output complete owner frame: m_filter_interval_s");
     __ESBMC_assert(owner->m_tracking == tracking && owner->m_fault == fault, "Output complete tracking/fault frame");
+
     for (std::size_t i = FORMAL_ESKF_PROOF_FRAME_FIRST; i < FORMAL_ESKF_PROOF_FRAME_END; ++i)
     {
         __ESBMC_assert(owner->m_history.m_samples[i].time_us == history_integers[i][0],

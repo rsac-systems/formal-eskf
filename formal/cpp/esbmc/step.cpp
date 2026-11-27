@@ -242,6 +242,7 @@ struct LeafResults
     Quaternion exponential, composition, constructor;
     Status exponential_status, composition_status, constructor_status;
 };
+
 inline LeafResults const * leaves = nullptr;
 } // namespace step_proof
 
@@ -259,6 +260,7 @@ inline Status UnitQuaternion<contract_proof::Linalg>::from_coefficients(vector4_
     output = step_proof::leaves->constructor;
     return step_proof::leaves->constructor_status;
 }
+
 template <>
 inline Status exp<contract_proof::Linalg>(contract_proof::Vector3 const &, contract_proof::Scalar,
                                           contract_proof::Quaternion & output)
@@ -266,6 +268,7 @@ inline Status exp<contract_proof::Linalg>(contract_proof::Vector3 const &, contr
     output = step_proof::leaves->exponential;
     return step_proof::leaves->exponential_status;
 }
+
 template <>
 inline Status compose_normalized<contract_proof::Linalg>(contract_proof::Quaternion const &,
                                                          contract_proof::Quaternion const &, contract_proof::Scalar,

@@ -14,6 +14,7 @@ using Vector = step_correction_proof::Vector3;
 using Geometry = formal_eskf::runtime::detail::MagneticFieldGeometry<Scalar>;
 using correction_proof::same;
 using formal_eskf::Status;
+
 void verify_general_root(Scalar value, Scalar root, Scalar output)
 {
     Math::observe_pivots = false;
@@ -33,6 +34,7 @@ void verify_general_root(Scalar value, Scalar root, Scalar output)
     __ESBMC_assert(same(output, status == Status::success ? root : before),
                    "general root: exact publication or atomic failure");
 }
+
 void verify_root_observer_equivalence(Scalar value, Scalar root, unsigned index)
 {
     __ESBMC_assume(std::isfinite(value) && value > Scalar{0});
@@ -47,6 +49,7 @@ void verify_root_observer_equivalence(Scalar value, Scalar root, unsigned index)
     __ESBMC_assert(same(pivot, general) && same(general, root) && Math::sqrt.calls == index + 1U,
                    "passive pivot observer does not change any raw result");
 }
+
 void verify_general_angle(Scalar y, Scalar x, Scalar angle, Scalar output)
 {
     Math::observe_pivots = false;
@@ -66,6 +69,7 @@ void verify_general_angle(Scalar y, Scalar x, Scalar angle, Scalar output)
     __ESBMC_assert(same(output, status == Status::success ? angle : before),
                    "general angle: exact publication or atomic failure");
 }
+
 void verify_general_geometry(Vector field, Geometry output, Scalar strength, Scalar horizontal, Scalar angle)
 {
     Math::observe_pivots = false;
@@ -86,6 +90,7 @@ void verify_general_geometry(Vector field, Geometry output, Scalar strength, Sca
     __ESBMC_assert(correction_proof::same_matrix(field, old_field),
                    "actual same-backend geometry: field input is unchanged");
 }
+
 void verify_general_heading(Vector a, Vector b, Scalar output, Scalar angle0, Scalar angle1)
 {
     Math::observe_pivots = false;
@@ -100,4 +105,5 @@ void verify_general_heading(Vector a, Vector b, Scalar output, Scalar angle0, Sc
     __ESBMC_assert(correction_proof::same_matrix(a, old_a) && correction_proof::same_matrix(b, old_b),
                    "actual same-backend heading: both inputs are unchanged");
 }
+
 int main() { return 0; }

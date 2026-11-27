@@ -22,6 +22,7 @@ using Vector = formal_eskf::linalg::Vector<contract_proof::Linalg, 3>;
 using Decision = formal_eskf::runtime::GnssQualityDecision;
 using QualityResult = formal_eskf::runtime::GnssQualityResult<double>;
 using Status = formal_eskf::Status;
+
 struct Raw
 {
     struct Stamp
@@ -31,25 +32,32 @@ struct Raw
             std::uint32_t device_id{};
         } source;
     } stamp;
+
     double latitude_deg{}, longitude_deg{}, altitude_msl_m{}, altitude_ellipsoid_m{}, hdop{}, vdop{};
     bool velocity_valid{};
 };
+
 struct Observation
 {
     std::uint64_t time_us{}, generation{};
     Raw sample;
 };
+
 struct QualitySample
 {
     std::uint64_t time_us{};
 };
+
 unsigned const * expected_parameters;
+
 struct Quality
 {
     QualityResult response;
     unsigned resets{}, updates{};
     std::uint64_t expected_time{}, expected_horizon{};
+
     void reset() { ++resets; }
+
     QualityResult update(QualitySample sample, unsigned motion, std::uint64_t now, unsigned const & settings)
     {
         __ESBMC_assert(sample.time_us == expected_time, "Quality monitor receives the selected effective sample epoch");
@@ -60,15 +68,19 @@ struct Quality
         return response;
     }
 };
+
 struct Lifecycle
 {
     unsigned resets{};
+
     void reset() { ++resets; }
 };
+
 struct Projection
 {
     std::uint64_t time{};
     double latitude{}, longitude{};
+
     void initReference(double lat, double lon, std::uint64_t epoch)
     {
         time = epoch;
@@ -76,10 +88,13 @@ struct Projection
         longitude = lon;
     }
 };
+
 struct Flow
 {
     using status_type = Status;
+
     static Vector vector3(double x, double y, double z) { return Vector::from_row_major({x, y, z}); }
+
     struct Gnss
     {
         Quality quality;
@@ -98,11 +113,13 @@ struct Flow
         unsigned quality_parameters{};
         void change_source(std::uint32_t new_device_id, std::uint64_t new_generation);
     } m_gnss;
+
     std::uint64_t m_time_us{};
     unsigned m_rejections{}, m_errors{}, sample_calls{}, motion_calls{};
     bool m_fault{};
     bool check(Status status);
     bool recent(std::uint64_t sample, std::uint64_t max_age) const;
+
     QualitySample gnss_quality_sample()
     {
         __ESBMC_assert(m_gnss.sample.time_us == m_gnss.input.time_us && m_gnss.metadata_valid,
@@ -110,13 +127,16 @@ struct Flow
         ++sample_calls;
         return {m_gnss.input.time_us};
     }
+
     unsigned gnss_motion()
     {
         ++motion_calls;
         return 1; // Origin label; all motion outcomes are in the monitor contract.
     }
+
     void update_gps_quality();
 };
+
 #include "module_status_check.inc"
 #include "module_recent.inc"
 #include "module_gnss.inc"

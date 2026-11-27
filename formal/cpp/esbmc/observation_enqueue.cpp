@@ -40,6 +40,7 @@ constexpr std::size_t capacity = 128;
 constexpr std::uint64_t arrival_age = 100000;
 constexpr std::uint64_t spacing = 5000;
 #endif
+
 using Ring = formal_eskf::runtime::RingBuffer<Record, capacity>;
 extern bool nondet_flag();
 extern std::uint32_t nondet_half_period();
@@ -50,6 +51,7 @@ extern std::uint8_t nondet_u8();
 extern bool nondet_bool();
 extern imu_proof::Scalar nondet_scalar();
 extern double nondet_double();
+
 namespace
 {
 Sample expected_sample;
@@ -61,6 +63,7 @@ unsigned half_calls;
 Admission decision;
 bool source_changed;
 unsigned stage, resets, pushes;
+
 void capture_storage_result()
 {
 #if FORMAL_ESKF_PROOF_FRAME == FORMAL_ESKF_PROOF_OBSERVATION_SOURCE
@@ -69,6 +72,7 @@ void capture_storage_result()
 }
 
 } // namespace
+
 // The separately checked getter is a pure function of the unchanged period.
 // Quantify over every uint32 result here; its exact binary64 equation and range
 // are supplied by verify_period_range and the complete view/frame profiles.
@@ -76,6 +80,7 @@ template <> std::uint32_t Observations::half_period_us() const
 {
     __ESBMC_assert(this == expected_owner && same_double(m_average_period_us, expected_half_input),
                    "Enqueue forwards the unchanged receiver/period to the offset producer");
+
     ++half_calls;
     return expected_half;
 }
@@ -96,6 +101,7 @@ Observations::PushResult Observations::admit(Timeline & timeline, SourceStamp co
                        now == expected_now && limits.delay_us == m_configuration.DELAY_FIELD &&
                        limits.arrival_age_us == arrival_age && limits.spacing_us == spacing && time == 0,
                    "Push forwards complete stamp, arrival, delay, age and spacing");
+
     auto const code = imu_proof::nondet_index();
     __ESBMC_assume(code <= static_cast<unsigned char>(Admission::too_fast));
     decision = static_cast<Admission>(code);
@@ -108,12 +114,14 @@ Observations::PushResult Observations::admit(Timeline & timeline, SourceStamp co
     capture_metadata();
     return {decision, source_changed};
 }
+
 template <> void formal_eskf::runtime::RingBuffer<Record, capacity>::reset()
 {
     check_metadata();
     check_storage();
     __ESBMC_assert(this == &expected_owner->SELECTED_RING && source_changed && stage == 1 && resets == 0,
                    "Source transition clears the correct ring exactly once before enqueue");
+
     __ESBMC_init_object(expected_owner);
     expected_ring_metadata[FORMAL_ESKF_PROOF_OBSERVATION_SOURCE][1] = 0;
     expected_ring_metadata[FORMAL_ESKF_PROOF_OBSERVATION_SOURCE][2] = 0;
@@ -127,6 +135,7 @@ template <> void formal_eskf::runtime::RingBuffer<Record, capacity>::reset()
     capture_metadata();
     capture_storage_result();
 }
+
 template <> void formal_eskf::runtime::RingBuffer<Record, capacity>::push(Record const & record)
 {
     check_metadata();
@@ -137,14 +146,17 @@ template <> void formal_eskf::runtime::RingBuffer<Record, capacity>::push(Record
     __ESBMC_assert(m_length == capacity && m_count <= capacity && m_oldest < capacity && m_write < capacity &&
                        m_write == (m_oldest + m_count) % capacity,
                    "Push satisfies typed storage metadata");
+
     for (std::size_t i = 0; i < capacity; ++i)
     {
         __ESBMC_assert(&record != &m_samples[i], "Push supplies an external record");
     }
+
     __ESBMC_assert(record.time_us == effective && record.arrival_time_us == expected_now &&
                        record.residual_delay_us == expected_owner->m_configuration.DELAY_FIELD &&
                        record.half_period_us == expected_half && record.generation == published_timeline.generation,
                    "Push constructs all observation metadata from admitted values");
+
 #if FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 0
     __ESBMC_assert(record.sample.stamp.time_us == expected_sample.stamp.time_us,
                    "Push complete input forwarding sample.stamp.time_us");
@@ -186,6 +198,7 @@ template <> void formal_eskf::runtime::RingBuffer<Record, capacity>::push(Record
     __ESBMC_assert(record.sample.velocity_valid == expected_sample.velocity_valid,
                    "Push complete input forwarding sample.velocity_valid");
     __ESBMC_assert(record.sample.spoofed == expected_sample.spoofed, "Push complete input forwarding sample.spoofed");
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 1
     __ESBMC_assert(record.sample.stamp.time_us == expected_sample.stamp.time_us,
                    "Push complete input forwarding sample.stamp.time_us");
@@ -202,6 +215,7 @@ template <> void formal_eskf::runtime::RingBuffer<Record, capacity>::push(Record
                    "Push complete input forwarding sample.stamp.source.device_id");
     __ESBMC_assert(record.sample.stamp.source.calibration_count == expected_sample.stamp.source.calibration_count,
                    "Push complete input forwarding sample.stamp.source.calibration_count");
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 2
     __ESBMC_assert(record.sample.stamp.time_us == expected_sample.stamp.time_us,
                    "Push complete input forwarding sample.stamp.time_us");
@@ -283,17 +297,20 @@ void verify_observation_enqueue(Observations owner, Sample sample, std::uint64_t
                        owner.m_fusion_time_us == fusion && owner.m_advanced_at_us == advanced &&
                        same_double(owner.m_average_period_us, average) && now == expected_now,
                    "Push complete configuration, clock and arrival frame");
+
 #if FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 0
     __ESBMC_assert(same_timeline(owner.m_gnss_time, published_timeline), "Push preserves admission timeline poststate");
 #else
     __ESBMC_assert(same_timeline(owner.m_gnss_time, gnss_time), "Push retains other source timelines");
 #endif
+
 #if FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 1
     __ESBMC_assert(same_timeline(owner.m_magnetic_time, published_timeline),
                    "Push preserves admission timeline poststate");
 #else
     __ESBMC_assert(same_timeline(owner.m_magnetic_time, magnetic_time), "Push retains other source timelines");
 #endif
+
 #if FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 2
     __ESBMC_assert(same_timeline(owner.m_barometer_time, published_timeline),
                    "Push preserves admission timeline poststate");
@@ -339,6 +356,7 @@ void verify_observation_enqueue(Observations owner, Sample sample, std::uint64_t
     __ESBMC_assert(sample.velocity_valid == expected_sample.velocity_valid,
                    "Push external input frame sample.velocity_valid");
     __ESBMC_assert(sample.spoofed == expected_sample.spoofed, "Push external input frame sample.spoofed");
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 1
     __ESBMC_assert(sample.stamp.time_us == expected_sample.stamp.time_us,
                    "Push external input frame sample.stamp.time_us");
@@ -354,6 +372,7 @@ void verify_observation_enqueue(Observations owner, Sample sample, std::uint64_t
                    "Push external input frame sample.stamp.source.device_id");
     __ESBMC_assert(sample.stamp.source.calibration_count == expected_sample.stamp.source.calibration_count,
                    "Push external input frame sample.stamp.source.calibration_count");
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 2
     __ESBMC_assert(sample.stamp.time_us == expected_sample.stamp.time_us,
                    "Push external input frame sample.stamp.time_us");

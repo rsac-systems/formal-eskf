@@ -36,16 +36,19 @@ struct FusionDiagnostic
         failed,
         rolled_back
     };
+
     struct Counts
     {
         std::uint64_t evaluations{}, attempts{}, corrected{}, rejected{}, failed{}, resets{}, reset_failures{};
     };
+
     struct Reset
     {
         EvaluationEpoch epoch{};
         Status status = Status::success;
         bool attempted{}, committed{};
     };
+
     EvaluationEpoch epoch{};
     Outcome outcome = Outcome::none;
     Status status = Status::success;
@@ -63,6 +66,7 @@ struct FusionDiagnostic
         *this = {};
         counts = totals;
     }
+
     void evaluate(EvaluationEpoch const & when, Outcome result, Status code, bool attempted)
     {
         epoch = when;
@@ -82,6 +86,7 @@ struct FusionDiagnostic
             last_correction_us = when.evaluation_time_us;
         }
     }
+
     template <typename Linalg, std::size_t Size>
     void record(EvaluationEpoch const & when, FusionResult<Linalg, Size> const & result, bool committed = true)
     {
@@ -93,12 +98,14 @@ struct FusionDiagnostic
         evaluate(when, action, result.status, true);
         retain_gate(result);
     }
+
     template <typename Linalg, std::size_t Size>
     void record_check(EvaluationEpoch const & when, MeasurementCheck<Linalg, Size> const & result)
     {
         evaluate(when, succeeded(result.status) ? Outcome::checked : Outcome::failed, result.status, false);
         retain_gate(FusionResult<Linalg, Size>{result});
     }
+
     template <typename Linalg, std::size_t Size> void retain_gate(FusionResult<Linalg, Size> const & result)
     {
         static_assert(Size <= 3);
@@ -114,6 +121,7 @@ struct FusionDiagnostic
             }
         }
     }
+
     void record_reset(EvaluationEpoch const & when, Status code, bool committed)
     {
         reset = {when, code, true, committed};

@@ -15,6 +15,7 @@ namespace covariance_oracle
 using namespace contract_proof;
 
 inline bool same_cells(Scalar a, Scalar b) { return same(a, b); }
+
 inline bool finite_cells(Scalar value) { return std::isfinite(value); }
 
 template <typename Cell>
@@ -39,6 +40,7 @@ bool same_cells(formal_eskf::verification::CovarianceRow<Cell> const & a,
     valid = same_cells(a.c14, b.c14) && valid;
     return valid;
 }
+
 template <typename Cell> bool finite_cells(formal_eskf::verification::CovarianceRow<Cell> const & a)
 {
     bool valid = true;
@@ -97,11 +99,13 @@ template <typename M> auto const & cells(M const & matrix)
 }
 
 template <typename M> bool same_matrix(M const & a, M const & b) { return same_cells(cells(a), cells(b)); }
+
 template <typename M> bool finite_matrix(M const & a) { return finite_cells(cells(a)); }
 
 // Independent row-major oracle traversal. Production still executes its
 // actual coefficient lookup, storage and arithmetic, without storage summaries.
 inline void flatten_cells(Scalar value, Scalar *& output) { *output++ = value; }
+
 template <typename Cell> void flatten_cells(formal_eskf::verification::CovarianceRow<Cell> const & a, Scalar *& output)
 {
     flatten_cells(a.c0, output);
@@ -120,6 +124,7 @@ template <typename Cell> void flatten_cells(formal_eskf::verification::Covarianc
     flatten_cells(a.c13, output);
     flatten_cells(a.c14, output);
 }
+
 template <typename Cell, std::size_t Count>
 void flatten_cells(formal_eskf::verification::ScalarArray<Cell, Count> const & a, Scalar *& output)
 {
@@ -129,6 +134,7 @@ void flatten_cells(formal_eskf::verification::ScalarArray<Cell, Count> const & a
         flatten_cells(a.tail, output);
     }
 }
+
 template <typename M> void flatten(M const & matrix, Scalar * output) { flatten_cells(cells(matrix), output); }
 
 } // namespace covariance_oracle

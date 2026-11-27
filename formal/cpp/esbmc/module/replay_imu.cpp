@@ -25,6 +25,7 @@ struct ImuNoiseConditions
     bool accelerometer_clipped[3]{};
 };
 } // namespace formal_eskf::runtime
+
 namespace std
 {
 // Pure STL value contract, not a target-library proof.
@@ -46,9 +47,11 @@ double formal_eskf_proof_clamp(double value, double low, double high)
 namespace
 {
 using Status = formal_eskf::Status;
+
 struct ReplayFailure
 {
 };
+
 enum Stage : unsigned
 {
     hold,
@@ -60,47 +63,60 @@ enum Stage : unsigned
     heading,
     stage_count
 };
+
 struct Trace
 {
     bool success[stage_count]{};
     unsigned seen{}, last{};
+
     void record(Stage stage)
     {
         __ESBMC_assert(seen == 0 || unsigned(stage) > last, "Replay prediction stages execute once in source order");
         seen |= 1U << stage;
         last = stage;
     }
+
     bool has(Stage stage) const { return (seen & (1U << stage)) != 0; }
 } trace;
 
 struct Vector
 {
 };
+
 Vector operator-(Vector, Vector) { return {}; }
+
 struct State
 {
     unsigned q_nb{};
     Vector b_a;
 };
+
 struct Imu
 {
     unsigned identity{};
     Vector specific_force_b;
 };
+
 struct Flags
 {
     int at_rest{}, accelerometer_clipping{};
 } supplied_flags;
+
 std::uint64_t supplied_time;
+
 Flags read_imu_flags(unsigned, std::uint64_t epoch)
 {
     __ESBMC_assert(epoch == supplied_time, "Replay flags belong to the current real IMU tick");
     return supplied_flags;
 }
+
 Imu imu_sample(std::uint64_t const *) { return {2}; }
+
 // Decoded timestamp contract: the CSV parser rejects nonintegral/invalid input.
 std::uint64_t timestamp(std::uint64_t value) { return value; }
+
 #include "replay_status.inc"
+
 struct BiasInhibition
 {
     struct Conditions
@@ -109,6 +125,7 @@ struct BiasInhibition
         int accelerometer_clipping{};
     };
 };
+
 struct GnssLifecycle
 {
     struct VerticalAccelerationTimes
@@ -116,6 +133,7 @@ struct GnssLifecycle
         std::uint64_t last_update_time_us{}, last_good_time_us{};
     };
 };
+
 struct Health
 {
     struct Value
@@ -123,13 +141,16 @@ struct Health
         std::uint64_t last_update_time_us{}, last_good_time_us{};
         bool bad_vertical_acceleration{};
     } value;
+
     Value const & state() const { return value; }
+
     void reset()
     {
         trace.record(reset_health);
         value = {};
     }
 };
+
 struct Learning
 {
     struct Result
@@ -137,7 +158,9 @@ struct Learning
         Status status{};
         unsigned bias_update{};
     };
+
     BiasInhibition::Conditions received;
+
     Result update(double dt, double accel_dt, State const &, Imu const & sample,
                   BiasInhibition::Conditions const & conditions)
     {
@@ -147,13 +170,16 @@ struct Learning
         return {trace.success[bias] ? Status::success : Status::domain_error, 0};
     }
 };
+
 struct Accelerometer
 {
     void reset() { trace.record(reset_observation); }
 };
+
 struct Heading
 {
     void reset_acceleration() { trace.record(reset_heading); }
+
     Status update_acceleration(Vector, double)
     {
         trace.record(heading);
@@ -161,14 +187,17 @@ struct Heading
     }
 };
 } // namespace
+
 namespace formal_eskf::so3
 {
 Vector rotate(unsigned, Vector) { return {}; }
 } // namespace formal_eskf::so3
+
 namespace
 {
 std::uint64_t old_time, real_period;
 unsigned predictions_completed;
+
 int predict_interval(State &, unsigned &, Imu const & sample, std::uint64_t period, std::uint64_t epoch,
                      unsigned const &, std::optional<formal_eskf::runtime::ImuNoiseConditions> const & conditions,
                      unsigned &)
@@ -208,6 +237,7 @@ int predict_interval(State &, unsigned &, Imu const & sample, std::uint64_t peri
     ++predictions_completed;
     return 0;
 }
+
 struct Flow
 {
     std::uint64_t imu_row[2]{};
@@ -223,6 +253,7 @@ struct Flow
     std::optional<unsigned> quality_parameters;
     double average_interval{}, nominal_interval{0.004};
     bool has_magnetic_input{}, mag_enabled{};
+
     void step()
     {
 #define max formal_eskf_proof_max

@@ -33,7 +33,19 @@ and organization; [.clang-format](../../.clang-format) owns formatting.
 
 - Use UTF-8 and LF line endings. Let `.clang-format` control indentation, spacing and wrapping.
 - Always brace control-flow bodies. Keep trivial accessors compact; do not place multiple executable statements on one line.
-- Separate logical groups with a blank line, without padding short functions.
+- Separate function, class, struct and enum definitions with a blank line;
+  `.clang-format` enforces these definition boundaries.
+- Within a function, separate changes of purpose with a blank line: validation,
+  input preparation, computation, commit and reporting. Keep a calculation with
+  its immediate result check; do not put a blank line after every statement or
+  impose an arbitrary maximum number of consecutive lines.
+- Separate the include block, type aliases and definitions. Keep related fields
+  and straight-line mathematical expressions together. In tests, make setup,
+  action, assertions and the next scenario distinguishable without adding
+  boilerplate section comments.
+- Inspect the complete edited functions after formatting. Clang-format preserves
+  most function-body grouping; a passing check does not establish readable logical
+  sections. These rules also apply to examples, fixtures and proof harnesses.
 - Use `#pragma once` in headers and include public project headers as `<formal_eskf/...>`.
 - Keep library declarations in the `formal_eskf` namespace. Do not introduce namespace-wide `using namespace` directives.
 - Keep nontrivial member definitions outside the class declaration when this makes the interface easier to scan. Template definitions can remain in the same header.
@@ -44,6 +56,10 @@ From the repository root, check formatting without changing files:
 ```bash
 ./scripts/format_cpp.sh --check
 ```
+
+The runner defaults to clang-format-14, matching CI and the C++ generator.
+Use `./scripts/format_cpp.sh` to apply formatting. Generated files must obtain
+layout changes through their generator and formatter, not manual edits.
 
 ## Types and Interfaces
 

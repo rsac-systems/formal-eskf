@@ -21,6 +21,7 @@ void confirm(Scalar value, Scalar expected)
     __ESBMC_assert(match, "F-SOLVE: ordered IEEE coefficient operand/result");
     __ESBMC_assume(match);
 }
+
 struct Trace
 {
     inline static unsigned operation{}, row{}, column{}, inner{};
@@ -42,6 +43,7 @@ struct Trace
     {
         return operation == 1U ? expected_factor.values[i * size + j] : factor->values[i * size + j];
     }
+
     static Scalar x(unsigned i)
     {
         __ESBMC_assert(i < size && (written & (1U << i)) != 0U,
@@ -50,14 +52,18 @@ struct Trace
     }
 
     static unsigned terms() { return operation == 1U ? column : operation == 2U ? row : size - row - 1U; }
+
     static Scalar initial_residual()
     {
         return operation == 1U   ? system->values[row * size + column]
                : operation == 2U ? rhs->values[row * columns + column]
                                  : initial->values[row * columns + column];
     }
+
     static Scalar accumulated() { return inner == 0U ? initial_residual() : residual; }
+
     static Scalar fresh();
+
     static Scalar subtract_product(Scalar value, Scalar left, Scalar right)
     {
         __ESBMC_assert(!finished && !output_phase && !quotient_seen && inner < terms(),
@@ -70,6 +76,7 @@ struct Trace
         ++inner;
         return residual;
     }
+
     static Scalar quotient(Scalar value, Scalar divisor)
     {
         __ESBMC_assert(!finished && !quotient_seen && inner == terms() &&
@@ -81,6 +88,7 @@ struct Trace
         quotient_result = fresh();
         return quotient_result;
     }
+
     static bool inspect(Scalar value)
     {
         __ESBMC_assert(!finished, "F-SOLVE: no computation after failure/completion");
@@ -158,7 +166,9 @@ struct Trace
         return finite_value;
     }
 };
+
 extern double nondet_double();
+
 Scalar Trace::fresh()
 {
 #if FORMAL_ESKF_PROOF_BINARY64
@@ -169,6 +179,7 @@ Scalar Trace::fresh()
 }
 #if FORMAL_ESKF_PROOF_ARITHMETIC_CONTRACT
 bool Math::is_finite(Scalar value) { return Trace::inspect(value); }
+
 void Math::record_root(Scalar input, Scalar result, unsigned index)
 {
     __ESBMC_assert(Trace::operation == 1U && Trace::output_phase && !Trace::root_seen && !Trace::finished &&
@@ -190,6 +201,7 @@ inline solve_proof::Scalar Cholesky<solve_proof::Backend>::subtract_product(solv
 {
     return solve_proof::Trace::subtract_product(residual, left, right);
 }
+
 template <>
 inline solve_proof::Scalar Cholesky<solve_proof::Backend>::quotient(solve_proof::Scalar numerator,
                                                                     solve_proof::Scalar denominator)
@@ -199,6 +211,7 @@ inline solve_proof::Scalar Cholesky<solve_proof::Backend>::quotient(solve_proof:
 } // namespace formal_eskf::linalg
 #endif
 using namespace solve_proof;
+
 void verify_factor_equations(Factor system, Factor initial, ScalarArray<Scalar, 3U> roots)
 {
     __ESBMC_assert(FORMAL_ESKF_PROOF_ARITHMETIC_CONTRACT == 1, "Runner error: equations require arithmetic contracts");
@@ -236,6 +249,7 @@ void verify_factor_equations(Factor system, Factor initial, ScalarArray<Scalar, 
         }
     }
 }
+
 void verify_forward_equations(Factor factor, Right rhs, Right initial, unsigned inspected_row,
                               unsigned inspected_column)
 {
@@ -273,6 +287,7 @@ void verify_forward_equations(Factor factor, Right rhs, Right initial, unsigned 
     __ESBMC_assert(equal_cells(factor.values, old_factor.values) && equal_cells(rhs.values, old_rhs.values),
                    "F-SOLVE: forward input frame");
 }
+
 void verify_backward_equations(Factor factor, Right initial, unsigned inspected_row, unsigned inspected_column)
 {
     __ESBMC_assert(FORMAL_ESKF_PROOF_ARITHMETIC_CONTRACT == 1, "Runner error: equations require arithmetic contracts");
@@ -306,4 +321,5 @@ void verify_backward_equations(Factor factor, Right initial, unsigned inspected_
                    "F-SOLVE: successful backward column finite");
     __ESBMC_assert(equal_cells(factor.values, old_factor.values), "F-SOLVE: backward input frame");
 }
+
 int main() { return 0; }

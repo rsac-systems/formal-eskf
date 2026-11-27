@@ -44,6 +44,7 @@ enum IntegerField : std::size_t
     gyroscope_calibration,
     integer_fields
 };
+
 enum VectorOffset : std::size_t
 {
     angle = 0,
@@ -75,6 +76,7 @@ bool formal_eskf::runtime::ImuHistory<Backend, 64>::valid_input(input_type const
                    "IMU admission receives the owned timing profile unchanged");
     __ESBMC_assert(&sample == expected_input && same_input(sample, *original_input) && now == expected_now,
                    "seed forwards complete input and time to admission producer");
+
     ++admission_calls;
     return admission_result;
 }
@@ -125,6 +127,7 @@ void verify_imu_seed(Imu owner, Imu::input_type sample, std::uint64_t now, bool 
         values[index][rate + 1] = owner.m_samples.m_samples[index].held_rate.angular_rate_b(1);
         values[index][rate + 2] = owner.m_samples.m_samples[index].held_rate.angular_rate_b(2);
     }
+
     auto const previous = owner.m_previous;
     auto const input = sample;
     auto const config = owner.m_configuration;
@@ -143,6 +146,7 @@ void verify_imu_seed(Imu owner, Imu::input_type sample, std::uint64_t now, bool 
     bool const result = owner.seed(sample, now);
     __ESBMC_assert(result == (calls && admitted) && admission_calls == (calls ? 1U : 0U),
                    "seed decision and admission producer call order");
+
     for (std::size_t index = 0; index < capacity; ++index)
     {
         __ESBMC_assert(owner.m_samples.m_samples[index].time_us == integers[index][interval_time],
@@ -221,6 +225,7 @@ void verify_imu_seed(Imu owner, Imu::input_type sample, std::uint64_t now, bool 
     {
         __ESBMC_assert(same_input(owner.m_previous, previous), "rejected seed preserves the complete previous input");
     }
+
     __ESBMC_assert(same_input(sample, input), "seed preserves its caller input");
     __ESBMC_assert(owner.m_configuration.minimum_lag_us == config.minimum_lag_us &&
                        owner.m_configuration.gnss_delay_us == config.gnss_delay_us &&
@@ -244,6 +249,7 @@ bool input_is_zero(Imu::input_type const & input)
     {
         return false;
     }
+
     for (std::size_t axis = 0; axis < 3; ++axis)
     {
         if (!contract_proof::same(input.delta_angle_b(axis), Scalar{0}) ||
@@ -252,6 +258,7 @@ bool input_is_zero(Imu::input_type const & input)
             return false;
         }
     }
+
     return true;
 }
 
@@ -267,12 +274,14 @@ void verify_imu_initialization()
                        owner.m_configuration.imu_length == 0 &&
                        imu_proof::same_timing(owner.m_timing, formal_eskf::runtime::ImuTiming{}),
                    "IMU construction initializes every configuration field");
+
     for (std::size_t index = 0; index < capacity; ++index)
     {
         auto const & interval = owner.m_samples.m_samples[index];
         __ESBMC_assert(interval.time_us == 0 && interval.start_time_us == 0 && interval.hold_period_us == 0 &&
                            input_is_zero(interval.sample),
                        "IMU construction initializes every retained interval and sample");
+
         for (std::size_t axis = 0; axis < 3; ++axis)
         {
             __ESBMC_assert(contract_proof::same(interval.held_rate.specific_force_b(axis), Scalar{0}) &&

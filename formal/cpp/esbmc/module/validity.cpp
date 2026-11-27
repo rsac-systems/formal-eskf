@@ -13,30 +13,43 @@ extern void __ESBMC_assert(bool, char const *);
 namespace
 {
 #include "module_constants.inc"
+
 struct Output
 {
     struct Sample
     {
         std::uint64_t time_us{};
     } sample;
+
     bool tracking{};
+
     Sample const & current() const { return sample; }
+
     bool ready() const { return tracking; }
 };
+
 struct Observations
 {
     struct Source
     {
         std::uint32_t device_id{};
     } gnss, magnetic, barometer;
+
     std::uint64_t gnss_epoch{}, magnetic_epoch{}, barometer_epoch{};
+
     Source gnss_source() const { return gnss; }
+
     Source magnetic_source() const { return magnetic; }
+
     Source barometer_source() const { return barometer; }
+
     std::uint64_t gnss_generation() const { return gnss_epoch; }
+
     std::uint64_t magnetic_generation() const { return magnetic_epoch; }
+
     std::uint64_t barometer_generation() const { return barometer_epoch; }
 };
+
 struct Height
 {
     enum class Source
@@ -44,13 +57,16 @@ struct Height
         barometer,
         gnss
     };
+
     struct Session
     {
         bool active{};
         std::uint64_t generation{};
     } barometer, gnss;
+
     std::uint64_t expected_epoch{};
     bool usable{};
+
     Session const & session(Source source) const
     {
         if (source == Source::barometer)
@@ -59,45 +75,58 @@ struct Height
         }
         return gnss;
     }
+
     bool valid(std::uint64_t time) const
     {
         __ESBMC_assert(time == expected_epoch, "Height lifecycle validity is evaluated at delayed main time");
         return usable;
     }
 };
+
 struct Flow
 {
     using height_type = Height;
+
     struct OutputValidity
     {
         bool healthy{}, gps_position{}, gps_velocity{}, gps{}, gps_height{};
         bool magnetic{}, magnetic_aiding{}, barometer{};
         bool height{}, vertical_velocity{}, dead_reckoning{};
     };
+
     bool m_initialized{}, m_fault{};
     std::uint64_t m_time_us{};
     Output m_output;
     Observations m_observations;
     Height m_height_aiding;
+
     struct Source
     {
         std::uint64_t generation{};
     } m_gnss, m_magnetic;
+
     bool position_valid{}, velocity_valid{}, position_recent{}, velocity_recent{}, heading_valid{}, heading_aiding{};
+
     bool gps_position_valid() const { return position_valid; }
+
     bool gps_velocity_valid() const { return velocity_valid; }
+
     bool gps_position_valid(std::uint64_t age) const
     {
         __ESBMC_assert(age == profile::output::dead_reckoning_age_us, "Position recency uses dead-reckoning age");
         return position_recent;
     }
+
     bool gps_velocity_valid(std::uint64_t age) const
     {
         __ESBMC_assert(age == profile::output::dead_reckoning_age_us, "Velocity recency uses dead-reckoning age");
         return velocity_recent;
     }
+
     bool magnetic_heading_valid() const { return heading_valid; }
+
     bool magnetic_heading_aiding() const { return heading_aiding; }
+
     OutputValidity output_validity(std::uint64_t now) const;
 };
 

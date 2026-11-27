@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "frames.hpp"
+
 namespace
 {
 output_proof::State expected_state;
 bool validation_result;
 unsigned validation_calls;
+
 void check_input(output_proof::State const & state)
 {
     __ESBMC_assert(imu_proof::same(state.q_nb.q0(), expected_state.q_nb.q0()),
@@ -46,6 +48,7 @@ void check_input(output_proof::State const & state)
         "Seed preserves/forwards input: b_g.m_storage.values.tail.tail.head");
 }
 } // namespace
+
 template <>
 bool formal_eskf::runtime::OutputPredictor<output_proof::Backend, 64>::valid_state(state_type const & state) const
 {
@@ -54,6 +57,7 @@ bool formal_eskf::runtime::OutputPredictor<output_proof::Backend, 64>::valid_sta
     ++validation_calls;
     return validation_result;
 }
+
 void verify_output_seed(output_proof::Output input_owner, output_proof::State state, std::uint64_t time, bool valid)
 {
     output_proof::bind_parameters(input_owner);

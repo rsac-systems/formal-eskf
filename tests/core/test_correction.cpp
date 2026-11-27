@@ -50,6 +50,7 @@ template <typename Matrix> bool same_fields(Matrix const & a, Matrix const & b)
             }
         }
     }
+
     return true;
 }
 
@@ -61,6 +62,7 @@ template <typename State> bool same_state(State const & a, State const & b)
         same = same && same_fields(a.p_n, b.p_n) && same_fields(a.v_n, b.v_n) && same_fields(a.b_a, b.b_a) &&
                same_fields(a.b_g, b.b_g);
     }
+
     return same;
 }
 
@@ -112,6 +114,7 @@ template <typename Linalg, typename Configuration, std::size_t MeasurementSize> 
                 P(row, column) = u * v + (row == column ? value_type{1} : value_type{0});
             }
         }
+
         for (std::size_t row = 0U; row < MeasurementSize; ++row)
         {
             r(row) = static_cast<value_type>(row + 1U) / value_type{128};
@@ -121,6 +124,7 @@ template <typename Linalg, typename Configuration, std::size_t MeasurementSize> 
                 H(row, column) = static_cast<value_type>(pattern) / value_type{16} +
                                  (column == attitude_offset + row % 3U ? value_type{1} : value_type{0});
             }
+
             for (std::size_t column = 0U; column < MeasurementSize; ++column)
             {
                 value_type const u = static_cast<value_type>(row + 1U) / value_type{16};
@@ -144,6 +148,7 @@ void check_success(TestContext & test, std::string_view profile, Fixture const &
     auto const reference = reference_correction(fixture, ESKF_RESET_APPROX != 0);
     test.expect(reference.valid && fixture.attitude_status == Status::success, profile,
                 "valid correction fixture and oracle");
+
     typename Fixture::correction_type delta;
     typename Fixture::covariance_type joseph;
     typename Fixture::gain_type K;
@@ -154,6 +159,7 @@ void check_success(TestContext & test, std::string_view profile, Fixture const &
         linear_status =
             formal_eskf::detail::apply_correction_gain(fixture.P, fixture.r, fixture.H, fixture.V, K, delta, joseph);
     }
+
     bool linear_matches = linear_status == Status::success;
     for (std::size_t row = 0U; row < Fixture::size; ++row)
     {
@@ -168,7 +174,9 @@ void check_success(TestContext & test, std::string_view profile, Fixture const &
                 linear_matches;
         }
     }
+
     test.expect(linear_matches, profile, "pre-injection error and full Joseph covariance match independent oracle");
+
     auto const saved_delta = delta;
     auto const saved_joseph = joseph;
     auto const saved_gain = K;
@@ -179,9 +187,11 @@ void check_success(TestContext & test, std::string_view profile, Fixture const &
         rejected =
             formal_eskf::detail::apply_correction_gain(fixture.P, fixture.r, fixture.H, fixture.V, K, delta, joseph);
     }
+
     test.expect(rejected == Status::domain_error && same_fields(K, saved_gain) && same_fields(delta, saved_delta) &&
                     same_fields(joseph, saved_joseph),
                 profile, "invalid inputs preserve gain, correction and covariance scratch outputs");
+
     for (unsigned aliases = 0U; aliases < 4U; ++aliases)
     {
         auto input = fixture;
@@ -194,6 +204,7 @@ void check_success(TestContext & test, std::string_view profile, Fixture const &
         test.expect(status == Status::success &&
                         matches_reference(fixture, reference, state_output, covariance_output, tolerance),
                     profile, "correction agrees with independent gain/Joseph/Exp/reset oracle for every output alias");
+
         bool const immutable = same_fields(input.r, fixture.r) && same_fields(input.H, fixture.H) &&
                                same_fields(input.V, fixture.V) &&
                                ((aliases & 1U) != 0U || same_state(input.state, fixture.state)) &&
@@ -220,6 +231,7 @@ void test_correction_success(TestContext & test, std::string_view profile)
         semidefinite_prior.P(0U, index) = value_type{0};
         semidefinite_prior.P(index, 0U) = value_type{0};
     }
+
     check_success(test, profile, semidefinite_prior, tolerance);
     auto negative_quaternion = fixture;
     negative_quaternion.state.q_nb = -negative_quaternion.state.q_nb;
@@ -256,6 +268,7 @@ void test_repeated_scalar_correction(TestContext & test, std::string_view profil
                 correct = correct && near(fixture.P(row, column), row == column ? diagonal : value_type{0}, tolerance);
             }
         }
+
         test.expect(correct, profile,
                     "100 scalar corrections match analytic variance and do not drift at zero residual");
     }
@@ -315,16 +328,20 @@ void check_late_stages(TestContext & test, std::string_view profile, Fixture con
         status =
             formal_eskf::detail::apply_correction_gain(fixture.P, fixture.r, fixture.H, fixture.V, gain, delta, joseph);
     }
+
     test.expect(status == Status::success, profile, "gain and Joseph stages succeed before the late failure");
+
     if (status != Status::success)
     {
         return;
     }
+
     typename Fixture::types::error_state_type error;
     formal_eskf::detail::unpack_correction(delta, error);
     auto state = fixture.state;
     status = formal_eskf::inject_nominal(fixture.state, error, Fixture::minimum_norm, state);
     test.expect(status == expected_injection, profile, "late failure occurs at the specified injection/reset stage");
+
     if (status == Status::success)
     {
         auto covariance = joseph;
@@ -381,6 +398,7 @@ template <typename Linalg, typename Configuration> void test_matrix_domain(TestC
                       std::isfinite(invalid) ? Status::domain_error : Status::non_finite_input,
                       "invalid norm threshold preserves both outputs");
     }
+
     auto non_finite_entries = [&](auto member)
     {
         using matrix_type = std::remove_cvref_t<decltype(fixture.*member)>;
@@ -416,12 +434,14 @@ template <typename Linalg, typename Configuration> void test_matrix_domain(TestC
         bad.V(0U, 0U) = invalid;
         fail(bad, Status::domain_error, "nonpositive measurement variance is rejected");
     }
+
     for (std::size_t axis = 0U; axis < fixture_type::size; ++axis)
     {
         bad = fixture;
         bad.P(axis, axis) = -std::numeric_limits<value_type>::denorm_min();
         fail(bad, Status::domain_error, "every negative prior diagonal, including smallest negative, is rejected");
     }
+
     for (std::size_t axis = 0U; axis < fixture_type::measurement_size; ++axis)
     {
         for (value_type const invalid : {value_type{0}, -value_type{0}, value_type{-1}})
@@ -431,6 +451,7 @@ template <typename Linalg, typename Configuration> void test_matrix_domain(TestC
             fail(bad, Status::domain_error, "every nonpositive measurement diagonal is rejected");
         }
     }
+
     bad = fixture;
     bad.P(fixture_type::size - 1U, 0U) = std::nextafter(bad.P(fixture_type::size - 1U, 0U), infinity);
     fail(bad, Status::domain_error, "symmetry validation includes the full prior beyond the leading block");
@@ -520,6 +541,7 @@ void test_arithmetic_boundaries(TestContext & test, std::string_view profile)
             }
         }
     }
+
     enum class InternalOverflow
     {
         gain_product,
@@ -580,6 +602,7 @@ void test_bias_update(TestContext & test, std::string_view profile)
     test.expect(correct(fixture.state, fixture.P, fixture.r, fixture.H, fixture.V, fixture_type::minimum_norm,
                         unrestricted_state, unrestricted_covariance) == Status::success,
                 profile, "unrestricted bias-update baseline");
+
     typename fixture_type::state_type default_state;
     typename fixture_type::covariance_type default_covariance;
     test.expect(correct(fixture.state, fixture.P, fixture.r, fixture.H, fixture.V, fixture_type::minimum_norm,
@@ -597,6 +620,7 @@ void test_bias_update(TestContext & test, std::string_view profile)
             bias_update.accelerometer[axis] = (permissions & (1U << axis)) != 0U;
             bias_update.gyroscope[axis] = (permissions & (1U << (3U + axis))) != 0U;
         }
+
         auto const reference = reference_correction(fixture, ESKF_RESET_APPROX != 0, bias_update);
         for (unsigned aliases = 0U; aliases < 4U; ++aliases)
         {
@@ -610,6 +634,7 @@ void test_bias_update(TestContext & test, std::string_view profile)
             test.expect(status == Status::success &&
                             matches_reference(fixture, reference, state_output, covariance_output, tolerance),
                         profile, "all bias permissions and aliases match independent constrained-gain/Joseph oracle");
+
             bool preserved = true;
             for (std::size_t axis = 0U; axis < 3U; ++axis)
             {
@@ -618,18 +643,22 @@ void test_bias_update(TestContext & test, std::string_view profile)
                     preserved = preserved && state_output.b_a(axis) == fixture.state.b_a(axis) &&
                                 covariance_output(9U + axis, 9U + axis) == fixture.P(9U + axis, 9U + axis);
                 }
+
                 if (!bias_update.gyroscope[axis])
                 {
                     preserved = preserved && state_output.b_g(axis) == fixture.state.b_g(axis) &&
                                 covariance_output(12U + axis, 12U + axis) == fixture.P(12U + axis, 12U + axis);
                 }
             }
+
             test.expect(preserved, profile, "inhibited biases retain their estimates and variances, not zero them");
+
             bool const immutable = same_fields(input.r, fixture.r) && same_fields(input.H, fixture.H) &&
                                    same_fields(input.V, fixture.V) &&
                                    ((aliases & 1U) != 0U || same_state(input.state, fixture.state)) &&
                                    ((aliases & 2U) != 0U || same_fields(input.P, fixture.P));
             test.expect(immutable, profile, "controlled correction preserves distinct inputs");
+
             if (permissions == 63U)
             {
                 test.expect(same_state(state_output, unrestricted_state) &&
@@ -638,6 +667,7 @@ void test_bias_update(TestContext & test, std::string_view profile)
             }
         }
     }
+
     if constexpr (MeasurementSize == 1U)
     {
         using value_type = typename fixture_type::value_type;
@@ -652,6 +682,7 @@ void test_bias_update(TestContext & test, std::string_view profile)
                 exact.P(row, column) += u * v;
             }
         }
+
         exact.H = {};
         exact.H(0U, 0U) = value_type{1};
         exact.V(0U, 0U) = value_type{2};
@@ -672,6 +703,7 @@ void test_bias_update(TestContext & test, std::string_view profile)
                 expected_state.b_a(axis) += value_type{4} * gain[9U + axis];
                 expected_state.b_g(axis) += value_type{4} * gain[12U + axis];
             }
+
             auto expected_covariance = exact.P;
             // Independent expanded Joseph identity for ANY effective gain:
             // P - K C^T - C K^T + K S K^T, C=P[:,0], S=4.
@@ -684,6 +716,7 @@ void test_bias_update(TestContext & test, std::string_view profile)
                                                         value_type{4} * gain[row] * gain[column];
                 }
             }
+
             auto state = exact.state;
             auto covariance = exact.P;
             test.expect(correct(exact.state, exact.P, exact.r, exact.H, exact.V, exact.minimum_norm, state, covariance,
@@ -756,12 +789,14 @@ template <typename Linalg> void test_bias_update_failures(TestContext & test, st
                     same_fields(disabled_state.b_g, fixture.state.b_g) &&
                     disabled_covariance(9U, 9U) == value_type{1} && disabled_covariance(0U, 9U) == value_type{0.375},
                 profile, "all-disabled correction still computes full covariance and changes bias cross-covariance");
+
     auto enabled_state = fixture.state;
     auto enabled_covariance = fixture.P;
     test.expect(correct(fixture.state, fixture.P, fixture.r, fixture.H, fixture.V, fixture.minimum_norm, enabled_state,
                         enabled_covariance) == Status::success &&
                     enabled_state.b_a(0U) == fixture.state.b_a(0U) + value_type{0.5},
                 profile, "next unrestricted call learns bias; permissions do not persist");
+
     typename fixture_type::types::parameter_type parameters;
     parameters.dt_min = value_type{0.125};
     parameters.dt_max = value_type{1};
@@ -775,10 +810,12 @@ template <typename Linalg> void test_bias_update_failures(TestContext & test, st
         parameters.process_noise.accelerometer_bias_random_walk_variance_density(axis) = value_type{0.5};
         parameters.process_noise.gyroscope_bias_random_walk_variance_density(axis) = value_type{1};
     }
+
     auto predicted = disabled_covariance;
     test.expect(formal_eskf::predict_covariance(disabled_state, disabled_covariance, imu, value_type{0.5}, parameters,
                                                 predicted) == Status::success,
                 profile, "prediction remains available after all-disabled bias correction");
+
     for (std::size_t axis = 0U; axis < 3U; ++axis)
     {
         test.expect(predicted(9U + axis, 9U + axis) == disabled_covariance(9U + axis, 9U + axis) + value_type{0.25} &&
@@ -801,10 +838,12 @@ void test_preparation(TestContext & test, std::string_view profile)
         {
             input.H = {};
         }
+
         if (partition == 2U)
         {
             input.P = {};
         }
+
         auto const expected_cross = product(copied(input.P), transposed(copied(input.H)));
         auto expected_innovation = product(copied(input.H), expected_cross);
         typename fixture_type::gain_type cross;
@@ -816,10 +855,12 @@ void test_preparation(TestContext & test, std::string_view profile)
                 expected_innovation[row][column] += static_cast<long double>(input.V(row, column));
             }
         }
+
         auto const before = input;
         test.expect(formal_eskf::correction_covariances(input.P, input.r, input.H, input.V, fixture.minimum_norm, cross,
                                                         innovation) == Status::success,
                     profile, "preparation accepts PSD prior without nominal state or solve");
+
         // The fixture's polynomial inputs are dyadic and these small products
         // have representable sums; independent long-double scalar loops are
         // exact here. No generic covariance-error tolerance is assumed.
@@ -831,6 +872,7 @@ void test_preparation(TestContext & test, std::string_view profile)
                             "every cross-covariance coefficient equals the independent dyadic product");
             }
         }
+
         for (std::size_t row = 0U; row < MeasurementSize; ++row)
         {
             for (std::size_t column = 0U; column < MeasurementSize; ++column)
@@ -839,6 +881,7 @@ void test_preparation(TestContext & test, std::string_view profile)
                             profile, "innovation retains all measurement correlations exactly");
             }
         }
+
         test.expect(same_fields(input.P, before.P) && same_fields(input.H, before.H) &&
                         same_fields(input.V, before.V) && same_fields(input.r, before.r),
                     profile, "preparation preserves all borrowed matrix inputs");
@@ -881,6 +924,7 @@ template <typename Linalg, typename Configuration> void test_right_solve(TestCon
     test.expect(formal_eskf::detail::compute_correction_gain(fixture.P, fixture.r, fixture.H, fixture.V,
                                                              fixture.minimum_norm, gain) == Status::success,
                 profile, "correlated exact Cholesky system is solvable");
+
     // S=[[4,2],[2,5]], L=[[2,0],[1,2]], K=[[8,0],[1,6]]/16.
     // Every multiply/divide of this fixture is representable, including LLT.
     for (std::size_t row = 0U; row < fixture_type::size; ++row)
@@ -893,6 +937,7 @@ template <typename Linalg, typename Configuration> void test_right_solve(TestCon
                         value_type{2} * gain(row, 0U) + value_type{5} * gain(row, 1U) == fixture.P(row, 1U),
                     profile, "independent exact K S = C residual checks solve orientation");
     }
+
     auto expected_covariance = fixture.P;
     expected_covariance(0U, 0U) = value_type{1};
     expected_covariance(0U, 1U) = value_type{0.5};
@@ -904,6 +949,7 @@ template <typename Linalg, typename Configuration> void test_right_solve(TestCon
                         covariance) == Status::success &&
                     same_state(state, fixture.state) && same_fields(covariance, expected_covariance),
                 profile, "public correction uses the exact right solve and retains correlated Joseph posterior");
+
     fixture.H = {};
     fixture.V(0U, 1U) = value_type{4};
     fixture.V(1U, 0U) = value_type{4};
@@ -931,17 +977,20 @@ void test_zero_information(TestContext & test, std::string_view profile)
             expected = {};
             input.H(0U, 0U) = value_type{1};
         }
+
         if (partition == 2U)
         {
             input.H(0U, 0U) = value_type{1};
             input.r = {};
             expected(0U, 0U) = value_type{0.75};
         }
+
         if (partition == 3U)
         {
             input.P(0U, 0U) = std::numeric_limits<value_type>::max();
             expected = input.P;
         }
+
         auto state = input.state;
         auto covariance = input.P;
         test.expect(correct(input.state, input.P, input.r, input.H, input.V, input.minimum_norm, state, covariance) ==
@@ -949,6 +998,7 @@ void test_zero_information(TestContext & test, std::string_view profile)
                         same_state(state, input.state) && same_fields(covariance, expected),
                     profile, "zero H/P preserves prior; zero residual still reduces informative variance exactly");
     }
+
     test_repeated_scalar_correction<Linalg, Configuration>(test, profile);
 }
 
@@ -995,6 +1045,7 @@ void test_preparation_domains(TestContext & test, std::string_view profile)
     {
         check_preparation_failure(test, profile, fixture, bound, Status::domain_error);
     }
+
     typename fixture_type::gain_type cross;
     auto innovation = fixture.V;
     test.expect(formal_eskf::correction_covariances(fixture.P, fixture.r, fixture.H, fixture.V, value_type{1}, cross,
@@ -1014,6 +1065,7 @@ template <typename Linalg, typename Configuration> void test_transaction(TestCon
             correct(f.state, f.P, f.r, f.H, f.V, f.minimum_norm, out, covariance, permission);
         });
     }
+
     fixture_type fixture;
     auto bad = fixture;
     bad.H(0U, 0U) = std::numeric_limits<value_type>::quiet_NaN();
@@ -1029,6 +1081,7 @@ template <typename Linalg, typename Configuration> void test_transaction(TestCon
     {
         bad.state.p_n(0U) = std::numeric_limits<value_type>::quiet_NaN();
     }
+
     check_failure(test, profile, bad, fixture.minimum_norm, Status::not_positive_definite,
                   "transaction propagates first solve failure without publishing nominal or covariance");
     // Retry uses an unchanged prior after failure. The successful oracle has

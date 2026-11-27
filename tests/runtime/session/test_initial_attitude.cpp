@@ -29,6 +29,7 @@ using namespace ins_test;
 using Capabilities = formal_eskf::runtime::InsCapabilities;
 
 Session::InitialAttitude prior() { return {{}, {0.0001, 0.0002, 0.0003}}; }
+
 bool initialize(Fixture<> & f, Session::InitialAttitude const & attitude)
 {
     f.imu.time_us = 1000000;
@@ -39,6 +40,7 @@ bool initialize(Fixture<> & f, Session::InitialAttitude const & attitude)
     }
     return result;
 }
+
 void covariance(Context & test, std::string_view profile)
 {
     Fixture f;
@@ -86,6 +88,7 @@ void covariance(Context & test, std::string_view profile)
                     cap.covariance_time_us == f.imu.time_us && f.session.diagnostics(f.imu.time_us).predictions == 0,
                 profile, "all seed participants share one endpoint; initial IMU is not integrated twice");
 }
+
 void rejection(Context & test, std::string_view profile)
 {
     for (double value : {0., -1., double(NAN), double(INFINITY)})
@@ -117,6 +120,7 @@ void rejection(Context & test, std::string_view profile)
     test.expect(collected.tick() && !collected.session.initialized() && !initialize(collected, prior()), profile,
                 "external initialization is an explicit first-input route, not a late override of collection");
 }
+
 void input_and_motion(Context & test, std::string_view profile)
 {
     enum class Invalid
@@ -170,6 +174,7 @@ void input_and_motion(Context & test, std::string_view profile)
     test.expect(std::abs(q.q0() - std::cos(angle / 2)) < 1e-12 && std::abs(q.q3() - std::sin(angle / 2)) < 1e-12,
                 profile, "analytic constant-rate rotation; no repeated seed or duplicated first interval");
 }
+
 void uncertain_prior(Context & test, std::string_view profile)
 {
     Fixture f;
@@ -192,6 +197,7 @@ void uncertain_prior(Context & test, std::string_view profile)
                     (cap.heading.reasons & Capabilities::regularized) != 0,
                 profile, "numerical covariance reduction must not resurrect external heading information");
 }
+
 void navigation(Context & test, std::string_view profile)
 {
     auto parameters = ins_test_profile::parameters<Session>();
@@ -207,6 +213,7 @@ void navigation(Context & test, std::string_view profile)
                     f.session.magnetic_state().lifecycle.state().last_reset_time_us == 0,
                 profile, "no magnetic operation is fabricated by the prior");
 }
+
 void magnetic_takeover(Context & test, std::string_view profile)
 {
     auto parameters = ins_test_profile::parameters<Session>();
@@ -241,6 +248,7 @@ void magnetic_takeover(Context & test, std::string_view profile)
                 profile, "unreferenced compass cannot silently replace true-North axes");
 }
 } // namespace
+
 int main(int argc, char ** argv)
 {
     formal_eskf::test::configure_backend_test();

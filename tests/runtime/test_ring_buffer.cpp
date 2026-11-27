@@ -55,8 +55,11 @@ struct ObservedSample
     static inline std::array<ObservedSample const *, 257> destinations{};
 
     ObservedSample() = default;
+
     ObservedSample(std::uint64_t time, std::uint32_t payload) : time_us(time), value(payload) {}
+
     ObservedSample(ObservedSample const &) = default;
+
     ObservedSample & operator=(ObservedSample const & sample)
     {
         time_us = sample.time_us;
@@ -67,11 +70,14 @@ struct ObservedSample
             {
                 destinations[assignments] = this;
             }
+
             ++assignments;
             zero_assignments += time_us == 0 && value == 0 ? 1 : 0;
         }
+
         return *this;
     }
+
     static void begin()
     {
         assignments = 0;
@@ -79,6 +85,7 @@ struct ObservedSample
         destinations.fill(nullptr);
         observing = true;
     }
+
     static void end() { observing = false; }
 };
 
@@ -105,6 +112,7 @@ void allocation_and_reset(Context & test, std::string_view profile)
     {
         buffer.push({time, static_cast<std::uint32_t>(time * 17)});
     }
+
     auto const oldest = buffer.get_oldest_index();
     auto const oldest_time = buffer.get_oldest().time_us;
     auto const newest_time = buffer.get_newest().time_us;
@@ -121,11 +129,13 @@ void allocation_and_reset(Context & test, std::string_view profile)
     buffer.push({9, 153});
     test.expect(buffer.entries() == 3 && buffer.get_oldest().time_us == 7 && buffer.get_newest().time_us == 9, profile,
                 "same/invalid allocation preserves next-write position for continuation");
+
     auto slot = buffer.get_oldest_index();
     for (std::uint64_t time = 7; time <= 9; ++time)
     {
         test.expect(buffer[slot].time_us == time && buffer[slot].value == time * 17, profile,
                     "continued history retains exactly the expected suffix");
+
         slot = (slot + 1) % 3;
     }
 
@@ -140,21 +150,26 @@ void allocation_and_reset(Context & test, std::string_view profile)
         {
             buffer.reset();
         }
+
         ObservedSample::end();
         test.expect(ObservedSample::assignments == 8 && ObservedSample::zero_assignments == 8, profile,
                     "reset clears full backing, including inaccessible unused slots");
+
         for (std::size_t index = 0; index < 8; ++index)
         {
             test.expect(ObservedSample::destinations[index] != nullptr, profile, "cleared destination exists");
+
             for (std::size_t prior = 0; prior < index; ++prior)
             {
                 test.expect(ObservedSample::destinations[index] != ObservedSample::destinations[prior], profile,
                             "each backing slot cleared exactly once");
             }
         }
+
         test.expect(buffer.entries() == 0 && buffer.get_oldest_index() == 0 &&
                         buffer.get_length() == (change_length ? 2U : 3U),
                     profile, "reset preserves selected length and clears indices");
+
         buffer.push({1, 17});
         test.expect(buffer.get_oldest().time_us == 1 && buffer.get_newest().value == 17, profile,
                     "new timeline after explicit reset");
@@ -174,12 +189,14 @@ template <std::size_t Capacity> void push_history(Context & test, std::string_vi
             test.expect(buffer.entries() == count && buffer.get_oldest().time_us == number - count + 1 &&
                             buffer.get_newest() == input && input.value == number * 17,
                         profile, "push retains exactly the newest bounded chronological suffix");
+
             auto physical = buffer.get_oldest_index();
             for (std::size_t offset = 0; offset < count; ++offset)
             {
                 auto const time = number - count + 1 + offset;
                 test.expect(buffer[physical] == Sample{time, static_cast<std::uint32_t>(time * 17)}, profile,
                             "all live timestamps and payloads retain chronological order");
+
                 physical = (physical + 1) % length;
             }
         }
@@ -211,6 +228,7 @@ void selection(Context & test, std::string_view profile)
                     Sample discarded;
                     test.expect(buffer.pop_first_older_than(2, &discarded), profile, "prepare wrapped empty ring");
                 }
+
                 std::vector<Sample> pending;
                 for (std::size_t index = 0; index < retained; ++index)
                 {
@@ -218,6 +236,7 @@ void selection(Context & test, std::string_view profile)
                     pending.push_back(input);
                     buffer.push(input);
                 }
+
                 Sample expected{777, 999};
                 std::size_t retired = 0;
                 for (auto const & input : pending)
@@ -228,10 +247,12 @@ void selection(Context & test, std::string_view profile)
                         ++retired;
                     }
                 }
+
                 Sample output{777, 999};
                 bool const selected = buffer.pop_first_older_than(horizon, &output, 100);
                 test.expect(selected == (retired > 0) && output == expected && buffer.entries() == retained - retired,
                             profile, "newest eligible sample selected, prefix retired and future preserved");
+
                 if (retired < retained)
                 {
                     test.expect(buffer.get_oldest() == pending[retired] && buffer.get_newest() == pending.back(),
@@ -278,22 +299,26 @@ void null_output(Context & test, std::string_view profile)
                 buffer.push(input);
                 control.push(input);
             }
+
             std::array<Sample, 3> before{buffer[0], buffer[1], buffer[2]};
             auto const count = buffer.entries();
             auto const oldest = buffer.get_oldest_index();
             test.expect(!buffer.pop_first_older_than(horizon, nullptr, 1), profile, "null output fails");
             test.expect(buffer.entries() == count && buffer.get_oldest_index() == oldest && buffer.get_length() == 3,
                         profile, "null output preserves metadata");
+
             for (std::size_t index = 0; index < 3; ++index)
             {
                 test.expect(buffer[index] == before[index], profile, "null output preserves every payload/tag");
             }
+
             Sample const next{pushes + 1, 123};
             buffer.push(next);
             control.push(next);
             test.expect(buffer.get_newest() == control.get_newest() && buffer.get_oldest() == control.get_oldest() &&
                             buffer.entries() == control.entries(),
                         profile, "common continuation detects hidden next-write mutation");
+
             Sample output{}, expected{};
             bool const selected = buffer.pop_first_older_than(pushes + 1, &output);
             bool const control_selected = control.pop_first_older_than(pushes + 1, &expected);
@@ -319,6 +344,7 @@ void time_and_horizon_aliases(Context & test, std::string_view profile)
                 profile, "ordered subtraction near UINT64_MAX");
     test.expect(!buffer.pop_first_older_than(maximum, &output, 0) && output == Sample{maximum - 1, 2}, profile,
                 "zero window excludes exact horizon");
+
     for (bool alias_storage : {false, true})
     {
         buffer.reset();
@@ -341,6 +367,7 @@ void slot_access(Context & test, std::string_view profile)
     {
         buffer.push({time, static_cast<std::uint32_t>(time)});
     }
+
     auto const oldest = buffer.get_oldest_index();
     RingBuffer<Sample, 3> const & view = buffer;
     for (int repetition = 0; repetition < 3; ++repetition)
@@ -351,6 +378,7 @@ void slot_access(Context & test, std::string_view profile)
                         view.get_oldest_index() == oldest,
                     profile, "endpoint views are nonconsuming and const slot access is physical");
     }
+
     buffer[oldest].value = 123;
     Sample output;
     test.expect(buffer.pop_first_older_than(3, &output, 1) && output == Sample{3, 123}, profile,
@@ -369,11 +397,13 @@ void size_reporting(Context & test, std::string_view profile)
                         buffer.get_total_size() == sizeof(buffer) &&
                         buffer.get_used_size() == metadata + count * sizeof(Sample),
                     profile, "size_t occupancy and logical byte reporting beyond 255 entries");
+
         if (count < 257)
         {
             buffer.push({count + 1, static_cast<std::uint32_t>(count)});
         }
     }
+
     test.expect(buffer.allocate(1) && buffer.get_total_size() == sizeof(buffer) && buffer.get_used_size() == metadata,
                 profile, "logical length does not resize reserved backing");
 }
@@ -388,12 +418,14 @@ void bounded_copies(Context & test, std::string_view profile)
         ObservedSample::end();
         test.expect(ObservedSample::assignments == 1, profile, "push copies exactly one bounded payload");
     }
+
     ObservedSample output;
     ObservedSample::begin();
     bool const selected = buffer.pop_first_older_than(257, &output);
     ObservedSample::end();
     test.expect(selected && output.time_us == 257 && ObservedSample::assignments == 1, profile,
                 "pop copies one selected payload, retires tags without payload copies");
+
     ObservedSample::begin();
     buffer.reset();
     ObservedSample::end();
@@ -414,10 +446,12 @@ void imu_history_scenario(Context & test)
         bool const loses_required_imu =
             history.entries() == history.get_length() && history.get_oldest().time_us > predicted_time;
         test.expect(!loses_required_imu, "IMU scenario", "only already processed history rolls out");
+
         if (loses_required_imu)
         {
             return;
         }
+
         history.push({static_cast<std::uint64_t>(tick) * 10000, 10000, tick});
         // Repeated callbacks without a new completed interval must not predict twice.
         for (unsigned callback = 0; callback < 2; ++callback)
@@ -426,18 +460,22 @@ void imu_history_scenario(Context & test)
             {
                 continue;
             }
+
             auto const & delayed = history.get_oldest();
             if (history.get_newest().time_us - delayed.time_us < delay_us || delayed.time_us <= predicted_time)
             {
                 continue;
             }
+
             test.expect(delayed.time_us - predicted_time == delayed.interval_us, "IMU scenario",
                         "each predicted interval begins at the committed state epoch");
+
             velocity += delayed.delta_velocity;
             predicted_time = delayed.time_us;
             predicted_epochs.push_back(predicted_time);
         }
     }
+
     test.expect(predicted_epochs == std::vector<std::uint64_t>{10000, 20000, 30000, 40000} && velocity == 10,
                 "IMU scenario", "warmup, steady rollover and duplicate callbacks preserve every interval once");
 
@@ -447,9 +485,11 @@ void imu_history_scenario(Context & test)
     {
         history.push({time, 1000, 1});
     }
+
     test.expect(history.entries() == history.get_length() &&
                     history.get_newest().time_us - history.get_oldest().time_us < delay_us,
                 "IMU scenario", "fullness alone does not establish the required time span");
+
     bool const loses_required_imu =
         history.entries() == history.get_length() && history.get_oldest().time_us > predicted_time;
     // A caller must fault here, before a new push would hide the missing interval.
@@ -457,6 +497,7 @@ void imu_history_scenario(Context & test)
     {
         history.push({14000, 1000, 1});
     }
+
     test.expect(loses_required_imu && history.get_oldest().time_us == 10000 && history.get_newest().time_us == 13000,
                 "IMU scenario", "insufficient retention is detected before unprocessed history is overwritten");
 }
@@ -472,10 +513,12 @@ void observation_scenario(Context & test)
         {
             return false;
         }
+
         if (history.entries() == history.get_length())
         {
             ++overwritten;
         }
+
         history.push(sample);
         admitted_time = sample.time_us;
         return true;
@@ -486,6 +529,7 @@ void observation_scenario(Context & test)
                 "observation scenario", "caller rejects invalid, duplicate and out-of-order source times");
     test.expect(admit({130, 1, true, false}) && overwritten == 1, "observation scenario",
                 "caller records pending-observation loss before full push");
+
     Observation selected;
     test.expect(history.pop_first_older_than(115, &selected, 30) && selected.time_us == 110 && !selected.in_air &&
                     selected.qualified && selected.calibration == 1,
@@ -501,6 +545,7 @@ void observation_scenario(Context & test)
     test.expect(history.entries() == 0 && !admit({135, 1, true, true}) && !admit({134, 1, true, true}),
                 "observation scenario", "caller watermark survives complete consumption");
     test.expect(admit({180, 1, true, true}), "observation scenario", "pending sample from old calibration");
+
     // Explicit source restart after its lifecycle/state reset policy has been resolved.
     history.reset();
     admitted_time = 0;
@@ -517,6 +562,7 @@ bool correct_output_history(RingBuffer<OutputSample, 4> & history, std::uint64_t
     {
         return false;
     }
+
     auto index = history.get_oldest_index();
     for (std::size_t offset = 0; offset < history.entries(); ++offset)
     {
@@ -524,6 +570,7 @@ bool correct_output_history(RingBuffer<OutputSample, 4> & history, std::uint64_t
         history[index].position += position_delta;
         index = (index + 1) % history.get_length();
     }
+
     return true;
 }
 
@@ -532,37 +579,47 @@ void output_history_scenario(Context & test)
     RingBuffer<OutputSample, 4> history(3);
     RingBuffer<ImuInterval, 4> imu(3);
     test.expect(!correct_output_history(history, 0, 5, 50), "output scenario", "empty history cannot supply feedback");
+
     for (int tick = 1; tick <= 4; ++tick)
     {
         history.push({static_cast<std::uint64_t>(tick) * 10000, tick, tick * 10});
         imu.push({static_cast<std::uint64_t>(tick) * 10000, 10000, tick});
     }
+
     test.expect(correct_output_history(history, imu.get_oldest().time_us, 5, 50), "output scenario",
                 "matching delayed epochs permit history correction");
+
     std::array const expected{OutputSample{20000, 7, 70}, OutputSample{30000, 8, 80}, OutputSample{40000, 9, 90}};
     auto index = history.get_oldest_index();
     for (auto const & sample : expected)
     {
         test.expect(history[index] == sample, "output scenario",
                     "correction changes retained payloads, not timestamps");
+
         index = (index + 1) % history.get_length();
     }
+
     test.expect(history.entries() == 3 && history.get_newest() == expected.back(), "output scenario",
                 "latest corrected state remains available without consuming history");
+
     imu.push({50000, 10000, 5});
     test.expect(history.get_length() == imu.get_length() &&
                     !correct_output_history(history, imu.get_oldest().time_us, 1, 1),
                 "output scenario", "equal buffer lengths do not authorize feedback at different epochs");
+
     index = history.get_oldest_index();
     for (auto const & sample : expected)
     {
         test.expect(history[index] == sample, "output scenario", "epoch mismatch preserves every output sample");
+
         index = (index + 1) % history.get_length();
     }
+
     history.reset();
     imu.reset();
     test.expect(history.entries() == 0 && imu.entries() == 0 && !correct_output_history(history, 20000, 1, 1),
                 "output scenario", "session reset invalidates history and old feedback together");
+
     history.push({100000, 0, 0});
     test.expect(history.entries() == 1 && history.get_newest() == OutputSample{100000, 0, 0}, "output scenario",
                 "restart seeds a real epoch without pretending the history is full");
@@ -587,6 +644,7 @@ template <std::size_t Capacity> void sequence_model(Context & test)
             {
                 pending.erase(pending.begin());
             }
+
             pending.push_back(sample);
             last_time = sample.time_us;
             buffer.push(sample);
@@ -610,6 +668,7 @@ template <std::size_t Capacity> void sequence_model(Context & test)
                     }
                 }
             }
+
             pending.erase(pending.begin(), pending.begin() + static_cast<std::ptrdiff_t>(removed));
             Sample output{77, 99};
             test.expect(buffer.pop_first_older_than(horizon, &output, age) == selected && output == expected,
@@ -623,15 +682,19 @@ template <std::size_t Capacity> void sequence_model(Context & test)
             length = 1 + (random % Capacity);
             test.expect(buffer.allocate(length), "sequence", "bounded startup reconfiguration");
         }
+
         test.expect(buffer.entries() == pending.size() && buffer.get_length() == length, "sequence",
                     "active count and length agree with linear model");
+
         RingBuffer<Sample, Capacity> const & view = buffer;
         auto index = view.get_oldest_index();
         for (auto const & expected : pending)
         {
             test.expect(view[index] == expected, "sequence", "all retained timestamps and payloads agree");
+
             index = (index + 1) % length;
         }
+
         if (!pending.empty())
         {
             test.expect(view.get_oldest() == pending.front() && view.get_newest() == pending.back(), "sequence",
@@ -663,6 +726,7 @@ template <std::size_t Capacity> void exhaustive_short_sequences(Context & test)
                 {
                     pending.erase(pending.begin());
                 }
+
                 pending.push_back(input);
                 buffer.push(input);
             }
@@ -679,6 +743,7 @@ template <std::size_t Capacity> void exhaustive_short_sequences(Context & test)
                         expected = input;
                     }
                 }
+
                 pending.erase(pending.begin(), pending.begin() + static_cast<std::ptrdiff_t>(removed));
                 Sample output{777, 999};
                 test.expect(buffer.pop_first_older_than(horizon, &output, 100) == (removed != 0) && output == expected,
@@ -698,20 +763,25 @@ template <std::size_t Capacity> void exhaustive_short_sequences(Context & test)
                     pending.clear();
                     next_time = 5;
                 }
+
                 length = requested;
                 test.expect(buffer.allocate(length), "exhaustive", "valid reconfiguration");
             }
+
             test.expect(buffer.entries() == pending.size() && buffer.get_length() == length &&
                             buffer.get_oldest_index() < length,
                         "exhaustive", "metadata matches independent list after each action");
+
             std::array<bool, Capacity> active{};
             auto index = buffer.get_oldest_index();
             for (auto const & expected : pending)
             {
                 active[index] = true;
                 test.expect(buffer[index] == expected, "exhaustive", "all retained payloads match");
+
                 index = (index + 1) % length;
             }
+
             for (std::size_t slot = 0; slot < length; ++slot)
             {
                 if (!active[slot])

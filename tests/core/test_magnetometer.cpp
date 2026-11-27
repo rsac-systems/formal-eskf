@@ -46,6 +46,7 @@ template <typename Matrix> bool same_bits(Matrix const & a, Matrix const & b)
             }
         }
     }
+
     return true;
 }
 
@@ -57,6 +58,7 @@ template <typename State> bool same_state(State const & a, State const & b)
         result = result && same_bits(a.p_n, b.p_n) && same_bits(a.v_n, b.v_n) && same_bits(a.b_a, b.b_a) &&
                  same_bits(a.b_g, b.b_g);
     }
+
     return result;
 }
 
@@ -148,8 +150,10 @@ template <typename Fixture> struct MagneticReference
             {
                 h[row] += R[column][row] * fixture.m_n(column);
             }
+
             r(row) = static_cast<value_type>(static_cast<long double>(fixture.m_b(row)) - h[row]);
         }
+
         long double const skew[3][3]{{0, -h[2], h[1]}, {h[2], 0, -h[0]}, {-h[1], h[0], 0}};
         for (std::size_t row = 0U; row < 3U; ++row)
         {
@@ -171,6 +175,7 @@ void test_magnetometer_jacobian(TestContext & test, std::string_view profile)
                     value_type{0.5}, value_type{0.5}, value_type{0.5}, value_type{0.5}, Fixture::minimum_norm,
                     fixture.state.q_nb) == Status::success,
                 profile, "cyclic rotation is valid");
+
     // R rotates (x,y,z) to (z,x,y), so R^T*m_n = (1,-3,2).
     // This oracle deliberately does not call production inverse_rotate or hat.
     auto const H = formal_eskf::magnetometer_jacobian(fixture.state, fixture.m_n);
@@ -186,10 +191,12 @@ void test_magnetometer_jacobian(TestContext & test, std::string_view profile)
                         "Jacobian has correct rotation direction, sign, scale and state columns");
         }
     }
+
     test.expect(formal_eskf::so3::UnitQuaternion<Linalg>::from_coefficients(
                     value_type{2}, value_type{-1}, value_type{3}, value_type{4}, Fixture::minimum_norm,
                     fixture.state.q_nb) == Status::success,
                 profile, "tilted attitude is valid");
+
     auto const tilted_H = formal_eskf::magnetometer_jacobian(fixture.state, fixture.m_n);
     // Supplemental finite-difference regression; a general truncation/rounding
     // acceptance envelope remains unresolved.
@@ -208,6 +215,7 @@ void test_magnetometer_jacobian(TestContext & test, std::string_view profile)
             formal_eskf::inject_nominal(fixture.state, positive, Fixture::minimum_norm, plus) == Status::success &&
                 formal_eskf::inject_nominal(fixture.state, negative, Fixture::minimum_norm, minus) == Status::success,
             profile, "finite-difference injections succeed");
+
         auto const R_plus = reference_rotation(plus.q_nb);
         auto const R_minus = reference_rotation(minus.q_nb);
         std::array<long double, 3U> h_plus{}, h_minus{};
@@ -219,6 +227,7 @@ void test_magnetometer_jacobian(TestContext & test, std::string_view profile)
                 h_minus[row] += R_minus[axis][row] * fixture.m_n(axis);
             }
         }
+
         for (std::size_t row = 0U; row < 3U; ++row)
         {
             auto const derivative = static_cast<value_type>((h_plus[row] - h_minus[row]) / (2 * step));
@@ -242,6 +251,7 @@ void test_magnetometer_analytic(TestContext & test, std::string_view profile, ty
                                      Fixture::minimum_norm, output, P_output) == Status::success,
                 profile, "zero residual succeeds");
     test.expect(same_state(output, fixture.state), profile, "zero residual leaves nominal state unchanged");
+
     // H^T H = diag(0,4,4). Protection retains only the heading gain row.
     for (std::size_t row = 0U; row < Fixture::size; ++row)
     {
@@ -255,10 +265,12 @@ void test_magnetometer_analytic(TestContext & test, std::string_view profile, ty
                         "zero-residual covariance matches the selected magnetic gain policy");
         }
     }
+
     fixture.m_b(2U) = value_type{0.125};
     test.expect(correct_magnetometer(fixture.state, fixture.P, fixture.m_b, fixture.m_n, fixture.V,
                                      Fixture::minimum_norm, output, P_output) == Status::success,
                 profile, "nonzero magnetic residual succeeds");
+
     constexpr long double angle = 0.05L;
 #if !ESKF_MAG_TILT
     // K_theta(1,2)=2/5 gives delta_theta=(0,0.05,0). Independent Exp and
@@ -267,6 +279,7 @@ void test_magnetometer_analytic(TestContext & test, std::string_view profile, ty
                     near(output.q_nb.q2(), static_cast<value_type>(std::sin(angle / 2)), tolerance) &&
                     output.q_nb.q1() == value_type{0} && output.q_nb.q3() == value_type{0},
                 profile, "full model corrects pitch with the expected sign and magnitude");
+
 #if ESKF_RESET_APPROX
     constexpr long double diagonal = 1;
     constexpr long double off_diagonal = angle / 2;
@@ -285,6 +298,7 @@ void test_magnetometer_analytic(TestContext & test, std::string_view profile, ty
             {
                 expected += G[row][k] * variances[k] * G[column][k];
             }
+
             test.expect(near(P_output(Fixture::attitude_offset + row, Fixture::attitude_offset + column),
                              static_cast<value_type>(expected), tolerance),
                         profile, "nonzero correction covariance matches independent reset oracle");
@@ -293,6 +307,7 @@ void test_magnetometer_analytic(TestContext & test, std::string_view profile, ty
 
 #else
     test.expect(same_state(output, fixture.state), profile, "protected mode rejects the same pitch-only correction");
+
     // K' retains only K_z,y=-2/5. With a Z residual the attitude stays put,
     // but heading variance still decreases. Pitch variance must NOT decrease.
     for (std::size_t row = 0U; row < Fixture::size; ++row)
@@ -305,6 +320,7 @@ void test_magnetometer_analytic(TestContext & test, std::string_view profile, ty
                         "protected Joseph update preserves tilt variance instead of shrinking it post hoc");
         }
     }
+
     fixture.m_b(1U) = value_type{0.125};
     test.expect(fixture.correct(output, P_output) == Status::success &&
                     near(output.q_nb.q0(), static_cast<value_type>(std::cos(angle / 2)), tolerance) &&
@@ -330,6 +346,7 @@ void expect_magnetic_failure(TestContext & test, std::string_view profile, Fixtu
             separate_state.p_n(0U) = std::numeric_limits<value_type>::quiet_NaN();
             separate_state.v_n(1U) = -value_type{0};
         }
+
         auto separate_P = fixture.P * value_type{7};
         separate_P(0U, 1U) = -value_type{0};
         separate_P(1U, 0U) = std::numeric_limits<value_type>::quiet_NaN();
@@ -395,6 +412,7 @@ void test_failure_selection(TestContext & test, std::string_view profile)
                         Status::non_finite_result &&
                     same_bits(projector_output, projector_before),
                 profile, "internal projector overflow preserves its disjoint output");
+
     // Projection can overflow individual coefficients even with a finite K and
     // a valid rank-one projector. Its internal scratch gain must not be changed.
     auto const down = Fixture::vector_type::from_row_major(
@@ -426,6 +444,7 @@ void test_magnetometer_tilt(TestContext & test, std::string_view profile, typena
                         static_cast<value_type>(coefficients[2]), static_cast<value_type>(coefficients[3]),
                         Fixture::minimum_norm, fixture.state.q_nb) == Status::success,
                     profile, "tilt-protection prior includes tilted and Euler-singular attitudes");
+
         for (std::size_t row = 0U; row < Fixture::size; ++row)
         {
             for (std::size_t column = 0U; column < Fixture::size; ++column)
@@ -433,6 +452,7 @@ void test_magnetometer_tilt(TestContext & test, std::string_view profile, typena
                 fixture.P(row, column) += static_cast<value_type>((row + 1U) * (column + 1U)) / value_type{256};
             }
         }
+
         fixture.V = Fixture::matrix3_type::from_row_major({value_type{2}, value_type{0.25}, value_type{-0.125},
                                                            value_type{0.25}, value_type{1}, value_type{0.125},
                                                            value_type{-0.125}, value_type{0.125}, value_type{1.5}});
@@ -448,6 +468,7 @@ void test_magnetometer_tilt(TestContext & test, std::string_view profile, typena
                 bias_update.accelerometer[axis] = (permissions & (1U << axis)) != 0U;
                 bias_update.gyroscope[axis] = (permissions & (1U << (3U + axis))) != 0U;
             }
+
             MagneticReference<Fixture> const independent_input(fixture);
             auto const independent = formal_eskf::test::reference::reference_correction(
                 independent_input, ESKF_RESET_APPROX != 0, bias_update, true);
@@ -460,12 +481,14 @@ void test_magnetometer_tilt(TestContext & test, std::string_view profile, typena
                 auto & P_output = (aliases & 2U) != 0U ? input.P : separate_P;
                 test.expect(input.correct(output, P_output, bias_update) == Status::success, profile,
                             "tilt-protected correction supports all independent aliases and bias permissions");
+
                 auto const after_R = reference_rotation(output.q_nb);
                 for (std::size_t axis = 0U; axis < 3U; ++axis)
                 {
                     test.expect(std::abs(after_R[2][axis] - before_R[2][axis]) <= static_cast<long double>(tolerance),
                                 profile, "navigation Down in body is unchanged, including at 90 degree pitch");
                 }
+
                 test.expect(formal_eskf::test::reference::matches_reference(independent_input, independent, output,
                                                                             P_output, tolerance),
                             profile,
@@ -477,6 +500,7 @@ void test_magnetometer_tilt(TestContext & test, std::string_view profile, typena
                             profile, "protected correction leaves every non-output input unchanged");
             }
         }
+
         auto opposite = fixture;
         opposite.state.q_nb = -fixture.state.q_nb;
         typename Fixture::state_type positive_output, negative_output;
@@ -486,6 +510,7 @@ void test_magnetometer_tilt(TestContext & test, std::string_view profile, typena
                         formal_eskf::so3::same_rotation(positive_output.q_nb, negative_output.q_nb, tolerance) &&
                         formal_eskf::linalg::max_abs(positive_P - negative_P) <= tolerance,
                     profile, "protected mode respects quaternion sign equivalence");
+
         auto scaled = fixture;
         scaled.m_b = fixture.m_b * value_type{2};
         scaled.m_n = fixture.m_n * value_type{2};
@@ -507,6 +532,7 @@ template <typename Linalg, typename Configuration> auto coupled_fixture(TestCont
                     value_type{0.5}, value_type{0.5}, value_type{0.5}, value_type{0.5}, Fixture::minimum_norm,
                     fixture.state.q_nb) == Status::success,
                 profile, "cyclic tilted magnetic prior is valid");
+
     fixture.m_b = Fixture::vector_type::from_row_major({value_type{1.125}, value_type{-3.0625}, value_type{2.25}});
     fixture.V = Fixture::matrix3_type::from_row_major({value_type{2}, value_type{0.25}, value_type{-0.125},
                                                        value_type{0.25}, value_type{1}, value_type{0.125},
@@ -518,6 +544,7 @@ template <typename Linalg, typename Configuration> auto coupled_fixture(TestCont
             fixture.P(row, column) += static_cast<value_type>((row + 1U) * (column + 1U)) / value_type{256};
         }
     }
+
     return fixture;
 }
 
@@ -543,6 +570,7 @@ void test_strength_domain(TestContext & test, std::string_view profile)
             fail(bad, Fixture::minimum_norm, Status::non_finite_input, "invalid reference field rolls back");
         }
     }
+
     auto bad = fixture;
     bad.m_b = Fixture::vector_type::zero();
     fail(bad, Fixture::minimum_norm, Status::domain_error, "zero measured field rolls back");
@@ -557,6 +585,7 @@ void test_strength_domain(TestContext & test, std::string_view profile)
                                                                             value_type{0}, Fixture::minimum_norm,
                                                                             bad.state.q_nb) == Status::success,
                 profile, "overflow-test quaternion is valid");
+
     bad.m_n(2U) = std::numeric_limits<value_type>::max();
     fail(bad, Fixture::minimum_norm, Status::non_finite_result, "finite rotation overflow rolls back");
 
@@ -567,6 +596,7 @@ void test_strength_domain(TestContext & test, std::string_view profile)
         vector = Fixture::vector_type::from_row_major({-value_type{0}, value_type{0}, -value_type{0}});
         fail(bad, Fixture::minimum_norm, Status::domain_error, "signed zero vector remains an absent magnetic field");
     }
+
     for (value_type const magnitude :
          {std::numeric_limits<value_type>::denorm_min(), std::numeric_limits<value_type>::min(), value_type{2},
           std::numeric_limits<value_type>::max()})
@@ -586,6 +616,7 @@ void test_strength_domain(TestContext & test, std::string_view profile)
                         "finite nonzero tiny/vertical/large field is accepted without a squared-strength health gate");
         }
     }
+
     auto original = coupled_fixture<Linalg, Configuration>(test, profile);
     auto scaled = original;
     scaled.m_b = scaled.m_b * value_type{2};
@@ -621,6 +652,7 @@ template <typename Linalg, typename Configuration> void test_wrapper(TestContext
                         same_bits(input.m_n, fixture.m_n) && same_bits(input.V, fixture.V),
                     profile, "wrapper preserves all borrowed measurement and distinct prior objects");
     }
+
     auto opposite = fixture;
     opposite.state.q_nb = -opposite.state.q_nb;
     MagneticReference<Fixture> const opposite_input(opposite);
@@ -630,6 +662,7 @@ template <typename Linalg, typename Configuration> void test_wrapper(TestContext
                     formal_eskf::test::reference::matches_reference(opposite_input, opposite_reference, opposite.state,
                                                                     opposite.P, tolerance),
                 profile, "opposite quaternion sign follows the same full physical correction model");
+
     test_magnetometer_analytic<Linalg, Configuration>(test, profile, tolerance);
 }
 
@@ -647,6 +680,7 @@ template <typename Linalg, typename Configuration> void test_exact_policy(TestCo
                             fixture.state.q_nb) == Status::success,
                         profile, "exact tilted projection control");
         }
+
         fixture.m_n = Fixture::vector_type::from_row_major({value_type{2}, value_type{0}, value_type{0}});
         fixture.m_b =
             cyclic ? Fixture::vector_type::from_row_major({value_type{0}, value_type{0}, value_type{2}}) : fixture.m_n;
@@ -662,6 +696,7 @@ template <typename Linalg, typename Configuration> void test_exact_policy(TestCo
             expected_P(Fixture::attitude_offset + axis, Fixture::attitude_offset + axis) =
                 observed ? value_type{0.75} : value_type{1};
         }
+
         MagneticReference<Fixture> const reference_input(fixture);
         auto const reference = formal_eskf::test::reference::reference_correction(
             reference_input, ESKF_RESET_APPROX != 0, {}, ESKF_MAG_TILT != 0);
@@ -706,12 +741,14 @@ void test_geometric_invariant(TestContext & test, std::string_view profile)
         auto const old_state = input.state;
         test.expect(input.correct(input.state, input.P) == Status::success, profile,
                     "geometric control exercises finite and Taylor-small actual corrections");
+
         auto const after = reference_rotation(input.state.q_nb);
         long double difference = 0;
         for (std::size_t axis = 0U; axis < 3U; ++axis)
         {
             difference = std::max(difference, std::abs(after[2U][axis] - before[2U][axis]));
         }
+
         if (residual_scale == value_type{0})
         {
             test.expect(same_state(input.state, old_state), profile, "zero residual is an explicit geometric control");
@@ -720,6 +757,7 @@ void test_geometric_invariant(TestContext & test, std::string_view profile)
         {
             test.expect(!same_bits(input.state.q_nb.coefficients(), old_state.q_nb.coefficients()), profile,
                         "tilt invariant is tested with a nonzero attitude correction");
+
 #if ESKF_MAG_TILT
             test.expect(difference <= static_cast<long double>(tolerance), profile,
                         "projected correction preserves navigation Down within supplemental numeric envelope");
@@ -747,9 +785,11 @@ template <typename Linalg> void test_bias_forwarding(TestContext & test, std::st
         permissions[2U + axis] = 1U << axis;
         permissions[8U + axis] = 63U ^ (1U << axis);
     }
+
     auto unrestricted = fixture;
     test.expect(unrestricted.correct(unrestricted.state, unrestricted.P) == Status::success, profile,
                 "default magnetic permissions permit correction");
+
     for (unsigned mask : permissions)
     {
         formal_eskf::configuration::Ins::BiasUpdate permission;
@@ -758,6 +798,7 @@ template <typename Linalg> void test_bias_forwarding(TestContext & test, std::st
             permission.accelerometer[axis] = (mask & (1U << axis)) != 0U;
             permission.gyroscope[axis] = (mask & (1U << (3U + axis))) != 0U;
         }
+
         auto const reference = formal_eskf::test::reference::reference_correction(
             reference_input, ESKF_RESET_APPROX != 0, permission, ESKF_MAG_TILT != 0);
         for (unsigned aliases = 0U; aliases < 4U; ++aliases)
@@ -771,22 +812,26 @@ template <typename Linalg> void test_bias_forwarding(TestContext & test, std::st
                 input.correct(state, P, permission) == Status::success &&
                     formal_eskf::test::reference::matches_reference(reference_input, reference, state, P, tolerance),
                 profile, "magnetic permission partitions reach the complete independent gain/Joseph model");
+
             if (mask == 63U)
             {
                 test.expect(same_state(state, unrestricted.state) && same_bits(P, unrestricted.P), profile,
                             "explicit default/all-enabled equals omitted magnetic permissions");
             }
+
             for (std::size_t axis = 0U; axis < 3U; ++axis)
             {
                 test.expect((permission.accelerometer[axis] || state.b_a(axis) == fixture.state.b_a(axis)) &&
                                 (permission.gyroscope[axis] || state.b_g(axis) == fixture.state.b_g(axis)),
                             profile, "disabled magnetic bias axes retain their own estimates");
             }
+
             test.expect(((aliases & 1U) != 0U || same_state(input.state, fixture.state)) &&
                             ((aliases & 2U) != 0U || same_bits(input.P, fixture.P)) &&
                             same_bits(input.m_b, fixture.m_b) && same_bits(input.m_n, fixture.m_n) &&
                             same_bits(input.V, fixture.V),
                         profile, "controlled magnetic correction preserves all distinct inputs");
+
             auto const before_state = state;
             auto const before_P = P;
             test.expect(correct_magnetometer(input.state, input.P, input.m_b, input.m_n, input.V, value_type{0}, state,

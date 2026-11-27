@@ -52,6 +52,7 @@ template <typename Matrix> bool same_bits(Matrix const & a, Matrix const & b)
             }
         }
     }
+
     return true;
 }
 
@@ -83,11 +84,13 @@ template <typename Linalg> void test_selection(TestContext & test, std::string_v
             {
                 expected.accelerometer_bias_random_walk_variance_density(axis) = Scalar{0};
             }
+
             if (gyro_inhibit)
             {
                 expected.gyroscope_bias_random_walk_variance_density(axis) = Scalar{0};
             }
         }
+
         auto selected = fixture.noise;
         auto const original = fixture.noise;
         test.expect(formal_eskf::runtime::inhibit_bias_process_noise(fixture.covariance, fixture.noise, selected) ==
@@ -99,6 +102,7 @@ template <typename Linalg> void test_selection(TestContext & test, std::string_v
                         same_noise(fixture.noise, expected),
                     profile, "whole-noise output alias is supported");
     }
+
     BiasProcessNoiseFixture<Linalg> fixture;
     for (int side : {-1, 0, 1})
     {
@@ -110,18 +114,21 @@ template <typename Linalg> void test_selection(TestContext & test, std::string_v
             fixture.covariance(9U + axis, 9U + axis) = side == 0 ? a : std::nextafter(a, target);
             fixture.covariance(12U + axis, 12U + axis) = side == 0 ? g : std::nextafter(g, target);
         }
+
         auto expected = fixture.noise;
         if (side >= 0)
         {
             expected.accelerometer_bias_random_walk_variance_density = {};
             expected.gyroscope_bias_random_walk_variance_density = {};
         }
+
         auto selected = fixture.noise;
         test.expect(formal_eskf::runtime::inhibit_bias_process_noise(fixture.covariance, fixture.noise, selected) ==
                             Status::success &&
                         same_noise(selected, expected),
                     profile, "one ULP below selects; exact equality and one ULP above inhibit");
     }
+
     fixture.noise = {};
     fixture.covariance = {};
     auto selected = fixture.noise;
@@ -129,6 +136,7 @@ template <typename Linalg> void test_selection(TestContext & test, std::string_v
                         Status::success &&
                     same_noise(selected, fixture.noise),
                 profile, "zero variances and zero intensities are valid");
+
     fixture.noise.accelerometer_bias_random_walk_variance_density(0U) = Scalar{1};
     fixture.noise.gyroscope_bias_random_walk_variance_density(2U) = Scalar{2};
     test.expect(formal_eskf::runtime::inhibit_bias_process_noise(fixture.covariance, fixture.noise, selected) ==
@@ -165,6 +173,7 @@ template <typename Linalg> void test_failures(TestContext & test, std::string_vi
                         &fixture.noise.gyroscope_bias_random_walk_variance_density};
                     (*groups[field - 2U])(axis) = invalid;
                 }
+
                 auto const expected = std::isfinite(invalid) ? Status::domain_error : Status::non_finite_input;
                 auto const covariance_before = fixture.covariance;
                 auto const input_before = fixture.noise;
@@ -181,6 +190,7 @@ template <typename Linalg> void test_failures(TestContext & test, std::string_vi
             }
         }
     }
+
     for (auto unused : {Scalar{-1}, std::numeric_limits<Scalar>::infinity(), std::numeric_limits<Scalar>::quiet_NaN()})
     {
         BiasProcessNoiseFixture<Linalg> fixture;
@@ -194,6 +204,7 @@ template <typename Linalg> void test_failures(TestContext & test, std::string_vi
                 }
             }
         }
+
         auto const prior = fixture.covariance;
         auto expected = fixture.noise;
         expected.accelerometer_bias_random_walk_variance_density(0U) = Scalar{0};
@@ -230,11 +241,13 @@ template <typename Linalg> void test_prediction(TestContext & test, std::string_
     test.expect(formal_eskf::runtime::inhibit_bias_process_noise(fixture.covariance, fixture.noise,
                                                                  parameters.process_noise) == Status::success,
                 profile, "select noise before prediction");
+
     auto predicted = fixture.covariance;
     test.expect(formal_eskf::predict_covariance(state, fixture.covariance, imu, Scalar{0.125}, parameters, predicted) ==
                         Status::success &&
                     predicted(9U, 9U) == Scalar{1.5},
                 profile, "inhibited variance above threshold is retained, not clamped; cross-covariance is allowed");
+
     auto corrected = fixture.covariance;
     test.expect(formal_eskf::correct_horizontal_velocity(
                     state, fixture.covariance, Vector2{}, Matrix2::identity() * Scalar{2},
@@ -245,6 +258,7 @@ template <typename Linalg> void test_prediction(TestContext & test, std::string_
                         Status::success &&
                     parameters.process_noise.accelerometer_bias_random_walk_variance_density(0U) == Scalar{0.125},
                 profile, "selection from original configuration restores noise after covariance decreases");
+
     for (auto dt : {Scalar{0.125}, Scalar{0.25}})
     {
         test.expect(
@@ -280,6 +294,7 @@ template <typename Linalg> void ordered_controls(TestContext & test, std::string
     test.expect(decltype(state.q_nb)::from_coefficients(Scalar{0.5}, Scalar{0.5}, Scalar{0.5}, Scalar{0.5},
                                                         Scalar{0.125}, state.q_nb) == Status::success,
                 profile, "exact cyclic body-to-navigation rotation");
+
     Health health;
     Policy policy({Scalar{25}, Scalar{3}, Scalar{0.5}, true, true});
     Ins::Parameters<Linalg> parameters;
@@ -293,6 +308,7 @@ template <typename Linalg> void ordered_controls(TestContext & test, std::string
     {
         bool const prior_fault = health.state().bad_vertical_acceleration;
         test.expect(prior_fault == (step == 1), profile, "only preceding health verdict selects current noise");
+
         formal_eskf::runtime::ImuNoiseConditions conditions{prior_fault, {step == 0, false, false}};
         auto expected = fixture.noise;
         for (std::size_t axis = 0; axis < 3; ++axis)
@@ -301,29 +317,35 @@ template <typename Linalg> void ordered_controls(TestContext & test, std::string
             {
                 expected.specific_force_variance(axis) = Scalar{16};
             }
+
             if (!(P(9U + axis, 9U + axis) < expected.specific_force_variance(axis)))
             {
                 expected.accelerometer_bias_random_walk_variance_density(axis) = Scalar{0};
             }
+
             if (!(P(12U + axis, 12U + axis) < expected.angular_rate_variance(axis)))
             {
                 expected.gyroscope_bias_random_walk_variance_density(axis) = Scalar{0};
             }
         }
+
         test.expect(formal_eskf::runtime::select_imu_process_noise(fixture.noise, conditions, Scalar{16},
                                                                    parameters.process_noise) == Status::success &&
                         formal_eskf::runtime::inhibit_bias_process_noise(P, parameters.process_noise,
                                                                          parameters.process_noise) == Status::success &&
                         same_noise(parameters.process_noise, expected),
                     profile, "measurement variance selection precedes bias threshold and starts from configured noise");
+
         if (step == 0)
         {
             test.expect(expected.accelerometer_bias_random_walk_variance_density(0U) == Scalar{0.125}, profile,
                         "clipping-raised variance releases X driving noise that original variance would inhibit");
         }
+
         auto predicted = P;
         test.expect(formal_eskf::predict_covariance(state, P, {}, dt, parameters, predicted) == Status::success,
                     profile, "actual predictor consumes selected process noise");
+
         for (std::size_t axis = 0; axis < 3; ++axis)
         {
             auto const k = body_axis[axis];
@@ -339,17 +361,20 @@ template <typename Linalg> void ordered_controls(TestContext & test, std::string
                 profile,
                 "independent exact cyclic covariance oracle applies one rotation, dt squared, and intensity times dt");
         }
+
         P = predicted;
         typename Policy::Conditions learning{true, false, false, prior_fault, step == 0 ? 1 : 0};
         auto const permissions = policy.update(Scalar{0.125}, Scalar{0.25}, state, {}, learning);
         test.expect(permissions.status == Status::success &&
                         permissions.bias_update.gyroscope == std::array<bool, 3>{true, true, true},
                     profile, "policy receives distinct real sensor periods and preceding fault");
+
         for (std::size_t axis = 0; axis < 3; ++axis)
         {
             test.expect(permissions.bias_update.accelerometer[axis] == (!prior_fault && !(step == 0 && axis == 0)),
                         profile, "learning permission is independent of whether driving-noise intensity was selected");
         }
+
         if (step == 0)
         {
             typename Health::Observations observations;
@@ -390,12 +415,14 @@ template <typename Linalg> void independent_protections(TestContext & test, std:
                     permissions.bias_update.accelerometer == std::array<bool, 3>{false, false, false} &&
                     state.b_a(0U) == Scalar{0.5},
                 profile, "held fault disables learning without erasing estimated bias");
+
     fixture.covariance(9U, 9U) = Scalar{0.5};
     auto selected = fixture.noise;
     test.expect(formal_eskf::runtime::inhibit_bias_process_noise(fixture.covariance, fixture.noise, selected) ==
                         Status::success &&
                     selected.accelerometer_bias_random_walk_variance_density(0U) == Scalar{0.125},
                 profile, "disabled correction learning does not disable covariance-driving noise");
+
     Ins::Parameters<Linalg> parameters;
     parameters.minimum_quaternion_norm = Scalar{0.125};
     parameters.quaternion_squared_norm_tolerance = Scalar{0.125};
@@ -407,6 +434,7 @@ template <typename Linalg> void independent_protections(TestContext & test, std:
                         Status::success &&
                     predicted(9U, 9U) == Scalar{0.515625} && state.b_a(0U) == Scalar{0.5},
                 profile, "nonzero bias held while its selected uncertainty grows by intensity times dt");
+
     predicted(3U, 9U) = Scalar{0.25};
     predicted(9U, 3U) = Scalar{0.25};
     Vector accepted_velocity;
@@ -416,10 +444,12 @@ template <typename Linalg> void independent_protections(TestContext & test, std:
                                               state, predicted, permissions.bias_update) == Status::success &&
                     same_bits(state.b_a, old_bias) && predicted(9U, 9U) == Scalar{0.515625},
                 profile, "actual correction holds inhibited bias gain rows even while driving noise was enabled");
+
     auto const before_limit_P = predicted;
     test.expect(formal_eskf::runtime::limit_bias<Linalg>(state, {Scalar{0.125}, Scalar{0.125}}) == Status::success &&
                     state.b_a(0U) == Scalar{0.125} && same_bits(predicted, before_limit_P),
                 profile, "explicit limiting changes out-of-range bias despite inhibition, without covariance repair");
+
     imu.specific_force_b = state.b_a;
     auto invalid = imu;
     invalid.specific_force_b(2U) = std::numeric_limits<Scalar>::quiet_NaN();
@@ -427,10 +457,12 @@ template <typename Linalg> void independent_protections(TestContext & test, std:
     test.expect(failed.status == Status::non_finite_input &&
                     failed.bias_update.accelerometer == std::array<bool, 3>{false, false, false},
                 profile, "failed policy result never represents successful permissions");
+
     permissions = policy.update(Scalar{0.125}, Scalar{0.25}, state, imu, {true, false, false, false, 0});
     test.expect(permissions.status == Status::success &&
                     permissions.bias_update.accelerometer == std::array<bool, 3>{true, true, true},
                 profile, "valid health and actual sample recover permission without extra timer");
+
     // Independent valid correction prior: S=4I, K_ba,x=1/16 and residual=-1/2.
     auto P = decltype(fixture.covariance)::identity() * Scalar{2};
     P(3U, 9U) = Scalar{0.25};
@@ -442,6 +474,7 @@ template <typename Linalg> void independent_protections(TestContext & test, std:
                                               permissions.bias_update) == Status::success &&
                     state.b_a(0U) == Scalar{0.09375},
                 profile, "recovered learning makes independent exact inward bias correction");
+
     auto const corrected_P = P;
     test.expect(formal_eskf::runtime::limit_bias<Linalg>(state, {Scalar{0.125}, Scalar{0.125}}) == Status::success &&
                     state.b_a(0U) == Scalar{0.09375} && same_bits(P, corrected_P),
@@ -449,6 +482,7 @@ template <typename Linalg> void independent_protections(TestContext & test, std:
 }
 
 } /* end namespace */
+
 int main(int argc, char ** argv)
 {
     formal_eskf::test::configure_backend_test();

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "boundary.hpp"
+
 namespace
 {
 using namespace output_boundary;
@@ -13,6 +14,7 @@ bool held_ok, real_ok;
 unsigned advances, means, stores;
 bool holding;
 } // namespace
+
 namespace formal_eskf::runtime
 {
 template <> ImuSample<output_proof::Backend> ImuInput<output_proof::Backend>::mean_rates() const
@@ -22,10 +24,12 @@ template <> ImuSample<output_proof::Backend> ImuInput<output_proof::Backend>::me
                    "Output prediction requests mean rates once after successful hold");
     __ESBMC_assert(imu_proof::same_input(*this, expected_interval.sample),
                    "Output prediction forwards every integrated input field to mean rates");
+
     ++means;
     return mean;
 }
 } // namespace formal_eskf::runtime
+
 namespace formal_eskf::runtime
 {
 template <>
@@ -35,6 +39,7 @@ bool OutputPredictor<output_proof::Backend, 64>::advance(Sample & candidate, Imu
     check();
     __ESBMC_assert(this == owner && advances < 2 && same_sample(candidate, pending),
                    "Output prediction advances the complete staged candidate on its owner");
+
     bool const held = holding && advances == 0;
     auto const duration =
         held ? static_cast<Scalar>(expected_interval.hold_period_us) * static_cast<Scalar>(1e-6)
@@ -47,8 +52,10 @@ bool OutputPredictor<output_proof::Backend, 64>::advance(Sample & candidate, Imu
                                 (held ? expected_interval.held_rate.angular_rate_b(i) : mean.angular_rate_b(i))),
                        "Output prediction passes the selected held or real rate unchanged");
     }
+
     __ESBMC_assert(same(dt, duration) && (held ? means == 0 : means == 1),
                    "Output prediction forwards segment duration in order");
+
     bool const ok = held ? held_ok : real_ok;
     if (ok)
     {
@@ -61,25 +68,30 @@ bool OutputPredictor<output_proof::Backend, 64>::advance(Sample & candidate, Imu
         {
             result = real_result;
         }
+
         candidate.q_nb = result.q_nb;
         candidate.v_n = result.v_n;
         candidate.p_n = result.p_n;
         pending = candidate;
     }
+
     ++advances;
     return ok;
 }
 } // namespace formal_eskf::runtime
+
 template <> void formal_eskf::runtime::RingBuffer<output_proof::Sample, 64>::push(Sample const & sample)
 {
     check();
     __ESBMC_assert(this == &owner->m_history && stores == 0 && means == 1 && advances == (holding ? 2U : 1U) &&
                        real_ok && (!holding || held_ok),
                    "Output prediction publishes only after every propagation succeeds");
+
     pending.time_us = expected_interval.time_us;
     pending.start_time_us = expected_interval.start_time_us;
     pending.angular_period_us = expected_interval.sample.angular_period_us;
     __ESBMC_assert(same_sample(sample, pending), "Output prediction sends the full endpoint to typed storage");
+
     auto const length = integers[field::length];
     bool const full = integers[field::count] == length;
     integers[field::count] = full ? integers[field::count] : integers[field::count] + 1;
@@ -91,6 +103,7 @@ template <> void formal_eskf::runtime::RingBuffer<output_proof::Sample, 64>::pus
     capture_storage();
     ++stores;
 }
+
 void verify_output_prediction(Output object, Interval interval, Sample hold, Sample real, Rates rates,
                               bool hold_success, bool real_success)
 {
@@ -117,12 +130,14 @@ void verify_output_prediction(Output object, Interval interval, Sample hold, Sam
         eligible = false;
         expected_fault = Output::Fault::epoch_mismatch;
     }
+
     bool const full = integers[field::count] == integers[field::length];
     if (eligible && full && object.m_history.m_samples[integers[field::oldest]].time_us > integers[field::fusion_time])
     {
         eligible = false;
         expected_fault = Output::Fault::history_loss;
     }
+
     if (eligible && integers[field::count] + 1 >= integers[field::length])
     {
         auto const index =
@@ -135,18 +150,21 @@ void verify_output_prediction(Output object, Interval interval, Sample hold, Sam
             expected_fault = Output::Fault::lag_out_of_range;
         }
     }
+
     bool const run_real = eligible && (!holding || held_ok);
     bool const expected = run_real && real_ok;
     if (eligible && !expected)
     {
         expected_fault = Output::Fault::numerical_failure;
     }
+
     rebase_prepared = false;
     bool const accepted = object.predict(interval);
     __ESBMC_assert(accepted == expected &&
                        advances == static_cast<unsigned>(eligible && holding) + static_cast<unsigned>(run_real) &&
                        means == static_cast<unsigned>(run_real) && stores == static_cast<unsigned>(expected),
                    "Output prediction exact guard precedence, segment order and publication count");
+
     fault = expected_fault;
     if (expected)
     {
@@ -158,17 +176,20 @@ void verify_output_prediction(Output object, Interval interval, Sample hold, Sam
         values[field::propagated_rate_z] =
             mean.angular_rate_b(2) + values[field::angular_correction_z] - values[field::gyro_bias_z];
     }
+
     check();
     __ESBMC_assert(imu_proof::same_input(interval.sample, expected_interval.sample) &&
                        interval.time_us == expected_interval.time_us &&
                        interval.start_time_us == expected_interval.start_time_us &&
                        interval.hold_period_us == expected_interval.hold_period_us,
                    "Output prediction preserves integrated input and interval epochs");
+
     for (std::size_t i = 0; i < 3; ++i)
     {
         __ESBMC_assert(same(interval.held_rate.specific_force_b(i), expected_interval.held_rate.specific_force_b(i)) &&
                            same(interval.held_rate.angular_rate_b(i), expected_interval.held_rate.angular_rate_b(i)),
                        "Output prediction preserves held input rates");
     }
+
     output_proof::check_parameters(object);
 }

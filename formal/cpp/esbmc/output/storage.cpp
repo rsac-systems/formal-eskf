@@ -3,6 +3,7 @@
 #include "support.hpp"
 using namespace output_proof;
 using Ring = formal_eskf::runtime::RingBuffer<Sample, 64>;
+
 void verify_output_typed_storage(Ring ring, Sample sample)
 {
     auto const length = imu_proof::nondet_index();
@@ -49,11 +50,13 @@ void verify_output_typed_storage(Ring ring, Sample sample)
         stored_values[i][8] = ring.m_samples[i].p_n.m_storage.values.tail.head;
         stored_values[i][9] = ring.m_samples[i].p_n.m_storage.values.tail.tail.head;
     }
+
     ring.push(sample);
     __ESBMC_assert(ring.m_length == length && ring.m_count == (count == length ? count : count + 1) &&
                        ring.m_oldest == (count == length ? (oldest + 1) % length : oldest) &&
                        ring.m_write == (write + 1) % length,
                    "Typed output storage preserves length and updates count/cursors exactly");
+
     for (std::size_t i = 0; i < 64; ++i)
     {
         __ESBMC_assert(ring.m_samples[i].time_us == (i == write ? input_integers[0] : stored_integers[i][0]),
@@ -89,6 +92,7 @@ void verify_output_typed_storage(Ring ring, Sample sample)
                             (i == write ? input_values[9] : stored_values[i][9])),
                        "Output typed store complete slot field: p_n.m_storage.values.tail.tail.head");
     }
+
     __ESBMC_assert(sample.time_us == input_integers[0], "Output typed store preserves complete input: time_us");
     __ESBMC_assert(sample.start_time_us == input_integers[1],
                    "Output typed store preserves complete input: start_time_us");
@@ -111,12 +115,14 @@ void verify_output_typed_storage(Ring ring, Sample sample)
     __ESBMC_assert(same(sample.p_n.m_storage.values.tail.tail.head, input_values[9]),
                    "Output typed store preserves complete input: p_n.m_storage.values.tail.tail.head");
 }
+
 void verify_output_typed_reset(Ring ring)
 {
     auto const length = ring.m_length;
     ring.reset();
     __ESBMC_assert(ring.m_length == length && ring.m_count == 0 && ring.m_oldest == 0 && ring.m_write == 0,
                    "Output typed reset preserves length and clears metadata");
+
     for (std::size_t i = 0; i < 64; ++i)
     {
         zero_sample(ring.m_samples[i]);

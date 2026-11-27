@@ -101,6 +101,12 @@ commands, tool versions and affected compile-time profiles. Derive test oracles
 from the selected mathematical method; do not assume the default formulation also
 applies to an alternate mode or loosen tolerances to hide that mismatch.
 C++ changes need the repository formatting check, including tests and examples.
+Before that check, read complete edited functions using the coding style's
+layout rules: separate logical phases and test scenarios with blank lines,
+without separating every statement or adding boilerplate comments. The formatter
+separates definitions but cannot infer those phase boundaries. A green formatting
+check alone is not this readability review. Apply the same review to examples
+and proof harnesses; update generators instead of editing generated output.
 Traceability edits need `tests/tools/test_agent_review.sh`; source-extraction or
 verifier-routing changes need the offline `tests/tools/test_esbmc.sh`. These offline
 tests do not run proofs.

@@ -29,6 +29,7 @@ using height_proof::Source;
 using height_proof::Status;
 using height_proof::stopped;
 namespace setting = formal_eskf::px4::profile::height;
+
 bool empty_session(Session const & aid)
 {
     auto const & bias = aid.bias;
@@ -43,6 +44,7 @@ bool empty_session(Session const & aid)
            aid.fused_time == 0U && aid.device_id == 0U && aid.calibration_count == 0U && aid.generation == 0U &&
            !aid.active && !aid.fusion_reset && !aid.fault && aid.stop_reason == Reason::none;
 }
+
 bool empty_history(Manager const & manager, std::uint64_t started, Scalar altitude)
 {
     return empty_session(manager.m_sessions[0U]) && empty_session(manager.m_sessions[1U]) &&
@@ -50,6 +52,7 @@ bool empty_history(Manager const & manager, std::uint64_t started, Scalar altitu
            same(manager.m_barometer_lpf, Scalar{0}) && manager.m_barometer_samples == 0U &&
            manager.m_started == started && manager.m_tick == 0U && manager.m_last_height_progress == 0U;
 }
+
 void verify_height_initialization(Manager manager, std::uint64_t now, Scalar altitude)
 {
     height_proof::bind_parameters(manager);
@@ -62,9 +65,11 @@ void verify_height_initialization(Manager manager, std::uint64_t now, Scalar alt
         expected.m_origin_altitude = altitude;
         expected.m_started = now;
     }
+
     Manager fresh{height_proof::parameters()};
     __ESBMC_assert(empty_history(fresh, 0U, Scalar{0}) && height_proof::control_domain(fresh),
                    "R-HEIGHT-FUSION: constructor establishes every specified empty field");
+
     auto const status = manager.initialize(now, altitude);
     __ESBMC_assert(!valid || (height_proof::history_domain(manager, now) && height_proof::control_domain(manager)),
                    "R-HEIGHT-FUSION: initialize establishes the public owner induction domain");
@@ -74,6 +79,7 @@ void verify_height_initialization(Manager manager, std::uint64_t now, Scalar alt
         status == (valid ? Status::success : Status::domain_error) && same_manager(manager, expected),
         "R-HEIGHT-FUSION: initialization resets every session or preserves the entire owner on invalid time/altitude");
 }
+
 void verify_height_stop(Manager manager, Reason reason)
 {
     height_proof::bind_parameters(manager);
@@ -89,6 +95,7 @@ void verify_height_stop(Manager manager, Reason reason)
         same_manager(manager, expected),
         "R-HEIGHT-FUSION: stopping clears only selected authority/diagnostics and its reference, retaining history");
 }
+
 void verify_height_admission(Manager manager, std::uint64_t now, Sample sample, Result result)
 {
     height_proof::bind_parameters(manager);
@@ -99,6 +106,7 @@ void verify_height_admission(Manager manager, std::uint64_t now, Sample sample, 
     {
         __ESBMC_assume(aid.data_time <= aid.sample_time && aid.sample_time <= now);
     }
+
     Manager expected{height_proof::parameters()};
     expected = manager;
     auto expected_result = result;
@@ -151,6 +159,7 @@ void verify_height_admission(Manager manager, std::uint64_t now, Sample sample, 
                     expected.m_barometer_samples = 0U;
                 }
             }
+
             if (!sample.qualified)
             {
                 stopped(expected, source, Reason::quality);
@@ -163,6 +172,7 @@ void verify_height_admission(Manager manager, std::uint64_t now, Sample sample, 
             }
         }
     }
+
     bool const actual = manager.admit(source, now, sample, result);
     __ESBMC_assert(
         actual == accepted && same_manager(manager, expected) && same_result(result, expected_result) &&
@@ -173,6 +183,7 @@ void verify_height_admission(Manager manager, std::uint64_t now, Sample sample, 
                    "R-HEIGHT-FUSION: admission preserves the complete owner induction domain");
     __ESBMC_assert(!control || height_proof::control_domain(manager),
                    "Height admission: source retirement/reset preserves owner control invariants");
+
     auto const & after = manager.session(source);
     __ESBMC_assert(
         after.data_time <= after.sample_time && after.sample_time <= now &&
@@ -181,6 +192,7 @@ void verify_height_admission(Manager manager, std::uint64_t now, Sample sample, 
               altitude_valid(sample.altitude) && std::isfinite(sample.variance) && sample.variance > Scalar{0})),
         "R-HEIGHT-FUSION: admission preserves chronological watermarks and requires fresh qualified finite data");
 }
+
 void verify_height_queries(Manager manager, std::uint64_t now,
                            formal_eskf::runtime::GnssFusion::VerticalAccelerationTimes acceleration)
 {
@@ -201,6 +213,7 @@ void verify_height_queries(Manager manager, std::uint64_t now,
     auto const & aid = manager.m_sessions[source == Source::barometer ? 0U : 1U];
     auto const & selected_session = manager.session(source);
     __ESBMC_assert(&selected_session == &aid, "R-HEIGHT-FUSION: source accessor selects the required session");
+
     bool const visible = aid.active && !aid.fusion_reset && aid.fusion.diagnostics_valid;
     __ESBMC_assert(manager.reset_required(now, acceleration) == reset && manager.valid(now) == valid &&
                        manager.reference() == manager.m_reference &&
@@ -211,4 +224,5 @@ void verify_height_queries(Manager manager, std::uint64_t now,
                    "R-HEIGHT-FUSION: exact timeout/health query, selected innovation sign and suppression after reset "
                    "without mutation");
 }
+
 int main() { return 0; }

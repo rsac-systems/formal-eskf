@@ -4,6 +4,7 @@ using observation_proof::Observations;
 using observation_proof::same_double;
 using observation_proof::same_timeline;
 using observation_proof::Timeline;
+
 namespace
 {
 void check_empty(Observations const & owner)
@@ -15,6 +16,7 @@ void check_empty(Observations const & owner)
                    "Empty owner has cleared timelines and clocks");
     __ESBMC_assert(owner.m_gnss.m_count == 0 && owner.m_gnss.m_oldest == 0 && owner.m_gnss.m_write == 0,
                    "Empty gnss ring metadata");
+
     for (std::size_t i = 0; i < 16; ++i)
     {
         __ESBMC_assert(owner.m_gnss.m_samples[i].time_us == std::uint64_t{0}, "Cleared gnss field time_us");
@@ -66,8 +68,10 @@ void check_empty(Observations const & owner)
                        "Cleared gnss field sample.velocity_valid");
         __ESBMC_assert(owner.m_gnss.m_samples[i].sample.spoofed == bool{0}, "Cleared gnss field sample.spoofed");
     }
+
     __ESBMC_assert(owner.m_magnetic.m_count == 0 && owner.m_magnetic.m_oldest == 0 && owner.m_magnetic.m_write == 0,
                    "Empty magnetic ring metadata");
+
     for (std::size_t i = 0; i < 64; ++i)
     {
         __ESBMC_assert(owner.m_magnetic.m_samples[i].time_us == std::uint64_t{0}, "Cleared magnetic field time_us");
@@ -95,8 +99,10 @@ void check_empty(Observations const & owner)
         __ESBMC_assert(owner.m_magnetic.m_samples[i].sample.stamp.source.calibration_count == std::uint8_t{0},
                        "Cleared magnetic field sample.stamp.source.calibration_count");
     }
+
     __ESBMC_assert(owner.m_barometer.m_count == 0 && owner.m_barometer.m_oldest == 0 && owner.m_barometer.m_write == 0,
                    "Empty barometer ring metadata");
+
     for (std::size_t i = 0; i < 128; ++i)
     {
         __ESBMC_assert(owner.m_barometer.m_samples[i].time_us == std::uint64_t{0}, "Cleared barometer field time_us");
@@ -117,8 +123,10 @@ void check_empty(Observations const & owner)
         __ESBMC_assert(owner.m_barometer.m_samples[i].sample.stamp.source.calibration_count == std::uint8_t{0},
                        "Cleared barometer field sample.stamp.source.calibration_count");
     }
+
     __ESBMC_assert(owner.m_context.m_count == 0 && owner.m_context.m_oldest == 0 && owner.m_context.m_write == 0,
                    "Empty context ring metadata");
+
     for (std::size_t i = 0; i < 128; ++i)
     {
         __ESBMC_assert(owner.m_context.m_samples[i].time_us == std::uint64_t{0}, "Cleared context field time_us");
@@ -169,5 +177,6 @@ void verify_observation_reset(Observations owner)
     __ESBMC_assert(owner.m_configured == configured &&
                        imu_proof::same_configuration(owner.m_configuration, configuration),
                    "Owner reset retains complete configuration");
+
     observation_proof::check_timing(owner);
 }

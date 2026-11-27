@@ -44,6 +44,7 @@ public:
     static constexpr std::size_t column_count = Columns;
 
     Matrix() { Linalg::template set_zero<Rows, Columns>(m_storage); }
+
     Matrix(Matrix const & other) = default;
     Matrix(Matrix && other) = default;
     Matrix & operator=(Matrix const & other) = default;
@@ -64,6 +65,7 @@ public:
     {
         return Linalg::template coefficient<Rows, Columns>(m_storage, row, column);
     }
+
     value_type & operator()(std::size_t row, std::size_t column)
     {
         return Linalg::template coefficient<Rows, Columns>(m_storage, row, column);

@@ -19,15 +19,18 @@
 #include <formal_eskf/runtime/sensors/gravity/accelerometer.hpp>
 #undef max
 #undef private
+
 namespace owner_proof
 {
 using contract_proof::Linalg;
 using contract_proof::Scalar;
 using Bits = std::conditional_t<sizeof(Scalar) == 4, std::uint32_t, std::uint64_t>;
+
 inline bool same(Scalar a, Scalar b)
 {
     return __builtin_bit_cast(Bits, a) == __builtin_bit_cast(Bits, b) || (std::isnan(a) && std::isnan(b));
 }
+
 template <class V> bool same_elements(V const & a, V const & b)
 {
     bool ok = true;
@@ -35,24 +38,29 @@ template <class V> bool same_elements(V const & a, V const & b)
     {
         ok = same(a(i), b(i)) && ok;
     }
+
     return ok;
 }
+
 using contract_proof::finite_vector;
 using formal_eskf::Status;
 using Sampler = formal_eskf::runtime::AccelerometerSample<Linalg, 10000U>;
 using Vector = Sampler::vector_type;
 using Imu = formal_eskf::ImuSample<Linalg>;
 using Magnitude = Sampler::magnitude_type;
+
 inline bool same_double(double a, double b)
 {
     return (__builtin_bit_cast(std::uint64_t, a) == __builtin_bit_cast(std::uint64_t, b)) ||
            (std::isnan(a) && std::isnan(b));
 }
+
 inline bool same_magnitude(Magnitude const & a, Magnitude const & b)
 {
     return a.initialized() == b.initialized() &&
            same_elements(a.filtered_specific_force_b(), b.filtered_specific_force_b());
 }
+
 inline bool same_history(Sampler const & a, Sampler const & b)
 {
     return same_magnitude(a.m_magnitude, b.m_magnitude) && same_elements(a.m_delta_velocity, b.m_delta_velocity) &&
@@ -61,11 +69,13 @@ inline bool same_history(Sampler const & a, Sampler const & b)
            same_double(a.m_target_period_us, b.m_target_period_us) &&
            same_double(a.m_minimum_period_us, b.m_minimum_period_us);
 }
+
 inline bool thresholds(std::uint64_t count, double target, double minimum)
 {
     return count >= 1U && count <= 65536U && std::isfinite(target) && target >= 1.0 && target <= 4294967296.0 &&
            std::isfinite(minimum) && minimum >= 0.0 && minimum <= 4294967296.0;
 }
+
 // This intentionally broad reachable-state superset makes integer additions
 // safe without assuming exact relationships among the adaptive thresholds.
 // The actual initialization establishes it; clear_interval and update preserve it.
@@ -77,6 +87,7 @@ inline bool invariant(Sampler const & h)
            h.m_clipping_mask <= 7 && finite_vector(h.m_delta_velocity) &&
            finite_vector(h.m_magnitude.filtered_specific_force_b());
 }
+
 struct Replies
 {
     Status integration;
@@ -85,6 +96,7 @@ struct Replies
     std::uint64_t count;
     double target, minimum;
 };
+
 struct Calls
 {
     inline static Sampler const * before{};
@@ -98,6 +110,7 @@ struct Calls
     inline static double average{};
 };
 } // namespace owner_proof
+
 namespace formal_eskf::verification
 {
 template <>
@@ -109,13 +122,16 @@ inline void owner_proof::Linalg::divide<3U, 1U>(storage_type<3U, 1U> const & val
     __ESBMC_assert(Calls::quotients++ == 0U && Calls::integrations == 1U && Calls::magnitudes == 0U &&
                        same(divisor, Calls::denominator),
                    "sample owner: quotient scalar and order");
+
     for (unsigned i = 0; i < 3; ++i)
     {
         __ESBMC_assert(same(value.values[i], Calls::replies.accumulated(i)), "sample owner: quotient input");
+
         out.values[i] = Calls::replies.quotient(i);
     }
 }
 } // namespace formal_eskf::verification
+
 namespace formal_eskf::runtime
 {
 template <>
@@ -131,12 +147,15 @@ inline Status AccelerometerSample<owner_proof::Linalg, 10000U>::integrate(ImuSam
             same_elements(imu.angular_rate_b, Calls::imu->angular_rate_b) && same(dt, Calls::dt) &&
             same(minimum, Calls::minimum),
         "sample owner: integration receives original history, both IMU vectors, dt and normalization threshold once");
+
     if (Calls::replies.integration == Status::success)
     {
         out = Calls::replies.accumulated;
     }
+
     return Calls::replies.integration;
 }
+
 template <>
 inline owner_proof::Magnitude::Result
 AccelerometerMagnitude<owner_proof::Linalg>::update(owner_proof::Vector const & force)
@@ -147,13 +166,16 @@ AccelerometerMagnitude<owner_proof::Linalg>::update(owner_proof::Vector const & 
             this == &Calls::owner->m_magnitude && same_elements(force, Calls::force) && finite_vector(force) &&
             same_history(*Calls::owner, *Calls::before),
         "sample owner: one magnitude update uses finite interval force before any interval/history publication");
+
     if (Calls::replies.magnitude.status == Status::success)
     {
         m_filtered_specific_force_b = Calls::replies.filtered;
         m_initialized = true;
     }
+
     return Calls::replies.magnitude;
 }
+
 template <> inline void AccelerometerSample<owner_proof::Linalg, 10000U>::clear_interval()
 {
     using namespace owner_proof;
@@ -161,6 +183,7 @@ template <> inline void AccelerometerSample<owner_proof::Linalg, 10000U>::clear_
                        Calls::replies.magnitude.status == Status::success &&
                        same_double(m_average_period_us, Calls::average),
                    "sample owner: successful ready observation updates average before clearing interval");
+
     m_delta_velocity = {};
     m_interval_us = 0;
     m_samples = 0;
@@ -170,6 +193,7 @@ template <> inline void AccelerometerSample<owner_proof::Linalg, 10000U>::clear_
     m_minimum_period_us = Calls::replies.minimum;
 }
 } // namespace formal_eskf::runtime
+
 void verify_sample_transition(owner_proof::Sampler history, owner_proof::Imu imu, std::uint64_t period, int mask,
                               owner_proof::Scalar minimum, owner_proof::Replies replies)
 {
@@ -219,6 +243,7 @@ void verify_sample_transition(owner_proof::Sampler history, owner_proof::Imu imu
                 wanted = replies.magnitude.status;
             }
         }
+
         if (wanted == Status::success)
         {
             committed = true;
@@ -250,6 +275,7 @@ void verify_sample_transition(owner_proof::Sampler history, owner_proof::Imu imu
             }
         }
     }
+
     result.status = wanted;
     auto const actual = history.update(imu, period, mask, minimum);
     __ESBMC_assert(actual.status == result.status && actual.ready == result.ready &&
@@ -302,4 +328,5 @@ void verify_sample_transition(owner_proof::Sampler history, owner_proof::Imu imu
                        same_elements(imu.angular_rate_b, old_imu.angular_rate_b),
                    "sample owner: input frame");
 }
+
 int main() { return 0; }

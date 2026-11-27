@@ -14,30 +14,37 @@ extern void __ESBMC_assert(bool, char const *);
 namespace
 {
 void perf_begin(unsigned) {}
+
 void perf_end(unsigned) {}
 
 struct Sample
 {
     std::uint64_t time_us{};
+
     std::uint64_t mean_rates() const { return time_us; }
 };
+
 struct Interval
 {
     Sample sample{};
 };
+
 struct History
 {
     Interval oldest{}, newest{};
     bool available{}, completed{}, completion_ok{};
     std::uint64_t completed_epoch{};
     unsigned latest_reads{};
+
     Interval const * delayed() const { return available ? &oldest : nullptr; }
+
     Interval const * latest()
     {
         ++latest_reads;
         __ESBMC_assert(available, "A retained delayed interval implies a retained newest interval");
         return &newest;
     }
+
     bool complete(std::uint64_t time)
     {
         __ESBMC_assert(!completed && time == oldest.sample.time_us, "Complete exactly the consumed delayed epoch");
@@ -47,12 +54,14 @@ struct History
         return completion_ok;
     }
 };
+
 struct Output
 {
     History * history{};
     unsigned * main_state{};
     bool called{}, success{};
     std::uint64_t epoch{};
+
     bool correct(std::uint64_t time, unsigned const & state)
     {
         __ESBMC_assert(!called && !history->completed && time == history->oldest.sample.time_us && &state == main_state,
@@ -62,6 +71,7 @@ struct Output
         return success;
     }
 };
+
 struct Flow
 {
     History m_imu_history;
@@ -69,6 +79,7 @@ struct Flow
     bool m_fault{}, predicted{}, prediction_ok{}, published{};
     unsigned m_state{}, m_errors{}, errors_after_prediction{}, m_fusion_perf{};
     std::uint64_t m_time_us{}, publication_input{};
+
     void predict_and_fuse(Interval const & interval)
     {
         __ESBMC_assert(!predicted && !m_fault && &interval == &m_imu_history.oldest,
@@ -88,6 +99,7 @@ struct Flow
         }
         errors_after_prediction = m_errors;
     }
+
     void publish(std::uint64_t rates)
     {
         __ESBMC_assert(!published && !m_fault && m_output.called && m_output.success && m_imu_history.completed &&
@@ -98,6 +110,7 @@ struct Flow
         published = true;
         publication_input = rates;
     }
+
     bool check_timing(bool succeeded);
     void advance_fusion();
 };

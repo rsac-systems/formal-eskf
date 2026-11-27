@@ -26,6 +26,7 @@ template <typename Matrix> bool equal(Matrix const & a, Matrix const & b)
             }
         }
     }
+
     return true;
 }
 
@@ -53,13 +54,16 @@ template <typename Linalg> void run(Context & test, std::string_view)
     test.expect(decltype(initial.q_nb)::from_coefficients(Scalar{0.5}, Scalar{0.5}, Scalar{0.5}, Scalar{0.5},
                                                           Scalar{0.125}, initial.q_nb) == Status::success,
                 "setup", "unit rotation");
+
     formal_eskf::ImuSample<Linalg> imu{};
+
     struct Case
     {
         std::uint8_t clipping;
         bool fault;
         std::array<double, 3> variance;
     };
+
     std::array const cases{
         Case{0, false, {1, 2, 3}},     Case{1, false, {24.01, 2, 3}},         Case{2, false, {1, 24.01, 3}},
         Case{4, false, {1, 2, 24.01}}, Case{7, false, {24.01, 24.01, 24.01}}, Case{0, true, {24.01, 24.01, 24.01}}};
@@ -70,6 +74,7 @@ template <typename Linalg> void run(Context & test, std::string_view)
         test.expect(predict_imu(state, P, imu, dt, parameters, item.clipping, item.fault, static_cast<Scalar>(24.01)) ==
                         Status::success,
                     "prediction", "portable prediction accepts selected clipped intervals");
+
         for (std::size_t axis = 0; axis < 3; ++axis)
         {
             auto const nav_axis = (axis + 1) % 3;
@@ -81,9 +86,11 @@ template <typename Linalg> void run(Context & test, std::string_view)
                             P(12 + axis, 12 + axis) == Scalar(axis + 4) * dt,
                         "noise", "gyro variance and both bias driving intensities are unchanged");
         }
+
         test.expect(equal(state.p_n, initial.p_n) && equal(state.v_n, initial.v_n) &&
                         equal(state.q_nb.coefficients(), initial.q_nb.coefficients()),
                     "prediction", "uncertainty selection does not alter nominal motion");
+
         // Clearing the flags must restore configured noise, even after all-axis fault selection.
         auto expected_state = state;
         auto expected_P = P;
@@ -94,6 +101,7 @@ template <typename Linalg> void run(Context & test, std::string_view)
                         equal(P, expected_P),
                     "recovery", "clear sample and configured-noise gap fallback cannot inherit an override");
     }
+
     {
         auto state = initial;
         Covariance P;
@@ -105,6 +113,7 @@ template <typename Linalg> void run(Context & test, std::string_view)
                         equal(state.p_n, Vector::from_row_major({0, Scalar{0.015625}, 0})),
                     "clipped motion", "retain measured increments rather than skipping or zeroing the interval");
     }
+
     for (auto const clipping : {std::uint8_t{0}, std::uint8_t{1}})
     {
         auto state = initial;
@@ -114,21 +123,25 @@ template <typename Linalg> void run(Context & test, std::string_view)
         {
             P(9 + axis, 9 + axis) = prior[axis];
         }
+
         test.expect(predict_imu(state, P, imu, dt, parameters, clipping, false, static_cast<Scalar>(24.01)) ==
                         Status::success,
                     "bias noise", "real and gap-hold predictions select bias driving noise");
+
         std::array<Scalar, 6> const increment{clipping == 0 ? Scalar{0} : dt, 0, Scalar{3} * dt, 0, Scalar{5} * dt, 0};
         for (std::size_t axis = 0; axis < prior.size(); ++axis)
         {
             test.expect(P(9 + axis, 9 + axis) == prior[axis] + increment[axis], "bias noise",
                         "strict threshold uses selected IMU variance; intensity scales by dt without clamping P");
         }
+
         P(9, 9) = Scalar{0.5};
         test.expect(predict_imu(state, P, imu, dt, parameters, 0, false, static_cast<Scalar>(24.01)) ==
                             Status::success &&
                         P(9, 9) == Scalar{0.5} + dt,
                     "bias noise", "lower prior variance restores configured driving noise on a later prediction");
     }
+
     for (Scalar variance : {Scalar{0}, Scalar{4}, Scalar{121}})
     {
         auto state = initial;
@@ -137,6 +150,7 @@ template <typename Linalg> void run(Context & test, std::string_view)
                         P(4, 4) == variance * dt * dt,
                     "fault variance", "use the supplied squared variance, including zero, without a hidden default");
     }
+
     for (Scalar variance :
          {Scalar{-1}, std::numeric_limits<Scalar>::infinity(), std::numeric_limits<Scalar>::quiet_NaN()})
     {
@@ -150,6 +164,7 @@ template <typename Linalg> void run(Context & test, std::string_view)
                         equal(state.b_a, initial.b_a) && equal(state.b_g, initial.b_g),
                     "fault variance", "invalid unused variance is rejected without a partial prediction");
     }
+
     for (unsigned failure = 0; failure < 4; ++failure)
     {
         auto state = initial;
@@ -160,12 +175,14 @@ template <typename Linalg> void run(Context & test, std::string_view)
         {
             P(9, 9) = Scalar{-1};
         }
+
         auto const before_P = P;
         auto invalid = parameters;
         if (failure == 0)
         {
             invalid.process_noise.specific_force_variance(0) = std::numeric_limits<Scalar>::quiet_NaN();
         }
+
         test.expect(predict_imu(state, P, imu, failure == 1 ? -dt : dt, invalid, failure == 2 ? 8 : 1, false,
                                 static_cast<Scalar>(24.01)) != Status::success,
                     "failure", "invalid noise, interval, clipping mask or bias variance is rejected");
@@ -200,15 +217,19 @@ template <typename Linalg> void run(Context & test, std::string_view)
             "health", "all-axis noise follows the preceding verdict, not a future fault");
         test.expect(health.update(sample, observations) == Status::success && health.state().clip_count[2] == step + 1,
                     "health", "accepted clipped samples accumulate detector history");
+
         sample.time_us += 125000;
     }
+
     test.expect(health.state().bad_vertical_acceleration, "health",
                 "frequent clipping plus apparent falling sets fault");
+
     sample.clipped = {};
     observations = {};
     sample.time_us = health.state().last_bad_time_us + 3000000;
     test.expect(health.update(sample, observations) == Status::success && !health.state().bad_vertical_acceleration,
                 "health", "healthy evidence clears the three-second hold");
+
     health.reset();
     test.expect(health.state().last_update_time_us == 0 && health.state().clip_count[2] == 0, "gap",
                 "missing-data reset drops detector continuity");

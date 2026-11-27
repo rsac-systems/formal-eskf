@@ -37,6 +37,7 @@ template <typename Matrix> bool same_bits(Matrix const & a, Matrix const & b)
             }
         }
     }
+
     return true;
 }
 
@@ -72,6 +73,7 @@ template <typename Base> struct LimitMath : Base
 {
     using value_type = typename Base::value_type;
     static inline bool oversized_root = false;
+
     static value_type sqrt(value_type value)
     {
         // Tests change the fault selector before invoking this backend through templates.
@@ -79,10 +81,12 @@ template <typename Base> struct LimitMath : Base
         return oversized_root ? std::numeric_limits<value_type>::max() : Base::sqrt(value);
     }
 };
+
 template <typename Linalg> struct LimitBackend : Linalg
 {
     using scalar_math_type = LimitMath<typename Linalg::scalar_math_type>;
 };
+
 template <typename Linalg, std::size_t M> struct ReferenceFixture
 {
     using value_type = typename Linalg::value_type;
@@ -121,8 +125,10 @@ auto reference_fixture(GnssMeasurementFixture<Linalg> const & f, typename Linalg
             result.V(row, column) = Height ? typename Linalg::value_type{1} : f.V(row, column);
         }
     }
+
     return result;
 }
+
 template <typename Linalg> void velocity_exception(Context & test, std::string_view profile)
 {
     using F = GnssMeasurementFixture<Linalg>;
@@ -160,6 +166,7 @@ template <typename Linalg> void velocity_exception(Context & test, std::string_v
                                     profile,
                                     "independent strict conjunction covers both horizontal neighbours, Down signs and "
                                     "receiver accuracy");
+
                         if (rejected && !limited)
                         {
                             test.expect(same_state(state, f.state) && same_bits(P, f.P), profile,
@@ -175,6 +182,7 @@ template <typename Linalg> void velocity_exception(Context & test, std::string_v
             }
         }
     }
+
     for (bool fault : {false, true})
     {
         for (bool maximum : {false, true})
@@ -186,6 +194,7 @@ template <typename Linalg> void velocity_exception(Context & test, std::string_v
                 {
                     continue;
                 }
+
                 F f;
                 f.conditions.bad_vertical_acceleration = fault;
                 (maximum ? f.conditions.maximum_speed_accuracy : f.conditions.speed_accuracy) = value;
@@ -222,11 +231,13 @@ template <typename Linalg> void signed_diagnostics(Context & test, std::string_v
         test.expect(F::state_type::quaternion_type::from_coefficients(T{0.5}, T{0.5}, T{0.5}, T{0.5}, T{0.125},
                                                                       f.state.q_nb) == Status::success,
                     profile, "exact nonidentity unit attitude fixture");
+
         for (std::size_t axis = 0; axis < 3; ++axis)
         {
             f.state.b_a(axis) = static_cast<T>(axis + 1U) / T{8};
             f.state.b_g(axis) = -static_cast<T>(axis + 1U) / T{16};
         }
+
         f.state.p_n(0) = T{2};
         f.state.p_n(1) = T{-3};
         auto const prior = f;
@@ -247,6 +258,7 @@ template <typename Linalg> void signed_diagnostics(Context & test, std::string_v
                         formal_eskf::test::reference::matches_reference(independent, oracle, output, output_P, T{0}),
                     profile, "check-only is pure; independent dyadic correlated solve/Joseph verifies bounded result");
     }
+
     for (bool fault : {false, true})
     {
         for (T down : {T{-10}, T{-2}, T{0}, T{2}, T{10}})
@@ -280,6 +292,7 @@ template <typename Linalg> void signed_diagnostics(Context & test, std::string_v
         {
             continue;
         }
+
         fixture.V = F::noise_type::identity() * (S - T{3});
         fixture.velocity(2U) = T{-100};
         auto output = fixture.state;
@@ -288,8 +301,10 @@ template <typename Linalg> void signed_diagnostics(Context & test, std::string_v
         test.expect(result.fusion.decision == FusionDecision::fused && result.innovation_limited &&
                         result.fusion_innovation(2U) == -limit,
                     profile, "rounded boundary is not incorrectly rejected by a second gate");
+
         exercised = true;
     }
+
     test.expect(exercised, profile, "floating-point boundary fixture is exercised");
 }
 
@@ -322,6 +337,7 @@ template <typename Linalg> void height_deadzone(Context & test, std::string_view
             test.expect(output.p_n(2U) == (fused ? T{0.75} * selected : T{0}) &&
                             output_P(2U, 2U) == (fused ? T{0.75} : T{3}),
                         profile, "zero residual still performs covariance correction; raw rejection preserves state/P");
+
             for (std::size_t row = 0; row < 15; ++row)
             {
                 for (std::size_t column = 0; column < 15; ++column)
@@ -333,6 +349,7 @@ template <typename Linalg> void height_deadzone(Context & test, std::string_view
             }
         }
     }
+
     for (T deadzone : {T{0}, std::nextafter(T{2}, T{0}), T{2}, std::nextafter(T{2}, T{3}), T{4}})
     {
         F f;
@@ -389,10 +406,12 @@ template <typename Linalg> void limit_failure(Context & test, std::string_view p
                             profile,
                             "controlled velocity limit arithmetic failure retains raw diagnostics and outputs");
             }
+
             B::scalar_math_type::oversized_root = false;
         }
     }
 }
+
 template <typename Linalg> void failures(Context & test, std::string_view profile)
 {
     limit_failure<Linalg>(test, profile);
@@ -434,10 +453,12 @@ template <typename Linalg> void failures(Context & test, std::string_view profil
             {
                 continue;
             }
+
             if (!height && failure == Failure::invalid_norm_with_zero_height_variance)
             {
                 continue;
             }
+
             for (unsigned aliases = 0U; aliases < 4U; ++aliases)
             {
                 F fixture;
@@ -487,6 +508,7 @@ template <typename Linalg> void failures(Context & test, std::string_view profil
                     fixture.velocity(2U) = std::numeric_limits<T>::max();
                     break; // Finite innovation, overflowing squared gate numerator.
                 }
+
                 auto output = fixture.state;
                 auto output_P = fixture.P * T{2};
                 output.p_n(0U) = T{7};
@@ -530,6 +552,7 @@ template <typename Linalg> void failures(Context & test, std::string_view profil
             }
         }
     }
+
     for (T deadzone : {T{-1}, std::numeric_limits<T>::infinity(), std::numeric_limits<T>::quiet_NaN()})
     {
         F fixture;
@@ -554,6 +577,7 @@ template <typename Linalg, bool Height> void publication_fixture(Context & test,
         {
             continue;
         }
+
         for (unsigned mask = 0; mask < 64U; ++mask)
         {
             for (unsigned aliases = 0; aliases < 4U; ++aliases)
@@ -567,6 +591,7 @@ template <typename Linalg, bool Height> void publication_fixture(Context & test,
                     f.P(9U + axis, Height ? 2U : 5U) = coefficient;
                     f.P(Height ? 2U : 5U, 9U + axis) = coefficient;
                 }
+
                 f.V(0, 1) = f.V(1, 0) = T{1};
                 f.V(1, 1) = T{1.25};
                 Ins::BiasUpdate permission;
@@ -575,14 +600,17 @@ template <typename Linalg, bool Height> void publication_fixture(Context & test,
                     permission.accelerometer[axis] = (mask & (1U << axis)) != 0U;
                     permission.gyroscope[axis] = (mask & (1U << (axis + 3U))) != 0U;
                 }
+
                 test.expect(F::state_type::quaternion_type::from_coefficients(T{0.5}, T{0.5}, T{0.5}, T{0.5}, T{0.125},
                                                                               f.state.q_nb) == Status::success,
                             profile, "exact nonidentity unit attitude fixture");
+
                 for (std::size_t axis = 0; axis < 3; ++axis)
                 {
                     f.state.b_a(axis) = static_cast<T>(axis + 1U) / T{8};
                     f.state.b_g(axis) = -static_cast<T>(axis + 1U) / T{16};
                 }
+
                 f.state.p_n(0) = T{2};
                 f.state.p_n(1) = T{-3};
                 auto const independent = reference_fixture<Linalg, Height>(f, limited ? T{-2} : T{1});
@@ -631,6 +659,7 @@ template <typename Linalg, bool Height> void publication_fixture(Context & test,
         }
     }
 }
+
 template <typename Linalg> void ordinary(Context & test, std::string_view profile)
 {
     publication_fixture<Linalg, false>(test, profile, false);
@@ -638,6 +667,7 @@ template <typename Linalg> void ordinary(Context & test, std::string_view profil
 }
 
 } // namespace
+
 int main(int argc, char ** argv)
 {
     formal_eskf::test::configure_backend_test();

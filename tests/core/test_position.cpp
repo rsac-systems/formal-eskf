@@ -45,6 +45,7 @@ template <typename Matrix> bool same_bits(Matrix const & a, Matrix const & b)
             }
         }
     }
+
     return true;
 }
 
@@ -82,6 +83,7 @@ template <typename Linalg> struct HorizontalPositionFixture
             state.b_a(axis) = n / value_type{8};
             state.b_g(axis) = -n / value_type{16};
         }
+
         for (std::size_t axis = 0U; axis < measurement_type::row_count; ++axis)
         {
             value_type const n = state.p_n(axis_offset + axis);
@@ -134,6 +136,7 @@ template <typename Linalg> struct VerticalPositionFixture
             state.b_a(axis) = n / value_type{8};
             state.b_g(axis) = -n / value_type{16};
         }
+
         for (std::size_t axis = 0U; axis < measurement_type::row_count; ++axis)
         {
             value_type const n = state.p_n(axis_offset + axis);
@@ -211,6 +214,7 @@ void test_position_jacobian(TestContext & test, std::string_view profile, typena
             formal_eskf::inject_nominal(fixture.state, positive, Fixture::minimum_norm, plus) == Status::success &&
                 formal_eskf::inject_nominal(fixture.state, negative, Fixture::minimum_norm, minus) == Status::success,
             profile, "finite-difference perturbations succeed");
+
         for (std::size_t row = 0U; row < measurement_size; ++row)
         {
             value_type const expected = row + Fixture::axis_offset == column ? value_type{1} : value_type{0};
@@ -240,10 +244,12 @@ void test_position_analytic(TestContext & test, std::string_view profile, typena
             fixture.P(3U * block + axis, axis) = cross;
         }
     }
+
     for (std::size_t axis = 0U; axis < measurement_size; ++axis)
     {
         fixture.V(axis, axis) = static_cast<value_type>(axis + 1U);
     }
+
     if constexpr (measurement_size > 1U)
     {
         fixture.V(0U, 1U) = value_type{0.5};
@@ -270,6 +276,7 @@ void test_position_analytic(TestContext & test, std::string_view profile, typena
     test.expect(Fixture::correct(fixture.state, fixture.P, fixture.z, fixture.V, Fixture::minimum_norm, state_output,
                                  P_output) == Status::success,
                 profile, "position correction with supplied measurement covariance succeeds");
+
     for (std::size_t row = 0U; row < 15U; ++row)
     {
         std::array<long double, measurement_size> gain{};
@@ -279,9 +286,11 @@ void test_position_analytic(TestContext & test, std::string_view profile, typena
             {
                 gain[axis] += static_cast<long double>(fixture.P(row, Fixture::axis_offset + k)) * inverse[k][axis];
             }
+
             correction[row] += gain[axis] * (static_cast<long double>(fixture.z(axis)) -
                                              fixture.state.p_n(Fixture::axis_offset + axis));
         }
+
         for (std::size_t column = 0U; column < 15U; ++column)
         {
             long double expected = fixture.P(row, column);
@@ -289,10 +298,12 @@ void test_position_analytic(TestContext & test, std::string_view profile, typena
             {
                 expected -= gain[axis] * fixture.P(Fixture::axis_offset + axis, column);
             }
+
             test.expect(near(P_output(row, column), static_cast<value_type>(expected), tolerance), profile,
                         "position covariance matches independent conditional covariance");
         }
     }
+
     std::array<typename Fixture::vector_type const *, 4U> const before{&fixture.state.p_n, &fixture.state.v_n,
                                                                        &fixture.state.b_a, &fixture.state.b_g};
     std::array<typename Fixture::vector_type const *, 4U> const after{&state_output.p_n, &state_output.v_n,
@@ -307,6 +318,7 @@ void test_position_analytic(TestContext & test, std::string_view profile, typena
                         "residual sign and cross-covariance corrections match analytic result");
         }
     }
+
     test.expect(same_bits(state_output.q_nb.coefficients(), fixture.state.q_nb.coefficients()), profile,
                 "uncorrelated attitude stays unchanged");
 }
@@ -325,15 +337,18 @@ template <typename Fixture> auto coupled_fixture(TestContext & test, std::string
             fixture.P(row, column) += static_cast<value_type>((row + 1U) * (column + 1U)) / value_type{256};
         }
     }
+
     if constexpr (measurement_size > 1U)
     {
         fixture.V(0U, 1U) = value_type{0.25};
         fixture.V(1U, 0U) = value_type{0.25};
     }
+
     test.expect(formal_eskf::so3::UnitQuaternion<Linalg>::from_coefficients(
                     value_type{0.5}, value_type{0.5}, value_type{0.5}, value_type{0.5}, Fixture::minimum_norm,
                     fixture.state.q_nb) == Status::success,
                 profile, "non-identity prior attitude is valid");
+
     return fixture;
 }
 
@@ -382,6 +397,7 @@ template <typename Fixture> void test_position_delegation(TestContext & test, st
     {
         H(axis, Fixture::axis_offset + axis) = value_type{1};
     }
+
     auto const r = fixture.z - fixture.state.p_n.template segment<Fixture::axis_offset, measurement_size>();
     typename Fixture::state_type expected_state;
     typename Fixture::covariance_type expected_P;
@@ -391,6 +407,7 @@ template <typename Fixture> void test_position_delegation(TestContext & test, st
                 profile, "selected-model correction reference succeeds");
     test.expect(!same_bits(expected_state.q_nb.coefficients(), fixture.state.q_nb.coefficients()), profile,
                 "position-attitude cross covariance produces an attitude correction");
+
     for (unsigned aliases = 0U; aliases < 4U; ++aliases)
     {
         auto input = fixture;
@@ -411,6 +428,7 @@ template <typename Fixture> void test_position_delegation(TestContext & test, st
                         same_bits(input.V, fixture.V),
                     profile, "non-output inputs remain unchanged");
     }
+
     auto zero_residual = fixture;
     test.expect(Fixture::correct(zero_residual.state, zero_residual.P,
                                  zero_residual.state.p_n.template segment<Fixture::axis_offset, measurement_size>(),
@@ -435,11 +453,13 @@ template <typename Fixture> void test_bias_forwarding(TestContext & test, std::s
         permissions[2U + axis] = 1U << axis;
         permissions[8U + axis] = 63U ^ (1U << axis);
     }
+
     typename Fixture::state_type unrestricted_state;
     typename Fixture::covariance_type unrestricted_P;
     test.expect(Fixture::correct(fixture.state, fixture.P, fixture.z, fixture.V, Fixture::minimum_norm,
                                  unrestricted_state, unrestricted_P) == Status::success,
                 profile, "omitted permissions permit unrestricted wrapper correction");
+
     for (unsigned mask : permissions)
     {
         formal_eskf::configuration::Ins::BiasUpdate bias_update;
@@ -448,6 +468,7 @@ template <typename Fixture> void test_bias_forwarding(TestContext & test, std::s
             bias_update.accelerometer[axis] = (mask & (1U << axis)) != 0U;
             bias_update.gyroscope[axis] = (mask & (1U << (3U + axis))) != 0U;
         }
+
         auto const reference =
             formal_eskf::test::reference::reference_correction(independent_input, ESKF_RESET_APPROX != 0, bias_update);
         for (unsigned aliases = 0U; aliases < 4U; ++aliases)
@@ -462,21 +483,25 @@ template <typename Fixture> void test_bias_forwarding(TestContext & test, std::s
                             formal_eskf::test::reference::matches_reference(independent_input, reference, state_output,
                                                                             P_output, tolerance),
                         profile, "each forwarding partition matches independently constrained gain and Joseph");
+
             if (mask == 63U)
             {
                 test.expect(same_state(state_output, unrestricted_state) && same_bits(P_output, unrestricted_P),
                             profile, "explicit default/all-enabled equals omitted permissions");
             }
+
             for (std::size_t axis = 0U; axis < 3U; ++axis)
             {
                 test.expect((bias_update.accelerometer[axis] || state_output.b_a(axis) == fixture.state.b_a(axis)) &&
                                 (bias_update.gyroscope[axis] || state_output.b_g(axis) == fixture.state.b_g(axis)),
                             profile, "each disabled axis retains its own nominal bias exactly");
             }
+
             test.expect(((aliases & 1U) != 0U || same_state(input.state, fixture.state)) &&
                             ((aliases & 2U) != 0U || same_bits(input.P, fixture.P)) && same_bits(input.z, fixture.z) &&
                             same_bits(input.V, fixture.V),
                         profile, "bias forwarding preserves distinct inputs");
+
             auto const saved_state = state_output;
             auto const saved_P = P_output;
             test.expect(Fixture::correct(input.state, input.P, input.z, input.V, value_type{0}, state_output, P_output,
@@ -530,6 +555,7 @@ template <typename Fixture> void test_position_failures(TestContext & test, std:
             bad.V(axis, axis) = invalid;
             fail(bad, Fixture::minimum_norm, Status::non_finite_input, "non-finite measurement variance rolls back");
         }
+
         for (std::size_t axis = 0U; axis < 3U; ++axis)
         {
             auto bad = fixture;
@@ -537,6 +563,7 @@ template <typename Fixture> void test_position_failures(TestContext & test, std:
             fail(bad, Fixture::minimum_norm, Status::non_finite_input, "non-finite prior position rolls back");
         }
     }
+
     auto bad = fixture;
     bad.state.p_n(Fixture::axis_offset) = -std::numeric_limits<value_type>::max();
     bad.z(0U) = std::numeric_limits<value_type>::max();
@@ -563,12 +590,14 @@ template <typename Fixture> void test_position_failures(TestContext & test, std:
         bad.V(0U, 1U) = value_type{0.25};
         fail(bad, Fixture::minimum_norm, Status::domain_error, "asymmetric V is not silently repaired");
     }
+
     for (value_type variance : {value_type{0}, value_type{-1}})
     {
         bad = fixture;
         bad.V(measurement_size - 1U, measurement_size - 1U) = variance;
         fail(bad, Fixture::minimum_norm, Status::domain_error, "nonpositive measurement variance rolls back");
     }
+
     bad = fixture;
     bad.P(1U, 0U) = value_type{0.25};
     fail(bad, Fixture::minimum_norm, Status::domain_error, "asymmetric prior covariance rolls back");
@@ -580,6 +609,7 @@ template <typename Fixture> void test_position_failures(TestContext & test, std:
         // Invalid prior violates PSD precondition and gives an indefinite S here.
         fail(bad, Fixture::minimum_norm, Status::not_positive_definite, "innovation Cholesky failure propagates");
     }
+
     fail(fixture, value_type{0}, Status::domain_error, "invalid quaternion norm bound propagates");
     fail(fixture, std::numeric_limits<value_type>::quiet_NaN(), Status::non_finite_input,
          "non-finite quaternion norm bound propagates");
@@ -651,10 +681,12 @@ void test_position_sequence(TestContext & test, std::string_view profile, typena
         P(axis, axis) = value_type{4};
         P(3U + axis, 3U + axis) = value_type{1};
     }
+
     for (std::size_t axis = 0U; axis < measurement_size; ++axis)
     {
         V(axis, axis) = static_cast<value_type>(axis + 1U) / value_type{4};
     }
+
     constexpr std::size_t steps = 80U;
     for (std::size_t step = 1U; step <= steps; ++step)
     {
@@ -662,6 +694,7 @@ void test_position_sequence(TestContext & test, std::string_view profile, typena
         {
             axis_reference.predict(dt);
         }
+
         typename Fixture::measurement_type z;
         for (std::size_t axis = 0U; axis < measurement_size; ++axis)
         {
@@ -669,10 +702,12 @@ void test_position_sequence(TestContext & test, std::string_view profile, typena
             z(axis) = static_cast<value_type>(truth_velocity[nav_axis] * static_cast<long double>(step) * dt);
             reference[nav_axis].correct(z(axis), V(axis, axis));
         }
+
         Status const predict_status = formal_eskf::predict(state, P, imu, dt, parameters, state, P);
         Status const correct_status = Fixture::correct(state, P, z, V, Fixture::minimum_norm, state, P);
         test.expect(predict_status == Status::success && correct_status == Status::success, profile,
                     "repeated in-place predict and position correct succeed");
+
         for (std::size_t axis = 0U; axis < 3U; ++axis)
         {
             auto const & expected = reference[axis];
@@ -683,17 +718,21 @@ void test_position_sequence(TestContext & test, std::string_view profile, typena
                             near(P(3U + axis, 3U + axis), static_cast<value_type>(expected.vv), tolerance),
                         profile, "each predict/correct step matches independent position-velocity filter");
         }
+
         test.expect(formal_eskf::linalg::all_finite(P) && formal_eskf::linalg::is_symmetric(P, value_type{0}), profile,
                     "sequence covariance remains finite and symmetric");
     }
+
     for (std::size_t axis = 0U; axis < 3U; ++axis)
     {
         if (!Fixture::observes_axis(axis))
         {
             test.expect(near(P(3U + axis, 3U + axis), value_type{1}, tolerance), profile,
                         "unobserved independent velocity uncertainty is not reduced");
+
             continue;
         }
+
         auto const truth_position =
             static_cast<value_type>(truth_velocity[axis] * static_cast<long double>(steps) * dt);
         auto const truth_speed = static_cast<value_type>(truth_velocity[axis]);
@@ -720,6 +759,7 @@ template <typename Fixture> void test_selectors(TestContext & test, std::string_
             expected.p_n(index) += (fixture.z(axis) - fixture.state.p_n(index)) / value_type{4};
             expected_P(index, index) = value_type{0.75};
         }
+
         auto state = fixture.state;
         auto P = fixture.P;
         test.expect(Fixture::correct(fixture.state, fixture.P, fixture.z, fixture.V, Fixture::minimum_norm, state, P) ==

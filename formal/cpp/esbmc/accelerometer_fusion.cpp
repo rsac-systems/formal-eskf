@@ -28,12 +28,14 @@ using Decision = formal_eskf::runtime::FusionDecision;
 static_assert(step_correction_proof::boundaries_clear && correction_proof::measurement_size == 3U &&
               (correction_proof::state_size == 3U || correction_proof::state_size == 15U) &&
               FORMAL_ESKF_PROOF_STEP_ALIAS < 4);
+
 struct Output
 {
     State state;
     Covariance P;
     Status status;
 };
+
 struct Call
 {
     inline static State const *state{}, *before_state{};
@@ -47,6 +49,7 @@ struct Call
     inline static Scalar minimum{};
     inline static unsigned count{};
 };
+
 inline Status correct(State const & state, Covariance const & P, Vector const & sample, Vector const & gravity,
                       Noise const & V, Scalar minimum, State & output, Covariance & next_P)
 {
@@ -58,6 +61,7 @@ inline Status correct(State const & state, Covariance const & P, Vector const & 
     __ESBMC_assert(&output == Call::state_target && &next_P == Call::P_target &&
                        same_state(output, *Call::before_state) && same_matrix(next_P, *Call::before_P),
                    "R-ACCELEROMETER-FUSION: original output aliases and sentinel values reach correction unchanged");
+
     // E-OBS (models 6/7) and E-BIAS-UPDATE prove this same-type atomic frame.
     // Successful outputs/status are otherwise unconstrained; no numeric
     // validity, success, unit attitude or finite-input premise is assumed.
@@ -66,14 +70,17 @@ inline Status correct(State const & state, Covariance const & P, Vector const & 
         output = Call::output->state;
         next_P = Call::output->P;
     }
+
     return Call::output->status;
 }
+
 inline bool same_conditions(Conditions const & a, Conditions const & b)
 {
     return a.enabled == b.enabled && a.attitude_seeded == b.attitude_seeded &&
            a.horizontal_aiding == b.horizontal_aiding && a.at_rest == b.at_rest && a.clipped == b.clipped;
 }
 } // namespace accel_fusion_proof
+
 namespace formal_eskf
 {
 template <>
@@ -95,6 +102,7 @@ inline Status correct_accelerometer<accel_fusion_proof::Backend>(
     return accel_fusion_proof::correct(state, P, sample, gravity, V, minimum, output, next_P);
 }
 } // namespace formal_eskf
+
 void verify_accelerometer_fusion(accel_fusion_proof::State state, accel_fusion_proof::Covariance P,
                                  accel_fusion_proof::Vector sample, accel_fusion_proof::Vector gravity,
                                  accel_fusion_proof::Noise V, accel_fusion_proof::Scalar minimum,
@@ -121,10 +129,12 @@ void verify_accelerometer_fusion(accel_fusion_proof::State state, accel_fusion_p
     {
         state_target = &state;
     }
+
     if constexpr (covariance_alias)
     {
         P_target = &P;
     }
+
     auto const before_state = *state_target;
     auto const before_P = *P_target;
     Call::state = &old_state;
@@ -179,4 +189,5 @@ void verify_accelerometer_fusion(accel_fusion_proof::State state, accel_fusion_p
                    "R-ACCELEROMETER-FUSION: all borrowed observation, condition, diagnostic and permission inputs "
                    "remain unchanged");
 }
+
 int main() { return 0; }

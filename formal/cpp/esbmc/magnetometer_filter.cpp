@@ -12,6 +12,7 @@
 #define private public
 #include <formal_eskf/runtime/sensors/magnetic/magnetometer.hpp>
 #undef private
+
 namespace magnetic_filter_proof
 {
 using contract_proof::finite_vector;
@@ -23,6 +24,7 @@ using solve_proof::Backend;
 using Filter = formal_eskf::runtime::MagnetometerFilter<Backend>;
 using Vector = Filter::vector_type;
 } // namespace magnetic_filter_proof
+
 void verify_magnetic_filter_initialization(magnetic_filter_proof::Filter filter)
 {
     using namespace magnetic_filter_proof;
@@ -34,6 +36,7 @@ void verify_magnetic_filter_initialization(magnetic_filter_proof::Filter filter)
     __ESBMC_assert(!filter.initialized() && same_vector(filter.field_b(), zero),
                    "R-MAGNETOMETER-FILTER: reset discards initialized or invalid prior history");
 }
+
 void verify_magnetic_filter_update(magnetic_filter_proof::Filter filter, magnetic_filter_proof::Vector sample,
                                    bool reseed)
 {
@@ -72,4 +75,5 @@ void verify_magnetic_filter_update(magnetic_filter_proof::Filter filter, magneti
     __ESBMC_assert(!finite_vector(before.m_field_b) || finite_vector(filter.field_b()),
                    "R-MAGNETOMETER-FILTER: finite field history is an initialized inductive invariant");
 }
+
 int main() { return 0; }

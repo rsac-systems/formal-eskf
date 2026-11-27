@@ -50,6 +50,7 @@ template <typename Matrix> bool same_bits(Matrix const & a, Matrix const & b)
             }
         }
     }
+
     return true;
 }
 
@@ -81,16 +82,19 @@ template <typename Linalg> void test_field_checks(TestContext & test, std::strin
     test.expect(result.status == Status::success && !result.accepted && result.failures.strength &&
                     !result.failures.inclination && !result.failures.heading,
                 profile, "same direction with excessive strength is rejected");
+
     sample = vector_type::from_row_major({value_type{40}, value_type{0}, value_type{30}});
     result = check_magnetic_field<Linalg>(identity, sample, reference, &reference, parameters, true);
     test.expect(!result.accepted && !result.failures.strength && result.failures.inclination &&
                     !result.failures.heading,
                 profile, "same strength but different inclination is rejected");
+
     sample = vector_type::from_row_major({value_type{0}, value_type{30}, value_type{40}});
     result = check_magnetic_field<Linalg>(identity, sample, reference, &reference, parameters, true);
     test.expect(!result.accepted && !result.failures.strength && !result.failures.inclination &&
                     result.failures.heading && result.heading_checked,
                 profile, "horizontal-direction disturbance needs an independent heading premise");
+
     result = check_magnetic_field<Linalg>(identity, sample, reference, &reference, parameters, false);
     test.expect(result.accepted && !result.heading_checked && result.heading_error == value_type{0}, profile,
                 "unobservable heading skips only the heading consistency check");
@@ -100,6 +104,7 @@ template <typename Linalg> void test_field_checks(TestContext & test, std::strin
     test.expect(result.status == Status::success && result.diagnostics_valid && !result.accepted &&
                     result.failures.horizontal_field && !result.heading_checked,
                 profile, "vertical fields have valid inclination but no usable heading");
+
     for (bool weak_reference : {false, true})
     {
         result = check_magnetic_field<Linalg>(identity, weak_reference ? reference : vertical,
@@ -125,13 +130,16 @@ template <typename Linalg> void test_field_checks(TestContext & test, std::strin
     auto const stronger = north * value_type{2};
     result = check_magnetic_field<Linalg>(identity, stronger, north, &north, parameters, true);
     test.expect(result.accepted, profile, "strength tolerance equality passes");
+
     parameters.strength_tolerance = std::nextafter(value_type{5}, value_type{0});
     test.expect(check_magnetic_field<Linalg>(identity, stronger, north, &north, parameters, true).failures.strength,
                 profile, "just beyond strength tolerance rejects");
+
     parameters = field_parameters<Linalg>();
     parameters.minimum_horizontal_field = value_type{5};
     test.expect(check_magnetic_field<Linalg>(identity, north, north, &north, parameters, true).accepted, profile,
                 "minimum horizontal equality passes");
+
     parameters.minimum_horizontal_field = std::nextafter(value_type{5}, value_type{6});
     test.expect(
         check_magnetic_field<Linalg>(identity, north, north, &north, parameters, true).failures.horizontal_field,
@@ -143,15 +151,18 @@ template <typename Linalg> void test_field_checks(TestContext & test, std::strin
     parameters.heading_tolerance = std::abs(result.heading_error);
     test.expect(check_magnetic_field<Linalg>(identity, sample, north, &north, parameters, true).accepted, profile,
                 "computed heading tolerance equality passes");
+
     parameters.heading_tolerance = std::nextafter(parameters.heading_tolerance, value_type{0});
     test.expect(check_magnetic_field<Linalg>(identity, sample, north, &north, parameters, true).failures.heading,
                 profile, "computed heading just beyond tolerance rejects");
+
     parameters = field_parameters<Linalg>();
     sample = vector_type::from_row_major({value_type{3}, value_type{0}, value_type{4}});
     result = check_magnetic_field<Linalg>(identity, sample, north, &north, parameters, true);
     parameters.inclination_tolerance = std::abs(result.inclination_error);
     test.expect(check_magnetic_field<Linalg>(identity, sample, north, &north, parameters, true).accepted, profile,
                 "computed inclination tolerance equality passes");
+
     parameters.inclination_tolerance = std::nextafter(parameters.inclination_tolerance, value_type{0});
     test.expect(check_magnetic_field<Linalg>(identity, sample, north, &north, parameters, true).failures.inclination,
                 profile, "computed inclination just beyond tolerance rejects");
@@ -189,6 +200,7 @@ template <typename Linalg> void test_field_selection(TestContext & test, std::st
                         result.failures.inclination == bad_inclination &&
                         result.accepted == !(waiting || bad_strength || bad_inclination),
                     profile, "all field selections distinguish absent reference, disabled checks and disturbances");
+
                 if (!inclination_checked)
                 {
                     test.expect(result.inclination_error == value_type{0}, profile,
@@ -197,6 +209,7 @@ template <typename Linalg> void test_field_selection(TestContext & test, std::st
             }
         }
     }
+
     formal_eskf::runtime::MagneticFieldChecks const fallback{true, true, false};
     for (value_type magnitude : {value_type{5}, value_type{85}})
     {
@@ -207,6 +220,7 @@ template <typename Linalg> void test_field_selection(TestContext & test, std::st
                         result.reference_strength == value_type{45},
                     profile, "without a reference the inclusive 5 to 85 microtesla range applies");
     }
+
     for (value_type magnitude :
          {std::nextafter(value_type{5}, value_type{0}), std::nextafter(value_type{85}, value_type{100})})
     {
@@ -215,11 +229,13 @@ template <typename Linalg> void test_field_selection(TestContext & test, std::st
                         .failures.strength,
                     profile, "just outside the fallback range rejects independently of configured tolerance");
     }
+
     auto const vertical = vector_type::from_row_major({value_type{0}, value_type{0}, value_type{50}});
     formal_eskf::runtime::MagneticFieldChecks const disabled{false, false, false};
     test.expect(check_magnetic_field<Linalg>(identity, vertical, reference, nullptr, parameters, false, disabled)
                     .failures.horizontal_field,
                 profile, "disabling physical checks retains the separate weak-heading guard");
+
     auto const east = vector_type::from_row_major({value_type{0}, value_type{30}, value_type{40}});
     test.expect(
         check_magnetic_field<Linalg>(identity, east, reference, nullptr, parameters, true, disabled).failures.heading,
@@ -247,6 +263,7 @@ template <typename Linalg> void test_field_frames(TestContext & test, std::strin
                 coefficients_type::from_row_major({coefficients[0], coefficients[1], coefficients[2], coefficients[3]}),
                 static_cast<value_type>(1e-6), q) == Status::success,
             profile, "test orientation constructed");
+
         // Independent long-double rotation: v_b = v_n + 2 w (u x v_n) + 2 u x (u x v_n), u=-q_vec.
         std::array<long double, 3U> const u{-q.q1(), -q.q2(), -q.q3()};
         std::array<long double, 3U> first{};
@@ -257,6 +274,7 @@ template <typename Linalg> void test_field_frames(TestContext & test, std::strin
             auto const k = (axis + 2U) % 3U;
             first[axis] = u[j] * reference(k) - u[k] * reference(j);
         }
+
         for (std::size_t axis = 0U; axis < 3U; ++axis)
         {
             auto const j = (axis + 1U) % 3U;
@@ -264,6 +282,7 @@ template <typename Linalg> void test_field_frames(TestContext & test, std::strin
             measured(axis) = static_cast<value_type>(reference(axis) + 2.0L * q.q0() * first[axis] +
                                                      2.0L * (u[j] * first[k] - u[k] * first[j]));
         }
+
         auto const result =
             check_magnetic_field<Linalg>(q, measured, reference, &reference, field_parameters<Linalg>(), true);
         test.expect(result.accepted &&
@@ -300,6 +319,7 @@ template <typename Linalg> void test_invalid_field(TestContext & test, std::stri
             expect_failure(check_magnetic_field<Linalg>(identity, reference, bad, &bad, parameters, true),
                            Status::non_finite_input);
         }
+
         for (std::size_t index = 0U; index < 4U; ++index)
         {
             auto bad = parameters;
@@ -310,6 +330,7 @@ template <typename Linalg> void test_invalid_field(TestContext & test, std::stri
                            Status::non_finite_input);
         }
     }
+
     for (std::size_t index = 0U; index < 4U; ++index)
     {
         auto bad = parameters;
@@ -319,6 +340,7 @@ template <typename Linalg> void test_invalid_field(TestContext & test, std::stri
         expect_failure(check_magnetic_field<Linalg>(identity, reference, reference, &reference, bad, true),
                        Status::domain_error);
     }
+
     auto bad_parameters = parameters;
     bad_parameters.inclination_tolerance = value_type{4};
     expect_failure(check_magnetic_field<Linalg>(identity, reference, reference, &reference, bad_parameters, true),
@@ -357,10 +379,12 @@ template <typename Backend> void geometry(TestContext & test, std::string_view p
     test.expect(Q::from_coefficients(Scalar{0.5}, Scalar{0.5}, Scalar{0.5}, Scalar{0.5}, Scalar{0.125}, q) ==
                     Status::success,
                 profile, "exact cyclic attitude fixture");
+
     auto result = check_magnetic_field(q, body, observation, &observation, field_parameters<Backend>(), true);
     test.expect(result.accepted && result.strength == Scalar{50} && result.heading_error == Scalar{0} &&
                     result.inclination_error == Scalar{0},
                 profile, "exact cyclic body-to-navigation mapping has independently known coefficients");
+
     auto parameters = field_parameters<Backend>();
     parameters.heading_tolerance = std::numbers::pi_v<Scalar>;
     parameters.inclination_tolerance = std::numbers::pi_v<Scalar>;
@@ -373,6 +397,7 @@ template <typename Backend> void geometry(TestContext & test, std::string_view p
         test.expect(result.accepted && std::abs(static_cast<long double>(result.heading_error) - expected) <=
                                            8 * std::numeric_limits<Scalar>::epsilon(),
                     profile, "East heading has measured-minus-reference sign independently of quaternion helpers");
+
         auto const dipped = Vector<Backend>::from_row_major({Scalar{18}, Scalar{0}, static_cast<Scalar>(24 * sign)});
         result = check_magnetic_field(Q{}, dipped, north, &north, parameters, true);
         test.expect(result.accepted && std::abs(static_cast<long double>(result.inclination_error) -
@@ -406,12 +431,14 @@ template <typename Backend> void selection(TestContext & test, std::string_view 
                         profile, "all legal health-pointer arrangements preserve selected roles and placeholders");
         }
     }
+
     auto invalid = health;
     invalid(2U) = std::numeric_limits<Scalar>::quiet_NaN();
     auto const result =
         check_magnetic_field(Q{}, body, observation, &invalid, field_parameters<Backend>(), true, {false, false, true});
     test.expect(result.accepted && result.reference_strength == Scalar{0} && !result.failures.reference, profile,
                 "unselected health coefficients are not consumed, even when reference requested");
+
     auto const vertical_health = Vector<Backend>::from_row_major({Scalar{0}, Scalar{0}, Scalar{50}});
     auto const vertical =
         check_magnetic_field(Q{}, body, observation, &vertical_health, field_parameters<Backend>(), true);
@@ -443,42 +470,51 @@ template <typename Backend> void validation(TestContext & test, std::string_view
                         same_bits(health, health_before) && same_bits(observation, before),
                     profile, "independently supplied consumed health failures preserve every borrowed coefficient");
     }
+
     Scalar const tiny =
         std::ldexp(Scalar{1}, (std::numeric_limits<Scalar>::min_exponent - std::numeric_limits<Scalar>::digits) / 2);
     Q growing;
     test.expect(Q::from_coefficients(tiny, tiny / Scalar{2}, Scalar{0}, Scalar{0}, std::numeric_limits<Scalar>::min(),
                                      growing) == Status::success,
                 profile, "public gradual-underflow constructor produces guard witness");
+
     for (unsigned step = 0;
          step < 32 && std::isfinite(formal_eskf::linalg::dot(growing.coefficients(), growing.coefficients())); ++step)
     {
         growing = growing * growing;
     }
+
     test.expect(formal_eskf::linalg::all_finite(growing.coefficients()), profile,
                 "finite malformed coefficients reach rotation arithmetic overflow without layout mutation");
+
     auto result =
         check_magnetic_field(growing, observation, observation, &observation, field_parameters<Backend>(), true);
     test.expect(result.status == Status::non_finite_result && invalid_diagnostics(result), profile,
                 "rotation overflow does not publish partial field geometry");
+
     for (unsigned step = 0; step < 4 && formal_eskf::linalg::all_finite(growing.coefficients()); ++step)
     {
         growing = growing * growing;
     }
+
     result = check_magnetic_field(growing, observation, observation, &observation, field_parameters<Backend>(), false);
     test.expect(result.status == Status::non_finite_input && invalid_diagnostics(result) &&
                     same_bits(observation, before),
                 profile, "nonfinite public quaternion witness fails before rotation");
+
     auto parameters = field_parameters<Backend>();
     parameters.minimum_horizontal_field = std::nextafter(std::numeric_limits<Scalar>::min(), Scalar{0});
     result = check_magnetic_field(Q{}, observation, observation, &observation, parameters, true);
     test.expect(result.status == Status::domain_error && invalid_diagnostics(result), profile,
                 "positive subnormal horizontal threshold is outside the positive-normal domain");
+
     parameters.minimum_horizontal_field = std::numeric_limits<Scalar>::min();
     parameters.strength_tolerance = Scalar{0};
     parameters.heading_tolerance = Scalar{0};
     parameters.inclination_tolerance = Scalar{0};
     test.expect(check_magnetic_field(Q{}, observation, observation, &observation, parameters, true).accepted, profile,
                 "minimum-normal horizontal bound and zero physical tolerances are legal on exactly matching data");
+
     for (bool heading : {false, true})
     {
         parameters = field_parameters<Backend>();
@@ -486,11 +522,13 @@ template <typename Backend> void validation(TestContext & test, std::string_view
         angle = std::numbers::pi_v<Scalar>;
         test.expect(check_magnetic_field(Q{}, observation, observation, &observation, parameters, true).accepted,
                     profile, "encoded pi is a legal inclusive angle tolerance");
+
         angle = std::nextafter(angle, std::numeric_limits<Scalar>::infinity());
         result = check_magnetic_field(Q{}, observation, observation, &observation, parameters, true);
         test.expect(result.status == Status::domain_error && invalid_diagnostics(result), profile,
                     "one represented angle step above pi is invalid");
     }
+
     enum class Scenario
     {
         accepted,
@@ -516,6 +554,7 @@ template <typename Backend> void validation(TestContext & test, std::string_view
             expected_status = Status::non_finite_input;
             break;
         }
+
         auto const body_before = body, health_before = health;
         auto const attitude_before = attitude.coefficients();
         std::array<Scalar, 4> const config_before{config.strength_tolerance, config.inclination_tolerance,
@@ -555,6 +594,7 @@ template <typename Backend> void rejection(TestContext & test, std::string_view 
                         result.failures.heading == (index == 2 || index == 4) &&
                         result.failures.horizontal_field == (index == 3),
                     profile, "independent disturbance table distinguishes physical flags from numerical errors");
+
         auto const recovered =
             check_magnetic_field(Q{}, observation, observation, &observation, field_parameters<Backend>(), true);
         test.expect(recovered.status == Status::success && recovered.accepted && recovered.diagnostics_valid &&
@@ -563,6 +603,7 @@ template <typename Backend> void rejection(TestContext & test, std::string_view 
                         !recovered.failures.horizontal_field,
                     profile, "stateless successful call inherits no rejected-call flags");
     }
+
     auto const missing =
         check_magnetic_field(Q{}, observation, observation, static_cast<Vector<Backend> const *>(nullptr),
                              field_parameters<Backend>(), true, {true, true, true});
@@ -586,6 +627,7 @@ template <typename Backend> void representation(TestContext & test, std::string_
             Q::from_coefficients(Scalar{-0.5}, Scalar{-0.5}, Scalar{0.5}, Scalar{0.5}, Scalar{0.125}, yawed) ==
                 Status::success,
         profile, "independently derived cyclic and navigation-yaw-composed coefficients");
+
     for (auto const & attitude : {q, negative, yawed})
     {
         auto const & reference =
@@ -596,6 +638,7 @@ template <typename Backend> void representation(TestContext & test, std::string_
                         result.inclination_error == Scalar{0},
                     profile, "q sign and consistent navigation yaw preserve exact geometric plausibility");
     }
+
     auto const alternate = Vector<Backend>::from_row_major({Scalar{40}, Scalar{0}, Scalar{30}});
     auto const changed = check_magnetic_field(q, body, observation, &alternate, field_parameters<Backend>(), true);
     test.expect(changed.status == Status::success && !changed.accepted && changed.failures.inclination &&

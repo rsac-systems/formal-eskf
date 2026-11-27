@@ -17,6 +17,7 @@
 #define private public
 #include <formal_eskf/runtime/sensors/gravity/accelerometer.hpp>
 #undef private
+
 namespace accel_proof
 {
 using contract_proof::Linalg;
@@ -25,15 +26,18 @@ using contract_proof::Scalar;
 using formal_eskf::Status;
 using Magnitude = formal_eskf::runtime::AccelerometerMagnitude<Linalg>;
 using Vector = Magnitude::vector_type;
+
 inline bool same_vector(Vector const & a, Vector const & b)
 {
     return same(a(0U), b(0U)) && same(a(1U), b(1U)) && same(a(2U), b(2U));
 }
+
 inline bool finite_vector(Vector const & value)
 {
     return std::isfinite(value(0U)) && std::isfinite(value(1U)) && std::isfinite(value(2U));
 }
 } // namespace accel_proof
+
 void verify_accelerometer_magnitude_initialization(accel_proof::Magnitude history)
 {
     using namespace accel_proof;
@@ -45,6 +49,7 @@ void verify_accelerometer_magnitude_initialization(accel_proof::Magnitude histor
     __ESBMC_assert(!history.initialized() && same_vector(history.filtered_specific_force_b(), zero),
                    "R-ACCELEROMETER-MAGNITUDE: reset clears arbitrary prior history and initialization");
 }
+
 void verify_accelerometer_magnitude(accel_proof::Magnitude history, accel_proof::Vector sample)
 {
     using namespace accel_proof;
@@ -130,4 +135,5 @@ void verify_accelerometer_conditions(Conditions conditions, Magnitude magnitude)
                        same(magnitude.squared_norm, old_magnitude.squared_norm),
                    "R-ACCELEROMETER-CONDITIONS: every input, including unused diagnostics, remains unchanged");
 }
+
 int main() { return 0; }

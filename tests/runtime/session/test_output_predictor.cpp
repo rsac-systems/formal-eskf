@@ -48,6 +48,7 @@ Quaternion rotation(Vector const & angle)
     {
         std::abort();
     }
+
     return result;
 }
 
@@ -75,6 +76,7 @@ bool same_sample(Predictor::Sample const & a, Predictor::Sample const & b)
     {
         return false;
     }
+
     auto const qa = a.q_nb.coefficients();
     auto const qb = b.q_nb.coefficients();
     for (std::size_t i = 0; i < 4; ++i)
@@ -84,6 +86,7 @@ bool same_sample(Predictor::Sample const & a, Predictor::Sample const & b)
             return false;
         }
     }
+
     for (std::size_t i = 0; i < 3; ++i)
     {
         if (std::bit_cast<std::uint64_t>(a.v_n(i)) != std::bit_cast<std::uint64_t>(b.v_n(i)) ||
@@ -92,6 +95,7 @@ bool same_sample(Predictor::Sample const & a, Predictor::Sample const & b)
             return false;
         }
     }
+
     return true;
 }
 
@@ -114,6 +118,7 @@ struct Session
     {
         time += 4000;
         test.expect(imu.push(sample(time, force, rate), time), "input", "admit real interval");
+
         auto const * input = imu.latest();
         test.expect(input != nullptr && output.predict(*input), "output", "predict exactly one admitted interval");
     }
@@ -135,16 +140,19 @@ void startup_and_configuration(Context & test)
     test.expect(!output.configure({10000, 200, 0, 0, 0}) && !output.configure({4000, 240, 0, 0, 0}), "startup",
                 "reject unsupported interval and excessive length");
     test.expect(output.configure(parameters_250hz) && !output.seed({}, 0), "startup", "zero seed rejected");
+
     State bad;
     bad.b_a(1) = std::numeric_limits<double>::quiet_NaN();
     test.expect(!output.seed(bad, 1000000) && output.seed({}, 1000000), "startup", "bad seed preserves empty state");
     test.expect(!output.seed({}, 1000000) && !output.configure(parameters_250hz) && output.entries() == 0 &&
                     !output.ready(),
                 "startup", "seed does not fabricate history or permit live reconfiguration");
+
     auto const before = output.current();
     test.expect(!output.correct(1004000, {}) && output.fault() == Fault::epoch_mismatch &&
                     same_sample(before, output.current()),
                 "startup", "feedback during warmup faults atomically");
+
     output.reset();
     test.expect(output.fault() == Fault::none && output.entries() == 0 && output.current().time_us == 0 &&
                     output.fusion_time_us() == 0 && !output.ready() && output.seed({}, 2000000),
@@ -173,16 +181,20 @@ void analytic_translation(Context & test, formal_eskf::runtime::TimingParameters
             near_vector(session.output.current().p_n, initial.p_n + initial.v_n * t + acceleration * (0.5 * t * t)) &&
                 near_vector(session.output.current().v_n, initial.v_n + acceleration * t),
             "translation", "independent constant-acceleration solution with nonzero biases");
+
         auto const * delayed = session.imu.delayed();
         if (delayed == nullptr)
         {
             test.expect(!session.output.ready() && session.output.delayed() == nullptr, "warmup",
                         "matched real warmup");
+
             continue;
         }
+
         auto const time = delayed->time_us;
         auto const * output = session.output.delayed();
         test.expect(output != nullptr && output->time_us == time, "history", "exact epoch through repeated wraps");
+
         double const td = static_cast<double>(time - epoch) * 1e-6;
         auto main = initial;
         main.p_n = initial.p_n + initial.v_n * td + acceleration * (0.5 * td * td);
@@ -236,10 +248,12 @@ void gap_and_periods(Context & test)
             session.imu.seed(sample(session.time, vector(2, 0, -output_parameters.gravity_m_s2)), session.time) &&
             session.output.seed({}, session.time),
         "gap", "seed held rate");
+
     auto input = sample(session.time + 14000, vector(3, 0, -output_parameters.gravity_m_s2));
     input.acceleration_period_us = 4200;
     input.delta_velocity_b = vector(3, 0, -output_parameters.gravity_m_s2) * 0.0042;
     test.expect(session.imu.push(input, input.time_us) && session.imu.latest() != nullptr, "gap", "admit gap");
+
     auto const interval = *session.imu.latest();
     test.expect(interval.hold_period_us == 10000 && session.output.predict(interval), "gap", "hold then real step");
     test.expect(near(session.output.current().v_n(0), 2 * 0.010 + 3 * 0.004, 1e-12) &&
@@ -265,10 +279,12 @@ void variable_periods(Context & test)
         test.expect(session.imu.push(input, session.time) && session.imu.latest() != nullptr &&
                         session.output.predict(*session.imu.latest()),
                     "jitter", "admit and predict alternating integration-period bounds");
+
         double const t = static_cast<double>(session.time - 1000000) * 1e-6;
         test.expect(near(session.output.current().v_n(0), t, 1e-11) &&
                         near(session.output.current().p_n(0), 0.5 * t * t, 1e-11),
                     "jitter", "current state follows actual integration time");
+
         if (auto const * delayed = session.imu.delayed())
         {
             auto const time = delayed->time_us;
@@ -297,6 +313,7 @@ void feedback_and_bias(Context & test)
     auto const before = session.output.current();
     test.expect(session.output.correct(delayed_time, main) && session.imu.complete(delayed_time), "tracking",
                 "first correction");
+
     double const gain = 0.004 / 0.25;
     double const scale = gain + 0.1 * gain * gain;
     test.expect(near_vector(session.output.current().v_n, main.v_n * scale) &&
@@ -304,10 +321,12 @@ void feedback_and_bias(Context & test)
                     session.output.current().q_nb.q3() == before.q_nb.q3() &&
                     session.output.current().time_us == before.time_us,
                 "tracking", "PI translation adjusts history immediately; attitude waits for fast prediction");
+
     auto const corrected = session.output.current();
     double const correction_rate = std::sin(0.1) / 0.212;
     test.expect(near_vector(session.output.angular_rate_b(), {}), "tracking",
                 "feedback does not retroactively change the latest propagated angular rate");
+
     session.push(test);
     double const angle = angular_step(correction_rate - 0.03, 0.004);
     test.expect(near(session.output.current().q_nb.q3(), std::sin(angle / 2), 1e-12) &&
@@ -315,6 +334,7 @@ void feedback_and_bias(Context & test)
                 "tracking", "new bias and correct-sign attitude feedback affect the next real interval");
     test.expect(near_vector(session.output.angular_rate_b(), vector(0, 0, correction_rate - 0.03)), "tracking",
                 "output reference-point velocity uses the same bias/tracking-corrected rate as propagation");
+
     auto const * old = session.output.delayed();
     test.expect(old != nullptr && near_vector(old->v_n, main.v_n * scale) && near_vector(old->p_n, main.p_n * scale),
                 "tracking", "the next delayed record received the same translation as current output");
@@ -332,6 +352,7 @@ void convergence_and_sign(Context & test)
         {
             main.q_nb = -main.q_nb;
         }
+
         main.p_n = vector(2, -1, 3);
         main.v_n = vector(0.5, -0.2, 0.1);
         auto const origin = main.p_n;
@@ -346,6 +367,7 @@ void convergence_and_sign(Context & test)
                             "feedback");
             }
         }
+
         auto const & current = session.output.current();
         auto const expected_position = origin + main.v_n * 20.;
         std::cout << "20 s tracking residual: yaw=" << 2 * std::atan2(current.q_nb.q3(), current.q_nb.q0()) - 0.2
@@ -367,10 +389,12 @@ void feedback_during_gap(Context & test)
     main.q_nb = rotation(vector(0, 0, 0.2));
     auto const time = session.imu.delayed()->time_us;
     test.expect(session.output.correct(time, main) && session.imu.complete(time), "gap feedback", "establish feedback");
+
     auto input = sample(session.time + 14000);
     test.expect(session.imu.push(input, input.time_us) && session.imu.latest() != nullptr &&
                     session.output.predict(*session.imu.latest()),
                 "gap feedback", "predict a held and real segment with existing angular feedback");
+
     double const rate = std::sin(0.1) / 0.212;
     double const angle = angular_step(rate, 0.010) + angular_step(rate, 0.004);
     test.expect(near(session.output.current().q_nb.q3(), std::sin(angle * 0.5), 1e-12), "gap feedback",
@@ -389,12 +413,14 @@ void resets(Context & test)
         {
             session.push(test);
         }
+
         auto const before = session.output.current();
         double const angle = 0.4;
         auto const q_delta = rotation(vector(0, 0, angle));
         auto const dv = vector(1, 2, 3);
         auto const dp = vector(4, 5, 6);
         test.expect(session.output.apply_reset(q_delta, dv, dp), "reset", "seed, partial or full history reset");
+
         auto const & after = session.output.current();
         test.expect(near_vector(after.v_n, before.v_n + dv) && near_vector(after.p_n, before.p_n + dp) &&
                         near(after.q_nb.q0(), std::cos(0.2) * std::cos(0.15), 1e-12) &&
@@ -403,6 +429,7 @@ void resets(Context & test)
                         near(after.q_nb.q3(), std::sin(0.2) * std::cos(0.15), 1e-12) &&
                         after.time_us == before.time_us && session.output.entries() == fill,
                     "reset", "left navigation rotation, additive deltas and preserved epochs");
+
         if (auto const * delayed = session.output.delayed())
         {
             test.expect(near(delayed->q_nb.q2(), after.q_nb.q2(), 1e-12) && near(delayed->p_n(0), dp(0), 1e-12),
@@ -470,16 +497,19 @@ void reset_feedback_invariance(Context & test)
     test.expect(original.output.correct(time, main) && original.imu.complete(time) &&
                     reset_session.output.correct(time, main) && reset_session.imu.complete(time),
                 "reset feedback", "establish nonzero tracking feedback and integrals");
+
     auto const q_delta = rotation(vector(0, 0, 0.3));
     auto const translation = vector(5, 6, 7);
     test.expect(reset_session.output.apply_reset(q_delta, {}, translation), "reset feedback",
                 "global yaw and position reset");
+
     original.push(test);
     reset_session.push(test);
     auto const expected_q = q_delta * original.output.current().q_nb;
     test.expect(near(reset_session.output.current().q_nb.q3(), expected_q.q3(), 1e-12) &&
                     near_vector(reset_session.output.current().p_n, original.output.current().p_n + translation),
                 "reset feedback", "existing angular feedback is invariant under common left rotation");
+
     auto reset_main = main;
     reset_main.q_nb = q_delta * main.q_nb;
     reset_main.p_n = main.p_n + translation;
@@ -512,6 +542,7 @@ void failures(Context & test)
         {
             initial.p_n(0) = -std::numeric_limits<double>::max();
         }
+
         session.seed(test, initial);
         session.fill(test);
         auto time = session.imu.delayed()->time_us;
@@ -520,6 +551,7 @@ void failures(Context & test)
         {
             test.expect(session.output.correct(time, main), "failure", "complete first feedback");
         }
+
         auto const before = session.output.current();
         auto const fusion = session.output.fusion_time_us();
         auto const count = session.output.entries();
@@ -545,8 +577,10 @@ void failures(Context & test)
             break;
         case Case::unacknowledged:
             test.expect(session.imu.complete(time), "failure", "advance IMU owner only");
+
             session.time += 4000;
             test.expect(session.imu.push(sample(session.time), session.time), "failure", "new input");
+
             accepted = session.output.predict(*session.imu.latest());
             expected = Fault::history_loss;
             break;
@@ -558,6 +592,7 @@ void failures(Context & test)
             expected = Fault::invalid_state;
             break;
         }
+
         test.expect(!accepted && session.output.fault() == expected && !session.output.ready() &&
                         same_sample(before, session.output.current()) && session.output.fusion_time_us() == fusion &&
                         session.output.entries() == count && session.output.delayed() == nullptr,
@@ -565,6 +600,7 @@ void failures(Context & test)
         test.expect(!session.output.correct(time, {}) && !session.output.configure(parameters_250hz) &&
                         !session.output.apply_reset({}, {}, {}) && session.output.fault() == expected,
                     "failure", "later calls cannot clear the first fault");
+
         session.output.reset();
         test.expect(near_vector(session.output.angular_rate_b(), {}), "failure", "restart clears output body rate");
         test.expect(session.output.seed({}, 2000000) && session.output.entries() == 0 && !session.output.ready() &&
@@ -572,6 +608,7 @@ void failures(Context & test)
                     "failure", "explicit restart clears feedback and starts new warmup");
     }
 }
+
 void frame_rebasing(Context & test)
 {
     auto const q = rotation(vector(0.2, -0.3, 0.4));
@@ -603,11 +640,14 @@ void frame_rebasing(Context & test)
         auto const seed = session.output.current();
         test.expect(session.output.prepare_rebase(q, translation) && same_sample(seed, session.output.current()),
                     "rebase", "seed preparation is not publication");
+
         session.output.commit_rebase();
         test.expect(matches(seed, session.output.current()) && session.output.entries() == 0 && !session.output.ready(),
                     "rebase", "seed-only transform preserves temporal readiness");
+
         control.seed(test, initial, timing);
         test.expect(control.output.prepare_rebase(q, translation), "rebase", "matching control seed");
+
         control.output.commit_rebase();
         session.fill(test);
         control.fill(test);
@@ -620,14 +660,17 @@ void frame_rebasing(Context & test)
             test.expect(session.output.correct(oldest.time_us, main) && session.imu.complete(oldest.time_us) &&
                             control.output.correct(oldest.time_us, main) && control.imu.complete(oldest.time_us),
                         "rebase", "complete real delayed epoch before wrapping");
+
             session.push(test);
             control.push(test);
         }
+
         auto const prior = session.output.current();
         auto const fusion_time = session.output.fusion_time_us();
         auto const body_rate = session.output.angular_rate_b();
         test.expect(session.output.prepare_rebase(q, translation) && same_sample(prior, session.output.current()),
                     "rebase", "full history remains visible until commit");
+
         session.output.commit_rebase();
         auto const committed = session.output.current();
         session.output.commit_rebase();
@@ -635,29 +678,35 @@ void frame_rebasing(Context & test)
                         session.output.fusion_time_us() == fusion_time && session.output.entries() == count &&
                         near_vector(body_rate, session.output.angular_rate_b()) && session.output.ready(),
                     "rebase", "single commit preserves epochs, occupancy, body feedback and readiness");
+
         for (std::size_t i = 0; i < count; ++i)
         {
             auto const before = *control.output.delayed();
             auto const after = *session.output.delayed();
             test.expect(matches(before, after), "rebase",
                         "every wrapped retained sample uses the same rigid transform");
+
             State old_main{before.p_n, before.v_n, before.q_nb, {}, {}};
             State new_main{after.p_n, after.v_n, after.q_nb, {}, {}};
             test.expect(control.output.correct(before.time_us, old_main) && control.imu.complete(before.time_us) &&
                             session.output.correct(after.time_us, new_main) && session.imu.complete(after.time_us),
                         "rebase", "time ordering remains consumable without duplication");
+
             control.push(test);
             session.push(test);
         }
+
         auto const before_failure = session.output.current();
         test.expect(!session.output.prepare_rebase(q, vector(std::numeric_limits<double>::infinity(), 0, 0)) &&
                         session.output.fault() == Fault::none,
                     "rebase", "optional event failure does not latch a flight fault");
+
         session.output.commit_rebase();
         test.expect(same_sample(before_failure, session.output.current()), "rebase",
                     "failed preparation cannot commit stale scratch");
         test.expect(session.output.prepare_rebase(q, translation), "rebase", "new valid staging");
         test.expect(session.output.apply_reset(Quaternion{}, {}, {}), "rebase", "intervening owner operation");
+
         auto const after_reset = session.output.current();
         session.output.commit_rebase();
         test.expect(same_sample(after_reset, session.output.current()), "rebase",
@@ -681,11 +730,13 @@ void frame_rollback(Context & test)
                     session.output.fault() == Fault::none && same_sample(first, *session.output.delayed()) &&
                     same_sample(last, session.output.current()),
                 "rebase failure", "late preparation failure preserves visible history and fault");
+
     session.output.commit_rebase();
     test.expect(same_sample(first, *session.output.delayed()) && same_sample(last, session.output.current()),
                 "rebase failure", "partial candidates cannot be published");
     test.expect(session.output.prepare_rebase(Quaternion{}, vector(1, 2, 3)), "rebase failure",
                 "valid retry overwrites all scratch");
+
     session.output.commit_rebase();
     test.expect(near_vector(session.output.current().p_n, last.p_n + vector(1, 2, 3)), "rebase failure",
                 "retry commits coherent history");
@@ -705,16 +756,19 @@ void frame_feedback(Context & test)
     test.expect(session.output.correct(time, main) && session.imu.complete(time) &&
                     control.output.correct(time, main) && control.imu.complete(time),
                 "rebase feedback", "nonzero tracking integrals");
+
     auto const q = rotation(vector(0, 0, 0.7)); // Down is unchanged: subsequent predictions are also comparable.
     auto const A = formal_eskf::so3::to_rotation_matrix(q);
     auto const t = vector(7, -8, 4);
     auto const error = session.output.tracking_error();
     test.expect(session.output.prepare_rebase(q, t), "rebase feedback", "stage feedback transport");
+
     session.output.commit_rebase();
     test.expect(near_vector(session.output.tracking_error().velocity_n, A * error.velocity_n) &&
                     near_vector(session.output.tracking_error().position_n, A * error.position_n) &&
                     near_vector(session.output.tracking_error().attitude_b, error.attitude_b),
                 "rebase feedback", "rotate navigation errors, preserve body attitude error");
+
     control.push(test);
     session.push(test);
     time = control.output.delayed()->time_us;
@@ -727,39 +781,48 @@ void frame_feedback(Context & test)
                     near_vector(session.output.current().v_n, A * control.output.current().v_n),
                 "rebase feedback", "next feedback uses rotated private integral sums");
 }
+
 void explicit_parameters(Context & test)
 {
     auto parameters = output_parameters;
     Predictor copied{parameters};
     parameters.velocity_time_constant_s = 0.;
     test.expect(copied.configure(parameters_250hz), "parameters", "constructor copies feedback settings");
+
     Predictor zero_tau{parameters};
     test.expect(!zero_tau.configure(parameters_250hz), "parameters", "zero feedback denominator rejected");
+
     parameters = output_parameters;
     parameters.nominal_interval_s = std::numeric_limits<double>::infinity();
     Predictor infinite_period{parameters};
     test.expect(!infinite_period.configure(parameters_250hz), "parameters", "nonfinite period rejected");
+
     parameters = output_parameters;
     parameters.interval_history_weight = 0.9;
     Predictor wrong_weights{parameters};
     test.expect(!wrong_weights.configure(parameters_250hz), "parameters", "weights must sum to one");
+
     parameters = output_parameters;
     parameters.quaternion_squared_norm_tolerance = -1.;
     Predictor negative_tolerance{parameters};
     test.expect(!negative_tolerance.configure(parameters_250hz), "parameters", "negative residual tolerance rejected");
+
     parameters = output_parameters;
     parameters.minimum_interval_s = parameters.nominal_interval_s * 2.;
     Predictor unordered_period{parameters};
     test.expect(!unordered_period.configure(parameters_250hz), "parameters",
                 "nominal period must fit prediction bounds");
+
     parameters = output_parameters;
     parameters.integral_tracking_gain = std::numeric_limits<double>::quiet_NaN();
     Predictor invalid_gain{parameters};
     test.expect(!invalid_gain.configure(parameters_250hz), "parameters", "NaN gain rejected");
+
     formal_eskf::runtime::OutputPredictor<Backend, 53> too_short{output_parameters};
     formal_eskf::runtime::OutputPredictor<Backend, 54> exact{output_parameters};
     test.expect(!too_short.configure(parameters_250hz) && exact.configure(parameters_250hz), "capacity",
                 "predictor validates its own backing capacity");
+
     parameters = output_parameters;
     parameters.nominal_interval_s = std::numeric_limits<double>::max();
     formal_eskf::runtime::OutputPredictor<formal_eskf::test::Backend<float>, 64> float_overflow{parameters};

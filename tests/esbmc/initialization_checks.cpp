@@ -23,26 +23,33 @@ struct Rotation
     Scalar w{1};
     Scalar x{0};
 };
+
 struct Sample
 {
     Rotation q{};
     unsigned tag{37};
 };
+
 struct Owner
 {
     std::array<Sample, 64> samples{};
     Sample current{};
 };
+
 unsigned calls;
+
 struct Counted
 {
     unsigned id = ++calls;
 };
+
 struct Constructed
 {
     unsigned id;
+
     Constructed() : id(++calls) {}
 };
+
 void verify_default()
 {
     Owner owner;
@@ -54,6 +61,7 @@ void verify_default()
     }
     CHECK(valid, "Array filler default member values");
 }
+
 void verify_partial()
 {
     std::array<Sample, 4> samples{{Sample{{}, 91}}};
@@ -64,6 +72,7 @@ void verify_partial()
     }
     CHECK(valid, "Array filler preserves explicit prefix and initializes suffix");
 }
+
 void verify_nested()
 {
     std::array<std::array<Sample, 3>, 2> samples{};
@@ -77,6 +86,7 @@ void verify_nested()
     }
     CHECK(valid, "Nested array filler initializes every record");
 }
+
 void verify_effects()
 {
     calls = 0;
@@ -84,6 +94,7 @@ void verify_effects()
     CHECK(calls == 4 && samples[0].id == 1 && samples[1].id == 2 && samples[2].id == 3 && samples[3].id == 4,
           "Each default member initializer executes separately and in order");
 }
+
 void verify_partial_effects()
 {
     calls = 0;
@@ -91,6 +102,7 @@ void verify_partial_effects()
     CHECK(calls == 3 && samples[0].id == 91 && samples[1].id == 1 && samples[2].id == 2 && samples[3].id == 3,
           "Only omitted elements execute the default member initializer");
 }
+
 void verify_constructor_effects()
 {
     calls = 0;
@@ -98,12 +110,14 @@ void verify_constructor_effects()
     CHECK(calls == 4 && samples[0].id == 1 && samples[1].id == 2 && samples[2].id == 3 && samples[3].id == 4,
           "Each omitted element calls a distinct default constructor");
 }
+
 void verify_empty()
 {
     calls = 0;
     std::array<Constructed, 0> samples{};
     CHECK(calls == 0 && samples.size() == 0, "Empty array invokes no element constructors");
 }
+
 void verify_builtin()
 {
     Sample samples[4]{};
@@ -112,11 +126,14 @@ void verify_builtin()
               integers[2] == 0 && integers[3] == 0,
           "Builtin record and scalar arrays retain their initialization semantics");
 }
+
 unsigned counter;
+
 struct Record
 {
     unsigned value = ++counter;
 };
+
 void verify_explicit_order()
 {
     counter = 0;
@@ -124,6 +141,7 @@ void verify_explicit_order()
     CHECK(counter == 4 && values[0].value == 1 && values[1].value == 2 && values[2].value == 3 && values[3].value == 4,
           "Explicit prefix and omitted suffix preserve evaluation order");
 }
+
 void verify_scalar_order()
 {
     counter = 0;
@@ -131,6 +149,7 @@ void verify_scalar_order()
     CHECK(counter == 2 && values[0] == 1 && values[1] == 2 && values[2] == 0 && values[3] == 0,
           "Const scalar arrays preserve explicit order and zero filler");
 }
+
 void verify_nested_partial()
 {
     std::array<std::array<int, 3>, 2> const values{{{{1, 2}}, {{3}}}};
@@ -138,6 +157,7 @@ void verify_nested_partial()
               values[1][2] == 0,
           "Nested partial scalar arrays preserve all values");
 }
+
 void verify_initialization()
 {
     verify_default();

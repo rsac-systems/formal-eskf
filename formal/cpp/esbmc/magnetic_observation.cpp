@@ -35,16 +35,19 @@ using formal_eskf::Status;
 using Parameters = formal_eskf::runtime::MagneticFieldParameters<Scalar>;
 using Checks = formal_eskf::runtime::MagneticFieldChecks;
 using Field = formal_eskf::runtime::MagneticFieldCheck<Scalar>;
+
 inline bool same_parameters(Parameters const & a, Parameters const & b)
 {
     return same(a.strength_tolerance, b.strength_tolerance) && same(a.inclination_tolerance, b.inclination_tolerance) &&
            same(a.heading_tolerance, b.heading_tolerance) &&
            same(a.minimum_horizontal_field, b.minimum_horizontal_field);
 }
+
 inline bool same_checks(Checks const & a, Checks const & b)
 {
     return a.strength == b.strength && a.inclination == b.inclination && a.require_reference == b.require_reference;
 }
+
 inline bool same_field(Field const & a, Field const & b)
 {
     return a.status == b.status && a.accepted == b.accepted && a.diagnostics_valid == b.diagnostics_valid &&
@@ -55,6 +58,7 @@ inline bool same_field(Field const & a, Field const & b)
            same(a.strength, b.strength) && same(a.reference_strength, b.reference_strength) &&
            same(a.inclination_error, b.inclination_error) && same(a.heading_error, b.heading_error);
 }
+
 struct Calls
 {
     inline static Quaternion attitude;
@@ -90,6 +94,7 @@ inline magnetic_observation_proof::Field check_magnetic_field<magnetic_observati
     return Calls::field;
 }
 } // namespace formal_eskf::runtime
+
 namespace formal_eskf::so3
 {
 template <>
@@ -122,6 +127,7 @@ void verify_magnetic_inverse_frame(magnetic_observation_proof::Quaternion q, mag
         same_vector(q.coefficients(), old_q.coefficients()) && same_vector(v, old_v),
         "R-MAGNETOMETER-FUSION: actual same-backend inverse action preserves both inputs for every IEEE return");
 }
+
 void verify_magnetic_observation(magnetic_observation_proof::Quaternion q, magnetic_observation_proof::Vector3 measured,
                                  magnetic_observation_proof::Vector3 reference,
                                  magnetic_observation_proof::Vector3 health, unsigned health_source,
@@ -189,4 +195,5 @@ void verify_magnetic_observation(magnetic_observation_proof::Quaternion q, magne
                        same_parameters(parameters, old_parameters) && same_checks(checks, old_checks),
                    "R-MAGNETOMETER-FUSION: observation preserves all borrowed inputs and policies");
 }
+
 int main() { return 0; }

@@ -6,6 +6,7 @@ using imu_proof::Input;
 using imu_proof::Interval;
 using imu_proof::same_configuration;
 using imu_proof::same_input;
+
 namespace
 {
 formal_eskf::runtime::ImuTiming expected_timing;
@@ -14,6 +15,7 @@ std::uint64_t expected_now;
 bool admission_result;
 unsigned admission_calls;
 } // namespace
+
 template <>
 bool formal_eskf::runtime::ImuHistory<Backend, 64>::valid_input(input_type const & sample, std::uint64_t now,
                                                                 formal_eskf::runtime::ImuTiming const & timing)
@@ -25,15 +27,18 @@ bool formal_eskf::runtime::ImuHistory<Backend, 64>::valid_input(input_type const
     ++admission_calls;
     return admission_result;
 }
+
 template <> formal_eskf::ImuSample<Backend> formal_eskf::runtime::ImuInput<Backend>::mean_rates() const
 {
     __ESBMC_assert(false, "IMU old view must be rejected before rate evaluation");
     return {};
 }
+
 template <> void formal_eskf::runtime::RingBuffer<Interval, 64>::push(Interval const &)
 {
     __ESBMC_assert(false, "IMU old view must be rejected before storage");
 }
+
 void verify_imu_borrowed_input(Imu owner, std::uint64_t now, bool admitted)
 {
     expected_timing = owner.m_timing;

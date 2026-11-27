@@ -23,6 +23,7 @@ struct Results
     bool prior_symmetric, noise_symmetric;
     bool cross_finite, delta_finite, transform_finite;
 };
+
 struct Calls
 {
     inline static Results const * results = nullptr;
@@ -40,6 +41,7 @@ struct Calls
     inline static unsigned adds{}, subtracts{}, finites{}, validations{}, products{}, symmetries{}, finishes{},
         solves{}, sandwiches{};
 };
+
 // The observation coordinates occur only in assertions, never in production or
 // eligibility. Each matrix's modulo projection is surjective onto all its
 // coordinates. Universal indices therefore prove every coefficient together
@@ -56,6 +58,7 @@ template <typename M> bool matches(M const & a, M const & b)
     covariance_oracle::flatten(b, right);
     return same(left[row * M::column_count + column], right[row * M::column_count + column]);
 }
+
 void unpublished()
 {
     if (Calls::correction_output == nullptr)
@@ -64,6 +67,7 @@ void unpublished()
                        matches(*Calls::covariance_output, *Calls::covariance_before),
                    "E-CORRECT: no output publication before all required operations succeed");
 }
+
 template <typename A, typename B> bool transpose_matches(A const & actual, B const & input)
 {
     bool valid = true;
@@ -72,6 +76,7 @@ template <typename A, typename B> bool transpose_matches(A const & actual, B con
             valid = same(actual(column, row), input(row, column)) && valid;
     return valid;
 }
+
 template <std::size_t Size>
 formal_eskf::linalg::Matrix<Backend, Size, Size>
 addition(formal_eskf::linalg::Matrix<Backend, Size, Size> const & left,
@@ -87,9 +92,11 @@ addition(formal_eskf::linalg::Matrix<Backend, Size, Size> const & left,
                 call == 0U && Calls::products == 2U && matches(left, data.observation_covariance) &&
                     matches(right, *Calls::V),
                 "E-CORRECT: innovation adds the full original measurement covariance, including correlations");
+
             return data.innovation_sum;
         }
     }
+
     if constexpr (Size == state_size)
     {
         if (call == 1U || state_size != measurement_size)
@@ -97,12 +104,16 @@ addition(formal_eskf::linalg::Matrix<Backend, Size, Size> const & left,
             __ESBMC_assert(call == 1U && Calls::sandwiches == 2U && matches(left, data.prior_term) &&
                                matches(right, data.noise_term),
                            "E-CORRECT: Joseph adds both complete prior and measurement terms");
+
             return data.joseph_sum;
         }
     }
+
     __ESBMC_assert(false, "E-CORRECT: only innovation and Joseph additions execute");
+
     return {};
 }
+
 // Do not name this finite: ESBMC recognizes that libc name as an intrinsic,
 // even in a namespace, and would bypass the observer body.
 template <std::size_t Rows, std::size_t Columns>
@@ -116,18 +127,22 @@ bool check_finite(formal_eskf::linalg::Matrix<Backend, Rows, Columns> const & in
         {
             __ESBMC_assert(Calls::products == 1U && matches(input, data.cross_covariance),
                            "E-CORRECT: complete PHt finite check after first product");
+
             return data.cross_finite;
         }
     }
+
     if constexpr (Rows == state_size && Columns == 1U)
     {
         if (call == 1U)
         {
             __ESBMC_assert(Calls::products == 4U && matches(input, data.delta),
                            "E-CORRECT: complete error vector finite check");
+
             return data.delta_finite;
         }
     }
+
     if constexpr (Rows == state_size && Columns == state_size)
     {
         if (call == 2U)
@@ -136,12 +151,16 @@ bool check_finite(formal_eskf::linalg::Matrix<Backend, Rows, Columns> const & in
                            "E-CORRECT: transform check after finite error vector");
             __ESBMC_assert(Calls::subtracts == 1U && matches(input, data.transform),
                            "E-CORRECT: complete identity-minus-KH result is checked");
+
             return data.transform_finite;
         }
     }
+
     __ESBMC_assert(false, "E-CORRECT: only the three required finite checks execute");
+
     return false;
 }
+
 template <std::size_t Rows, std::size_t Inner, std::size_t Columns>
 formal_eskf::linalg::Matrix<Backend, Rows, Columns>
 product(formal_eskf::linalg::Matrix<Backend, Rows, Inner> const & left,
@@ -156,9 +175,11 @@ product(formal_eskf::linalg::Matrix<Backend, Rows, Inner> const & left,
             __ESBMC_assert(call == 0U, "E-CORRECT: PHt is product zero");
             __ESBMC_assert(matches(left, *Calls::prior) && transpose_matches(right, *Calls::H),
                            "E-CORRECT: PHt uses complete original P and transposed original H");
+
             return data.cross_covariance;
         }
     }
+
     if constexpr (Rows == measurement_size && Inner == state_size && Columns == measurement_size)
     {
         if (call == 1U || state_size != measurement_size)
@@ -166,9 +187,11 @@ product(formal_eskf::linalg::Matrix<Backend, Rows, Inner> const & left,
             __ESBMC_assert(call == 1U, "E-CORRECT: innovation is product one");
             __ESBMC_assert(matches(left, *Calls::H) && matches(right, data.cross_covariance),
                            "E-CORRECT: innovation product uses H and the computed PHt");
+
             return data.observation_covariance;
         }
     }
+
     if constexpr (Rows == state_size && Inner == measurement_size && Columns == 1U)
     {
         if (call == 2U || state_size != measurement_size)
@@ -177,9 +200,11 @@ product(formal_eskf::linalg::Matrix<Backend, Rows, Inner> const & left,
             __ESBMC_assert(Calls::solves == 1U && data.solve_status == Status::success && matches(left, data.gain) &&
                                matches(right, *Calls::r),
                            "E-CORRECT: every correction coordinate comes from K times original r");
+
             return data.delta;
         }
     }
+
     if constexpr (Rows == state_size && Inner == measurement_size && Columns == state_size)
     {
         if (call == 3U || state_size != measurement_size)
@@ -187,18 +212,23 @@ product(formal_eskf::linalg::Matrix<Backend, Rows, Inner> const & left,
             __ESBMC_assert(call == 3U, "E-CORRECT: KH is product three");
             __ESBMC_assert(matches(left, data.gain) && matches(right, *Calls::H),
                            "E-CORRECT: correction transform uses computed K and original H");
+
             return data.gain_times_H;
         }
     }
+
     __ESBMC_assert(false, "E-CORRECT: only the four required ordered matrix products execute");
+
     return {};
 }
+
 template <std::size_t Size>
 bool symmetry(formal_eskf::linalg::Matrix<Backend, Size, Size> const & input, Scalar tolerance)
 {
     __ESBMC_assert(finite_matrix(input), "E-CORRECT: caller establishes finite symmetry-helper input");
     __ESBMC_assert(same(tolerance, Scalar{0}) && Calls::products == 0U,
                    "E-CORRECT: exact input symmetry is validated before arithmetic");
+
     unsigned const call = Calls::symmetries++;
     if constexpr (Size == state_size)
     {
@@ -206,9 +236,11 @@ bool symmetry(formal_eskf::linalg::Matrix<Backend, Size, Size> const & input, Sc
         {
             __ESBMC_assert(call == 0U, "E-CORRECT: prior symmetry is first");
             __ESBMC_assert(matches(input, *Calls::prior), "E-CORRECT: validate original P symmetry");
+
             return Calls::results->prior_symmetric;
         }
     }
+
     if constexpr (Size == measurement_size)
     {
         if (call == 1U || state_size != measurement_size)
@@ -216,12 +248,16 @@ bool symmetry(formal_eskf::linalg::Matrix<Backend, Size, Size> const & input, Sc
             __ESBMC_assert(call == 1U, "E-CORRECT: noise symmetry is second");
             __ESBMC_assert(Calls::results->prior_symmetric && matches(input, *Calls::V),
                            "E-CORRECT: validate original V symmetry after P");
+
             return Calls::results->noise_symmetric;
         }
     }
+
     __ESBMC_assert(false, "E-CORRECT: no additional symmetry checks or repaired caller inputs");
+
     return false;
 }
+
 template <std::size_t Size>
 Status finish(formal_eskf::linalg::Matrix<Backend, Size, Size> & candidate,
               formal_eskf::linalg::Matrix<Backend, Size, Size> & output)
@@ -229,6 +265,7 @@ Status finish(formal_eskf::linalg::Matrix<Backend, Size, Size> & candidate,
     unpublished();
     __ESBMC_assert(&candidate == &output && static_cast<void const *>(&output) != Calls::covariance_output,
                    "E-CORRECT: covariance finalizers receive internal in-place scratch");
+
     unsigned const call = Calls::finishes++;
     if constexpr (Size == measurement_size)
     {
@@ -238,10 +275,12 @@ Status finish(formal_eskf::linalg::Matrix<Backend, Size, Size> & candidate,
             __ESBMC_assert(Calls::products == 2U && Calls::adds == 1U &&
                                matches(candidate, Calls::results->innovation_sum),
                            "E-CORRECT: S retains all entries and correlations of V");
+
             output = Calls::results->innovation;
             return Calls::results->innovation_status;
         }
     }
+
     if constexpr (Size == state_size)
     {
         if (call == 1U || state_size != measurement_size)
@@ -250,18 +289,23 @@ Status finish(formal_eskf::linalg::Matrix<Backend, Size, Size> & candidate,
             __ESBMC_assert(Calls::sandwiches == 2U && Calls::adds == 2U &&
                                matches(candidate, Calls::results->joseph_sum),
                            "E-CORRECT: Joseph covariance adds both complete terms in order");
+
             output = Calls::results->covariance;
             return Calls::results->covariance_status;
         }
     }
+
     __ESBMC_assert(false, "E-CORRECT: only innovation and Joseph scratch are finalized");
+
     return Status::domain_error;
 }
+
 template <std::size_t Inner>
 Covariance sandwich(formal_eskf::linalg::Matrix<Backend, state_size, Inner> const & transform,
                     formal_eskf::linalg::Matrix<Backend, Inner, Inner> const & covariance)
 {
     __ESBMC_assert(Calls::products == 4U, "E-CORRECT: Joseph follows delta and I-KH construction");
+
     unsigned const call = Calls::sandwiches++;
     if constexpr (Inner == state_size)
     {
@@ -270,9 +314,11 @@ Covariance sandwich(formal_eskf::linalg::Matrix<Backend, state_size, Inner> cons
             __ESBMC_assert(call == 0U, "E-CORRECT: prior Joseph sandwich is first");
             __ESBMC_assert(matches(transform, Calls::results->transform) && matches(covariance, *Calls::prior),
                            "E-CORRECT: prior Joseph term uses I-KH and the SAME original P");
+
             return Calls::results->prior_term;
         }
     }
+
     if constexpr (Inner == measurement_size)
     {
         if (call == 1U || state_size != measurement_size)
@@ -280,10 +326,13 @@ Covariance sandwich(formal_eskf::linalg::Matrix<Backend, state_size, Inner> cons
             __ESBMC_assert(call == 1U, "E-CORRECT: noise Joseph sandwich is second");
             __ESBMC_assert(matches(transform, Calls::results->gain) && matches(covariance, *Calls::V),
                            "E-CORRECT: noise Joseph term uses K and the complete correlated V");
+
             return Calls::results->noise_term;
         }
     }
+
     __ESBMC_assert(false, "E-CORRECT: exactly the two Joseph terms are computed");
+
     return {};
 }
 } // namespace correction_proof
@@ -300,8 +349,10 @@ Matrix<correction_proof::Backend, correction_proof::state_size, correction_proof
     __ESBMC_assert(Calls::subtracts++ == 0U && Calls::products == 4U && identity_matrix(*this) &&
                        matches(other, Calls::results->gain_times_H),
                    "E-CORRECT: I-KH uses the complete identity and computed K times original H");
+
     return Calls::results->transform;
 }
+
 #define CORRECTION_ADDITION(N)                                                                                         \
     template <>                                                                                                        \
     inline Matrix<correction_proof::Backend, N, N> Matrix<correction_proof::Backend, N, N>::operator+(                 \
@@ -388,13 +439,16 @@ right_solve_spd<correction_proof::Backend, correction_proof::state_size, correct
                    "E-CORRECT: K*S=PHt uses finalized innovation, once after successful finalization");
     __ESBMC_assert(&output != &right && static_cast<void const *>(&output) != &system,
                    "E-CORRECT: gain uses a separate solve workspace");
+
     // F-SOLVE proves unchanged output on failure for this right-solve shape.
     if (Calls::results->solve_status == Status::success)
     {
         output = Calls::results->gain;
     }
+
     return Calls::results->solve_status;
 }
+
 #define CORRECTION_SANDWICH(K)                                                                                         \
     template <>                                                                                                        \
     inline correction_proof::Covariance sandwich<correction_proof::Backend, correction_proof::state_size, K>(          \
@@ -409,6 +463,7 @@ CORRECTION_SANDWICH(FORMAL_ESKF_PROOF_MEASUREMENT_SIZE)
 #endif
 #undef CORRECTION_SANDWICH
 } // namespace formal_eskf::linalg
+
 namespace formal_eskf::detail
 {
 #if FORMAL_ESKF_PROOF_CORRECTION_CONTRACT == 1
@@ -423,6 +478,7 @@ validate_correction_inputs<correction_proof::Backend, correction_proof::state_si
                        matches(r, *Calls::r) && matches(H, *Calls::H) && matches(V, *Calls::V) &&
                        same(minimum, Calls::minimum),
                    "E-CORRECT: validate the complete original inputs before all matrix arithmetic");
+
     return Calls::results->input_status;
 }
 #endif
@@ -441,8 +497,10 @@ correction_cross<correction_proof::model, correction_proof::Backend, correction_
     using namespace correction_proof;
     __ESBMC_assert(Calls::products++ == 0U && matches(P, *Calls::prior) && matches(H, *Calls::H),
                    "E-CORRECT generated: cross boundary receives original P and H first");
+
     return Calls::results->cross_covariance;
 }
+
 template <>
 inline correction_proof::Noise correction_innovation<correction_proof::model, correction_proof::Backend,
                                                      correction_proof::state_size, correction_proof::measurement_size>(
@@ -452,8 +510,10 @@ inline correction_proof::Noise correction_innovation<correction_proof::model, co
     __ESBMC_assert(Calls::products++ == 1U && Calls::adds++ == 0U && matches(C, Calls::results->cross_covariance) &&
                        matches(H, *Calls::H) && matches(V, *Calls::V),
                    "E-CORRECT generated: innovation receives computed cross and full original H/V");
+
     return Calls::results->innovation_sum;
 }
+
 template <>
 inline correction_proof::Covariance correction_joseph<correction_proof::model, correction_proof::Backend,
                                                       correction_proof::state_size, correction_proof::measurement_size>(
@@ -465,9 +525,11 @@ inline correction_proof::Covariance correction_joseph<correction_proof::model, c
                        matches(P, *Calls::prior) && matches(A, Calls::results->transform) &&
                        matches(K, Calls::results->gain) && matches(V, *Calls::V),
                    "E-CORRECT generated: Joseph receives original P/V, complete I-KH and effective gain");
+
     Calls::sandwiches = 2U;
     return Calls::results->joseph_sum;
 }
+
 template <>
 inline Status publish_covariance<correction_proof::Backend, correction_proof::state_size>(
     correction_proof::Covariance const & candidate, correction_proof::Covariance & output)
@@ -477,10 +539,12 @@ inline Status publish_covariance<correction_proof::Backend, correction_proof::st
     __ESBMC_assert(&candidate == &output && &output != Calls::covariance_output && Calls::finishes++ == 1U &&
                        Calls::sandwiches == 2U && Calls::adds == 2U && matches(candidate, Calls::results->joseph_sum),
                    "E-CORRECT generated: publisher receives complete mirrored Joseph scratch without averaging");
+
     if (Calls::results->covariance_status == Status::success)
     {
         output = candidate;
     }
+
     return Calls::results->covariance_status;
 }
 #endif
@@ -511,6 +575,7 @@ void verify_correction_validation(Covariance prior, Residual residual, Jacobian 
     constexpr bool configured = FORMAL_ESKF_PROOF_CORRECTION_CONTRACT == 2 && !FORMAL_ESKF_PROOF_ARITHMETIC_CONTRACT &&
                                 !FORMAL_ESKF_PROOF_PRODUCT_BOUNDARY && !FORMAL_ESKF_PROOF_FINITE_CONTRACT;
     __ESBMC_assert(configured, "Runner error: correction validation requires only finite and symmetry summaries");
+
     if constexpr (!configured)
         return;
     auto const old_prior = prior;
@@ -546,6 +611,7 @@ void verify_correction_unpack(Correction delta, Error error)
     constexpr bool configured = !FORMAL_ESKF_PROOF_CORRECTION_CONTRACT && !FORMAL_ESKF_PROOF_ARITHMETIC_CONTRACT &&
                                 !FORMAL_ESKF_PROOF_PRODUCT_BOUNDARY && !FORMAL_ESKF_PROOF_FINITE_CONTRACT;
     __ESBMC_assert(configured, "Runner error: correction unpack must be actual");
+
     if constexpr (!configured)
         return;
     auto const before = delta;
@@ -563,6 +629,7 @@ void verify_correction_unpack(Correction delta, Error error)
         __ESBMC_assert(same(error.delta_theta_b(i), expected[i]), "E-CORRECT unpack: all three AHRS error coordinates");
 #endif
     }
+
     __ESBMC_assert(matches(delta, before), "E-CORRECT unpack: source correction vector is unchanged");
 }
 
@@ -575,6 +642,7 @@ void verify_correction(Covariance prior, Residual residual, Jacobian H, Noise V,
                                 !FORMAL_ESKF_PROOF_FINITE_CONTRACT;
     __ESBMC_assert(configured,
                    "Runner error: correction requires only matrix, symmetry, solve and finalizer summaries");
+
     if constexpr (!configured)
         return;
     __ESBMC_assume(observed_row < state_size && observed_column < state_size);
@@ -621,12 +689,14 @@ void verify_correction(Covariance prior, Residual residual, Jacobian H, Noise V,
     Status const gain_status = formal_eskf::detail::compute_correction_gain(prior, residual, H, V, minimum, gain);
     __ESBMC_assert(gain_status == Status::success ? matches(gain, results.gain) : matches(gain, gain_before),
                    "E-CORRECT: gain publishes the solve result only on success");
+
     Status actual = gain_status;
     if (gain_status == Status::success)
     {
         actual = formal_eskf::detail::apply_correction_gain(prior, residual, H, V, gain, correction_output,
                                                             covariance_output);
     }
+
     __ESBMC_assert(actual == expected, "E-CORRECT: exact validation, arithmetic-failure and callee-status precedence");
     __ESBMC_assert(Calls::validations == 1U && Calls::symmetries == 0U &&
                        Calls::adds == (innovation_reached ? 1U : 0U) + (joseph_reached ? 1U : 0U) &&
@@ -657,10 +727,12 @@ void verify_covariance_preparation(Covariance prior, Residual residual, Jacobian
                                 measurement_size <= 3U && !FORMAL_ESKF_PROOF_PRODUCT_BOUNDARY &&
                                 !FORMAL_ESKF_PROOF_FINITE_CONTRACT;
     __ESBMC_assert(configured, "Runner error: covariance preparation requires only the existing correction boundaries");
+
     if constexpr (!configured)
     {
         return;
     }
+
     auto const old_prior = prior;
     auto const old_residual = residual;
     auto const old_H = H;
@@ -744,6 +816,7 @@ void verify_generated_gain(Covariance P, Residual r, Jacobian H, Noise V, Scalar
             Calls::finishes == static_cast<unsigned>(innovation) && Calls::solves == static_cast<unsigned>(solve) &&
             Calls::sandwiches == 0U && Calls::subtracts == 0U,
         "E-CORRECT generated gain: first failure, exact eligibility and no Joseph work");
+
     if (status == Status::success)
     {
         __ESBMC_assert(same_matrix(output, results.gain), "E-CORRECT generated gain: publish complete solved gain");
@@ -752,6 +825,7 @@ void verify_generated_gain(Covariance P, Residual r, Jacobian H, Noise V, Scalar
     {
         __ESBMC_assert(same_matrix(output, before), "E-CORRECT generated gain: preserve complete output on failure");
     }
+
     __ESBMC_assert(same_matrix(P, old_P) && same_matrix(r, old_r) && same_matrix(H, old_H) && same_matrix(V, old_V),
                    "E-CORRECT generated gain: complete input frames");
 }
@@ -786,6 +860,7 @@ void verify_generated_apply(Covariance P, Residual r, Jacobian H, Noise V, Gain 
             Calls::adds == 1U + static_cast<unsigned>(joseph) && Calls::sandwiches == (joseph ? 2U : 0U) &&
             Calls::finishes == 1U + static_cast<unsigned>(joseph) && Calls::validations == 0U && Calls::solves == 1U,
         "E-CORRECT generated apply: first failure and exact Joseph eligibility");
+
     if (status == Status::success)
     {
         __ESBMC_assert(same_matrix(delta, results.delta) && same_matrix(output, results.joseph_sum),
@@ -796,6 +871,7 @@ void verify_generated_apply(Covariance P, Residual r, Jacobian H, Noise V, Gain 
         __ESBMC_assert(same_matrix(delta, old_delta) && same_matrix(output, before),
                        "E-CORRECT generated apply: both outputs preserved on every failure");
     }
+
     __ESBMC_assert(same_matrix(P, old_P) && same_matrix(r, old_r) && same_matrix(H, old_H) && same_matrix(V, old_V) &&
                        same_matrix(K, old_K),
                    "E-CORRECT generated apply: complete input frames");

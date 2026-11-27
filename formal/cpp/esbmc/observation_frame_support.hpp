@@ -26,6 +26,7 @@ std::uint64_t expected_seed, expected_latest, expected_fusion, expected_advanced
 double expected_average;
 bool expected_configured;
 std::size_t expected_ring_metadata[4][4];
+
 void capture_metadata()
 {
     expected_gnss_time = expected_owner->m_gnss_time;
@@ -56,6 +57,7 @@ void capture_metadata()
     expected_ring_metadata[3][2] = expected_owner->m_context.m_oldest;
     expected_ring_metadata[3][3] = expected_owner->m_context.m_write;
 }
+
 void check_metadata()
 {
     __ESBMC_assert(same_timeline(expected_owner->m_gnss_time, expected_gnss_time) &&
@@ -103,6 +105,7 @@ void check_metadata()
     __ESBMC_assert(expected_owner->m_context.m_write == expected_ring_metadata[3][3],
                    "Caller preserves producer-input context write");
 }
+
 void assume_metadata()
 {
     __ESBMC_assume(
@@ -140,6 +143,7 @@ double gnss_doubles[16][4];
 std::uint32_t gnss_small[16][2];
 std::uint8_t gnss_tags[16][3];
 bool gnss_flags[16][2];
+
 void capture_gnss_storage()
 {
     auto const & owner = *expected_owner;
@@ -171,6 +175,7 @@ void capture_gnss_storage()
         gnss_flags[i][1] = owner.m_gnss.m_samples[i].sample.spoofed;
     }
 }
+
 void check_gnss_storage()
 {
     auto const & owner = *expected_owner;
@@ -228,6 +233,7 @@ void check_gnss_storage()
                        "Complete storage frame gnss.sample.spoofed");
     }
 }
+
 void assume_gnss_storage()
 {
     auto const & owner = *expected_owner;
@@ -269,6 +275,7 @@ std::uint64_t magnetic_integers[64][5];
 imu_proof::Scalar magnetic_values[64][3];
 std::uint32_t magnetic_small[64][2];
 std::uint8_t magnetic_tags[64][1];
+
 void capture_magnetic_storage()
 {
     auto const & owner = *expected_owner;
@@ -287,6 +294,7 @@ void capture_magnetic_storage()
         magnetic_tags[i][0] = owner.m_magnetic.m_samples[i].sample.stamp.source.calibration_count;
     }
 }
+
 void check_magnetic_storage()
 {
     auto const & owner = *expected_owner;
@@ -319,6 +327,7 @@ void check_magnetic_storage()
                        "Complete storage frame magnetic.sample.stamp.source.calibration_count");
     }
 }
+
 void assume_magnetic_storage()
 {
     auto const & owner = *expected_owner;
@@ -347,6 +356,7 @@ std::uint64_t barometer_integers[128][5];
 imu_proof::Scalar barometer_values[128][1];
 std::uint32_t barometer_small[128][2];
 std::uint8_t barometer_tags[128][1];
+
 void capture_barometer_storage()
 {
     auto const & owner = *expected_owner;
@@ -363,6 +373,7 @@ void capture_barometer_storage()
         barometer_tags[i][0] = owner.m_barometer.m_samples[i].sample.stamp.source.calibration_count;
     }
 }
+
 void check_barometer_storage()
 {
     auto const & owner = *expected_owner;
@@ -388,6 +399,7 @@ void check_barometer_storage()
                        "Complete storage frame barometer.sample.stamp.source.calibration_count");
     }
 }
+
 void assume_barometer_storage()
 {
     auto const & owner = *expected_owner;
@@ -409,6 +421,7 @@ void assume_barometer_storage()
 #if FORMAL_ESKF_PROOF_FRAME == 3 || FORMAL_ESKF_PROOF_FRAME == 4
 std::uint64_t context_integers[128][3];
 bool context_flags[128][7];
+
 void capture_context_storage()
 {
     auto const & owner = *expected_owner;
@@ -426,6 +439,7 @@ void capture_context_storage()
         context_flags[i][6] = owner.m_context.m_samples[i].vehicle.fixed_wing;
     }
 }
+
 void check_context_storage()
 {
     auto const & owner = *expected_owner;
@@ -453,6 +467,7 @@ void check_context_storage()
                        "Complete storage frame context.vehicle.fixed_wing");
     }
 }
+
 void assume_context_storage()
 {
     auto const & owner = *expected_owner;
@@ -486,6 +501,7 @@ void capture_storage()
     capture_context_storage();
 #endif
 }
+
 void check_storage()
 {
 #if FORMAL_ESKF_PROOF_FRAME == 0 || FORMAL_ESKF_PROOF_FRAME == 4
@@ -501,6 +517,7 @@ void check_storage()
     check_context_storage();
 #endif
 }
+
 void assume_storage()
 {
 #if FORMAL_ESKF_PROOF_FRAME == 0 || FORMAL_ESKF_PROOF_FRAME == 4

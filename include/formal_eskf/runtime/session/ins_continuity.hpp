@@ -57,6 +57,7 @@ public:
             }
             return false;
         }
+
         [[nodiscard]] Status include(vector_type direction)
         {
             if (!linalg::all_finite(direction))
@@ -101,6 +102,7 @@ public:
             }
             return Status::success;
         }
+
         [[nodiscard]] Status transform(matrix_type const & transform)
         {
             if (!linalg::all_finite(transform))
@@ -124,7 +126,9 @@ public:
             *this = candidate;
             return Status::success;
         }
+
         bool empty() const { return m_rank == 0; }
+
         static constexpr value_type resolution = value_type{128} * std::numeric_limits<value_type>::epsilon();
 
     private:
@@ -141,6 +145,7 @@ public:
     };
 
     explicit InsContinuity(Parameters const & parameters) : m_parameters(parameters) {}
+
     bool valid() const
     {
         return std::isfinite(m_parameters.position_variance_limit) && m_parameters.position_variance_limit > 0 &&
@@ -151,8 +156,11 @@ public:
                m_parameters.velocity_limit > 0 && std::isfinite(m_parameters.bias_direction_cosine) &&
                m_parameters.bias_direction_cosine >= 0 && m_parameters.bias_direction_cosine < 1;
     }
+
     State const & state() const { return m_state; }
+
     Parameters const & parameters() const { return m_parameters; }
+
     [[nodiscard]] bool seed(std::uint64_t time_us)
     {
         if (!valid() || time_us == 0 || m_state.epoch_us != 0)
@@ -162,6 +170,7 @@ public:
         m_state.epoch_us = m_state.translation_attempt_us = m_state.heading_attempt_us = time_us;
         return true;
     }
+
     [[nodiscard]] bool begin(std::uint64_t time_us)
     {
         if (m_state.epoch_us == 0 || time_us <= m_state.epoch_us)
@@ -215,6 +224,7 @@ public:
         }
         return Status::success;
     }
+
     [[nodiscard]] Status heading(covariance_type & covariance, so3::UnitQuaternion<Linalg> const & attitude,
                                  bool tilt_aligned, bool heading_available, bool real_aiding,
                                  std::uint64_t real_heading_time_us)
@@ -238,6 +248,7 @@ public:
         }
         return result.status;
     }
+
     [[nodiscard]] Status rebase(matrix_type const & rotation, std::uint64_t frame_epoch)
     {
         auto candidate = m_state;
@@ -253,15 +264,18 @@ public:
         }
         return status;
     }
+
     /** Called only after genuine observed-subspace reset/history success. */
     [[nodiscard]] Status recover_position(matrix_type const & basis, std::array<bool, 3> const & observed)
     {
         return m_state.position.transform(unobserved_projection(basis, observed));
     }
+
     [[nodiscard]] Status recover_velocity(matrix_type const & basis, std::array<bool, 3> const & observed)
     {
         return m_state.velocity.transform(unobserved_projection(basis, observed));
     }
+
     void recover_heading() { m_state.heading = false; }
 
     /** Prepare on a copied owner, then commit with the velocity/history reset. */
@@ -290,6 +304,7 @@ public:
         m_state = candidate;
         return Status::success;
     }
+
     static vector_type direction(matrix_type const & basis, std::size_t axis)
     {
         return vector_type::from_row_major({basis(axis, 0), basis(axis, 1), basis(axis, 2)});
@@ -314,6 +329,7 @@ private:
         }
         return result;
     }
+
     Parameters m_parameters;
     State m_state{};
 };

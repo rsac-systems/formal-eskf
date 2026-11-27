@@ -52,6 +52,7 @@ template <typename Matrix> bool same_bits(Matrix const & a, Matrix const & b)
             }
         }
     }
+
     return true;
 }
 
@@ -165,6 +166,7 @@ void check_success(TestContext & test, Fixture<Scalar, Group> const & fixture, s
         expected_delta(axis) = fixture.observation(axis) - target(state_axis);
         target(state_axis) = fixture.observation(axis);
     }
+
     for (std::size_t row = 0U; row < 15U; ++row)
     {
         for (std::size_t column = 0U; column < 15U; ++column)
@@ -178,6 +180,7 @@ void check_success(TestContext & test, Fixture<Scalar, Group> const & fixture, s
             {
                 expected_P(row, column) = Scalar{0};
             }
+
             bool const replaced = Group == ResetGroup::horizontal_position ? row < 2U
                                   : Group == ResetGroup::vertical_position ? row == 2U
                                   : Group == ResetGroup::vertical_velocity ? row == 5U
@@ -197,16 +200,19 @@ void check_success(TestContext & test, Fixture<Scalar, Group> const & fixture, s
                 {
                     variance = fixture.variances(row - 3U);
                 }
+
                 expected_P(row, column) = variance < floor ? floor : variance;
             }
         }
     }
+
     for (unsigned aliases = 0U; aliases < 4U; ++aliases)
     {
         if ((alias_mask & (1U << aliases)) == 0U)
         {
             continue;
         }
+
         auto input = fixture;
         typename F::state_type separate_state;
         auto separate_P = F::covariance_type::identity() * Scalar{99};
@@ -244,6 +250,7 @@ void check_failure(TestContext & test, Fixture<Scalar, Group> const & fixture, S
         {
             delta(axis) = Scalar{-64};
         }
+
         auto const before_delta = delta;
         test.expect(input.reset(state, P, delta) == expected, profile, "failure reports the specified status");
         test.expect(same_state(state, before_state) && same_bits(P, before_P) && same_bits(delta, before_delta) &&
@@ -261,6 +268,7 @@ template <typename Scalar, ResetGroup Group> void equations(TestContext & test, 
     test.expect(F::state_type::quaternion_type::from_coefficients(Scalar{0.5}, Scalar{-0.5}, Scalar{0.5}, Scalar{-0.5},
                                                                   Scalar{0.125}, fixture.state.q_nb) == Status::success,
                 profile, "non-identity attitude fixture is valid");
+
     check_success(test, fixture, profile, 1U);
     constexpr Scalar floor = static_cast<Scalar>(0.01) * static_cast<Scalar>(0.01);
     for (Scalar variance : {Scalar{0}, -Scalar{0}, std::numeric_limits<Scalar>::denorm_min(), floor / Scalar{4},
@@ -272,8 +280,10 @@ template <typename Scalar, ResetGroup Group> void equations(TestContext & test, 
         {
             input.variances(axis) = variance;
         }
+
         check_success(test, input, profile, 1U);
     }
+
     auto mixed = fixture;
     mixed.variances(0U) = Scalar{0};
     check_success(test, mixed, profile, 1U);
@@ -281,6 +291,7 @@ template <typename Scalar, ResetGroup Group> void equations(TestContext & test, 
     singular.P = typename F::covariance_type{};
     check_success(test, singular, profile, 1U);
 }
+
 template <typename Scalar, ResetGroup Group> void aliases(TestContext & test, std::string_view profile)
 {
     using F = Fixture<Scalar, Group>;
@@ -288,6 +299,7 @@ template <typename Scalar, ResetGroup Group> void aliases(TestContext & test, st
     test.expect(F::state_type::quaternion_type::from_coefficients(Scalar{0.5}, Scalar{-0.5}, Scalar{0.5}, Scalar{-0.5},
                                                                   Scalar{0.125}, fixture.state.q_nb) == Status::success,
                 profile, "exact nonidentity fixture");
+
     check_success(test, fixture, profile);
     if constexpr (F::vertical)
     {
@@ -300,6 +312,7 @@ template <typename Scalar, ResetGroup Group> void aliases(TestContext & test, st
         }
     }
 }
+
 template <typename Scalar, ResetGroup Group> void failures(TestContext & test, std::string_view profile)
 {
     using F = Fixture<Scalar, Group>;
@@ -318,6 +331,7 @@ template <typename Scalar, ResetGroup Group> void failures(TestContext & test, s
             input.variances(axis) = bad_value;
             check_failure(test, input, Status::non_finite_input, profile);
         }
+
         for (std::size_t axis = 0U; axis < 3U; ++axis)
         {
             for (auto member : {&F::state_type::p_n, &F::state_type::v_n, &F::state_type::b_a, &F::state_type::b_g})
@@ -327,6 +341,7 @@ template <typename Scalar, ResetGroup Group> void failures(TestContext & test, s
                 check_failure(test, input, Status::non_finite_input, profile);
             }
         }
+
         for (std::size_t row = 0U; row < 15U; ++row)
         {
             for (std::size_t column = 0U; column < 15U; ++column)
@@ -337,6 +352,7 @@ template <typename Scalar, ResetGroup Group> void failures(TestContext & test, s
             }
         }
     }
+
     for (std::size_t axis = 0U; axis < F::size; ++axis)
     {
         auto input = fixture;
@@ -355,10 +371,12 @@ template <typename Scalar, ResetGroup Group> void failures(TestContext & test, s
             {
                 input.state.p_n(F::axis_offset + axis) = -observation;
             }
+
             input.observation(axis) = observation;
             check_failure(test, input, Status::non_finite_result, profile);
         }
     }
+
     for (std::size_t row = 0U; row < 15U; ++row)
     {
         auto input = fixture;
@@ -371,12 +389,14 @@ template <typename Scalar, ResetGroup Group> void failures(TestContext & test, s
             check_failure(test, input, Status::domain_error, profile);
         }
     }
+
     auto extreme = fixture;
     extreme.variances(0U) = max;
     if constexpr (!F::vertical)
     {
         extreme.variances(1U) = max;
     }
+
     if constexpr (Group == ResetGroup::horizontal_position)
     {
         check_failure(test, extreme, Status::non_finite_result, profile);
@@ -392,15 +412,19 @@ template <typename Scalar, ResetGroup Group> void failures(TestContext & test, s
                                                                   std::numeric_limits<Scalar>::min(),
                                                                   malformed.state.q_nb) == Status::success,
                 profile, "public rounded normalization witness");
+
     for (unsigned count = 0; count < 64U && formal_eskf::linalg::all_finite(malformed.state.q_nb.coefficients());
          ++count)
     {
         malformed.state.q_nb = malformed.state.q_nb * malformed.state.q_nb;
     }
+
     test.expect(!formal_eskf::linalg::all_finite(malformed.state.q_nb.coefficients()), profile,
                 "raw multiplication reaches nonfinite prior");
+
     check_failure(test, malformed, Status::non_finite_input, profile);
 }
+
 template <typename Scalar, ResetGroup Group> void repeated_reset(TestContext & test, std::string_view profile)
 {
     using F = Fixture<Scalar, Group>;
@@ -409,11 +433,13 @@ template <typename Scalar, ResetGroup Group> void repeated_reset(TestContext & t
     typename F::vector_type delta;
     test.expect(fixture.reset(fixture.state, fixture.P, delta) == Status::success, profile,
                 "first actual reset publishes prior");
+
     auto const once = fixture;
     test.expect(fixture.reset(fixture.state, fixture.P, delta) == Status::success &&
                     same_state(fixture.state, once.state) && same_bits(fixture.P, once.P) &&
                     formal_eskf::linalg::max_abs(delta) == Scalar{0},
                 profile, "identical reset is idempotent and reports zero actual change");
+
     using Position = formal_eskf::linalg::Vector<Linalg, 2U>;
     using Noise = formal_eskf::linalg::Matrix<Linalg, 2U, 2U>;
     Position position =
@@ -424,14 +450,17 @@ template <typename Scalar, ResetGroup Group> void repeated_reset(TestContext & t
     test.expect(
         corrected.status == Status::success && corrected.decision == formal_eskf::runtime::FusionDecision::fused,
         profile, "interleave actual correction before a later reset; correction accuracy belongs to its own cases");
+
     for (std::size_t axis = 0; axis < F::size; ++axis)
     {
         fixture.observation(axis) += static_cast<Scalar>(axis + 1U);
     }
+
     check_success(test, fixture, profile);
     auto const before = fixture;
     test.expect(fixture.reset(fixture.state, fixture.P, delta) == Status::success, profile,
                 "later supplied observation resets current estimate");
+
     for (std::size_t axis = 0; axis < F::size; ++axis)
     {
         auto const prior =

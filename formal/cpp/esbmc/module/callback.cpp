@@ -30,6 +30,7 @@ struct Trace
 {
     unsigned seen{};
     Event last{};
+
     void record(Event event)
     {
         __ESBMC_assert(static_cast<unsigned>(event) > static_cast<unsigned>(last),
@@ -37,12 +38,16 @@ struct Trace
         last = event;
         seen |= 1U << static_cast<unsigned>(event);
     }
+
     bool has(Event event) const { return (seen & (1U << static_cast<unsigned>(event))) != 0; }
 } trace;
 
 std::uint64_t clock_time;
+
 std::uint64_t hrt_absolute_time() { return clock_time; }
+
 void perf_begin(unsigned) {}
+
 void perf_end(unsigned) {}
 
 struct Sample
@@ -58,12 +63,14 @@ struct Observations
         __ESBMC_assert(sample.identity == 2 && now == clock_time, "GNSS arrival uses current callback time");
         return 1;
     }
+
     unsigned push_magnetic(Sample sample, std::uint64_t now)
     {
         trace.record(Event::magnetic);
         __ESBMC_assert(sample.identity == 3 && now == clock_time, "Magnetic arrival uses current callback time");
         return 1;
     }
+
     unsigned push_barometer(Sample sample, std::uint64_t now)
     {
         trace.record(Event::barometer);
@@ -79,11 +86,14 @@ struct Flow
         Sample sample{1};
         bool imu{}, gps{}, magnetic{}, barometer{};
     } updates;
+
     struct Subscription
     {
         bool unregistered{};
+
         void unregisterCallback() { unregistered = true; }
     } m_imu_sub;
+
     bool m_initialized{}, m_fault{}, exit{}, cleared{}, cleaned{}, scheduled{}, read{};
     bool fault_after_process{}, initialized_after_process{};
     unsigned admissions{};
@@ -93,27 +103,36 @@ struct Flow
     Observations m_observations;
 
     bool should_exit() const { return exit; }
+
     void ScheduleClear() { cleared = true; }
+
     void exit_and_cleanup()
     {
         __ESBMC_assert(m_imu_sub.unregistered && cleared, "Exit unregisters and clears before cleanup");
         cleaned = true;
     }
+
     void ScheduleDelayed(std::uint64_t interval)
     {
         __ESBMC_assert(interval == profile::backup_interval_us, "Backup schedule uses the configured interval");
         scheduled = true;
     }
+
     InputUpdates read_inputs()
     {
         __ESBMC_assert(scheduled && !read, "Read one input snapshot after scheduling backup");
         read = true;
         return updates;
     }
+
     static Sample decode_imu(Sample sample) { return sample; }
+
     static Sample decode_gnss(Sample sample) { return sample; }
+
     static Sample decode_magnetic(Sample sample) { return sample; }
+
     static Sample decode_barometer(Sample sample) { return sample; }
+
     void process_imu(Sample sample)
     {
         trace.record(Event::process);
@@ -128,11 +147,13 @@ struct Flow
         fault_after_process = m_fault;
         initialized_after_process = m_initialized;
     }
+
     void record_admission(unsigned)
     {
         // Actual method only updates admission counters; it cannot latch fault.
         ++admissions;
     }
+
     void advance_fusion()
     {
         trace.record(Event::advance);
@@ -140,16 +161,19 @@ struct Flow
                        "Delayed work requires this tick's current propagation and no fault");
         m_fault = nondet_bool();
     }
+
     void publish_status(std::uint64_t now)
     {
         trace.record(Event::status);
         __ESBMC_assert(now == clock_time, "Status uses the callback wall time");
     }
+
     void update_diagnostics(std::uint64_t now)
     {
         trace.record(Event::diagnostics);
         __ESBMC_assert(now == clock_time, "Diagnostic snapshot uses the callback wall time");
     }
+
     void Run();
 };
 

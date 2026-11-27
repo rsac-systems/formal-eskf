@@ -110,12 +110,14 @@ template <typename Linalg> void test_combined_evidence(TestContext & test, std::
     using Scalar = typename Linalg::value_type;
     using Monitor = typename VerticalHealthFixture<Linalg>::monitor_type;
     using Likelihood = typename Monitor::Likelihood;
+
     struct EvidenceCase
     {
         typename Monitor::Innovation observation{};
         bool above_minimum = false;
         bool above_limit = false;
     };
+
     std::array<EvidenceCase, 4U> const cases{
         {{{false, std::numeric_limits<Scalar>::quiet_NaN(), Scalar{-1}}, false, false},
          {{true, Scalar{-4}, Scalar{1}}, false, false},
@@ -572,6 +574,7 @@ template <typename Linalg> void cached_and_reset(TestContext & test, std::string
 }
 
 } /* end namespace */
+
 int main(int argc, char ** argv)
 {
     formal_eskf::test::configure_backend_test();

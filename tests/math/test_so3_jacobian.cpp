@@ -239,6 +239,7 @@ template <typename Scalar> struct BranchMath : formal_eskf::scalar::StandardMath
     };
     static inline Fault fault = Fault::none;
     static inline unsigned trig_calls{};
+
     static Scalar sqrt(Scalar value)
     {
         // Tests change the fault selector before invoking this backend through templates.
@@ -255,6 +256,7 @@ template <typename Scalar> struct BranchMath : formal_eskf::scalar::StandardMath
         }
         return Base::sqrt(value);
     }
+
     static Scalar sin(Scalar value)
     {
         ++trig_calls;
@@ -262,6 +264,7 @@ template <typename Scalar> struct BranchMath : formal_eskf::scalar::StandardMath
         // cppcheck-suppress knownConditionTrueFalse
         return fault == Fault::sine ? std::numeric_limits<Scalar>::infinity() : Base::sin(value);
     }
+
     static Scalar cos(Scalar value)
     {
         ++trig_calls;
@@ -278,10 +281,12 @@ template <typename Base> struct BranchBackend : Base
     template <std::size_t R, std::size_t C> using Storage = typename Base::template storage_type<R, C>;
     static inline bool override_squared{}, bad_candidate{};
     static inline Scalar squared_value{};
+
     template <std::size_t N> static Scalar squared_norm(Storage<N, 1> const & input)
     {
         return override_squared ? squared_value : Base::template squared_norm<N>(input);
     }
+
     template <std::size_t R, std::size_t C>
     static void scale(Storage<R, C> const & input, Scalar factor, Storage<R, C> & output)
     {
@@ -291,6 +296,7 @@ template <typename Base> struct BranchBackend : Base
             Base::template coefficient<R, C>(output, R - 1, C - 1) = std::numeric_limits<Scalar>::infinity();
         }
     }
+
     static void reset()
     {
         override_squared = bad_candidate = false;

@@ -49,7 +49,9 @@ public:
     };
 
     State const & state() const { return m_state; }
+
     void reset() { *this = MagneticHeading{}; }
+
     /** Missing IMU intervals provide no maneuver evidence. Preserve the heading latch. */
     void reset_acceleration()
     {
@@ -57,6 +59,7 @@ public:
         m_state.horizontal_acceleration = value_type{0};
         m_state.observable = false;
     }
+
     /** Call only after an actual magnetic heading alignment/reset succeeds. */
     void reset_heading()
     {
@@ -410,7 +413,9 @@ public:
     using vector_type = linalg::Vector<Linalg, 3U>;
 
     bool initialized() const { return m_initialized; }
+
     vector_type const & field_b() const { return m_field_b; }
+
     void reset() { *this = MagnetometerFilter{}; }
 
     /** Invalid input/arithmetic preserves history, including a requested reseed. */

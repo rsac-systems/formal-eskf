@@ -11,6 +11,7 @@
 namespace correction_proof
 {
 using Transform = formal_eskf::linalg::Matrix<Backend, state_size, measurement_size>;
+
 struct SandwichCalls
 {
     inline static Transform const * transform = nullptr;
@@ -19,6 +20,7 @@ struct SandwichCalls
     inline static Covariance const * second = nullptr;
     inline static unsigned count{};
 };
+
 template <std::size_t Columns>
 formal_eskf::linalg::Matrix<Backend, state_size, Columns>
 sandwich_product(Transform const & left, formal_eskf::linalg::Matrix<Backend, measurement_size, Columns> const & right)
@@ -73,6 +75,7 @@ SANDWICH_PRODUCT(FORMAL_ESKF_PROOF_STATE_SIZE)
 #endif
 
 using namespace correction_proof;
+
 void verify_correction_sandwich(Transform transform, Noise covariance, Transform first, Covariance second)
 {
     constexpr bool configured = FORMAL_ESKF_PROOF_CORRECTION_CONTRACT == 1 && !FORMAL_ESKF_PROOF_ARITHMETIC_CONTRACT &&

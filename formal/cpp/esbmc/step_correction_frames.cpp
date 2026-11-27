@@ -14,11 +14,17 @@
 // Every invocation returns a fresh arbitrary IEEE value, including NaN/Inf;
 // there is no finite, successful or argument-range assumption.
 extern double nondet_double();
+
 extern "C" float sinf(float) { return nondet_float(); }
+
 extern "C" float cosf(float) { return nondet_float(); }
+
 extern "C" float sqrtf(float) { return nondet_float(); }
+
 extern "C" double sin(double) { return nondet_double(); }
+
 extern "C" double cos(double) { return nondet_double(); }
+
 extern "C" double sqrt(double) { return nondet_double(); }
 
 namespace step_correction_proof

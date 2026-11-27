@@ -43,6 +43,7 @@ template <typename Matrix> bool same_bits(Matrix const & a, Matrix const & b)
             }
         }
     }
+
     return true;
 }
 
@@ -54,6 +55,7 @@ template <typename State> bool same_state(State const & a, State const & b)
         equal = equal && same_bits(a.p_n, b.p_n) && same_bits(a.v_n, b.v_n) && same_bits(a.b_a, b.b_a) &&
                 same_bits(a.b_g, b.b_g);
     }
+
     return equal;
 }
 
@@ -100,6 +102,7 @@ template <typename Linalg, typename Configuration> struct FusionFixture
             state.b_g = vector_type::from_row_major({value_type{0.125}, value_type{0.25}, value_type{-0.125}});
             sample = sample + state.b_a;
         }
+
         magnitude = monitor.update(sample);
         sample = sample + vector_type::from_row_major({value_type{0.25}, value_type{-0.125}, value_type{0}});
         magnitude = monitor.update(sample);
@@ -111,6 +114,7 @@ template <typename Linalg, typename Configuration> struct FusionFixture
                 P(row, column) += static_cast<value_type>((row + 1U) * (column + 1U)) / value_type{256};
             }
         }
+
         for (std::size_t row = 0U; row < 3U; ++row)
         {
             for (std::size_t column = 0U; column < 3U; ++column)
@@ -118,6 +122,7 @@ template <typename Linalg, typename Configuration> struct FusionFixture
                 V(row, column) += static_cast<value_type>((row + 1U) * (column + 1U)) / value_type{16};
             }
         }
+
         prepare_reference();
     }
 
@@ -150,6 +155,7 @@ template <typename Linalg, typename Configuration> struct FusionFixture
             {
                 prediction -= rotation[component][axis] * gravity(component);
             }
+
             h(axis) = static_cast<value_type>(prediction);
             r(axis) = sample(axis) - h(axis);
             if constexpr (is_ins)
@@ -157,6 +163,7 @@ template <typename Linalg, typename Configuration> struct FusionFixture
                 r(axis) -= state.b_a(axis);
             }
         }
+
         H = {};
         H(0U, attitude_offset + 1U) = -h(2U);
         H(0U, attitude_offset + 2U) = h(1U);
@@ -179,6 +186,7 @@ template <typename Linalg, typename Configuration> void test_correction(TestCont
     test.expect(fixture.magnitude.within_gravity_band &&
                     !same_bits(fixture.sample, fixture.monitor.filtered_specific_force_b()),
                 profile, "real LPF result permits a distinct current-sample correction");
+
     constexpr std::array<unsigned, 14U> masks{0U, 63U, 1U, 2U, 4U, 8U, 16U, 32U, 62U, 61U, 59U, 55U, 47U, 31U};
     for (unsigned mask : masks)
     {
@@ -187,6 +195,7 @@ template <typename Linalg, typename Configuration> void test_correction(TestCont
             fixture.bias_update.accelerometer[axis] = (mask & (1U << axis)) != 0U;
             fixture.bias_update.gyroscope[axis] = (mask & (1U << (axis + 3U))) != 0U;
         }
+
         if constexpr (!fixture_type::is_ins)
         {
             if (mask != 0U)
@@ -194,12 +203,14 @@ template <typename Linalg, typename Configuration> void test_correction(TestCont
                 continue;
             }
         }
+
         auto const reference =
             formal_eskf::test::reference::reference_correction(fixture, ESKF_RESET_APPROX != 0, fixture.bias_update);
         // Supplemental finite-fixture regression against long-double real algebra.
         // This is not a generally approved nonlinear/libm forward-error budget.
         value_type const tolerance = value_type{128} * std::numeric_limits<value_type>::epsilon();
         test.expect(reference.valid, profile, "independent elimination and Joseph/reset reference succeeds");
+
         for (unsigned alias = 0U; alias < 4U; ++alias)
         {
             auto current = fixture;
@@ -220,6 +231,7 @@ template <typename Linalg, typename Configuration> void test_correction(TestCont
             test.expect(!same_bits(output.q_nb.coefficients(), fixture.state.q_nb.coefficients()) &&
                             !same_bits(output_P, fixture.P),
                         profile, "nonzero residual changes actual attitude and covariance");
+
             if constexpr (fixture_type::is_ins)
             {
                 for (std::size_t axis = 0; axis < 3; ++axis)
@@ -230,12 +242,14 @@ template <typename Linalg, typename Configuration> void test_correction(TestCont
                         profile, "dense cross-covariance exercises enabled bias rows; disabled rows held");
                 }
             }
+
             test.expect(
                 same_state(state_alias ? separate : current.state, state_alias ? old_separate : fixture.state) &&
                     same_bits(covariance_alias ? separate_P : current.P, covariance_alias ? old_separate_P : fixture.P),
                 profile, "separate priors and unused output objects are unchanged");
         }
     }
+
     typename fixture_type::state_type output;
     typename fixture_type::covariance_type output_P;
     auto const result = formal_eskf::runtime::fuse_accelerometer(
@@ -321,6 +335,7 @@ template <typename Linalg, typename Configuration> void test_conditions(TestCont
             fixture.conditions.clipped[2U] = true;
             break;
         }
+
         expect_preserved(test, profile, fixture, FusionDecision::rejected, Status::success);
     }
     // No innovation gate is introduced: a large residual can pass the magnitude conditions.
@@ -341,11 +356,13 @@ template <typename Linalg, typename Configuration> void test_conditions(TestCont
     result = fixture.fuse(output, output_P);
     test.expect(!fixture.magnitude.within_gravity_band && result.decision == FusionDecision::fused, profile,
                 "caller rest bypasses only the magnitude band");
+
     fixture.conditions.clipped[0U] = true;
     result = fixture.fuse(output, output_P);
     test.expect(result.conditions.active && !result.conditions.sample_eligible &&
                     result.decision == FusionDecision::rejected,
                 profile, "clipping rejects the sample without clearing active mode");
+
     fixture.conditions.clipped[0U] = false;
     test.expect(fixture.fuse(output, output_P).decision == FusionDecision::fused, profile,
                 "a rejected call creates no hidden latch or recovery timer");
@@ -398,18 +415,22 @@ template <typename Linalg, typename Configuration> void test_failures(TestContex
                                                    value_type{0}, limits_type::min(),
                                                    fixture.state.q_nb) == Status::success,
                 profile, "public normalization constructs underflow witness");
+
     for (unsigned count = 0; count < 32 && fixture.state.q_nb.coefficients()(0U) != value_type{0}; ++count)
     {
         fixture.state.q_nb = fixture.state.q_nb * fixture.state.q_nb;
     }
+
     test.expect(fixture.state.q_nb.coefficients()(0U) == value_type{0}, profile,
                 "public products reach zero quaternion");
+
     typename fixture_type::state_type output;
     typename fixture_type::covariance_type output_P;
     auto const result = fixture.fuse(output, output_P);
     test.expect(result.conditions.sample_eligible && result.decision == FusionDecision::failed &&
                     result.status == Status::invalid_quaternion_norm,
                 profile, "eligibility remains diagnostic, not success, after late correction failure");
+
     expect_preserved(test, profile, fixture, FusionDecision::failed, Status::invalid_quaternion_norm);
 }
 
@@ -428,6 +449,7 @@ template <typename Linalg, typename Configuration> void condition_first(TestCont
     {
         fixture.state.b_a(0U) = std::numeric_limits<Scalar>::infinity();
     }
+
     for (bool enabled : {false, true})
     {
         fixture.conditions.enabled = enabled;
@@ -439,6 +461,7 @@ template <typename Linalg, typename Configuration> void condition_first(TestCont
             expect_preserved(test, profile, fixture, FusionDecision::failed, status);
         }
     }
+
     fixture.conditions.enabled = false;
     fixture.magnitude.status = Status::success;
     expect_preserved(test, profile, fixture, FusionDecision::rejected, Status::success);
@@ -458,6 +481,7 @@ template <typename Linalg, typename Configuration> void exact_observation(TestCo
     {
         fixture.sample = fixture.sample + fixture.state.b_a;
     }
+
     fixture.P = Fixture::covariance_type::identity();
     fixture.V = {};
     fixture.V(0U, 0U) = Scalar{192};
@@ -501,10 +525,12 @@ template <typename Linalg, typename Configuration> void failure_ownership(TestCo
     test.expect(failed.decision == FusionDecision::failed && failed.conditions.sample_eligible &&
                     same_bits(fixture.monitor.filtered_specific_force_b(), stored),
                 profile, "estimator failure neither updates nor rolls back previously consumed magnitude history");
+
     fixture.V = Fixture::noise_type::identity();
     auto const recovered = fixture.fuse(state, P);
     test.expect(recovered.decision == FusionDecision::fused, profile,
                 "corrected request retries without hidden failure latch");
+
     fixture.sample(0U) += Scalar{0.5};
     auto const a = fixture.monitor.update(fixture.sample);
     auto const b = control_monitor.update(fixture.sample);
@@ -524,10 +550,12 @@ void capability_sequence(TestContext & test, std::string_view profile)
     auto const partial = sampler.update(imu, 5000U, 0, Scalar{0.125});
     test.expect(partial.status == Status::success && !partial.ready, profile,
                 "portable driver does not dispatch a correction for partial real intervals");
+
     auto emitted = sampler.update(imu, 5000U, 0, Scalar{0.125});
     test.expect(emitted.ready && emitted.interval_us == 10000U && emitted.specific_force_b(2U) == Scalar{-8} &&
                     emitted.magnitude.squared_norm == Scalar{64},
                 profile, "first complete actual interval seeds diagnostic");
+
     Fixture fixture;
     fixture.state = {};
     fixture.P = Fixture::covariance_type::identity();
@@ -562,6 +590,7 @@ void capability_sequence(TestContext & test, std::string_view profile)
                             emitted.magnitude.squared_norm == filtered_x * filtered_x + filtered_z * filtered_z,
                         profile, "LPF advances once per actual emission independently of downstream decision");
         }
+
         fixture.sample = emitted.specific_force_b;
         fixture.magnitude = emitted.magnitude;
         fixture.conditions.enabled = event != Event::disabled;
@@ -605,6 +634,7 @@ void capability_discontinuity(TestContext & test, std::string_view profile)
     imu.specific_force_b(0U) = Scalar{100};
     test.expect(!sampler.update(imu, 5000U, -1, Scalar{0.125}).ready, profile,
                 "old source leaves partial unknown interval");
+
     sampler.reset();
     imu.specific_force_b = {};
     imu.specific_force_b(2U) = Scalar{-8};
@@ -613,6 +643,7 @@ void capability_discontinuity(TestContext & test, std::string_view profile)
                     emitted.specific_force_b(2U) == Scalar{-8} && emitted.clipping_mask == 0 &&
                     emitted.magnitude.squared_norm == Scalar{64},
                 profile, "explicit caller source/gap reset excludes all old data, unknown clipping and filter history");
+
     Fixture fixture;
     fixture.sample = emitted.specific_force_b;
     fixture.magnitude = emitted.magnitude;
@@ -623,9 +654,11 @@ void capability_discontinuity(TestContext & test, std::string_view profile)
     typename Fixture::covariance_type P;
     test.expect(fixture.fuse(state, P).decision == FusionDecision::fused, profile,
                 "known caller rest can bypass band; missing rest remains false rather than inferred");
+
     auto const unknown = sampler.update(imu, 50000U, -1, Scalar{0.125});
     test.expect(unknown.ready && unknown.clipping_mask == -1, profile,
                 "unknown clipping remains unavailable to the driver, never silently converted to clear flags");
+
     // The portable driver must withhold the fusion call for an unknown mask: the
     // Boolean fusion API deliberately cannot encode unavailable clipping metadata.
     auto const before = state;
@@ -638,6 +671,7 @@ void capability_discontinuity(TestContext & test, std::string_view profile)
         fixture.sample = unknown.specific_force_b;
         (void)fixture.fuse(state, P);
     }
+
     test.expect(calls == 0 && same_state(state, before) && same_bits(P, before_P), profile,
                 "driver withholds unavailable metadata without inventing held/zero observations");
 }

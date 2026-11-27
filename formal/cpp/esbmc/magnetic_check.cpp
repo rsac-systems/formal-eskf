@@ -42,22 +42,27 @@ using Geometry = formal_eskf::runtime::detail::MagneticFieldGeometry<Scalar>;
 using Parameters = formal_eskf::runtime::MagneticFieldParameters<Scalar>;
 using Checks = formal_eskf::runtime::MagneticFieldChecks;
 using Result = formal_eskf::runtime::MagneticFieldCheck<Scalar>;
+
 struct GeometryResult
 {
     Geometry value;
     Status status;
 };
+
 inline bool finite_geometry(Geometry const & v)
 {
     return std::isfinite(v.strength) && std::isfinite(v.horizontal) && std::isfinite(v.inclination);
 }
+
 inline bool nonzero(Vector const & v) { return v(0U) != Scalar{0} || v(1U) != Scalar{0} || v(2U) != Scalar{0}; }
+
 inline bool same_parameters(Parameters a, Parameters b)
 {
     return same(a.strength_tolerance, b.strength_tolerance) && same(a.inclination_tolerance, b.inclination_tolerance) &&
            same(a.heading_tolerance, b.heading_tolerance) &&
            same(a.minimum_horizontal_field, b.minimum_horizontal_field);
 }
+
 inline bool same_result(Result const & a, Result const & b)
 {
     return a.status == b.status && a.accepted == b.accepted && a.diagnostics_valid == b.diagnostics_valid &&
@@ -68,6 +73,7 @@ inline bool same_result(Result const & a, Result const & b)
            same(a.strength, b.strength) && same(a.reference_strength, b.reference_strength) &&
            same(a.inclination_error, b.inclination_error) && same(a.heading_error, b.heading_error);
 }
+
 struct Calls
 {
     inline static Quaternion q;
@@ -90,9 +96,11 @@ inline field_proof::Vector rotate<field_proof::Linalg>(field_proof::Quaternion c
     __ESBMC_assert(Calls::rotations++ == 0U && Calls::geometries == 0U && Calls::headings == 0U &&
                        same_vector(q.coefficients(), Calls::q.coefficients()) && same_vector(v, Calls::body),
                    "R-MAGNETIC-FIELD: original body field is rotated with the original quaternion before geometry");
+
     return Calls::measured;
 }
 } // namespace formal_eskf::so3
+
 namespace formal_eskf::runtime::detail
 {
 template <>
@@ -102,29 +110,34 @@ inline Status magnetic_field_geometry<field_proof::Linalg>(field_proof::Vector c
     using namespace field_proof;
     __ESBMC_assert(Calls::rotations == 1U && Calls::geometries < 3U && Calls::headings == 0U,
                    "R-MAGNETIC-FIELD: measured, observation and optional health geometry precede heading check");
+
     unsigned const index = Calls::geometries++;
     GeometryResult result;
     if (index == 0U)
     {
         __ESBMC_assert(same_vector(v, Calls::measured),
                        "R-MAGNETIC-FIELD: measured geometry receives rotated measurement");
+
         result = Calls::geometry0;
     }
     else if (index == 1U)
     {
         __ESBMC_assert(same_vector(v, Calls::reference),
                        "R-MAGNETIC-FIELD: observation geometry receives original NED reference");
+
         result = Calls::geometry1;
     }
     else
     {
         __ESBMC_assert(same_vector(v, Calls::health),
                        "R-MAGNETIC-FIELD: independent health geometry receives only selected health reference");
+
         result = Calls::geometry2;
     }
 #if FORMAL_ESKF_PROOF_MAG_CHECK_VALUES
     __ESBMC_assert(result.status == Status::success,
                    "R-MAGNETIC-FIELD: diagnostic path discharges each geometry success premise");
+
     output = result.value;
     return Status::success;
 #else
@@ -132,9 +145,11 @@ inline Status magnetic_field_geometry<field_proof::Linalg>(field_proof::Vector c
     {
         output = result.value;
     }
+
     return result.status;
 #endif
 }
+
 template <>
 inline Status magnetic_heading_error<field_proof::Linalg>(field_proof::Vector const & measured,
                                                           field_proof::Vector const & reference,
@@ -145,9 +160,11 @@ inline Status magnetic_heading_error<field_proof::Linalg>(field_proof::Vector co
         Calls::rotations == 1U && Calls::geometries >= 2U && Calls::headings++ == 0U &&
             same_vector(measured, Calls::measured) && same_vector(reference, Calls::reference),
         "R-MAGNETIC-FIELD: heading uses measured and observation fields, never the independent health field");
+
 #if FORMAL_ESKF_PROOF_MAG_CHECK_VALUES
     __ESBMC_assert(Calls::heading_status == Status::success,
                    "R-MAGNETIC-FIELD: diagnostic path discharges heading success premise");
+
     output = Calls::heading;
     return Status::success;
 #else
@@ -155,6 +172,7 @@ inline Status magnetic_heading_error<field_proof::Linalg>(field_proof::Vector co
     {
         output = Calls::heading;
     }
+
     return Calls::heading_status;
 #endif
 }
@@ -167,6 +185,7 @@ void verify_magnetic_forward_frame(field_proof::Quaternion q, field_proof::Vecto
     solve_proof::Math::observe_pivots = false;
 #endif
     __ESBMC_assert(!FORMAL_ESKF_PROOF_MAG_CHECK_CONTRACT, "Runner error: actual forward action required");
+
     auto const old_q = q;
     auto const old_vector = vector;
     // Same-type matrix coefficients are proved by verify_imu_rotation. The
@@ -180,12 +199,14 @@ void verify_magnetic_forward_frame(field_proof::Quaternion q, field_proof::Vecto
             expected(row) += rotation(row, column) * vector(column);
         }
     }
+
     auto const result = formal_eskf::so3::rotate(q, vector);
     __ESBMC_assert(same_vector(result, expected),
                    "R-MAGNETIC-FIELD: actual forward action uses R times body field with ordered IEEE dots");
     __ESBMC_assert(same_vector(q.coefficients(), old_q.coefficients()) && same_vector(vector, old_vector),
                    "R-MAGNETIC-FIELD: actual forward rotation preserves both borrowed inputs for every IEEE value");
 }
+
 void verify_magnetic_check(field_proof::Quaternion q, field_proof::Vector body, field_proof::Vector reference,
                            field_proof::Vector health, field_proof::Parameters parameters, field_proof::Checks checks,
                            bool observable, field_proof::Vector measured, field_proof::GeometryResult geometry0,
@@ -197,6 +218,7 @@ void verify_magnetic_check(field_proof::Quaternion q, field_proof::Vector body, 
     solve_proof::Math::observe_pivots = false;
 #endif
     __ESBMC_assert(FORMAL_ESKF_PROOF_MAG_CHECK_CONTRACT, "Runner error: field caller requires proved callee frames");
+
     static_assert(FORMAL_ESKF_PROOF_MAG_HEALTH_ALIAS < 4);
     // Producer success guarantees these finite fields. No premise constrains
     // public inputs, failure statuses, check flags or observed heading result.
@@ -214,14 +236,17 @@ void verify_magnetic_check(field_proof::Quaternion q, field_proof::Vector body, 
     {
         health_pointer = &reference;
     }
+
     if constexpr (FORMAL_ESKF_PROOF_MAG_HEALTH_ALIAS == 2)
     {
         health_pointer = &health;
     }
+
     if constexpr (FORMAL_ESKF_PROOF_MAG_HEALTH_ALIAS == 3)
     {
         health_pointer = &body;
     }
+
     Calls::q = q;
     Calls::body = body;
     Calls::reference = reference;
@@ -230,6 +255,7 @@ void verify_magnetic_check(field_proof::Quaternion q, field_proof::Vector body, 
     {
         Calls::health = *health_pointer;
     }
+
     Calls::geometry0 = geometry0;
     Calls::geometry1 = geometry1;
     Calls::geometry2 = geometry2;
@@ -257,16 +283,19 @@ void verify_magnetic_check(field_proof::Quaternion q, field_proof::Vector body, 
             expected.status = Status::non_finite_result;
         }
     }
+
     if (expected.status == Status::success)
     {
         geometries = 1U;
         expected.status = geometry0.status;
     }
+
     if (expected.status == Status::success)
     {
         geometries = 2U;
         expected.status = geometry1.status;
     }
+
     bool const available = health_pointer != nullptr;
     Geometry health_geometry;
     if (expected.status == Status::success && available && (checks.strength || checks.inclination))
@@ -290,6 +319,7 @@ void verify_magnetic_check(field_proof::Quaternion q, field_proof::Vector body, 
             health_geometry = geometry2.value;
         }
     }
+
     bool const horizontal_failure = geometry0.value.horizontal < parameters.minimum_horizontal_field ||
                                     geometry1.value.horizontal < parameters.minimum_horizontal_field;
     bool const heading_checked = observable && !horizontal_failure;
@@ -298,6 +328,7 @@ void verify_magnetic_check(field_proof::Quaternion q, field_proof::Vector body, 
         headings = 1U;
         expected.status = heading_status;
     }
+
     if (expected.status == Status::success)
     {
         expected.diagnostics_valid = true;
@@ -324,6 +355,7 @@ void verify_magnetic_check(field_proof::Quaternion q, field_proof::Vector body, 
                 f.strength = geometry0.value.strength < Scalar{5} || geometry0.value.strength > Scalar{85};
             }
         }
+
         f.inclination =
             expected.inclination_checked && std::fabs(expected.inclination_error) > parameters.inclination_tolerance;
         f.heading = heading_checked && std::fabs(heading) > parameters.heading_tolerance;
@@ -338,11 +370,13 @@ void verify_magnetic_check(field_proof::Quaternion q, field_proof::Vector body, 
     {
         __ESBMC_assume(expected.status == Status::success);
     }
+
     auto const actual = formal_eskf::runtime::check_magnetic_field<Linalg>(q, body, reference, health_pointer,
                                                                            parameters, observable, checks);
     __ESBMC_assert(actual.status == expected.status && Calls::rotations == rotations &&
                        Calls::geometries == geometries && Calls::headings == headings,
                    "R-MAGNETIC-FIELD: optional-reference selection and reuse preserve exact status and call priority");
+
     if constexpr (FORMAL_ESKF_PROOF_MAG_CHECK_VALUES)
     {
         __ESBMC_assert(
@@ -354,6 +388,7 @@ void verify_magnetic_check(field_proof::Quaternion q, field_proof::Vector body, 
         __ESBMC_assert(actual.status == Status::success ? actual.diagnostics_valid : same_result(actual, expected),
                        "R-MAGNETIC-FIELD: all failure paths publish only invalid zero diagnostics");
     }
+
     __ESBMC_assert(same_vector(q.coefficients(), old_q.coefficients()) && same_vector(body, old_body) &&
                        same_vector(reference, old_reference) && same_vector(health, old_health) &&
                        same_parameters(parameters, old_parameters) && checks.strength == old_checks.strength &&
@@ -361,4 +396,5 @@ void verify_magnetic_check(field_proof::Quaternion q, field_proof::Vector body, 
                        checks.require_reference == old_checks.require_reference,
                    "R-MAGNETIC-FIELD: every borrowed input and all pointer alias modes remain unchanged");
 }
+
 int main() { return 0; }

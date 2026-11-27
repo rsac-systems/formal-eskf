@@ -78,11 +78,13 @@ Status parameter_status(Scalar dt, Parameters const & p)
     {
         return Status::non_finite_input;
     }
+
     if (p.dt_min <= Scalar{0} || p.dt_max < p.dt_min || p.minimum_quaternion_norm <= Scalar{0} ||
         p.minimum_quaternion_norm > Scalar{1})
     {
         return Status::domain_error;
     }
+
     return dt < p.dt_min || dt > p.dt_max ? Status::out_of_range : Status::success;
 }
 
@@ -99,6 +101,7 @@ struct Results
     Matrix3 transition, rotation, force_product, rotated_noise;
     Matrix propagated, finished;
 };
+
 struct Calls
 {
     inline static Results const * result = nullptr;
@@ -142,6 +145,7 @@ void check_candidate(Matrix const & actual)
             valid = same(candidate[row * size + column], entry) && valid;
         }
     }
+
     __ESBMC_assert(valid, "E-PCOV: all noise blocks and every unaffected covariance entry reach finalization");
 #endif
 }
@@ -174,6 +178,7 @@ void check_transition(Matrix const & actual)
             valid = same(fx[row * 15U + column], entry) && valid;
         }
     }
+
     __ESBMC_assert(valid, "E-PCOV: every F_x block, sign, dt evaluation order and untouched zero/identity");
 }
 #endif
@@ -204,8 +209,10 @@ inline Status validate_prediction_quaternion<contract_proof::Linalg>(contract_pr
     __ESBMC_assert(same_vector(q.coefficients(), Calls::state->q_nb.coefficients()) &&
                        same(tolerance, Calls::parameters->quaternion_squared_norm_tolerance),
                    "E-PCOV: validate the old quaternion with the requested tolerance");
+
     return Calls::result->quaternion_status;
 }
+
 template <>
 inline Status
 attitude_error_transition<contract_proof::Linalg>(contract_proof::Vector3 const & omega, contract_proof::Scalar dt,
@@ -215,6 +222,7 @@ attitude_error_transition<contract_proof::Linalg>(contract_proof::Vector3 const 
     __ESBMC_assert(Calls::transition++ == 0U, "E-PCOV contract: one attitude transition");
     __ESBMC_assert(same(dt, Calls::dt) && same(minimum, Calls::parameters->minimum_quaternion_norm),
                    "E-PCOV: actual dt and minimum reach the attitude transition");
+
     for (std::size_t i = 0U; i < 3U; ++i)
     {
         Scalar expected = Calls::imu->angular_rate_b(i);
@@ -223,6 +231,7 @@ attitude_error_transition<contract_proof::Linalg>(contract_proof::Vector3 const 
 #endif
         __ESBMC_assert(same(omega(i), expected), "E-PCOV: transition consumes the bias-corrected angular rate");
     }
+
     if (Calls::result->transition_status == Status::success)
         output = Calls::result->transition;
     return Calls::result->transition_status;
@@ -234,11 +243,13 @@ template <> inline Status publish_covariance(pcov_proof::Matrix const & candidat
 {
     using namespace pcov_proof;
     __ESBMC_assert(Calls::finish++ == 0U, "E-PCOV generated: one covariance publisher");
+
     check_candidate(candidate);
     if (Calls::result->finish_status == Status::success)
     {
         output = candidate;
     }
+
     return Calls::result->finish_status;
 }
 #else
@@ -246,12 +257,14 @@ template <> inline Status finish_covariance(pcov_proof::Matrix & candidate, pcov
 {
     using namespace pcov_proof;
     __ESBMC_assert(Calls::finish++ == 0U, "E-PCOV contract: one covariance finalizer");
+
     check_candidate(candidate);
     if (Calls::result->finish_status == Status::success)
     {
         candidate = Calls::result->finished;
         output = Calls::result->finished;
     }
+
     return Calls::result->finish_status;
 }
 #endif
@@ -268,11 +281,13 @@ inline pcov_proof::Matrix ins_covariance(pcov_proof::Matrix const & F, pcov_proo
 {
     using namespace pcov_proof;
     __ESBMC_assert(Calls::generated++ == 0U, "E-PCOV generated: one prediction kernel call");
+
     check_transition(F);
     __ESBMC_assert(same_matrix(P, *Calls::covariance), "E-PCOV generated: complete OLD covariance reaches kernel");
     __ESBMC_assert(same_matrix(R, Calls::result->rotation), "E-PCOV generated: OLD attitude rotation reaches kernel");
     __ESBMC_assert(same_matrix(Q_i, Calls::result->noise),
                    "E-PCOV generated: complete discretized noise reaches kernel");
+
     return Calls::result->propagated;
 }
 } // namespace formal_eskf::detail::generated
@@ -289,6 +304,7 @@ inline Status discretize_process_noise<contract_proof::Linalg>(pcov_proof::Noise
     __ESBMC_assert(Calls::noise++ == 0U, "E-PCOV contract: one process noise discretization");
     __ESBMC_assert(same_noise(noise, Calls::parameters->process_noise) && same(dt, Calls::dt),
                    "E-PCOV: every process noise group and actual dt reach discretization");
+
     if (Calls::result->noise_status == Status::success)
         output = Calls::result->noise;
     return Calls::result->noise_status;
@@ -303,6 +319,7 @@ template <> inline pcov_proof::Matrix3 to_rotation_matrix(contract_proof::Quater
     __ESBMC_assert(Calls::rotation++ == 0U, "E-PCOV contract: one old-state rotation");
     __ESBMC_assert(same_vector(q.coefficients(), Calls::state->q_nb.coefficients()),
                    "E-PCOV: navigation rotation uses the OLD nominal attitude");
+
     return Calls::result->rotation;
 }
 } // namespace formal_eskf::so3
@@ -314,8 +331,10 @@ template <> inline bool all_finite(pcov_proof::Matrix const & matrix)
     using namespace pcov_proof;
     __ESBMC_assert(Calls::finite++ == 0U, "E-PCOV: one complete input covariance check");
     __ESBMC_assert(same_matrix(matrix, *Calls::covariance), "E-PCOV: check the complete OLD covariance");
+
     return Calls::result->covariance_finite;
 }
+
 template <>
 template <>
 inline pcov_proof::Matrix3 Matrix<contract_proof::Linalg, 3U, 3U>::operator*
@@ -323,6 +342,7 @@ inline pcov_proof::Matrix3 Matrix<contract_proof::Linalg, 3U, 3U>::operator*
 {
     using namespace pcov_proof;
     __ESBMC_assert(Calls::product++ == 0U, "E-PCOV contract: one force Jacobian product");
+
 #if FORMAL_ESKF_PROOF_INS
     Scalar const x = Calls::imu->specific_force_b(0U) - Calls::state->b_a(0U);
     Scalar const y = Calls::imu->specific_force_b(1U) - Calls::state->b_a(1U);
@@ -338,11 +358,13 @@ inline pcov_proof::Matrix3 Matrix<contract_proof::Linalg, 3U, 3U>::operator*
 #endif
     return Calls::result->force_product;
 }
+
 template <> inline pcov_proof::Matrix sandwich(pcov_proof::Matrix const & transform, pcov_proof::Matrix const & p)
 {
     using namespace pcov_proof;
     __ESBMC_assert(Calls::sandwich++ == 0U, "E-PCOV contract: one complete covariance sandwich");
     __ESBMC_assert(same_matrix(p, *Calls::covariance), "E-PCOV: propagate the complete OLD covariance");
+
 #if FORMAL_ESKF_PROOF_INS
     check_transition(transform);
 #else
@@ -357,6 +379,7 @@ template <> inline pcov_proof::Matrix3 sandwich(pcov_proof::Matrix3 const & tran
     using namespace pcov_proof;
     __ESBMC_assert(Calls::noise_sandwich++ == 0U, "E-PCOV contract: one complete anisotropic noise sandwich");
     __ESBMC_assert(same_matrix(transform, Calls::result->rotation), "E-PCOV: rotate velocity noise with OLD R");
+
     Scalar actual[9]{}, noise[144]{};
     flatten(p, actual);
     flatten(Calls::result->noise, noise);
@@ -364,6 +387,7 @@ template <> inline pcov_proof::Matrix3 sandwich(pcov_proof::Matrix3 const & tran
         for (std::size_t column = 0U; column < 3U; ++column)
             __ESBMC_assert(same(actual[row * 3U + column], noise[row * 12U + column]),
                            "E-PCOV: rotate the entire body acceleration noise block without assuming isotropy");
+
     return Calls::result->rotated_noise;
 }
 #endif
@@ -379,6 +403,7 @@ void verify_predict_covariance(State state, Matrix covariance, Imu imu, Scalar d
                                 !FORMAL_ESKF_PROOF_ACCESS_CONTRACT && !FORMAL_ESKF_PROOF_PRODUCT_ENTRY_CONTRACT &&
                                 !FORMAL_ESKF_PROOF_DOT_CONTRACT;
     __ESBMC_assert(configured, "Runner error: E-PCOV requires only its explicit caller summaries");
+
     if constexpr (!configured)
         return;
     auto const state_before = state;
@@ -442,6 +467,7 @@ void verify_predict_covariance(State state, Matrix covariance, Imu imu, Scalar d
         noise_calls = 1U;
         expected = results.noise_status;
     }
+
     if (expected == Status::success)
     {
         transition_calls = 1U;
@@ -465,6 +491,7 @@ void verify_predict_covariance(State state, Matrix covariance, Imu imu, Scalar d
                          std::isfinite(results.transition(row, column)) && finite;
             }
         }
+
         if (!finite)
             expected = Status::non_finite_result;
     }
@@ -480,6 +507,7 @@ void verify_predict_covariance(State state, Matrix covariance, Imu imu, Scalar d
         finish_calls = 1U;
         expected = results.finish_status;
     }
+
     __ESBMC_assert(status == expected, "E-PCOV: ordered validation, overflow and callee-status propagation");
     __ESBMC_assert(Calls::quaternion == quaternion_calls && Calls::finite == finite_calls &&
                        Calls::noise == noise_calls && Calls::transition == transition_calls &&
@@ -487,6 +515,7 @@ void verify_predict_covariance(State state, Matrix covariance, Imu imu, Scalar d
                        Calls::sandwich == sandwich_calls && Calls::noise_sandwich == noise_sandwich_calls &&
                        Calls::generated == generated_calls && Calls::finish == finish_calls,
                    "E-PCOV: no skipped, repeated or premature callee calls");
+
     if (status == Status::success)
     {
 #if ESKF_CODEGEN && FORMAL_ESKF_PROOF_INS

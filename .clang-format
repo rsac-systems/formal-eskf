@@ -7,6 +7,7 @@ DerivePointerAlignment: false
 IndentWidth: 4
 NamespaceIndentation: None
 PointerAlignment: Middle
+SeparateDefinitionBlocks: Always
 SortIncludes: false
 Standard: c++20
 UseTab: Never

@@ -54,6 +54,7 @@ template <typename Scalar> bool same_scalar(Scalar a, Scalar b)
     using bytes = std::array<std::byte, sizeof(Scalar)>;
     return (std::isnan(a) && std::isnan(b)) || std::bit_cast<bytes>(a) == std::bit_cast<bytes>(b);
 }
+
 template <typename Matrix> bool same_fields(Matrix const & a, Matrix const & b)
 {
     for (std::size_t row = 0; row < Matrix::row_count; ++row)
@@ -274,32 +275,38 @@ enum class MathFault
     atan,
     zero_root
 };
+
 template <typename Scalar> struct ProbeMath : formal_eskf::scalar::StandardMath<Scalar>
 {
     using Base = formal_eskf::scalar::StandardMath<Scalar>;
     static inline MathFault fault = MathFault::none;
     static inline unsigned roots{}, sines{}, cosines{}, atans{};
+
     static Scalar sqrt(Scalar x)
     {
         ++roots;
         return fault == MathFault::root ? std::numeric_limits<Scalar>::quiet_NaN()
                                         : (fault == MathFault::zero_root ? Scalar{0} : Base::sqrt(x));
     }
+
     static Scalar sin(Scalar x)
     {
         ++sines;
         return fault == MathFault::sine ? std::numeric_limits<Scalar>::infinity() : Base::sin(x);
     }
+
     static Scalar cos(Scalar x)
     {
         ++cosines;
         return fault == MathFault::cosine ? std::numeric_limits<Scalar>::quiet_NaN() : Base::cos(x);
     }
+
     static Scalar atan2(Scalar y, Scalar x)
     {
         ++atans;
         return fault == MathFault::atan ? std::numeric_limits<Scalar>::infinity() : Base::atan2(y, x);
     }
+
     static void reset()
     {
         fault = MathFault::none;
@@ -314,14 +321,17 @@ template <typename Base> struct ProbeBackend : Base
     template <std::size_t R, std::size_t C> using Storage = typename Base::template storage_type<R, C>;
     static inline bool override_squared{}, override_norm{}, bad_division{}, bad_scale{};
     static inline Scalar squared_value{}, norm_value{};
+
     template <std::size_t N> static Scalar squared_norm(Storage<N, 1> const & input)
     {
         return override_squared ? squared_value : Base::template squared_norm<N>(input);
     }
+
     template <std::size_t N> static Scalar norm(Storage<N, 1> const & input)
     {
         return override_norm ? norm_value : Base::template norm<N>(input);
     }
+
     template <std::size_t R, std::size_t C>
     static void divide(Storage<R, C> const & input, Scalar divisor, Storage<R, C> & output)
     {
@@ -331,6 +341,7 @@ template <typename Base> struct ProbeBackend : Base
             Base::template coefficient<R, C>(output, R - 1, C - 1) = std::numeric_limits<Scalar>::quiet_NaN();
         }
     }
+
     template <std::size_t R, std::size_t C>
     static void scale(Storage<R, C> const & input, Scalar factor, Storage<R, C> & output)
     {
@@ -340,6 +351,7 @@ template <typename Base> struct ProbeBackend : Base
             Base::template coefficient<R, C>(output, R - 1, C - 1) = std::numeric_limits<Scalar>::infinity();
         }
     }
+
     static void reset()
     {
         override_squared = override_norm = bad_division = bad_scale = false;

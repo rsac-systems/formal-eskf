@@ -35,6 +35,7 @@ template <unsigned Kind> struct Unary
 {
     inline static double arguments[12U]{}, results[12U]{};
     inline static unsigned count{};
+
     double operator()(double argument)
     {
         __ESBMC_assert(count < 12U, "geodesy: bounded unary math calls");
@@ -47,6 +48,7 @@ struct Binary
 {
     inline static double y[12U]{}, x[12U]{}, results[12U]{};
     inline static unsigned count{};
+
     double operator()(double first, double second)
     {
         __ESBMC_assert(count < 12U, "geodesy: bounded atan2 calls");
@@ -62,6 +64,7 @@ struct Math : formal_eskf::scalar::StandardMath<double>
     inline static Unary<1U> sin{};
     inline static Unary<2U> cos{};
     inline static Binary atan2{};
+
     static void initialize()
     {
         // Preselect the same independent, unrestricted returns. Recording them
@@ -99,6 +102,7 @@ using Frame = geo::LocalNed<Backend>;
 struct InverseMath : Math
 {
     inline static double input_x{}, input_y{}, input_z{};
+
     struct Root
     {
         double operator()(double value) const
@@ -121,6 +125,7 @@ struct InverseMath : Math
             return Math::sqrt(value);
         }
     };
+
     struct Sine
     {
         double operator()(double value) const
@@ -135,6 +140,7 @@ struct InverseMath : Math
             return Math::sin(value);
         }
     };
+
     struct Cosine
     {
         double operator()(double value) const
@@ -145,6 +151,7 @@ struct InverseMath : Math
             return Math::cos(value);
         }
     };
+
     struct Angle
     {
         double operator()(double y, double x) const
@@ -176,11 +183,13 @@ struct InverseMath : Math
             return Math::atan2(y, x);
         }
     };
+
     inline static Root sqrt{};
     inline static Sine sin{};
     inline static Cosine cos{};
     inline static Angle atan2{};
 };
+
 using InverseBackend =
     formal_eskf::verification::FixedArrayLinalg<double, formal_eskf::verification::NoNormObserver<double>, InverseMath>;
 using InverseVector = formal_eskf::linalg::Vector<InverseBackend, 3U>;
@@ -251,27 +260,34 @@ template <typename Value> bool all_finite_values(Value const & a)
 struct MathOracle
 {
     unsigned roots{}, sines{}, cosines{}, angles{};
+
     template <unsigned Kind> double unary(Unary<Kind> const & call, unsigned & count, double argument)
     {
         __ESBMC_assert(count < call.count && same(call.arguments[count], argument),
                        "geodesy: exact unary math argument and call order");
         return call.results[count++];
     }
+
     double root(double value) { return unary(Math::sqrt, roots, value); }
+
     double sine(double value) { return unary(Math::sin, sines, value); }
+
     double cosine(double value) { return unary(Math::cos, cosines, value); }
+
     double angle(double y, double x)
     {
         __ESBMC_assert(angles < Math::atan2.count && same(Math::atan2.y[angles], y) && same(Math::atan2.x[angles], x),
                        "geodesy: exact atan2 argument and call order");
         return Math::atan2.results[angles++];
     }
+
     void finish() const
     {
         __ESBMC_assert(roots == Math::sqrt.count && sines == Math::sin.count && cosines == Math::cos.count &&
                            angles == Math::atan2.count,
                        "geodesy: no omitted or extra math call");
     }
+
     formal_eskf::scalar::SinCos<double> degrees(double angle)
     {
         if (angle == 0.0)

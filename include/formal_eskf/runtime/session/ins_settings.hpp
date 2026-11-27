@@ -5,6 +5,7 @@
 #include <formal_eskf/runtime/sensors/gnss/gnss_lifecycle.hpp>
 #include <formal_eskf/runtime/sensors/magnetic/magnetic_field.hpp>
 #include <formal_eskf/runtime/sensors/magnetic/magnetometer_lifecycle.hpp>
+
 namespace formal_eskf::runtime
 {
 /** Copied numerical coordination settings; applications supply their own profile. */
@@ -12,6 +13,7 @@ struct InsSettings
 {
     BiasLimits<double> bias_limits{};
     double projection_radius_m{};
+
     struct Gnss
     {
         std::uint64_t context_maximum_age_us{};
@@ -24,6 +26,7 @@ struct InsSettings
         double vertical_variance_multiplier{};
         std::uint64_t maximum_aiding_age_us{};
     } gnss{};
+
     struct Height
     {
         double barometer_variance{};
@@ -31,6 +34,7 @@ struct InsSettings
         std::uint64_t ground_effect_timeout_us{};
         double minimum_gnss_noise_m{};
     } height{};
+
     struct Imu
     {
         double faulty_specific_force_variance{};
@@ -41,6 +45,7 @@ struct InsSettings
         double nominal_interval_s{};
         std::uint64_t rest_maximum_age_us{};
     } imu{};
+
     struct Magnetic
     {
         double acceleration_limit_m_s2{};
@@ -54,6 +59,7 @@ struct InsSettings
         double noise_variance{};
         MagnetometerFusion::Parameters timing{};
     } magnetic{};
+
     struct Origin
     {
         std::uint64_t datum_maximum_age_us{};
@@ -69,10 +75,12 @@ struct InsSettings
         double trigger_angle_rad{};
         double trigger_distance_m{};
     } origin{};
+
     struct Aiding
     {
         std::uint64_t current_age_us{}, maximum_age_us{};
     } aiding{};
+
     struct Output
     {
         double attitude_reset_resolution{};

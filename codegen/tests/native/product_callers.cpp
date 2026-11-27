@@ -36,6 +36,7 @@ template <typename M> double scaled_difference(M const & a, M const & b)
                              std::max(std::abs(static_cast<double>(a(i, j))), std::abs(static_cast<double>(b(i, j)))));
         }
     }
+
     return error / scale;
 }
 
@@ -68,6 +69,7 @@ template <typename S, std::size_t M> void scenario(Model model, unsigned sensor,
             {
                 std::abort();
             }
+
             fill(state.p_n, random);
             fill(state.v_n, random);
             fill(state.b_a, random);
@@ -85,11 +87,13 @@ template <typename S, std::size_t M> void scenario(Model model, unsigned sensor,
             {
                 H = formal_eskf::vertical_position_jacobian<Backend<S>>();
             }
+
             if constexpr (M == 2U)
             {
                 H = model == Model::horizontal_position ? formal_eskf::horizontal_position_jacobian<Backend<S>>()
                                                         : formal_eskf::horizontal_velocity_jacobian<Backend<S>>();
             }
+
             if constexpr (M == 3U)
             {
                 if (model == Model::body_vector)
@@ -101,6 +105,7 @@ template <typename S, std::size_t M> void scenario(Model model, unsigned sensor,
                     {
                         h = -h;
                     }
+
                     H.template set_block<0U, 6U>(formal_eskf::so3::hat<Backend<S>>(h));
                     measurement = h + r;
                     if (sensor == 2U)
@@ -113,38 +118,46 @@ template <typename S, std::size_t M> void scenario(Model model, unsigned sensor,
                     H = formal_eskf::velocity_jacobian<Backend<S>>();
                 }
             }
+
             if (kind == Case::nonfinite)
             {
                 P(0U, 0U) = std::numeric_limits<S>::quiet_NaN();
             }
+
             if (kind == Case::asymmetric)
             {
                 P(0U, 1U) += S{1};
             }
+
             if (kind == Case::invalid_variance)
             {
                 V(0U, 0U) = S{-1};
             }
+
             if (kind == Case::invalid_nominal)
             {
                 state.p_n(0U) = std::numeric_limits<S>::quiet_NaN();
             }
+
             if (kind == Case::ill_conditioned)
             {
                 P = Matrix<S, 15U, 15U>{};
                 V = Matrix<S, M, M>::identity();
                 V(0U, 0U) = std::numeric_limits<S>::epsilon() * S{0.01};
             }
+
             if (kind == Case::overflow)
             {
                 P = P * (std::numeric_limits<S>::max() / S{8});
             }
+
             formal_eskf::configuration::Ins::BiasUpdate permission;
             for (unsigned i = 0; i < 3; ++i)
             {
                 permission.accelerometer[i] = (seed & (1U << i)) != 0U;
                 permission.gyroscope[i] = (seed & (1U << (i + 3U))) != 0U;
             }
+
             auto invoke = [&](State<S> const & prior, Matrix<S, 15U, 15U> const & covariance, State<S> & output,
                               Matrix<S, 15U, 15U> & corrected)
             {
@@ -155,12 +168,14 @@ template <typename S, std::size_t M> void scenario(Model model, unsigned sensor,
                         return formal_eskf::correct_magnetometer(prior, covariance, measurement, reference, V, S{1e-6},
                                                                  output, corrected, permission);
                     }
+
                     if (sensor == 2U)
                     {
                         return formal_eskf::correct_accelerometer(prior, covariance, measurement, reference, V, S{1e-6},
                                                                   output, corrected, permission);
                     }
                 }
+
                 return formal_eskf::correct(prior, covariance, r, H, V, S{1e-6}, output, corrected, permission);
             };
             if (bench)
@@ -181,8 +196,10 @@ template <typename S, std::size_t M> void scenario(Model model, unsigned sensor,
                             {
                                 std::abort();
                             }
+
                             checksum = static_cast<double>(corrected(0U, 0U));
                         }
+
                         double ns =
                             std::chrono::duration<double, std::nano>(std::chrono::steady_clock::now() - start).count() /
                             1024U;
@@ -191,8 +208,10 @@ template <typename S, std::size_t M> void scenario(Model model, unsigned sensor,
                                     static_cast<unsigned>(model), sensor, sizeof(S) * 8U, seed, round, variant, ns);
                     }
                 }
+
                 continue;
             }
+
             State<S> output[2];
             Matrix<S, 15U, 15U> corrected[2];
             Status status[2];
@@ -228,6 +247,7 @@ template <typename S, std::size_t M> void scenario(Model model, unsigned sensor,
                         std::abort();
                     }
                 }
+
                 if (kind == Case::ordinary)
                 {
                     Matrix<S, 15U, M> C;
@@ -237,6 +257,7 @@ template <typename S, std::size_t M> void scenario(Model model, unsigned sensor,
                     {
                         std::abort();
                     }
+
                     for (unsigned edge = 0; edge < 3; ++edge)
                     {
                         Matrix<S, M, 1U> residual, diagonal;
@@ -253,6 +274,7 @@ template <typename S, std::size_t M> void scenario(Model model, unsigned sensor,
                         {
                             std::abort();
                         }
+
                         codegen_fixture::generated = variant == 1U;
                         residual(0U) = S{3} * std::sqrt(dense_S(0U, 0U));
                         if (edge != 1U)
@@ -260,16 +282,19 @@ template <typename S, std::size_t M> void scenario(Model model, unsigned sensor,
                             residual(0U) =
                                 std::nextafter(residual(0U), edge == 0U ? S{0} : std::numeric_limits<S>::infinity());
                         }
+
                         formal_eskf::InnovationCheck<Backend<S>, M> diagnostic;
                         if (!formal_eskf::succeeded(
                                 formal_eskf::check_innovation(residual, diagonal, S{3}, diagnostic)))
                         {
                             std::abort();
                         }
+
                         gates[variant][edge] = diagnostic.rejected;
                     }
                 }
             }
+
             if (status[0] != status[1])
             {
                 ++status_differences;
@@ -278,6 +303,7 @@ template <typename S, std::size_t M> void scenario(Model model, unsigned sensor,
                     std::abort();
                 }
             }
+
             if (formal_eskf::succeeded(status[0]) && formal_eskf::succeeded(status[1]))
             {
                 ++accepted;
@@ -299,12 +325,14 @@ template <typename S, std::size_t M> void scenario(Model model, unsigned sensor,
             {
                 ++rejected;
             }
+
             for (unsigned edge = 0; edge < 3; ++edge)
             {
                 gate_differences += gates[0][edge] != gates[1][edge];
             }
         }
     }
+
     if (!bench)
     {
         std::printf("{\"model\":%u,\"sensor\":%u,\"bits\":%zu,\"accepted\":%u,\"rejected\":%u,"

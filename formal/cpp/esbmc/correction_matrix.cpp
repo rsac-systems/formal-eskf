@@ -28,6 +28,7 @@ using Right = formal_eskf::linalg::Matrix<Backend, inner, columns>;
 using Product = formal_eskf::linalg::Matrix<Backend, rows, columns>;
 using Square = formal_eskf::linalg::Matrix<Backend, rows, rows>;
 using covariance_oracle::flatten;
+
 struct FiniteCall
 {
     inline static Square const * input = nullptr;
@@ -85,7 +86,9 @@ template <bool Subtract> void correction_elementwise(Square left, Square right)
     __ESBMC_assert(same_matrix(left, old_left) && same_matrix(right, old_right),
                    "E-CORRECT elementwise: complete input frames");
 }
+
 void verify_correction_add(Square left, Square right) { correction_elementwise<false>(left, right); }
+
 void verify_correction_subtract(Square left, Square right) { correction_elementwise<true>(left, right); }
 
 void verify_correction_finite(Product candidate)
@@ -159,6 +162,7 @@ void verify_correction_entry(Left left, Right right, std::size_t row, std::size_
 }
 
 using DotVector = formal_eskf::linalg::Vector<Backend, inner>;
+
 void verify_correction_dot(DotVector left, DotVector right)
 {
     constexpr bool configured = !FORMAL_ESKF_PROOF_CORRECTION_CONTRACT && !FORMAL_ESKF_PROOF_ARITHMETIC_CONTRACT &&

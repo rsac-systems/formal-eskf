@@ -46,6 +46,7 @@ template <typename Matrix> bool same_bits(Matrix const & a, Matrix const & b)
             }
         }
     }
+
     return true;
 }
 
@@ -57,6 +58,7 @@ template <typename State> bool same_state(State const & a, State const & b)
         result = result && same_bits(a.p_n, b.p_n) && same_bits(a.v_n, b.v_n) && same_bits(a.b_a, b.b_a) &&
                  same_bits(a.b_g, b.b_g);
     }
+
     return result;
 }
 
@@ -131,6 +133,7 @@ std::array<long double, 3U> observation(State const & state, Vector const & g_n)
             h[row] -= Rt[row][column] * g_n(column);
         }
     }
+
     return h;
 }
 
@@ -141,6 +144,7 @@ template <typename Fixture> void moving_state(TestContext & test, Fixture & fixt
     test.expect(quaternion_type::from_coefficients(value_type{0.5}, value_type{0.5}, value_type{0.5}, value_type{0.5},
                                                    Fixture::minimum_norm, fixture.state.q_nb) == Status::success,
                 profile, "cyclic rotation is valid");
+
     if constexpr (Fixture::size == 15U)
     {
         fixture.state.v_n = Fixture::vector_type::from_row_major({value_type{3}, value_type{1}, value_type{-2}});
@@ -169,6 +173,7 @@ void test_accelerometer_jacobian(TestContext & test, std::string_view profile)
                     value_type{2}, value_type{-1}, value_type{3}, value_type{4}, Fixture::minimum_norm,
                     fixture.state.q_nb) == Status::success,
                 profile, "general attitude is valid");
+
     fixture.g_n = Fixture::vector_type::from_row_major({value_type{0.25}, value_type{-0.5}, value_type{2}});
     auto const H = fixture.jacobian();
     // Supplemental finite-difference regression; this step/tolerance pair is
@@ -188,6 +193,7 @@ void test_accelerometer_jacobian(TestContext & test, std::string_view profile)
             formal_eskf::inject_nominal(fixture.state, positive, Fixture::minimum_norm, plus) == Status::success &&
                 formal_eskf::inject_nominal(fixture.state, negative, Fixture::minimum_norm, minus) == Status::success,
             profile, "finite-difference state injections succeed");
+
         auto const h_plus = observation(plus, fixture.g_n);
         auto const h_minus = observation(minus, fixture.g_n);
         for (std::size_t row = 0U; row < 3U; ++row)
@@ -210,6 +216,7 @@ void test_accelerometer_analytic(TestContext & test, std::string_view profile, t
     typename Fixture::covariance_type P_output;
     test.expect(fixture.correct(output, P_output) == Status::success && same_state(output, fixture.state), profile,
                 "level stationary negative-g measurement has zero residual");
+
     // P=I, V=I, h=(0,0,-2), H_theta=[[0,2,0],[-2,0,0],[0,0,0]].
     // Build the conditional covariance without production H, solve or Joseph
     // helpers. INS bias columns are zero: preprocessing is held fixed.
@@ -228,17 +235,21 @@ void test_accelerometer_analytic(TestContext & test, std::string_view profile, t
             {
                 posterior[row][column] -= H[k][row] * H[k][column] / S[k];
             }
+
             test.expect(near(P_output(row, column), static_cast<value_type>(posterior[row][column]), tolerance),
                         profile, "stationary covariance matches analytic oracle; gravity does not observe heading");
         }
     }
+
     fixture.f_b(0U) = value_type{0.125};
     test.expect(fixture.correct(output, P_output) == Status::success, profile, "horizontal residual succeeds");
+
     long double const angle = 0.25L / S[0];
     test.expect(near(output.q_nb.q0(), static_cast<value_type>(std::cos(angle / 2)), tolerance) &&
                     near(output.q_nb.q2(), static_cast<value_type>(std::sin(angle / 2)), tolerance) &&
                     output.q_nb.q1() == value_type{0} && output.q_nb.q3() == value_type{0},
                 profile, "attitude correction has the independently calculated sign and magnitude");
+
     if constexpr (ins)
     {
         test.expect(output.b_a(0U) == value_type{0} && output.b_a(1U) == value_type{0} &&
@@ -258,6 +269,7 @@ void test_accelerometer_analytic(TestContext & test, std::string_view profile, t
     {
         G[index][index] = 1;
     }
+
     G[offset][offset] = diagonal;
     G[offset + 2U][offset + 2U] = diagonal;
     G[offset][offset + 2U] = -off_diagonal;
@@ -274,6 +286,7 @@ void test_accelerometer_analytic(TestContext & test, std::string_view profile, t
                     expected += G[row][i] * posterior[i][j] * G[column][j];
                 }
             }
+
             test.expect(near(P_output(row, column), static_cast<value_type>(expected), tolerance), profile,
                         "independent reset oracle includes all attitude/bias cross covariances");
         }
@@ -305,6 +318,7 @@ template <typename Linalg, typename Configuration> auto coupled_fixture(TestCont
             fixture.P(row, column) += static_cast<value_type>((row + 1U) * (column + 1U)) / value_type{256};
         }
     }
+
     fixture.V(0U, 1U) = value_type{0.25};
     fixture.V(1U, 0U) = value_type{0.25};
     fixture.V(0U, 2U) = value_type{0.125};
@@ -342,6 +356,7 @@ template <typename Fixture> struct GravityReference
             {
                 measurement -= fixture.state.b_a(row);
             }
+
             r(row) = static_cast<value_type>(measurement - h[row]);
             for (std::size_t column = 0U; column < 3U; ++column)
             {
@@ -379,6 +394,7 @@ void test_accelerometer_delegation(TestContext & test, std::string_view profile,
         }
     }();
     test.expect(reference_status == Status::success, profile, "selected correction with correlated V succeeds");
+
     if constexpr (Fixture::size == 15U)
     {
         test.expect(
@@ -386,6 +402,7 @@ void test_accelerometer_delegation(TestContext & test, std::string_view profile,
                 !same_bits(expected_state.b_a, fixture.state.b_a) && !same_bits(expected_state.b_g, fixture.state.b_g),
             profile, "full INS correction retains velocity, position and both bias gains");
     }
+
     for (unsigned aliases = 0U; aliases < 4U; ++aliases)
     {
         auto input = fixture;
@@ -404,6 +421,7 @@ void test_accelerometer_delegation(TestContext & test, std::string_view profile,
                         same_bits(input.g_n, fixture.g_n) && same_bits(input.V, fixture.V),
                     profile, "non-output inputs remain unchanged");
     }
+
     auto opposite = fixture;
     opposite.state.q_nb = -fixture.state.q_nb;
     test.expect(opposite.correct(opposite.state, opposite.P) == Status::success &&
@@ -422,6 +440,7 @@ void test_ins_gravity_model(TestContext & test, std::string_view profile, typena
     auto const before = fixture.state;
     test.expect(fixture.correct(fixture.state, fixture.P) == Status::success && same_state(fixture.state, before),
                 profile, "gravity prediction does not depend on the prior velocity");
+
     fixture = Fixture{};
     fixture.state.b_a(0U) = value_type{0.25};
     fixture.state.b_a(2U) = value_type{0.25};
@@ -464,6 +483,7 @@ void test_accelerometer_failures(TestContext & test, std::string_view profile)
                 separate_state.p_n(0U) = std::numeric_limits<value_type>::quiet_NaN();
                 separate_state.v_n(1U) = -value_type{0};
             }
+
             typename Fixture::covariance_type separate_P = fixture.P * value_type{7};
             separate_P(0U, 1U) = -value_type{0};
             separate_P(1U, 0U) = std::numeric_limits<value_type>::quiet_NaN();
@@ -504,6 +524,7 @@ void test_accelerometer_failures(TestContext & test, std::string_view profile)
             }
         }
     }
+
     auto bad = fixture;
     bad.g_n = Fixture::vector_type::zero();
     fail(bad, Fixture::minimum_norm, Status::domain_error, "zero gravity reference rolls back");
@@ -516,6 +537,7 @@ void test_accelerometer_failures(TestContext & test, std::string_view profile)
                                                                             value_type{1}, Fixture::minimum_norm,
                                                                             bad.state.q_nb) == Status::success,
                 profile, "nonaxis rotation-overflow fixture is unit");
+
     bad.g_n(0U) = std::numeric_limits<value_type>::max();
     bad.g_n(1U) = std::numeric_limits<value_type>::max();
     fail(bad, Fixture::minimum_norm, Status::non_finite_result, "finite gravity rotation overflow rolls back");
@@ -549,6 +571,7 @@ void test_accelerometer_failures(TestContext & test, std::string_view profile)
         bad.state.b_a(0U) = -std::numeric_limits<value_type>::max();
         fail(bad, Fixture::minimum_norm, Status::non_finite_result, "bias preprocessing overflow rolls back");
     }
+
     auto zero_measurement = fixture;
     zero_measurement.f_b = Fixture::vector_type::zero();
     zero_measurement.P = Fixture::covariance_type::zero();
@@ -566,6 +589,7 @@ void test_fixed_preprocessing(TestContext & test, std::string_view profile)
     auto original = fixture;
     test.expect(original.correct(original.state, original.P) == Status::success, profile,
                 "fixed-preprocessing control correction succeeds");
+
     if constexpr (Fixture::size == 15U)
     {
         auto shifted = fixture;
@@ -581,8 +605,10 @@ void test_fixed_preprocessing(TestContext & test, std::string_view profile)
                             "fixed prior-bias preprocessing does not add bias Jacobian columns");
             }
         }
+
         test.expect(shifted.correct(shifted.state, shifted.P) == Status::success, profile,
                     "equal raw-force/prior-bias shifts preserve the processed measurement");
+
         auto expected = original.state;
         expected.b_a = expected.b_a + offset;
         // Encoded dyadic shifts preserve r exactly in this fixture. Nominal
@@ -594,11 +620,13 @@ void test_fixed_preprocessing(TestContext & test, std::string_view profile)
                         same_bits(shifted.state.v_n, original.state.v_n) &&
                         same_bits(shifted.state.b_g, original.state.b_g),
                     profile, "fixed measurement leaves gain, nonbias correction and covariance identical");
+
         for (std::size_t axis = 0U; axis < 3U; ++axis)
         {
             test.expect(near(shifted.state.b_a(axis), expected.b_a(axis), rounding), profile,
                         "changed prior bias receives the same estimated increment within two-addition rounding");
         }
+
         test_ins_gravity_model<Linalg>(test, profile, rounding);
     }
     else
@@ -627,9 +655,11 @@ template <typename Linalg> void test_bias_forwarding(TestContext & test, std::st
         permissions[2U + axis] = 1U << axis;
         permissions[8U + axis] = 63U ^ (1U << axis);
     }
+
     auto unrestricted = fixture;
     test.expect(unrestricted.correct(unrestricted.state, unrestricted.P) == Status::success, profile,
                 "default gravity permissions permit correction");
+
     for (unsigned mask : permissions)
     {
         formal_eskf::configuration::Ins::BiasUpdate permission;
@@ -638,6 +668,7 @@ template <typename Linalg> void test_bias_forwarding(TestContext & test, std::st
             permission.accelerometer[axis] = (mask & (1U << axis)) != 0U;
             permission.gyroscope[axis] = (mask & (1U << (3U + axis))) != 0U;
         }
+
         auto const reference =
             formal_eskf::test::reference::reference_correction(independent_input, ESKF_RESET_APPROX != 0, permission);
         for (unsigned aliases = 0U; aliases < 4U; ++aliases)
@@ -651,22 +682,26 @@ template <typename Linalg> void test_bias_forwarding(TestContext & test, std::st
                 input.correct(state, P, Fixture::minimum_norm, permission) == Status::success &&
                     formal_eskf::test::reference::matches_reference(independent_input, reference, state, P, tolerance),
                 profile, "gravity wrapper forwards each bias permission to both error and Joseph update");
+
             if (mask == 63U)
             {
                 test.expect(same_state(state, unrestricted.state) && same_bits(P, unrestricted.P), profile,
                             "default/all-enabled and omitted gravity permissions agree exactly");
             }
+
             for (std::size_t axis = 0U; axis < 3U; ++axis)
             {
                 test.expect((permission.accelerometer[axis] || state.b_a(axis) == fixture.state.b_a(axis)) &&
                                 (permission.gyroscope[axis] || state.b_g(axis) == fixture.state.b_g(axis)),
                             profile, "disabled nominal bias coordinates remain unchanged");
             }
+
             test.expect(((aliases & 1U) != 0U || same_state(input.state, fixture.state)) &&
                             ((aliases & 2U) != 0U || same_bits(input.P, fixture.P)) &&
                             same_bits(input.f_b, fixture.f_b) && same_bits(input.g_n, fixture.g_n) &&
                             same_bits(input.V, fixture.V),
                         profile, "bias permissions preserve borrowed observation inputs");
+
             auto const saved = state;
             auto const saved_P = P;
             test.expect(input.correct(state, P, value_type{0}, permission) == Status::domain_error &&
@@ -698,6 +733,7 @@ void test_boundary_ownership(TestContext & test, std::string_view profile)
         {
             moving_state(test, fixture, profile);
         }
+
         auto const h = observation(fixture.state, fixture.g_n);
         for (std::size_t axis = 0U; axis < 3U; ++axis)
         {
@@ -707,6 +743,7 @@ void test_boundary_ownership(TestContext & test, std::string_view profile)
                 fixture.f_b(axis) += fixture.state.b_a(axis);
             }
         }
+
         fixture.V = Fixture::matrix3_type::identity() * value_type{12};
         auto const H = fixture.jacobian();
         for (std::size_t row = 0U; row < 3U; ++row)
@@ -716,13 +753,16 @@ void test_boundary_ownership(TestContext & test, std::string_view profile)
             {
                 null_component += H(row, Fixture::attitude_offset + axis) * static_cast<value_type>(h[axis]);
             }
+
             test.expect(null_component == value_type{0}, profile,
                         "instantaneous observation derivative annihilates rotation along the gravity vector");
         }
+
         auto state = fixture.state;
         auto P = fixture.P;
         test.expect(fixture.correct(state, P) == Status::success && same_state(state, fixture.state), profile,
                     "zero residual at each current prior preserves nominal state without skipping covariance");
+
         std::size_t const gravity_axis = cyclic ? 1U : 2U;
         for (std::size_t row = 0U; row < Fixture::size; ++row)
         {

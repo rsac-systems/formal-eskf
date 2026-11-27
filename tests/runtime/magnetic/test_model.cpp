@@ -34,9 +34,11 @@ template <typename Linalg> void run(Context & test)
             {
                 geographic = candidate;
             }
+
             test.expect(model.initialize(1, {(mask & 1U) != 0, (mask & 2U) != 0, static_cast<Scalar>(-0.2)}, seed,
                                          geographic) == Status::success,
                         "selection", "each source-mask/model-availability combination initializes");
+
             bool const use_geo = available && (mask == 1 || mask == 3);
             bool const use_saved = !use_geo && (mask == 2 || mask == 3);
             auto const expected = use_geo     ? static_cast<Scalar>(0.3)
@@ -50,6 +52,7 @@ template <typename Linalg> void run(Context & test)
                         "selection", "geographic, stored, then magnetic-north precedence");
             test.expect(model.available() == available && model.reference_id() == 1, "selection",
                         "health availability does not depend on heading source");
+
             auto const observation = model.observation_n();
             candidate.strength = 55;
             auto const updated = model.update(10000002, candidate, true);
@@ -57,6 +60,7 @@ template <typename Linalg> void run(Context & test)
                         "WMM still updates with geographic heading disabled");
             test.expect(model.reference_id() == ((mask & 1U) != 0U ? 2U : 1U), "selection",
                         "only geographic-heading adoption changes the observation revision");
+
             if ((mask & 1U) == 0U)
             {
                 test.expect(formal_eskf::linalg::max_abs(model.observation_n() - observation) == Scalar{0}, "selection",
@@ -64,6 +68,7 @@ template <typename Linalg> void run(Context & test)
             }
         }
     }
+
     {
         Model model{10000000};
         test.expect(model.initialize(10, {true, true, 0}, seed, initial) == Status::success, "schedule",
@@ -71,14 +76,17 @@ template <typename Linalg> void run(Context & test)
         test.expect(!model.lookup_due(10000010, true) && model.lookup_due(10000011, true) &&
                         !model.lookup_due(10000011, false) && model.lookup_due(11, false, true),
                     "schedule", "strict 10 s, valid-position and origin-trigger boundaries");
+
         auto candidate = initial;
         candidate.strength = 51;
         auto result = model.update(10000011, candidate, true);
         test.expect(result.checked && !result.changed && model.model_revision() == 1, "schedule",
                     "threshold equality advances only the check clock");
+
         result = model.update(20000012, std::nullopt, true);
         test.expect(result.checked && !result.changed && model.available() && !model.lookup_due(20000013, true),
                     "unavailable", "failed lookup retains last valid model and does not retry each IMU tick");
+
         auto const old_field = model.health_n();
         candidate.strength = std::numeric_limits<Scalar>::quiet_NaN();
         result = model.update(30000013, candidate, true);
@@ -86,10 +94,12 @@ template <typename Linalg> void run(Context & test)
                         formal_eskf::linalg::max_abs(model.health_n() - old_field) == Scalar{0},
                     "invalid", "invalid model cannot change either reference or authorize a reset");
         test.expect(!model.lookup_due(30000014, true), "invalid", "invalid candidate attempts are rate-limited");
+
         candidate = initial;
         candidate.strength = 52;
         result = model.update(30000014, candidate, false, true);
         test.expect(result.changed && model.reference_id() == 2, "origin", "origin trigger bypasses periodic wait");
+
         auto const checks = model.lookup_count();
         test.expect(model.update(30000014, candidate, true).status == Status::out_of_range &&
                         model.lookup_count() == checks,
@@ -99,26 +109,31 @@ template <typename Linalg> void run(Context & test)
                         model.reference_id() == 2,
                     "settings", "invalid saved declination preserves an existing model");
     }
+
     {
         Model invalid{0};
         test.expect(invalid.initialize(1, {true, true, 0}, seed, initial) == Status::domain_error &&
                         invalid.reference_id() == 0 && invalid.lookup_count() == 0,
                     "settings", "zero external lookup interval cannot initialize a live model");
+
         std::uint64_t interval = 1000000;
         Model model{interval};
         interval = 0;
         test.expect(model.initialize(1, {true, true, 0}, seed, initial) == Status::success &&
                         !model.lookup_due(1000001, true) && model.lookup_due(1000002, true),
                     "schedule", "copied attempt interval is independent of the caller variable");
+
         auto changed = initial;
         changed.strength += 2;
         auto result = model.update(1000002, changed, true);
         test.expect(!result.checked && !result.changed && model.lookup_count() == 2 && model.model_revision() == 1,
                     "schedule", "a due host attempt does not bypass the inner 10 s adoption policy");
+
         result = model.update(10000002, changed, true);
         test.expect(result.checked && result.changed && model.reference_id() == 2, "schedule",
                     "both clocks permit a later geographic adoption");
     }
+
     {
         typename Model::sample_type converted{}, round_trip{};
         auto const status = Model::to_origin_frame(initial, 35, 179.8, -10, -179.9, converted);
@@ -128,15 +143,18 @@ template <typename Linalg> void run(Context & test)
                         near(round_trip.declination, initial.declination) &&
                         near(round_trip.inclination, initial.inclination),
                     "frame", "local NED to origin NED round trip");
+
         typename Model::sample_type down{0, pi / Scalar{2}, 40};
         test.expect(Model::to_origin_frame(down, 45, 0, 0, 0, converted) == Status::success &&
                         near(converted.inclination, pi / Scalar{4}) && near(std::abs(converted.declination), pi),
                     "frame", "Down at latitude 45 has negative North and positive Down at equator");
+
         auto const old = converted;
         test.expect(Model::to_origin_frame(initial, 91, 0, 0, 0, converted) == Status::domain_error &&
                         converted.declination == old.declination && converted.inclination == old.inclination,
                     "frame", "invalid geographic coordinates preserve output");
     }
+
     {
         Model model{10000000};
         test.expect(model.initialize(1, {true, true, 0}, seed, std::nullopt) == Status::success && !model.available(),

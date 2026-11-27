@@ -266,6 +266,7 @@ template <typename Backend> void failure_frames(Context & test, std::string_view
 // The current source/profile must be reviewed/run by the formal evidence pipeline;
 // this suite neither fabricates private revision state nor executes 2^32 adoptions.
 } /* end namespace */
+
 int main(int argc, char ** argv)
 {
     formal_eskf::test::configure_backend_test();

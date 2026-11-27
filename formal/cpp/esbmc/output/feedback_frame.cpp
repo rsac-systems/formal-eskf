@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "selected_frame.hpp"
+
 namespace
 {
 using namespace output_boundary;
 bool translation_ok;
 Sample committed;
+
 void restore_selected_history()
 {
     owner->m_history.m_samples[selected_slot].time_us = selected_history_integers[0];
@@ -23,6 +25,7 @@ void restore_selected_history()
     owner->m_history.m_samples[selected_slot].p_n.m_storage.values.tail.tail.head = selected_history_values[9];
 }
 } // namespace
+
 namespace formal_eskf::runtime
 {
 template <>
@@ -35,6 +38,7 @@ bool OutputPredictor<output_proof::Backend, 64>::stage_translation(vector3_type 
     restore_selected_history();
     return translation_ok;
 }
+
 template <> void OutputPredictor<output_proof::Backend, 64>::commit_history()
 {
     check_selected();
@@ -45,7 +49,9 @@ template <> void OutputPredictor<output_proof::Backend, 64>::commit_history()
     capture_selected_history();
 }
 } // namespace formal_eskf::runtime
+
 #include <feedback_steps.hpp>
+
 void verify_output_feedback_frame(Output object, State state, std::uint64_t time, output_steps::FeedbackValues feedback,
                                   bool staged, Sample newest)
 {

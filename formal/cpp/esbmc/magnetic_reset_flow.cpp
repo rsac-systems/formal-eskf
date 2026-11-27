@@ -36,6 +36,7 @@ using Configuration =
     std::conditional_t<size == 15U, formal_eskf::configuration::Ins, formal_eskf::configuration::Ahrs>;
 using State = Configuration::NominalState<Linalg>;
 using Geometry = formal_eskf::runtime::detail::MagneticFieldGeometry<Scalar>;
+
 struct Replies
 {
     Matrix3 before, after;
@@ -47,6 +48,7 @@ struct Replies
     Status measured_status, reference_status, measured_angle_status, reference_angle_status;
     Status exp_status, compose_status, covariance_status;
 };
+
 struct Calls
 {
     inline static Replies replies;
@@ -58,6 +60,7 @@ struct Calls
         helpers;
     inline static Status helper_status;
 };
+
 inline bool finite_extra(State const & state)
 {
 #if FORMAL_ESKF_PROOF_STATE_SIZE == 15
@@ -67,6 +70,7 @@ inline bool finite_extra(State const & state)
     return true;
 #endif
 }
+
 inline bool same_extra(State const & a, State const & b)
 {
 #if FORMAL_ESKF_PROOF_STATE_SIZE == 15
@@ -78,10 +82,12 @@ inline bool same_extra(State const & a, State const & b)
     return true;
 #endif
 }
+
 inline bool same_q(Quaternion const & a, Quaternion const & b)
 {
     return same_matrix(a.coefficients(), b.coefficients());
 }
+
 inline Status validation(Quaternion const & q, Matrix const & P, Vector const & body, Vector const & reference,
                          Scalar variance, Scalar horizontal, Scalar minimum)
 {
@@ -90,17 +96,20 @@ inline Status validation(Quaternion const & q, Matrix const & P, Vector const & 
     {
         return Status::non_finite_input;
     }
+
     if (variance < Scalar{0} || horizontal < std::numeric_limits<Scalar>::min() || !(minimum > Scalar{0}) ||
         minimum > Scalar{1})
     {
         return Status::domain_error;
     }
+
     for (std::size_t i = 0; i < size; ++i)
     {
         if (P(i, i) < Scalar{0})
         {
             return Status::domain_error;
         }
+
         for (std::size_t j = 0; j < size; ++j)
         {
             // Exact finite symmetry: the scalar subtraction equivalence is
@@ -111,8 +120,10 @@ inline Status validation(Quaternion const & q, Matrix const & P, Vector const & 
             }
         }
     }
+
     return Status::success;
 }
+
 inline Scalar wrapped(Scalar difference)
 {
     Scalar const pi = std::numbers::pi_v<Scalar>;
@@ -124,8 +135,10 @@ inline Scalar wrapped(Scalar difference)
     {
         difference += Scalar{2} * pi;
     }
+
     return difference;
 }
+
 inline void prepare(Quaternion const & q, Matrix const & P, Vector const & body, Vector const & reference,
                     Scalar variance, Scalar horizontal, Scalar minimum, Replies const & replies)
 {
@@ -163,8 +176,10 @@ inline reset_flow_proof::Vector Matrix<reset_flow_proof::Linalg, 3U, 3U>::operat
     __ESBMC_assert(Calls::products++ == 0U && Calls::rotations == 1U && same_matrix(*this, Calls::replies.before) &&
                        same_matrix(v, Calls::body),
                    "R-MAGNETOMETER-RESET: original body field is multiplied by the original attitude frame");
+
     return Calls::rotated;
 }
+
 template <>
 inline bool is_symmetric<reset_flow_proof::Linalg, reset_flow_proof::size>(reset_flow_proof::Matrix const & P,
                                                                            reset_flow_proof::Scalar tolerance)
@@ -172,6 +187,7 @@ inline bool is_symmetric<reset_flow_proof::Linalg, reset_flow_proof::size>(reset
     using namespace reset_flow_proof;
     __ESBMC_assert(Calls::symmetries++ == 0U && finite_matrix(P) && tolerance == Scalar{0} && same_matrix(P, Calls::P),
                    "R-MAGNETOMETER-RESET: caller establishes finite original covariance and zero symmetry tolerance");
+
     bool equal = true;
     for (std::size_t i = 0U; i < size; ++i)
         for (std::size_t j = 0U; j < size; ++j)
@@ -181,6 +197,7 @@ inline bool is_symmetric<reset_flow_proof::Linalg, reset_flow_proof::size>(reset
     return equal;
 }
 } // namespace formal_eskf::linalg
+
 namespace formal_eskf::so3
 {
 template <>
@@ -188,16 +205,21 @@ inline reset_flow_proof::Matrix3 to_rotation_matrix<reset_flow_proof::Linalg>(re
 {
     using namespace reset_flow_proof;
     __ESBMC_assert(Calls::rotations < 2U, "R-MAGNETOMETER-RESET: bounded rotation requests");
+
     if (Calls::rotations++ == 0U)
     {
         __ESBMC_assert(same_q(q, Calls::q), "R-MAGNETOMETER-RESET: original attitude supplies measured field frame");
+
         return Calls::replies.before;
     }
+
     __ESBMC_assert(Calls::compositions == 1U && Calls::replies.compose_status == Status::success &&
                        same_q(q, Calls::replies.attitude),
                    "R-MAGNETOMETER-RESET: new attitude supplies covariance frame only after successful composition");
+
     return Calls::replies.after;
 }
+
 template <>
 inline Status exp<reset_flow_proof::Linalg>(reset_flow_proof::Vector const & v, reset_flow_proof::Scalar minimum,
                                             reset_flow_proof::Quaternion & output)
@@ -206,6 +228,7 @@ inline Status exp<reset_flow_proof::Linalg>(reset_flow_proof::Vector const & v, 
     __ESBMC_assert(Calls::exps++ == 0U && Calls::angles == 2U && same(v(0U), Scalar{0}) && same(v(1U), Scalar{0}) &&
                        same(minimum, Calls::minimum),
                    "R-MAGNETOMETER-RESET: Down axis and original threshold reach Exp");
+
 #if FORMAL_ESKF_PROOF_RESET_VALUES
     __ESBMC_assert(same(v(2U), Calls::angle),
                    "R-MAGNETOMETER-RESET: exact wrapped reference-minus-measured angle reaches Exp");
@@ -214,8 +237,10 @@ inline Status exp<reset_flow_proof::Linalg>(reset_flow_proof::Vector const & v, 
     {
         output = Calls::replies.delta;
     }
+
     return Calls::replies.exp_status;
 }
+
 template <>
 inline Status compose_normalized<reset_flow_proof::Linalg>(reset_flow_proof::Quaternion const & a,
                                                            reset_flow_proof::Quaternion const & b,
@@ -226,13 +251,16 @@ inline Status compose_normalized<reset_flow_proof::Linalg>(reset_flow_proof::Qua
     __ESBMC_assert(Calls::compositions++ == 0U && Calls::exps == 1U && Calls::replies.exp_status == Status::success &&
                        same_q(a, Calls::replies.delta) && same_q(b, Calls::q) && same(minimum, Calls::minimum),
                    "R-MAGNETOMETER-RESET: successful navigation Down delta left-multiplies original attitude");
+
     if (Calls::replies.compose_status == Status::success)
     {
         output = Calls::replies.attitude;
     }
+
     return Calls::replies.compose_status;
 }
 } // namespace formal_eskf::so3
+
 namespace formal_eskf::runtime::detail
 {
 template <>
@@ -242,13 +270,16 @@ inline Status magnetic_field_geometry<reset_flow_proof::Linalg>(reset_flow_proof
     using namespace reset_flow_proof;
     __ESBMC_assert(Calls::rotations == 1U && Calls::geometries < 2U && Calls::angles == 0U,
                    "R-MAGNETOMETER-RESET: measured then reference geometry precedes heading");
+
     if (Calls::geometries++ == 0U)
     {
         __ESBMC_assert(same_matrix(v, Calls::rotated),
                        "R-MAGNETOMETER-RESET: measured geometry uses rotated body field");
+
 #if FORMAL_ESKF_PROOF_RESET_VALUES
         __ESBMC_assert(Calls::replies.measured_status == Status::success,
                        "R-MAGNETOMETER-RESET: numeric profile establishes producer success");
+
         output = Calls::replies.measured;
         return Status::success;
 #else
@@ -256,14 +287,18 @@ inline Status magnetic_field_geometry<reset_flow_proof::Linalg>(reset_flow_proof
         {
             output = Calls::replies.measured;
         }
+
         return Calls::replies.measured_status;
 #endif
     }
+
     __ESBMC_assert(same_matrix(v, Calls::reference),
                    "R-MAGNETOMETER-RESET: reference geometry uses original NED field");
+
 #if FORMAL_ESKF_PROOF_RESET_VALUES
     __ESBMC_assert(Calls::replies.reference_status == Status::success,
                    "R-MAGNETOMETER-RESET: numeric profile establishes producer success");
+
     output = Calls::replies.reference;
     return Status::success;
 #else
@@ -271,9 +306,11 @@ inline Status magnetic_field_geometry<reset_flow_proof::Linalg>(reset_flow_proof
     {
         output = Calls::replies.reference;
     }
+
     return Calls::replies.reference_status;
 #endif
 }
+
 template <>
 inline Status reset_heading_covariance<reset_flow_proof::offset, reset_flow_proof::Linalg, reset_flow_proof::size>(
     reset_flow_proof::Matrix const & P, reset_flow_proof::Matrix3 const & before,
@@ -284,13 +321,16 @@ inline Status reset_heading_covariance<reset_flow_proof::offset, reset_flow_proo
                        same_matrix(before, Calls::replies.before) && same_matrix(after, Calls::replies.after) &&
                        same(variance, Calls::variance),
                    "R-MAGNETOMETER-RESET: original covariance, old/new frames and yaw variance reach covariance reset");
+
     if (Calls::replies.covariance_status == Status::success)
     {
         output = Calls::replies.covariance;
     }
+
     return Calls::replies.covariance_status;
 }
 } // namespace formal_eskf::runtime::detail
+
 namespace formal_eskf::scalar
 {
 template <>
@@ -300,13 +340,16 @@ inline Status atan2<reset_flow_proof::OpaqueMath>(reset_flow_proof::Scalar y, re
     using namespace reset_flow_proof;
     __ESBMC_assert(Calls::angles < 2U && Calls::geometries == 2U && Calls::exps == 0U,
                    "R-MAGNETOMETER-RESET: two headings follow geometry");
+
     if (Calls::angles++ == 0U)
     {
         __ESBMC_assert(same(y, Calls::rotated(1U)) && same(x, Calls::rotated(0U)),
                        "R-MAGNETOMETER-RESET: measured atan2 y,x order");
+
 #if FORMAL_ESKF_PROOF_RESET_VALUES
         __ESBMC_assert(Calls::replies.measured_angle_status == Status::success,
                        "R-MAGNETOMETER-RESET: numeric profile establishes producer success");
+
         output = Calls::replies.measured_heading;
         return Status::success;
 #else
@@ -314,14 +357,18 @@ inline Status atan2<reset_flow_proof::OpaqueMath>(reset_flow_proof::Scalar y, re
         {
             output = Calls::replies.measured_heading;
         }
+
         return Calls::replies.measured_angle_status;
 #endif
     }
+
     __ESBMC_assert(same(y, Calls::reference(1U)) && same(x, Calls::reference(0U)),
                    "R-MAGNETOMETER-RESET: reference atan2 y,x order");
+
 #if FORMAL_ESKF_PROOF_RESET_VALUES
     __ESBMC_assert(Calls::replies.reference_angle_status == Status::success,
                    "R-MAGNETOMETER-RESET: numeric profile establishes producer success");
+
     output = Calls::replies.reference_heading;
     return Status::success;
 #else
@@ -329,6 +376,7 @@ inline Status atan2<reset_flow_proof::OpaqueMath>(reset_flow_proof::Scalar y, re
     {
         output = Calls::replies.reference_heading;
     }
+
     return Calls::replies.reference_angle_status;
 #endif
 }
@@ -350,6 +398,7 @@ compute_magnetic_heading_reset<reset_flow_proof::offset, reset_flow_proof::Linal
                        same(variance, Calls::variance) && same(horizontal, Calls::horizontal) &&
                        same(minimum, Calls::minimum),
                    "R-MAGNETOMETER-RESET: public wrapper passes the complete original reset request once");
+
     // The actual helper allows partial scratch outputs on failure. Write all
     // scratch outputs for every status, a deliberate overapproximation.
     attitude = Calls::replies.attitude;
@@ -398,48 +447,57 @@ void verify_magnetic_reset_flow(reset_flow_proof::Quaternion q, reset_flow_proof
             wanted = replies.measured_status;
         }
     }
+
     if (wanted == Status::success)
     {
         geometries = 2U;
         wanted = replies.reference_status;
     }
+
     if (wanted == Status::success &&
         (replies.measured.horizontal < horizontal || replies.reference.horizontal < horizontal))
     {
         wanted = Status::domain_error;
     }
+
     if (wanted == Status::success)
     {
         angles = 1U;
         wanted = replies.measured_angle_status;
     }
+
     if (wanted == Status::success)
     {
         angles = 2U;
         wanted = replies.reference_angle_status;
     }
+
     if (wanted == Status::success)
     {
         exps = 1U;
         wanted = replies.exp_status;
     }
+
     if (wanted == Status::success)
     {
         compositions = 1U;
         wanted = replies.compose_status;
     }
+
     if (wanted == Status::success)
     {
         rotations = 2U;
         covariances = 1U;
         wanted = replies.covariance_status;
     }
+
     auto const status = formal_eskf::runtime::detail::compute_magnetic_heading_reset<offset>(
         q, P, body, reference, variance, horizontal, minimum, attitude, covariance, delta);
     __ESBMC_assert(status == wanted && Calls::rotations == rotations && Calls::products == (rotations ? 1U : 0U) &&
                        Calls::geometries == geometries && Calls::angles == angles && Calls::exps == exps &&
                        Calls::compositions == compositions && Calls::covariances == covariances,
                    "R-MAGNETOMETER-RESET: complete validation, threshold, callee failure priority and stop order");
+
     if (exps && replies.exp_status == Status::success)
     {
         __ESBMC_assert(same_q(delta, replies.delta), "R-MAGNETOMETER-RESET: successful Exp scratch delta");
@@ -448,6 +506,7 @@ void verify_magnetic_reset_flow(reset_flow_proof::Quaternion q, reset_flow_proof
     {
         __ESBMC_assert(same_q(delta, old_delta), "R-MAGNETOMETER-RESET: untouched delta until successful Exp");
     }
+
     if (compositions && replies.compose_status == Status::success)
     {
         __ESBMC_assert(same_q(attitude, replies.attitude),
@@ -458,6 +517,7 @@ void verify_magnetic_reset_flow(reset_flow_proof::Quaternion q, reset_flow_proof
         __ESBMC_assert(same_q(attitude, old_attitude),
                        "R-MAGNETOMETER-RESET: untouched attitude until successful composition");
     }
+
     if (covariances && replies.covariance_status == Status::success)
     {
         __ESBMC_assert(same_matrix(covariance, replies.covariance),
@@ -468,6 +528,7 @@ void verify_magnetic_reset_flow(reset_flow_proof::Quaternion q, reset_flow_proof
         __ESBMC_assert(same_matrix(covariance, old_covariance),
                        "R-MAGNETOMETER-RESET: failed covariance scratch unchanged");
     }
+
     __ESBMC_assert(same_q(q, old_q) && same_matrix(P, old_P) && same_matrix(body, old_body) &&
                        same_matrix(reference, old_reference),
                    "R-MAGNETOMETER-RESET: helper preserves every borrowed input on all paths");
@@ -488,10 +549,12 @@ void verify_magnetic_reset_transaction(reset_flow_proof::State state, reset_flow
     {
         state_target = &state;
     }
+
     if constexpr (FORMAL_ESKF_PROOF_ALIAS & 2U)
     {
         covariance_target = &P;
     }
+
     State & target = *state_target;
     Matrix & target_P = *covariance_target;
     auto const old_state = state, old_output = target;
@@ -505,6 +568,7 @@ void verify_magnetic_reset_transaction(reset_flow_proof::State state, reset_flow
     __ESBMC_assert(status == (finite_extra(old_state) ? requested : Status::non_finite_input) &&
                        Calls::helpers == unsigned(finite_extra(old_state)),
                    "R-MAGNETOMETER-RESET: helper status propagates exactly");
+
     if (status == Status::success)
     {
         __ESBMC_assert(same_extra(target, old_state) && same_q(target.q_nb, replies.attitude) &&
@@ -517,15 +581,18 @@ void verify_magnetic_reset_transaction(reset_flow_proof::State state, reset_flow
                            same_matrix(target_P, old_covariance) && same_q(delta, old_delta),
                        "R-MAGNETOMETER-RESET: failed helper scratch never leaks to any output or prior alias");
     }
+
     if constexpr (!(FORMAL_ESKF_PROOF_ALIAS & 1))
     {
         __ESBMC_assert(same_extra(state, old_state) && same_q(state.q_nb, old_state.q_nb),
                        "R-MAGNETOMETER-RESET: separate state prior unchanged");
     }
+
     if constexpr (!(FORMAL_ESKF_PROOF_ALIAS & 2))
     {
         __ESBMC_assert(same_matrix(P, old_P), "R-MAGNETOMETER-RESET: separate covariance prior unchanged");
     }
+
     __ESBMC_assert(same_matrix(body, old_body) && same_matrix(reference, old_reference),
                    "R-MAGNETOMETER-RESET: public field inputs unchanged");
 }

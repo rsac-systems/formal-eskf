@@ -12,6 +12,7 @@ struct ProcessResult
     Covariance covariance;
     Result result;
 };
+
 struct Calls
 {
     inline static ProcessResult const * first = nullptr;
@@ -39,6 +40,7 @@ struct Calls
 namespace formal_eskf::runtime
 {
 namespace profile = formal_eskf::px4::profile;
+
 template <>
 inline void HeightBias<height_transaction_proof::Scalar>::predict(
     height_transaction_proof::Scalar interval,
@@ -50,8 +52,10 @@ inline void HeightBias<height_transaction_proof::Scalar>::predict(
     supplied_parameters.bias = parameters;
     __ESBMC_assert(same_parameters(supplied_parameters, expected_parameters),
                    "Height transaction: bias prediction receives complete configured settings");
+
     unsigned const index = Calls::count;
     __ESBMC_assert(index < 2U, "Height transaction: bias prediction belongs to one of the two source stages");
+
     Manager const * prior = Calls::original_manager;
     Scalar predicted_variance = Calls::first_variance;
     if (index != 0U)
@@ -59,6 +63,7 @@ inline void HeightBias<height_transaction_proof::Scalar>::predict(
         prior = &Calls::first->manager;
         predicted_variance = Calls::second_variance;
     }
+
     auto const & aid = prior->m_sessions[index];
     Source const source = index == 0U ? Source::barometer : Source::gnss;
     Scalar const expected_interval = Calls::original_manager->m_tick == 0U
@@ -69,6 +74,7 @@ inline void HeightBias<height_transaction_proof::Scalar>::predict(
         aid.active && prior->m_reference != source && same_bias(*this, aid.bias) && same(interval, expected_interval) &&
             std::isfinite(interval) && interval >= Scalar{0},
         "Height transaction: predict only the active nonreference bias using its exact prior and tick interval");
+
     // Actual height_bias.cpp discharges these variance and field-frame contracts.
     // Nonfinite scratch remains admitted; no successful owner update is assumed.
     bool const bounded = std::isfinite(predicted_variance) &&
@@ -89,6 +95,7 @@ inline void HeightAiding<height_transaction_proof::Backend>::process(
 {
     using namespace height_transaction_proof;
     __ESBMC_assert(geometry == nullptr, "Height transaction: flat geometry forwarded to both stages");
+
     unsigned const index = Calls::count++;
     __ESBMC_assert(index < 2U && source == (index == 0U ? Source::barometer : Source::gnss),
                    "Height transaction: barometer then GNSS, once each");
@@ -98,11 +105,13 @@ inline void HeightAiding<height_transaction_proof::Backend>::process(
                        acceleration.times.update_time_us == Calls::acceleration.times.update_time_us &&
                        acceleration.times.last_good_time_us == Calls::acceleration.times.last_good_time_us,
                    "Height transaction: exact timestamp, permissions, health and ground-effect forwarding");
+
     Manager predicted = *Calls::original_manager;
     if (index != 0U)
     {
         predicted = Calls::first->manager;
     }
+
     Scalar const dt = Calls::original_manager->m_tick == 0U
                           ? Scalar{0}
                           : static_cast<Scalar>(now - Calls::original_manager->m_tick) *
@@ -117,9 +126,11 @@ inline void HeightAiding<height_transaction_proof::Backend>::process(
             aid.bias.variance = Calls::second_variance;
         }
     }
+
     check_manager(*this, predicted);
     __ESBMC_assert(std::isfinite(dt) && dt >= Scalar{0} && history_domain(*this, now),
                    "Height transaction: exact bias prediction policy/interval establishes the process domain");
+
     if (index == 0U)
     {
         check_state(state, *Calls::original_state);
@@ -135,8 +146,10 @@ inline void HeightAiding<height_transaction_proof::Backend>::process(
                            same_result(result, Calls::first->result),
                        "Height transaction: GNSS receives the successful barometer candidate");
     }
+
     __ESBMC_assert(this != Calls::owner && &state != Calls::state_output && &covariance != Calls::covariance_output,
                    "Height transaction: all three caller-owned objects remain unpublished during processing");
+
     check_manager(*Calls::owner, *Calls::original_manager);
     check_state(*Calls::state_output, *Calls::original_state);
     check_matrix(*Calls::covariance_output, *Calls::original_covariance);
@@ -180,6 +193,7 @@ void verify_height_transaction(Manager owner, State state, Covariance covariance
     {
         gnss_input = &barometer;
     }
+
     auto const old_gnss = *gnss_input;
     auto const old_permissions = permissions;
     Calls::first = &first;
@@ -228,6 +242,7 @@ void verify_height_transaction(Manager owner, State state, Covariance covariance
     __ESBMC_assert(result.status == expected &&
                        Calls::count == static_cast<unsigned>(admitted) + static_cast<unsigned>(first_ok),
                    "Height transaction: validation precedence, early return and no later source after failure");
+
     unsigned const predictions =
         static_cast<unsigned>(admitted && before.m_sessions[0U].active && before.m_reference != Source::barometer) +
         static_cast<unsigned>(first_ok && first.manager.m_sessions[1U].active &&
@@ -235,6 +250,7 @@ void verify_height_transaction(Manager owner, State state, Covariance covariance
     __ESBMC_assert(
         Calls::predictions == predictions,
         "Height transaction: exactly the eligible source biases are predicted, with no prediction after failure");
+
     if (result.status != Status::success)
     {
         check_manager(owner, before);
@@ -252,6 +268,7 @@ void verify_height_transaction(Manager owner, State state, Covariance covariance
                            same(owner.m_origin_altitude, before.m_origin_altitude) &&
                            owner.m_started == before.m_started,
                        "Height transaction: successful commit preserves chronological and finite-bias induction");
+
         auto expected_manager = second.manager;
         if (expected_manager.m_reference == Source::none)
         {
@@ -259,6 +276,7 @@ void verify_height_transaction(Manager owner, State state, Covariance covariance
                                            : expected_manager.m_sessions[0U].active ? Source::barometer
                                                                                     : Source::none;
         }
+
         expected_manager.m_tick = now;
         check_manager(owner, expected_manager);
         check_state(state, second.state);
@@ -266,6 +284,7 @@ void verify_height_transaction(Manager owner, State state, Covariance covariance
         __ESBMC_assert(same_result(result, second.result),
                        "Height transaction: publish complete candidate, final reference and current tick");
     }
+
     __ESBMC_assert(!control || control_domain(owner),
                    "Height transaction: initialization control invariants survive rollback or successful commit");
     __ESBMC_assert(same_sample(barometer, old_barometer) && same_sample(gnss, old_unused_gnss) &&

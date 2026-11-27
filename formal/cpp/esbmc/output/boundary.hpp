@@ -5,9 +5,11 @@
 #include "../contracts.hpp"
 #undef private
 #include "frames.hpp"
+
 namespace output_boundary
 {
 using namespace output_frames;
+
 // Actual typed storage writes no enclosing-owner fields. Restore that exact
 // frame after whole-root havoc; arbitrary producer payloads remain unconstrained.
 void restore_outer()
@@ -102,6 +104,7 @@ void restore_outer()
         owner->m_staged[i].p_n.m_storage.values.tail.tail.head = staged_values[i][9];
     }
 }
+
 void capture_storage()
 {
     for (std::size_t i = FORMAL_ESKF_PROOF_FRAME_FIRST; i < FORMAL_ESKF_PROOF_FRAME_END; ++i)
@@ -121,6 +124,7 @@ void capture_storage()
         history_values[i][9] = owner->m_history.m_samples[i].p_n.m_storage.values.tail.tail.head;
     }
 }
+
 void expect_current(Sample const & s)
 {
     integers[field::time] = s.time_us;
@@ -137,6 +141,7 @@ void expect_current(Sample const & s)
     values[field::position_y] = s.p_n.m_storage.values.tail.head;
     values[field::position_z] = s.p_n.m_storage.values.tail.tail.head;
 }
+
 bool same_sample(Sample const & a, Sample const & b)
 {
     bool result = true;
@@ -155,6 +160,7 @@ bool same_sample(Sample const & a, Sample const & b)
     result = same(a.p_n.m_storage.values.tail.tail.head, b.p_n.m_storage.values.tail.tail.head) & result;
     return result;
 }
+
 void metadata(Output & object)
 {
     auto const length = imu_proof::nondet_index();

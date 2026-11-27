@@ -28,6 +28,7 @@ using Context = eskf::test::Context;
 bool require(Context & test, std::string_view profile, bool condition, char const * message)
 {
     test.expect(condition, profile, message);
+
     return condition;
 }
 
@@ -43,8 +44,10 @@ template <typename L> linalg::Matrix<L, 15U, 15U> covariance_prior(Context & tes
             B(i, j) = static_cast<S>(0.01) * static_cast<S>(1U + ((i + j) % 7U));
         }
     }
+
     auto P = linalg::sandwich(B, Covariance::identity());
     require(test, profile, eskf::succeeded(eskf::detail::finish_covariance(P, P)), "prior construction");
+
     return P;
 }
 
@@ -55,6 +58,7 @@ template <typename Scalar> struct CountingBackend : eskf::test::Backend<Scalar>
     template <std::size_t R, std::size_t C> using Storage = typename Base::template storage_type<R, C>;
     static inline unsigned full_products = 0;
     static inline unsigned products = 0;
+
     template <std::size_t R, std::size_t I, std::size_t C>
     static void multiply(Storage<R, I> const & a, Storage<I, C> const & b, Storage<R, C> & output)
     {
@@ -63,6 +67,7 @@ template <typename Scalar> struct CountingBackend : eskf::test::Backend<Scalar>
         {
             ++full_products;
         }
+
         Base::template multiply<R, I, C>(a, b, output);
     }
 };
@@ -154,6 +159,7 @@ void check_exact_model_products(Context & test, std::string_view profile,
             P(row, column) = value_type{0.0625} + (row == column ? value_type{1} : value_type{0});
         }
     }
+
     for (std::size_t row = 0U; row < MeasurementSize; ++row)
     {
         for (std::size_t column = 0U; column < MeasurementSize; ++column)
@@ -161,6 +167,7 @@ void check_exact_model_products(Context & test, std::string_view profile,
             V(row, column) = value_type{0.25} + (row == column ? value_type{1} : value_type{0});
         }
     }
+
     auto const wide_P = reference::copied(P);
     auto const wide_H = reference::copied(H);
     auto const wide_V = reference::copied(V);
@@ -173,6 +180,7 @@ void check_exact_model_products(Context & test, std::string_view profile,
             expected_innovation[row][column] += wide_V[row][column];
         }
     }
+
     auto const cross = eskf::detail::correction_cross<Observation>(P, H);
     auto const innovation = eskf::detail::correction_innovation<Observation>(cross, H, V);
     compare_reference(test, profile, cross, expected_cross, true, "selected model computes exact full P H transpose");
@@ -192,6 +200,7 @@ void check_exact_model_products(Context & test, std::string_view profile,
                     suppressed ? value_type{0} : static_cast<value_type>(1U + (row + column) % 3U) / value_type{16};
             }
         }
+
         auto const wide_K = reference::copied(K);
         auto const KH = reference::product(wide_K, wide_H);
         reference::Dense<15U, 15U> wide_A{};
@@ -204,6 +213,7 @@ void check_exact_model_products(Context & test, std::string_view profile,
                 A(row, column) = static_cast<value_type>(wide_A[row][column]);
             }
         }
+
         auto expected = reference::product(reference::product(wide_A, wide_P), reference::transposed(wide_A));
         auto const noise = reference::product(reference::product(wide_K, wide_V), reference::transposed(wide_K));
         for (std::size_t row = 0U; row < 15U; ++row)
@@ -213,6 +223,7 @@ void check_exact_model_products(Context & test, std::string_view profile,
                 expected[row][column] += noise[row][column];
             }
         }
+
         auto const actual = eskf::detail::correction_joseph<Observation>(P, A, K, V);
         compare_reference(
             test, profile, actual, expected, true,
@@ -239,6 +250,7 @@ template <typename Linalg> void test_exact_observation_products(Context & test, 
     {
         velocity(axis, 3U + axis) = value_type{1};
     }
+
     check_exact_model_products<Linalg, Model::velocity>(test, profile, velocity);
     linalg::Matrix<Linalg, 3U, 15U> body_vector;
     constexpr value_type skew[3][3]{{0, -4, 2}, {4, 0, -1}, {-2, 1, 0}};
@@ -249,6 +261,7 @@ template <typename Linalg> void test_exact_observation_products(Context & test, 
             body_vector(row, 6U + column) = skew[row][column];
         }
     }
+
     check_exact_model_products<Linalg, Model::body_vector>(test, profile, body_vector);
 }
 
@@ -265,6 +278,7 @@ void check_observation(Context & test, std::string_view profile,
     {
         V(0U, 1U) = V(1U, 0U) = static_cast<S>(0.125);
     }
+
     eskf::configuration::Ins::BiasUpdate permissions{{false, true, false}, {true, false, true}};
     State actual, expected;
     linalg::Matrix<L, 15U, 15U> covariance, dense;
@@ -276,6 +290,7 @@ void check_observation(Context & test, std::string_view profile,
     require(test, profile, (L::products == 0U) == bool(ESKF_CODEGEN), "gate did not select configured products");
     require(test, profile, check.status == expected_check.status && check.rejected == expected_check.rejected,
             "innovation decision differs");
+
     near(test, profile, check.innovation_variance, expected_check.innovation_variance);
     near(test, profile, check.test_ratio, expected_check.test_ratio);
     if (!require(test, profile,
@@ -284,6 +299,7 @@ void check_observation(Context & test, std::string_view profile,
     {
         return;
     }
+
     L::full_products = 0;
     L::products = 0;
     eskf::Status status{};
@@ -317,13 +333,16 @@ void check_observation(Context & test, std::string_view profile,
                                                 permissions);
         }
     }
+
     auto const correction_products = L::products;
     if (!require(test, profile, eskf::succeeded(status), "built-in correction failed"))
     {
         return;
     }
+
     require(test, profile, (L::full_products == 0U) == bool(ESKF_CODEGEN),
             "built-in did not select configured products");
+
     CorrectionReference<L, eskf::configuration::Ins, M> const input{state, P, H, residual, V};
     bool const projected = Observation == Model::body_vector && !accel && ESKF_MAG_TILT;
     auto const independent = reference::reference_correction(input, ESKF_RESET_APPROX != 0, permissions, projected);
@@ -331,6 +350,7 @@ void check_observation(Context & test, std::string_view profile,
             reference::matches_reference(input, independent, actual, covariance,
                                          S{512} * std::numeric_limits<S>::epsilon()),
             "built-in complete correction agrees with independent solved-gain/Joseph/injection/reset model");
+
     // Compare numerics only when the generic reference has the same gain model.
     if (Observation != Model::body_vector || accel || !ESKF_MAG_TILT)
     {
@@ -367,12 +387,15 @@ void check_observation(Context & test, std::string_view profile,
         }();
         require(test, profile, L::products == correction_products + (ESKF_CODEGEN ? 0U : 2U),
                 "runtime gate and correction use inconsistent arithmetic");
+
         if (!require(test, profile, fusion.decision == eskf::runtime::FusionDecision::fused, "runtime fusion failed"))
         {
             return;
         }
+
         require(test, profile, (L::full_products == 0U) == bool(ESKF_CODEGEN),
                 "runtime did not select configured products");
+
         near_state(test, profile, actual, expected);
         near(test, profile, covariance, dense);
     }
@@ -394,6 +417,7 @@ template <typename S> void test_observation_dispatch(Context & test, std::string
         {
             return;
         }
+
         Vector const r = Vector::from_row_major({t, -t, t});
         auto const r2 = r.template segment<0U, 2U>();
         auto const r1 = linalg::Vector<L, 1U>::from_row_major({t});
@@ -413,6 +437,7 @@ template <typename S> void test_observation_dispatch(Context & test, std::string
             {
                 h = -h;
             }
+
             linalg::Matrix<L, 3U, 15U> H;
             H.template set_block<0U, 6U>(eskf::so3::hat<L>(h));
             check_observation<L, Model::body_vector>(test, profile, state, P, H, h + r, r, reference, accel);
@@ -434,6 +459,7 @@ auto independent_reset(Matrix const & P, Vector const & rotation, std::size_t of
     {
         power[axis][axis] = J[axis][axis] = 1;
     }
+
     long double divisor = 1;
     // Independent integral-of-rotation series: J_r(a) = sum (-hat(a))^k/(k+1)!.
     // The bounded angles here are below 0.5 rad; 32 terms make truncation much
@@ -450,11 +476,13 @@ auto independent_reset(Matrix const & P, Vector const & rotation, std::size_t of
             }
         }
     }
+
     reference::Dense<size, size> G{};
     for (std::size_t axis = 0U; axis < size; ++axis)
     {
         G[axis][axis] = 1;
     }
+
     for (std::size_t row = 0U; row < 3U; ++row)
     {
         for (std::size_t column = 0U; column < 3U; ++column)
@@ -462,6 +490,7 @@ auto independent_reset(Matrix const & P, Vector const & rotation, std::size_t of
             G[offset + row][offset + column] = J[row][column];
         }
     }
+
     return reference::product(reference::product(G, reference::copied(P)), reference::transposed(G));
 }
 
@@ -481,6 +510,7 @@ template <typename S, typename Configuration> void test_reset_dispatch(Context &
             P(row, column) = S{0.0625} + (row == column ? S{1} : S{0});
         }
     }
+
     auto coupled_P = P;
     if constexpr (ins)
     {
@@ -498,6 +528,7 @@ template <typename S, typename Configuration> void test_reset_dispatch(Context &
             }
         }
     }
+
     for (unsigned seed = 0U; seed < 17U; ++seed)
     {
         auto const & prior = seed == 0U ? P : coupled_P;
@@ -511,6 +542,7 @@ template <typename S, typename Configuration> void test_reset_dispatch(Context &
         {
             return;
         }
+
         if constexpr (ins)
         {
             require(test, profile, (L::full_products == 0U) == bool(ESKF_CODEGEN), "INS reset selection failed");
@@ -519,6 +551,7 @@ template <typename S, typename Configuration> void test_reset_dispatch(Context &
         {
             require(test, profile, L::products > 0U, "AHRS reset must retain dense backend arithmetic");
         }
+
         auto const expected = independent_reset(prior, error.delta_theta_b, offset);
         compare_reference(test, profile, actual, expected, seed == 0U,
                           "reset transport agrees with independent integral-series G P G transpose");
@@ -530,6 +563,7 @@ template <typename S, typename Configuration> void test_reset_dispatch(Context &
     covariance_type actual;
     require(test, profile, eskf::reset_covariance(error, P, actual) == eskf::Status::success,
             "dyadic nonzero reset succeeds");
+
     compare_reference(test, profile, actual, independent_reset(P, error.delta_theta_b, offset), ESKF_RESET_APPROX != 0,
                       "nonzero reset uses the independently stated G in every attitude cross block");
 }
@@ -555,6 +589,7 @@ template <typename S, typename Configuration> void test_prediction_dispatch(Cont
                                                                 parameters.minimum_quaternion_norm,
                                                                 state.q_nb) == eskf::Status::success,
                 "cyclic attitude setup");
+
         for (std::size_t axis = 0U; axis < 3U; ++axis)
         {
             state.b_a(axis) = static_cast<S>(axis + 1U) / S{8};
@@ -565,12 +600,15 @@ template <typename S, typename Configuration> void test_prediction_dispatch(Cont
             parameters.process_noise.gyroscope_bias_random_walk_variance_density(axis) =
                 static_cast<S>(axis + 1U) / S{256};
         }
+
         imu.specific_force_b = state.b_a + linalg::Vector<L, 3U>::from_row_major({S{1}, S{2}, S{-4}});
     }
+
     for (std::size_t axis = 0U; axis < 3U; ++axis)
     {
         parameters.process_noise.angular_rate_variance(axis) = static_cast<S>(axis + 1U) / S{16};
     }
+
     for (std::size_t row = 0U; row < size; ++row)
     {
         for (std::size_t column = 0U; column < size; ++column)
@@ -578,6 +616,7 @@ template <typename S, typename Configuration> void test_prediction_dispatch(Cont
             P(row, column) = S{0.0625} + (row == column ? S{1} : S{0});
         }
     }
+
     for (bool zero_rate : {true, false})
     {
         auto const rate =
@@ -587,11 +626,13 @@ template <typename S, typename Configuration> void test_prediction_dispatch(Cont
         {
             imu.angular_rate_b = imu.angular_rate_b + state.b_g;
         }
+
         reference::Dense<size, size> F{};
         for (std::size_t axis = 0U; axis < size; ++axis)
         {
             F[axis][axis] = 1;
         }
+
         constexpr long double dt = 0.25L;
         if constexpr (ins)
         {
@@ -611,6 +652,7 @@ template <typename S, typename Configuration> void test_prediction_dispatch(Cont
                 }
             }
         }
+
         long double const x = rate(0U) * dt;
         long double const y = rate(1U) * dt;
         long double const z = rate(2U) * dt;
@@ -620,6 +662,7 @@ template <typename S, typename Configuration> void test_prediction_dispatch(Cont
         {
             power[axis][axis] = 1;
         }
+
         long double divisor = 1;
         for (std::size_t order = 1U; order <= (ESKF_QUAT_APPROX ? 1U : 32U); ++order)
         {
@@ -633,6 +676,7 @@ template <typename S, typename Configuration> void test_prediction_dispatch(Cont
                 }
             }
         }
+
         auto expected = reference::product(reference::product(F, reference::copied(P)), reference::transposed(F));
         for (std::size_t axis = 0U; axis < 3U; ++axis)
         {
@@ -645,6 +689,7 @@ template <typename S, typename Configuration> void test_prediction_dispatch(Cont
                 expected[12U + axis][12U + axis] += static_cast<long double>(axis + 1U) / 256 * dt;
             }
         }
+
         typename types::error_covariance_type actual;
         L::full_products = 0U;
         L::products = 0U;
@@ -660,7 +705,9 @@ template <typename S, typename Configuration> void test_prediction_dispatch(Cont
             status = eskf::predict_covariance(P, imu, S{0.25}, parameters, actual);
             require(test, profile, L::products > 0U, "AHRS prediction retains dense backend arithmetic");
         }
+
         require(test, profile, status == eskf::Status::success, "prediction succeeds on common bounded domain");
+
         // Zero-rate controls are exact in both modes. The nonzero first-order
         // fixture is dyadic as well; finite-angle Exp retains scoped acceptance.
         compare_reference(test, profile, actual, expected, zero_rate || ESKF_QUAT_APPROX,
@@ -682,6 +729,7 @@ void test_generic_shape(Context & test, std::string_view profile)
             input.P(row, column) = static_cast<S>((row + 1U) * (column + 1U)) / S{1024} + (row == column ? S{1} : S{0});
         }
     }
+
     for (std::size_t row = 0U; row < MeasurementSize; ++row)
     {
         // Deliberately violates every specialized selector/body-vector model's
@@ -694,12 +742,14 @@ void test_generic_shape(Context & test, std::string_view profile)
             input.V(row, column) = S{0.25} + (row == column ? S{1} : S{0});
         }
     }
+
     linalg::Matrix<L, fixture_type::size, MeasurementSize> C;
     linalg::Matrix<L, MeasurementSize, MeasurementSize> innovation;
     require(test, profile,
             eskf::correction_covariances(input.P, input.r, input.H, input.V, static_cast<S>(1e-6), C, innovation) ==
                 eskf::Status::success,
             "generic arbitrary-H preparation succeeds for matching and unmatched dimensions");
+
     auto const wide_H = reference::copied(input.H);
     auto const expected_C = reference::product(reference::copied(input.P), reference::transposed(wide_H));
     auto expected_S = reference::product(wide_H, expected_C);
@@ -710,6 +760,7 @@ void test_generic_shape(Context & test, std::string_view profile)
             expected_S[row][column] += input.V(row, column);
         }
     }
+
     compare_reference(test, profile, C, expected_C, true, "generic cross covariance honors every arbitrary H entry");
     compare_reference(test, profile, innovation, expected_S, true,
                       "generic innovation covariance honors arbitrary H rather than a dimension-selected model");
@@ -721,6 +772,7 @@ void test_generic_shape(Context & test, std::string_view profile)
             eskf::correct(input.state, input.P, input.r, input.H, input.V, static_cast<S>(1e-6), corrected, output) ==
                 eskf::Status::success,
             "arbitrary H correction succeeds");
+
     if constexpr (fixture_type::is_ins)
     {
         require(test, profile, L::full_products >= 2U, "arbitrary H incorrectly selected a generated model");
@@ -729,6 +781,7 @@ void test_generic_shape(Context & test, std::string_view profile)
     {
         require(test, profile, L::products > 0U, "AHRS generic correction no longer uses the dense backend");
     }
+
     auto const expected = reference::reference_correction(input, ESKF_RESET_APPROX != 0);
     require(
         test, profile,
@@ -758,6 +811,7 @@ template <typename S> void test_subnormal_publication(Context & test, std::strin
     {
         return;
     }
+
     S const expected_tiny = ESKF_CODEGEN ? std::numeric_limits<S>::denorm_min() : S{0};
     require(test, profile, output(0U, 1U) == expected_tiny && output(1U, 0U) == expected_tiny,
             "covariance publication added an unexpected rounding step");

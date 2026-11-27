@@ -11,19 +11,24 @@ using observation_proof::same_double;
 // The owners always allocate their fixed profile capacity and supply an external
 // record. General RingBuffer length and borrowed-input contracts are separate.
 static_assert(FORMAL_ESKF_PROOF_OBSERVATION_SOURCE < 4);
+
 #if FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 0
 using Record = Observations::GnssObservation;
 constexpr std::size_t capacity = 16;
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 1
 using Record = Observations::MagneticObservation;
 constexpr std::size_t capacity = 64;
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 2
 using Record = Observations::BarometerObservation;
 constexpr std::size_t capacity = 128;
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 3
 using Record = Observations::Context;
 constexpr std::size_t capacity = 128;
 #endif
+
 using Ring = formal_eskf::runtime::RingBuffer<Record, capacity>;
 
 void verify_observation_typed_push(Ring ring, Record source)
@@ -38,6 +43,7 @@ void verify_observation_typed_push(Ring ring, Record source)
     ring.m_write = FORMAL_ESKF_PROOF_WRITE;
     auto const sum = static_cast<std::size_t>(oldest) + count;
     __ESBMC_assume(ring.m_write == (sum < capacity ? sum : sum - capacity));
+
 #if FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 0
     std::uint64_t integers[capacity][5];
     std::uint64_t input_integers[5];
@@ -46,6 +52,7 @@ void verify_observation_typed_push(Ring ring, Record source)
     input_integers[2] = source.residual_delay_us;
     input_integers[3] = source.generation;
     input_integers[4] = source.sample.stamp.time_us;
+
     imu_proof::Scalar values[capacity][8];
     imu_proof::Scalar input_values[8];
     input_values[0] = source.sample.velocity_n.m_storage.values.head;
@@ -56,25 +63,30 @@ void verify_observation_typed_push(Ring ring, Record source)
     input_values[5] = source.sample.speed_accuracy_m_s;
     input_values[6] = source.sample.hdop;
     input_values[7] = source.sample.vdop;
+
     double doubles[capacity][4];
     double input_doubles[4];
     input_doubles[0] = source.sample.latitude_deg;
     input_doubles[1] = source.sample.longitude_deg;
     input_doubles[2] = source.sample.altitude_msl_m;
     input_doubles[3] = source.sample.altitude_ellipsoid_m;
+
     std::uint32_t small[capacity][2];
     std::uint32_t input_small[2];
     input_small[0] = source.half_period_us;
     input_small[1] = source.sample.stamp.source.device_id;
+
     std::uint8_t tags[capacity][3];
     std::uint8_t input_tags[3];
     input_tags[0] = source.sample.stamp.source.calibration_count;
     input_tags[1] = source.sample.fix_type;
     input_tags[2] = source.sample.satellites;
+
     bool flags[capacity][2];
     bool input_flags[2];
     input_flags[0] = source.sample.velocity_valid;
     input_flags[1] = source.sample.spoofed;
+
     for (std::size_t index = 0; index < capacity; ++index)
     {
         integers[index][0] = ring.m_samples[index].time_us;
@@ -82,6 +94,7 @@ void verify_observation_typed_push(Ring ring, Record source)
         integers[index][2] = ring.m_samples[index].residual_delay_us;
         integers[index][3] = ring.m_samples[index].generation;
         integers[index][4] = ring.m_samples[index].sample.stamp.time_us;
+
         values[index][0] = ring.m_samples[index].sample.velocity_n.m_storage.values.head;
         values[index][1] = ring.m_samples[index].sample.velocity_n.m_storage.values.tail.head;
         values[index][2] = ring.m_samples[index].sample.velocity_n.m_storage.values.tail.tail.head;
@@ -90,18 +103,23 @@ void verify_observation_typed_push(Ring ring, Record source)
         values[index][5] = ring.m_samples[index].sample.speed_accuracy_m_s;
         values[index][6] = ring.m_samples[index].sample.hdop;
         values[index][7] = ring.m_samples[index].sample.vdop;
+
         doubles[index][0] = ring.m_samples[index].sample.latitude_deg;
         doubles[index][1] = ring.m_samples[index].sample.longitude_deg;
         doubles[index][2] = ring.m_samples[index].sample.altitude_msl_m;
         doubles[index][3] = ring.m_samples[index].sample.altitude_ellipsoid_m;
+
         small[index][0] = ring.m_samples[index].half_period_us;
         small[index][1] = ring.m_samples[index].sample.stamp.source.device_id;
+
         tags[index][0] = ring.m_samples[index].sample.stamp.source.calibration_count;
         tags[index][1] = ring.m_samples[index].sample.fix_type;
         tags[index][2] = ring.m_samples[index].sample.satellites;
+
         flags[index][0] = ring.m_samples[index].sample.velocity_valid;
         flags[index][1] = ring.m_samples[index].sample.spoofed;
     }
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 1
     std::uint64_t integers[capacity][5];
     std::uint64_t input_integers[5];
@@ -110,18 +128,22 @@ void verify_observation_typed_push(Ring ring, Record source)
     input_integers[2] = source.residual_delay_us;
     input_integers[3] = source.generation;
     input_integers[4] = source.sample.stamp.time_us;
+
     imu_proof::Scalar values[capacity][3];
     imu_proof::Scalar input_values[3];
     input_values[0] = source.sample.field_b.m_storage.values.head;
     input_values[1] = source.sample.field_b.m_storage.values.tail.head;
     input_values[2] = source.sample.field_b.m_storage.values.tail.tail.head;
+
     std::uint32_t small[capacity][2];
     std::uint32_t input_small[2];
     input_small[0] = source.half_period_us;
     input_small[1] = source.sample.stamp.source.device_id;
+
     std::uint8_t tags[capacity][1];
     std::uint8_t input_tags[1];
     input_tags[0] = source.sample.stamp.source.calibration_count;
+
     for (std::size_t index = 0; index < capacity; ++index)
     {
         integers[index][0] = ring.m_samples[index].time_us;
@@ -129,13 +151,17 @@ void verify_observation_typed_push(Ring ring, Record source)
         integers[index][2] = ring.m_samples[index].residual_delay_us;
         integers[index][3] = ring.m_samples[index].generation;
         integers[index][4] = ring.m_samples[index].sample.stamp.time_us;
+
         values[index][0] = ring.m_samples[index].sample.field_b.m_storage.values.head;
         values[index][1] = ring.m_samples[index].sample.field_b.m_storage.values.tail.head;
         values[index][2] = ring.m_samples[index].sample.field_b.m_storage.values.tail.tail.head;
+
         small[index][0] = ring.m_samples[index].half_period_us;
         small[index][1] = ring.m_samples[index].sample.stamp.source.device_id;
+
         tags[index][0] = ring.m_samples[index].sample.stamp.source.calibration_count;
     }
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 2
     std::uint64_t integers[capacity][5];
     std::uint64_t input_integers[5];
@@ -144,16 +170,20 @@ void verify_observation_typed_push(Ring ring, Record source)
     input_integers[2] = source.residual_delay_us;
     input_integers[3] = source.generation;
     input_integers[4] = source.sample.stamp.time_us;
+
     imu_proof::Scalar values[capacity][1];
     imu_proof::Scalar input_values[1];
     input_values[0] = source.sample.altitude_m;
+
     std::uint32_t small[capacity][2];
     std::uint32_t input_small[2];
     input_small[0] = source.half_period_us;
     input_small[1] = source.sample.stamp.source.device_id;
+
     std::uint8_t tags[capacity][1];
     std::uint8_t input_tags[1];
     input_tags[0] = source.sample.stamp.source.calibration_count;
+
     for (std::size_t index = 0; index < capacity; ++index)
     {
         integers[index][0] = ring.m_samples[index].time_us;
@@ -161,17 +191,22 @@ void verify_observation_typed_push(Ring ring, Record source)
         integers[index][2] = ring.m_samples[index].residual_delay_us;
         integers[index][3] = ring.m_samples[index].generation;
         integers[index][4] = ring.m_samples[index].sample.stamp.time_us;
+
         values[index][0] = ring.m_samples[index].sample.altitude_m;
+
         small[index][0] = ring.m_samples[index].half_period_us;
         small[index][1] = ring.m_samples[index].sample.stamp.source.device_id;
+
         tags[index][0] = ring.m_samples[index].sample.stamp.source.calibration_count;
     }
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 3
     std::uint64_t integers[capacity][3];
     std::uint64_t input_integers[3];
     input_integers[0] = source.time_us;
     input_integers[1] = source.land.time_us;
     input_integers[2] = source.vehicle.time_us;
+
     bool flags[capacity][7];
     bool input_flags[7];
     input_flags[0] = source.land.known;
@@ -181,11 +216,13 @@ void verify_observation_typed_push(Ring ring, Record source)
     input_flags[4] = source.vehicle.known;
     input_flags[5] = source.vehicle.armed;
     input_flags[6] = source.vehicle.fixed_wing;
+
     for (std::size_t index = 0; index < capacity; ++index)
     {
         integers[index][0] = ring.m_samples[index].time_us;
         integers[index][1] = ring.m_samples[index].land.time_us;
         integers[index][2] = ring.m_samples[index].vehicle.time_us;
+
         flags[index][0] = ring.m_samples[index].land.known;
         flags[index][1] = ring.m_samples[index].land.landed;
         flags[index][2] = ring.m_samples[index].land.at_rest;
@@ -201,7 +238,9 @@ void verify_observation_typed_push(Ring ring, Record source)
                        ring.m_count == (count == capacity ? count : count + 1) &&
                        ring.m_oldest == (count == capacity ? (oldest + 1 == capacity ? 0 : oldest + 1) : oldest),
                    "Typed push exact full/nonfull index transition");
+
 #if FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 0
+
     for (std::size_t index = 0; index < capacity; ++index)
     {
         __ESBMC_assert(ring.m_samples[index].time_us == (index == write ? input_integers[0] : integers[index][0]),
@@ -271,6 +310,7 @@ void verify_observation_typed_push(Ring ring, Record source)
         __ESBMC_assert(ring.m_samples[index].sample.spoofed == (index == write ? input_flags[1] : flags[index][1]),
                        "Typed push frame sample.spoofed");
     }
+
     __ESBMC_assert(source.time_us == input_integers[0], "Typed push input time_us");
     __ESBMC_assert(source.arrival_time_us == input_integers[1], "Typed push input arrival_time_us");
     __ESBMC_assert(source.residual_delay_us == input_integers[2], "Typed push input residual_delay_us");
@@ -305,7 +345,9 @@ void verify_observation_typed_push(Ring ring, Record source)
     __ESBMC_assert(source.sample.satellites == input_tags[2], "Typed push input sample.satellites");
     __ESBMC_assert(source.sample.velocity_valid == input_flags[0], "Typed push input sample.velocity_valid");
     __ESBMC_assert(source.sample.spoofed == input_flags[1], "Typed push input sample.spoofed");
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 1
+
     for (std::size_t index = 0; index < capacity; ++index)
     {
         __ESBMC_assert(ring.m_samples[index].time_us == (index == write ? input_integers[0] : integers[index][0]),
@@ -339,6 +381,7 @@ void verify_observation_typed_push(Ring ring, Record source)
                            (index == write ? input_tags[0] : tags[index][0]),
                        "Typed push frame sample.stamp.source.calibration_count");
     }
+
     __ESBMC_assert(source.time_us == input_integers[0], "Typed push input time_us");
     __ESBMC_assert(source.arrival_time_us == input_integers[1], "Typed push input arrival_time_us");
     __ESBMC_assert(source.residual_delay_us == input_integers[2], "Typed push input residual_delay_us");
@@ -355,7 +398,9 @@ void verify_observation_typed_push(Ring ring, Record source)
                    "Typed push input sample.stamp.source.device_id");
     __ESBMC_assert(source.sample.stamp.source.calibration_count == input_tags[0],
                    "Typed push input sample.stamp.source.calibration_count");
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 2
+
     for (std::size_t index = 0; index < capacity; ++index)
     {
         __ESBMC_assert(ring.m_samples[index].time_us == (index == write ? input_integers[0] : integers[index][0]),
@@ -383,6 +428,7 @@ void verify_observation_typed_push(Ring ring, Record source)
                            (index == write ? input_tags[0] : tags[index][0]),
                        "Typed push frame sample.stamp.source.calibration_count");
     }
+
     __ESBMC_assert(source.time_us == input_integers[0], "Typed push input time_us");
     __ESBMC_assert(source.arrival_time_us == input_integers[1], "Typed push input arrival_time_us");
     __ESBMC_assert(source.residual_delay_us == input_integers[2], "Typed push input residual_delay_us");
@@ -394,7 +440,9 @@ void verify_observation_typed_push(Ring ring, Record source)
                    "Typed push input sample.stamp.source.device_id");
     __ESBMC_assert(source.sample.stamp.source.calibration_count == input_tags[0],
                    "Typed push input sample.stamp.source.calibration_count");
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 3
+
     for (std::size_t index = 0; index < capacity; ++index)
     {
         __ESBMC_assert(ring.m_samples[index].time_us == (index == write ? input_integers[0] : integers[index][0]),
@@ -420,6 +468,7 @@ void verify_observation_typed_push(Ring ring, Record source)
         __ESBMC_assert(ring.m_samples[index].vehicle.fixed_wing == (index == write ? input_flags[6] : flags[index][6]),
                        "Typed push frame vehicle.fixed_wing");
     }
+
     __ESBMC_assert(source.time_us == input_integers[0], "Typed push input time_us");
     __ESBMC_assert(source.land.time_us == input_integers[1], "Typed push input land.time_us");
     __ESBMC_assert(source.vehicle.time_us == input_integers[2], "Typed push input vehicle.time_us");
@@ -439,8 +488,10 @@ void verify_observation_typed_reset(Ring ring)
     ring.reset();
     __ESBMC_assert(ring.m_length == length && ring.m_count == 0 && ring.m_oldest == 0 && ring.m_write == 0,
                    "Typed reset retains length and clears indices without preconditions");
+
     for (std::size_t index = 0; index < capacity; ++index)
     {
+
 #if FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 0
         __ESBMC_assert(ring.m_samples[index].time_us == 0, "Typed reset zero time_us");
         __ESBMC_assert(ring.m_samples[index].arrival_time_us == 0, "Typed reset zero arrival_time_us");
@@ -485,6 +536,7 @@ void verify_observation_typed_reset(Ring ring)
         __ESBMC_assert(ring.m_samples[index].sample.velocity_valid == bool{0},
                        "Typed reset zero sample.velocity_valid");
         __ESBMC_assert(ring.m_samples[index].sample.spoofed == bool{0}, "Typed reset zero sample.spoofed");
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 1
         __ESBMC_assert(ring.m_samples[index].time_us == 0, "Typed reset zero time_us");
         __ESBMC_assert(ring.m_samples[index].arrival_time_us == 0, "Typed reset zero arrival_time_us");
@@ -505,6 +557,7 @@ void verify_observation_typed_reset(Ring ring)
                        "Typed reset zero sample.stamp.source.device_id");
         __ESBMC_assert(ring.m_samples[index].sample.stamp.source.calibration_count == std::uint8_t{0},
                        "Typed reset zero sample.stamp.source.calibration_count");
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 2
         __ESBMC_assert(ring.m_samples[index].time_us == 0, "Typed reset zero time_us");
         __ESBMC_assert(ring.m_samples[index].arrival_time_us == 0, "Typed reset zero arrival_time_us");
@@ -518,6 +571,7 @@ void verify_observation_typed_reset(Ring ring)
                        "Typed reset zero sample.stamp.source.device_id");
         __ESBMC_assert(ring.m_samples[index].sample.stamp.source.calibration_count == std::uint8_t{0},
                        "Typed reset zero sample.stamp.source.calibration_count");
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 3
         __ESBMC_assert(ring.m_samples[index].time_us == 0, "Typed reset zero time_us");
         __ESBMC_assert(ring.m_samples[index].land.time_us == 0, "Typed reset zero land.time_us");

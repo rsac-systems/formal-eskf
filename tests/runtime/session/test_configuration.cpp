@@ -13,6 +13,7 @@ void profile_validation(Context & test, std::string_view profile)
     Session valid{baseline};
     test.expect(valid.configure_timing(ins_test_profile::timing), profile,
                 "the existing coherent 250 Hz profile remains valid");
+
     for (double invalid : {-1., std::numeric_limits<double>::infinity(), std::numeric_limits<double>::quiet_NaN()})
     {
         for (unsigned field = 0; field < 12; ++field)
@@ -28,6 +29,7 @@ void profile_validation(Context & test, std::string_view profile)
                         "every invalid sampled/driving noise coefficient rejects startup before any IMU seed");
         }
     }
+
     enum class Mismatch
     {
         period,
@@ -92,11 +94,13 @@ void profile_validation(Context & test, std::string_view profile)
             p.observation_timing.maximum_age_us = std::numeric_limits<std::uint32_t>::max();
             break;
         }
+
         Session rejected{p};
         test.expect(!rejected.configure_timing(ins_test_profile::timing) &&
                         rejected.imu_history().configuration().imu_length == 0,
                     profile, "incoherent/invalid complete profiles cannot partly configure IMU history");
     }
+
     for (auto spacing : {&formal_eskf::runtime::ObservationTiming::gnss_spacing_us,
                          &formal_eskf::runtime::ObservationTiming::magnetic_spacing_us,
                          &formal_eskf::runtime::ObservationTiming::barometer_spacing_us,
@@ -109,6 +113,7 @@ void profile_validation(Context & test, std::string_view profile)
                         rejected.imu_history().configuration().imu_length == 0,
                     profile, "zero selection window or spacing rejects before changing other owners");
     }
+
     for (auto period : {std::uint32_t{0}, std::uint32_t{4201}})
     {
         auto p = baseline;
@@ -118,6 +123,7 @@ void profile_validation(Context & test, std::string_view profile)
         test.expect(!rejected.configure_timing(ins_test_profile::timing), profile,
                     "zero and unordered period envelopes reject startup");
     }
+
     auto bad_output = baseline;
     bad_output.output.velocity_time_constant_s = NAN;
     Session late_rejection{bad_output};
@@ -137,6 +143,7 @@ void profile_validation(Context & test, std::string_view profile)
                         profile, "signed delay and coverage limits reject before all configuration commits");
         }
     }
+
     auto p = baseline;
     // 150900 us arrival + 47000 us residual + 2100 us half-period = 200000 us.
     auto request = ins_test_profile::timing;
@@ -145,10 +152,12 @@ void profile_validation(Context & test, std::string_view profile)
     p.output.timing = p.observation_timing.imu;
     Session equality{p};
     test.expect(equality.configure_timing(request), profile, "arrival-plus-delay coverage permits exact equality");
+
     p.observation_timing.imu.gnss_arrival_age_us += 1;
     p.output.timing = p.observation_timing.imu;
     Session one_short{p};
     test.expect(!one_short.configure_timing(request), profile, "one microsecond short of required lag rejects");
+
     for (auto arrival : {std::numeric_limits<std::uint32_t>::max()})
     {
         p = baseline;
@@ -158,12 +167,14 @@ void profile_validation(Context & test, std::string_view profile)
         test.expect(!invalid_age.configure_timing(ins_test_profile::timing), profile,
                     "overflowing coverage cannot be hidden by unsigned arithmetic");
     }
+
     p = baseline;
     p.observation_timing.imu.maximum_period_us = 6000;
     p.output.timing = p.observation_timing.imu;
     Session excessive_lag{p};
     test.expect(!excessive_lag.configure_timing(ins_test_profile::timing), profile,
                 "a complete fastest-period history must also fit the slowest-period lag bound");
+
     p = baseline;
     p.estimator.process_noise = {};
     p.settings.magnetic.timing.health_time_us = 0;
@@ -194,6 +205,7 @@ template <typename Storage> void capacity_case(Context & test, std::string_view 
     Runtime session{p};
     test.expect(session.configure_timing(ins_test_profile::timing) == expected, profile,
                 "all five history capacities must meet their independent exact minima");
+
     if (!expected)
     {
         test.expect(session.imu_history().configuration().imu_length == 0, profile,
@@ -241,11 +253,13 @@ void storage(Context & test, std::string_view profile)
     capacity_case<Layout<54, 120, 12, 51>>(test, profile, false);
     capacity_case<Layout<54, 120, 12, 52, 101>>(test, profile, false);
     auto const p = ins_test_profile::parameters<Session>();
+
     struct Rate
     {
         std::uint32_t minimum, nominal, maximum;
         std::size_t length;
     };
+
     for (auto rate : {Rate{3800, 4000, 4200, 54}, Rate{2375, 2500, 2625, 86}, Rate{1900, 2000, 2100, 107}})
     {
         auto timing = p.observation_timing.imu;
@@ -257,6 +271,7 @@ void storage(Context & test, std::string_view profile)
         test.expect(formal_eskf::runtime::configure_timing(request, timing, rate.length, result) &&
                         result.imu_length == rate.length && result.minimum_lag_us == 200000,
                     profile, "independent candidate-rate table matches exact IMU/output capacity");
+
         auto observations = p.observation_timing;
         observations.imu = timing;
         observations.barometer_spacing_us = 5000;
@@ -269,6 +284,7 @@ void storage(Context & test, std::string_view profile)
                         !magnetic_short.configure(request, rate.length) &&
                         !barometer_short.configure(request, rate.length),
                     profile, "aiding minima and one-short rejection hold at every candidate rate");
+
         auto const old = result;
         test.expect(!formal_eskf::runtime::configure_timing(request, timing, rate.length - 1, result) &&
                         result.imu_length == old.imu_length && result.minimum_lag_us == old.minimum_lag_us,
@@ -287,13 +303,16 @@ void freeze(Context & test, std::string_view profile)
                     std::isnan(parameters.settings.imu.nominal_interval_s) &&
                     copied.configure_timing(ins_test_profile::timing),
                 profile, "caller mutations cannot change settings copied at construction");
+
     Session::SensorPositions positions{};
     positions.imu_b(0) = NAN;
     test.expect(!copied.configure_sensor_positions(positions) && !copied.configure_magnetic({true, true, NAN}) &&
                     copied.configure_sensor_positions({}) && copied.configure_magnetic({true, true, 0}),
                 profile, "invalid installation/reference values reject and permit a valid startup retry");
+
     Fixture f;
     test.expect(f.configured, profile, "accepted baseline");
+
     auto const before = f.session.imu_history().configuration();
     auto invalid = ins_test_profile::timing;
     invalid.magnetic_delay_ms = -1;
@@ -302,6 +321,7 @@ void freeze(Context & test, std::string_view profile)
                     f.session.imu_history().configuration().magnetic_delay_us == before.magnetic_delay_us,
                 profile, "rejected startup reconfiguration preserves the prior complete configuration");
     test.expect(f.tick() && f.session.initialized(), profile, "preserved startup configuration remains usable");
+
     auto change = ins_test_profile::timing;
     change.fusion_delay_ms = 210;
     test.expect(!f.session.configure_timing(change) && !f.session.configure_sensor_positions({}) &&

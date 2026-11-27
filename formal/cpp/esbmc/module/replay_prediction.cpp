@@ -22,6 +22,7 @@ struct ImuNoiseConditions
     bool accelerometer_clipped[3]{};
 };
 } // namespace formal_eskf::runtime
+
 namespace
 {
 using contract_proof::Linalg;
@@ -32,18 +33,23 @@ using Parameters = formal_eskf::configuration::Ins::Parameters<Linalg>;
 using Status = formal_eskf::Status;
 using State = unsigned;
 using Covariance = unsigned;
+
 struct Imu
 {
     unsigned identity{};
 };
+
 struct Types
 {
     using parameter_type = Parameters;
 };
+
 struct ReplayFailure
 {
 };
+
 #include "replay_prediction_types.inc"
+
 bool same_noise(Noise const & a, Noise const & b)
 {
     return same_vector(a.specific_force_variance, b.specific_force_variance) &&
@@ -52,6 +58,7 @@ bool same_noise(Noise const & a, Noise const & b)
                        b.accelerometer_bias_random_walk_variance_density) &&
            same_vector(a.gyroscope_bias_random_walk_variance_density, b.gyroscope_bias_random_walk_variance_density);
 }
+
 struct Boundary
 {
     Parameters const * settings{};
@@ -64,8 +71,10 @@ struct Boundary
     unsigned selections{}, inhibitions{}, predictions{};
     std::uint64_t period{};
 } boundary;
+
 #include "replay_status.inc"
 } // namespace
+
 namespace formal_eskf::runtime
 {
 Status select_imu_process_noise(Noise const & input, ImuNoiseConditions const & conditions, double variance,
@@ -74,18 +83,22 @@ Status select_imu_process_noise(Noise const & input, ImuNoiseConditions const & 
     __ESBMC_assert(&input == &boundary.settings->process_noise && &conditions == boundary.conditions &&
                        &input != &output && same(variance, BAD_ACCEL_STD * BAD_ACCEL_STD),
                    "Replay noise selection reads the configured noise and actual conditions into a separate step copy");
+
     ++boundary.selections;
     if (succeeded(boundary.selection))
     {
         output = boundary.selected;
     }
+
     return boundary.selection;
 }
+
 Status inhibit_bias_process_noise(Covariance const & covariance, Noise const & input, Noise & output)
 {
     __ESBMC_assert(&covariance == boundary.covariance && &input == &output && boundary.inhibitions == 0 &&
                        boundary.selections == unsigned(boundary.conditions != nullptr),
                    "Replay inhibition follows optional noise selection with the intended in-place noise alias");
+
     if (boundary.conditions)
     {
         __ESBMC_assert(same_noise(input, boundary.selected),
@@ -96,14 +109,17 @@ Status inhibit_bias_process_noise(Covariance const & covariance, Noise const & i
         __ESBMC_assert(same_noise(input, boundary.settings->process_noise),
                        "Unavailable clipping retains configured noise");
     }
+
     ++boundary.inhibitions;
     if (succeeded(boundary.inhibition))
     {
         output = boundary.inhibited;
     }
+
     return boundary.inhibition;
 }
 } // namespace formal_eskf::runtime
+
 namespace formal_eskf
 {
 Status predict(State const & state, Covariance const & covariance, Imu const & sample, double dt,
@@ -120,18 +136,22 @@ Status predict(State const & state, Covariance const & covariance, Imu const & s
             same(settings.quaternion_squared_norm_tolerance, boundary.settings->quaternion_squared_norm_tolerance) &&
             same(settings.dt_min, boundary.settings->dt_min) && same(settings.dt_max, boundary.settings->dt_max),
         "Prediction receives selected/inhibited noise while all other configured parameters are preserved");
+
     ++boundary.predictions;
     if (succeeded(boundary.prediction))
     {
         state_out = 1;
         covariance_out = 2;
     }
+
     return boundary.prediction;
 }
 } // namespace formal_eskf
+
 namespace
 {
 #include "replay_prediction.inc"
+
 Status symbolic_status()
 {
     unsigned value = nondet_value();
@@ -139,6 +159,7 @@ Status symbolic_status()
     return static_cast<Status>(value);
 }
 } // namespace
+
 extern "C" void verify_replay_prediction()
 {
     Parameters settings;
@@ -162,6 +183,7 @@ extern "C" void verify_replay_prediction()
             value.accelerometer_clipped[axis] = nondet_bool();
         }
     }
+
     boundary.settings = &settings;
     boundary.state = &state;
     boundary.covariance = &covariance;
@@ -170,6 +192,7 @@ extern "C" void verify_replay_prediction()
     {
         boundary.conditions = &*conditions;
     }
+
     boundary.selected = selected;
     boundary.inhibited = inhibited;
     boundary.selection = symbolic_status();
@@ -187,6 +210,7 @@ extern "C" void verify_replay_prediction()
     {
         failed = true;
     }
+
     bool const inhibited_called = !conditions || formal_eskf::succeeded(boundary.selection);
     bool const predicted = inhibited_called && formal_eskf::succeeded(boundary.inhibition);
     bool const success = predicted && formal_eskf::succeeded(boundary.prediction);
@@ -197,6 +221,7 @@ extern "C" void verify_replay_prediction()
     __ESBMC_assert(statistics.accel_noise_unavailable ==
                        before.accel_noise_unavailable + std::size_t(success && !conditions),
                    "Unavailable-noise accounting commits only after successful prediction");
+
     for (unsigned axis = 0; axis < 3; ++axis)
     {
         bool const overridden =
@@ -214,6 +239,7 @@ extern "C" void verify_replay_prediction()
                                before.gyro_bias_noise_inhibited[axis] + std::size_t(gyro),
                        "Each diagnostic counts the noise actually passed to a successful prediction");
     }
+
     if (success)
     {
         __ESBMC_assert(same_noise(result, inhibited), "Returned noise is the selected prediction noise");

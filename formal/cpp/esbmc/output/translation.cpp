@@ -3,6 +3,7 @@
 #include "boundary.hpp"
 #include <source_steps.hpp>
 using namespace output_boundary;
+
 void verify_output_translation_step(Output object, Vector velocity, Vector position)
 {
     output_proof::bind_parameters(object);
@@ -39,6 +40,7 @@ void verify_output_translation_step(Output object, Vector velocity, Vector posit
     }
     output_proof::check_parameters(object);
 }
+
 void verify_output_commit_step(Output object)
 {
     output_proof::bind_parameters(object);
@@ -63,6 +65,7 @@ void verify_output_commit_step(Output object)
     check();
     output_proof::check_parameters(object);
 }
+
 void verify_output_commit_finish(Output object)
 {
     output_proof::bind_parameters(object);

@@ -122,6 +122,7 @@ public:
     };
 
     State const & state() const { return m_state; }
+
     /** Reinitialize the timeline; optionally bind the source used by caller's initial heading. */
     void reset(Source const & source = {0U, 0U, 0U})
     {

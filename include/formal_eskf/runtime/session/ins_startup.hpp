@@ -30,6 +30,7 @@ public:
     };
 
     explicit InsStartup(Parameters const & parameters) : m_parameters(parameters) {}
+
     [[nodiscard]] bool valid() const;
     /** Consume admitted calibrated rates with their separate integration periods in seconds.
      * Invalid input clears seed readiness without changing the filter. Valid motion updates
@@ -42,14 +43,18 @@ public:
     [[nodiscard]] Status seed_attitude(typename state_type::quaternion_type const & attitude,
                                        std::array<value_type, 3> const & variance_n, state_type & state,
                                        covariance_type & covariance) const;
+
     void reset()
     {
         m_filtered = {};
         m_collected = false;
         m_ready = false;
     }
+
     Parameters const & parameters() const { return m_parameters; }
+
     imu_type const & filtered() const { return m_filtered; }
+
     bool ready() const { return m_ready; }
 
 private:

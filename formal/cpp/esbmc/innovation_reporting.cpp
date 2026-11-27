@@ -46,4 +46,5 @@ void verify_innovation_reporting(formal_eskf::px4::InnovationRatio report, std::
     __ESBMC_assert(report.time_us == time && report.filtered == 0.,
                    "Innovation reporting: reset retains the supplied epoch with a zero diagnostic");
 }
+
 int main() { return 0; }

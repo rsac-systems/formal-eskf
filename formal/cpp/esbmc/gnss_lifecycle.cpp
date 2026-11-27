@@ -31,11 +31,13 @@ bool same_group(GroupState const & a, GroupState const & b)
            a.stop_reason == b.stop_reason && a.start_time_us == b.start_time_us &&
            a.last_fuse_time_us == b.last_fuse_time_us && a.last_reset_time_us == b.last_reset_time_us;
 }
+
 bool same_parameters(Parameters const & a, Parameters const & b)
 {
     return a.horizontal_timeout_us == b.horizontal_timeout_us && a.height_data_timeout_us == b.height_data_timeout_us &&
            a.height_fusion_timeout_us == b.height_fusion_timeout_us;
 }
+
 bool same_conditions(Conditions const & a, Conditions const & b)
 {
     auto const group_equal = [](Controller::GroupConditions const & x, Controller::GroupConditions const & y)
@@ -46,6 +48,7 @@ bool same_conditions(Conditions const & a, Conditions const & b)
            a.vertical_acceleration.update_time_us == b.vertical_acceleration.update_time_us &&
            a.vertical_acceleration.last_good_time_us == b.vertical_acceleration.last_good_time_us;
 }
+
 bool same_controller(Controller const & a, Controller const & b)
 {
     return same_group(a.m_state.horizontal_position, b.m_state.horizontal_position) &&
@@ -58,16 +61,19 @@ bool same_controller(Controller const & a, Controller const & b)
            a.m_last_quality_pass_us == b.m_last_quality_pass_us &&
            a.m_vertical_velocity_reset_pending == b.m_vertical_velocity_reset_pending;
 }
+
 bool valid_parameters(Parameters const & p)
 {
     return p.horizontal_timeout_us != 0U && p.horizontal_timeout_us <= std::numeric_limits<Time>::max() / 2U &&
            p.height_data_timeout_us != 0U && p.height_fusion_timeout_us != 0U;
 }
+
 bool reset_reason(Reason r)
 {
     return r == Reason::initialization_required || r == Reason::fusion_timeout ||
            r == Reason::bad_vertical_acceleration;
 }
+
 bool group_invariant(GroupState const & g, Time now, Time sample)
 {
     return g.start_time_us <= now && g.last_fuse_time_us <= now && g.last_reset_time_us <= now &&
@@ -77,6 +83,7 @@ bool group_invariant(GroupState const & g, Time now, Time sample)
              ((g.action == Action::fuse && g.active && !g.recovery_required) ||
               (g.action == Action::reset && g.recovery_required && reset_reason(g.stop_reason)))));
 }
+
 bool invariant(Controller const & c)
 {
     return c.m_sample_time_us <= c.m_update_time_us && c.m_last_quality_pass_us <= c.m_update_time_us &&
@@ -94,6 +101,7 @@ bool invariant(Controller const & c)
               c.m_state.vertical_velocity_reset_reason == Reason::bad_vertical_acceleration) &&
              c.m_sample_time_us != 0U && c.m_state.velocity.action == Action::none));
 }
+
 GroupState * group(Controller & c, Group g)
 {
     if (g == Group::horizontal_position)
@@ -110,6 +118,7 @@ GroupState * group(Controller & c, Group g)
     }
     return nullptr;
 }
+
 void revoke(Controller & c)
 {
     c.m_state.horizontal_position.action = Action::none;
@@ -118,6 +127,7 @@ void revoke(Controller & c)
     c.m_vertical_velocity_reset_pending = Reason::none;
     c.m_state.vertical_velocity_reset_reason = Reason::none;
 }
+
 void stop(GroupState & g, Reason reason)
 {
     g.active = false;
@@ -127,6 +137,7 @@ void stop(GroupState & g, Reason reason)
         g.stop_reason = reason;
     }
 }
+
 void request_reset(GroupState & g, Reason reason)
 {
     if (!g.recovery_required)
@@ -136,6 +147,7 @@ void request_reset(GroupState & g, Reason reason)
     g.recovery_required = true;
     g.action = Action::none;
 }
+
 bool expired(GroupState const & g, Time now, Time duration)
 {
     Time progress = g.start_time_us;
@@ -149,6 +161,7 @@ bool expired(GroupState const & g, Time now, Time duration)
     }
     return progress == 0U || now - progress > duration;
 }
+
 bool bad_acceleration(Health h, Time now)
 {
     if (h.update_time_us == 0U || h.update_time_us > now || h.last_good_time_us > h.update_time_us)
@@ -157,6 +170,7 @@ bool bad_acceleration(Health h, Time now)
     }
     return h.last_good_time_us == 0U || now - h.last_good_time_us > 500000U;
 }
+
 Reason height_reason(Controller const & c, Health health)
 {
     return bad_acceleration(health, c.m_update_time_us) ? Reason::bad_vertical_acceleration
@@ -164,6 +178,7 @@ Reason height_reason(Controller const & c, Health health)
                ? Reason::fusion_timeout
                : Reason::none;
 }
+
 Status validation(Controller const & c, Time now, Conditions const & conditions, Parameters const & p,
                   Sample const & sample)
 {
@@ -188,6 +203,7 @@ Status validation(Controller const & c, Time now, Conditions const & conditions,
     }
     return Status::success;
 }
+
 void group_oracle(GroupState & g, Controller::GroupConditions conditions, bool fresh, bool new_sample, bool accepted,
                   Time now)
 {
@@ -223,6 +239,7 @@ void group_oracle(GroupState & g, Controller::GroupConditions conditions, bool f
         g.action = Action::fuse;
     }
 }
+
 void update_oracle(Controller & c, Time now, Conditions const & conditions, Parameters const & p, Sample const & sample)
 {
     bool const was_horizontal = c.m_state.horizontal_position.active || c.m_state.velocity.active;
@@ -285,6 +302,7 @@ void update_oracle(Controller & c, Time now, Conditions const & conditions, Para
         c.m_last_quality_pass_us = 0U;
     }
 }
+
 void verify_gnss_lifecycle_initialization(Controller c)
 {
     Controller initial;
@@ -295,6 +313,7 @@ void verify_gnss_lifecycle_initialization(Controller c)
     c.reset();
     __ESBMC_assert(same_controller(c, initial), "GNSS lifecycle: reset restores every persistent field");
 }
+
 void verify_gnss_lifecycle_update(Controller c, Time now, Conditions conditions, Parameters p, Sample sample)
 {
     __ESBMC_assume(invariant(c));
@@ -381,6 +400,7 @@ void verify_gnss_lifecycle_fusion(Controller c, Group selected, Time sample_time
                        "GNSS lifecycle: successful acknowledgment consumes fusion authority");
     }
 }
+
 void verify_gnss_lifecycle_reset_feedback(Controller c, Group selected, Time sample_time, bool success)
 {
     __ESBMC_assume(invariant(c));
@@ -430,6 +450,7 @@ void verify_gnss_lifecycle_reset_feedback(Controller c, Group selected, Time sam
                        "GNSS lifecycle: successful acknowledgment consumes reset authority");
     }
 }
+
 void verify_gnss_lifecycle_vertical_feedback(Controller c, Time sample_time, bool success)
 {
     __ESBMC_assume(invariant(c));
@@ -461,6 +482,7 @@ void verify_gnss_lifecycle_vertical_feedback(Controller c, Time sample_time, boo
                        "GNSS lifecycle: successful Down acknowledgment consumes its authority");
     }
 }
+
 void verify_gnss_lifecycle_restart(Controller c, Group selected)
 {
     __ESBMC_assume(invariant(c));
@@ -485,6 +507,7 @@ void verify_gnss_lifecycle_restart(Controller c, Group selected)
         actual == status && same_controller(c, expected) && invariant(c),
         "GNSS lifecycle: explicit caller-authorized restart resets only selected session and linked recovery metadata");
 }
+
 void verify_gnss_lifecycle_health(Health health, Time now)
 {
     auto const before = health;
@@ -494,4 +517,5 @@ void verify_gnss_lifecycle_health(Health health, Time now)
                    "GNSS lifecycle: known ordered health and strict half-second bad-acceleration threshold; "
                    "unavailable is not failure");
 }
+
 int main() { return 0; }

@@ -27,6 +27,7 @@ struct ExpContract
     inline static Scalar minimum{};
     inline static unsigned calls = 0U;
 };
+
 struct RotationContract
 {
     inline static Matrix result{};
@@ -52,6 +53,7 @@ inline Status exp<contract_proof::Linalg>(contract_proof::Vector3 const & theta,
         output = ExpContract::result;
     return ExpContract::status;
 }
+
 template <> inline transition_proof::Matrix to_rotation_matrix(contract_proof::Quaternion const & q)
 {
     using transition_proof::RotationContract;

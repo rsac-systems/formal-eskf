@@ -24,8 +24,11 @@ struct Sample
     std::uint64_t payload = 0;
 
     Sample() = default;
+
     Sample(std::uint64_t time, std::uint64_t value) : time_us(time), payload(value) {}
+
     Sample(Sample const & other) : time_us(other.time_us), payload(other.payload) {}
+
     Sample & operator=(Sample const & other)
     {
         time_us = other.time_us;
@@ -33,6 +36,7 @@ struct Sample
         return *this;
     }
 };
+
 using Buffer = formal_eskf::runtime::RingBuffer<Sample, capacity>;
 
 bool same_sample(Sample const & a, Sample const & b) { return a.time_us == b.time_us && a.payload == b.payload; }
@@ -127,6 +131,7 @@ bool invariant_at(Buffer const & buffer, std::size_t index)
 extern std::uint8_t nondet_u8();
 extern std::uint64_t nondet_u64();
 static_assert(capacity <= 255);
+
 void seed_history(Buffer & buffer)
 {
     std::uint8_t const length = nondet_u8();

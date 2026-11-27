@@ -15,6 +15,7 @@ template <typename Math> class SphericalProjection
 {
 public:
     explicit SphericalProjection(double radius) : m_radius(radius) {}
+
     void set_origin(double latitude, double longitude, std::uint64_t time_us)
     {
         m_latitude = latitude * (Math::pi() / 180.);
@@ -24,6 +25,7 @@ public:
         m_time_us = time_us;
         m_initialized = true;
     }
+
     void project(double latitude, double longitude, float & north, float & east) const
     {
         double const lat = latitude * (Math::pi() / 180.);
@@ -34,15 +36,20 @@ public:
         north = static_cast<float>(scale * (m_cos_latitude * s - m_sin_latitude * c * d) * m_radius);
         east = static_cast<float>(scale * c * Math::sin(lon - m_longitude) * m_radius);
     }
+
     void reset()
     {
         m_latitude = m_longitude = m_sin_latitude = m_cos_latitude = 0.;
         m_time_us = 0;
         m_initialized = false;
     }
+
     bool initialized() const { return m_initialized; }
+
     std::uint64_t time_us() const { return m_time_us; }
+
     double latitude_deg() const { return m_latitude * (180. / Math::pi()); }
+
     double longitude_deg() const { return m_longitude * (180. / Math::pi()); }
 
 private:

@@ -7,18 +7,21 @@ static_assert(FORMAL_ESKF_PROOF_OBSERVATION_SOURCE >= 0 && FORMAL_ESKF_PROOF_OBS
 using observation_proof::Observations;
 using observation_proof::same_double;
 using observation_proof::same_timeline;
+
 #if FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 0
 using Record = Observations::GnssObservation;
 constexpr std::size_t capacity = 16;
 #define SELECTED_RING m_gnss
 #define SELECTED_TIME m_gnss_time
 #define POP_SOURCE pop_gnss
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 1
 using Record = Observations::MagneticObservation;
 constexpr std::size_t capacity = 64;
 #define SELECTED_RING m_magnetic
 #define SELECTED_TIME m_magnetic_time
 #define POP_SOURCE pop_magnetic
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 2
 using Record = Observations::BarometerObservation;
 constexpr std::size_t capacity = 128;
@@ -26,8 +29,10 @@ constexpr std::size_t capacity = 128;
 #define SELECTED_TIME m_barometer_time
 #define POP_SOURCE pop_barometer
 #endif
+
 using Ring = formal_eskf::runtime::RingBuffer<Record, capacity>;
 extern bool nondet_selected();
+
 namespace
 {
 Record * expected_output;
@@ -36,6 +41,7 @@ Record published_output;
 std::size_t removed;
 bool published;
 unsigned calls;
+
 void capture_storage_result()
 {
 #if FORMAL_ESKF_PROOF_FRAME == FORMAL_ESKF_PROOF_OBSERVATION_SOURCE
@@ -44,6 +50,7 @@ void capture_storage_result()
 }
 
 } // namespace
+
 // Broad caller boundary: typed ring search/retirement plus Lean composition
 // discharge the exact payload semantics. This summary permits every payload
 // poststate, while retaining the proved count/index and failure-output frames.
@@ -51,8 +58,10 @@ template <>
 bool formal_eskf::runtime::RingBuffer<Record, capacity>::pop_first_older_than(std::uint64_t const & horizon,
                                                                               Record * output, std::uint64_t age)
 {
+
 #if FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 0
     expected_gnss_time.selection_time_us = expected_fusion;
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 1
     expected_magnetic_time.selection_time_us = expected_fusion;
 #else
@@ -66,19 +75,23 @@ bool formal_eskf::runtime::RingBuffer<Record, capacity>::pop_first_older_than(st
     __ESBMC_assert(m_length == capacity && m_count <= capacity && m_oldest < capacity && m_write < capacity &&
                        m_write == (m_oldest + m_count) % capacity,
                    "Pop caller meets allocated ring metadata contract");
+
     for (std::size_t i = 0; i < capacity; ++i)
     {
         __ESBMC_assert(output != &m_samples[i], "Pop supplies external output");
         __ESBMC_assert(&horizon != &m_samples[i].time_us, "Pop supplies external horizon");
     }
+
     removed = imu_proof::nondet_index();
     published = nondet_selected();
     __ESBMC_assume(removed <= m_count && (!published || removed > 0));
     __ESBMC_init_object(&published_storage);
     // Havoc complete storage, then copy each value field without a bulk memcpy.
     // The contract covers values, signed zero and NaN class, not padding bytes.
+
     for (std::size_t i = 0; i < capacity; ++i)
     {
+
 #if FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 0
         m_samples[i].time_us = published_storage[i].time_us;
         m_samples[i].arrival_time_us = published_storage[i].arrival_time_us;
@@ -107,6 +120,7 @@ bool formal_eskf::runtime::RingBuffer<Record, capacity>::pop_first_older_than(st
         m_samples[i].sample.satellites = published_storage[i].sample.satellites;
         m_samples[i].sample.velocity_valid = published_storage[i].sample.velocity_valid;
         m_samples[i].sample.spoofed = published_storage[i].sample.spoofed;
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 1
         m_samples[i].time_us = published_storage[i].time_us;
         m_samples[i].arrival_time_us = published_storage[i].arrival_time_us;
@@ -121,6 +135,7 @@ bool formal_eskf::runtime::RingBuffer<Record, capacity>::pop_first_older_than(st
         m_samples[i].half_period_us = published_storage[i].half_period_us;
         m_samples[i].sample.stamp.source.device_id = published_storage[i].sample.stamp.source.device_id;
         m_samples[i].sample.stamp.source.calibration_count = published_storage[i].sample.stamp.source.calibration_count;
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 2
         m_samples[i].time_us = published_storage[i].time_us;
         m_samples[i].arrival_time_us = published_storage[i].arrival_time_us;
@@ -133,6 +148,7 @@ bool formal_eskf::runtime::RingBuffer<Record, capacity>::pop_first_older_than(st
         m_samples[i].sample.stamp.source.calibration_count = published_storage[i].sample.stamp.source.calibration_count;
 #endif
     }
+
     m_count -= removed;
     m_oldest = (m_oldest + removed) % capacity;
     if (published)
@@ -140,6 +156,7 @@ bool formal_eskf::runtime::RingBuffer<Record, capacity>::pop_first_older_than(st
         __ESBMC_init_object(&published_output);
         *output = published_output;
     }
+
     ++calls;
     capture_metadata();
     capture_storage_result();
@@ -157,6 +174,7 @@ void verify_observation_pop(Observations owner, Record output)
     owner.SELECTED_RING.m_oldest = oldest;
     owner.SELECTED_RING.m_write = (static_cast<std::size_t>(oldest) + count) % capacity;
     auto const write = owner.SELECTED_RING.m_write;
+
     auto const gnss_time = owner.m_gnss_time;
     auto const magnetic_time = owner.m_magnetic_time;
     auto const barometer_time = owner.m_barometer_time;
@@ -169,10 +187,12 @@ void verify_observation_pop(Observations owner, Record output)
     auto const average = owner.m_average_period_us;
     auto const selection = owner.SELECTED_TIME.selection_time_us;
     bool const eligible = advanced != 0 && selection != fusion;
+
     expected_owner = &owner;
     expected_output = &output;
     calls = 0;
     capture_storage();
+
 #if FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 0
     std::uint64_t output_integers[5];
     output_integers[0] = output.time_us;
@@ -180,6 +200,7 @@ void verify_observation_pop(Observations owner, Record output)
     output_integers[2] = output.residual_delay_us;
     output_integers[3] = output.generation;
     output_integers[4] = output.sample.stamp.time_us;
+
     imu_proof::Scalar output_values[8];
     output_values[0] = output.sample.velocity_n.m_storage.values.head;
     output_values[1] = output.sample.velocity_n.m_storage.values.tail.head;
@@ -189,21 +210,26 @@ void verify_observation_pop(Observations owner, Record output)
     output_values[5] = output.sample.speed_accuracy_m_s;
     output_values[6] = output.sample.hdop;
     output_values[7] = output.sample.vdop;
+
     double output_doubles[4];
     output_doubles[0] = output.sample.latitude_deg;
     output_doubles[1] = output.sample.longitude_deg;
     output_doubles[2] = output.sample.altitude_msl_m;
     output_doubles[3] = output.sample.altitude_ellipsoid_m;
+
     std::uint32_t output_small[2];
     output_small[0] = output.half_period_us;
     output_small[1] = output.sample.stamp.source.device_id;
+
     std::uint8_t output_tags[3];
     output_tags[0] = output.sample.stamp.source.calibration_count;
     output_tags[1] = output.sample.fix_type;
     output_tags[2] = output.sample.satellites;
+
     bool output_flags[2];
     output_flags[0] = output.sample.velocity_valid;
     output_flags[1] = output.sample.spoofed;
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 1
     std::uint64_t output_integers[5];
     output_integers[0] = output.time_us;
@@ -211,15 +237,19 @@ void verify_observation_pop(Observations owner, Record output)
     output_integers[2] = output.residual_delay_us;
     output_integers[3] = output.generation;
     output_integers[4] = output.sample.stamp.time_us;
+
     imu_proof::Scalar output_values[3];
     output_values[0] = output.sample.field_b.m_storage.values.head;
     output_values[1] = output.sample.field_b.m_storage.values.tail.head;
     output_values[2] = output.sample.field_b.m_storage.values.tail.tail.head;
+
     std::uint32_t output_small[2];
     output_small[0] = output.half_period_us;
     output_small[1] = output.sample.stamp.source.device_id;
+
     std::uint8_t output_tags[1];
     output_tags[0] = output.sample.stamp.source.calibration_count;
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 2
     std::uint64_t output_integers[5];
     output_integers[0] = output.time_us;
@@ -227,17 +257,22 @@ void verify_observation_pop(Observations owner, Record output)
     output_integers[2] = output.residual_delay_us;
     output_integers[3] = output.generation;
     output_integers[4] = output.sample.stamp.time_us;
+
     imu_proof::Scalar output_values[1];
     output_values[0] = output.sample.altitude_m;
+
     std::uint32_t output_small[2];
     output_small[0] = output.half_period_us;
     output_small[1] = output.sample.stamp.source.device_id;
+
     std::uint8_t output_tags[1];
     output_tags[0] = output.sample.stamp.source.calibration_count;
 #endif
+
     capture_metadata();
     auto const result = owner.POP_SOURCE(output);
     __ESBMC_assert(calls == (eligible ? 1U : 0U), "Pop exact producer eligibility and multiplicity");
+
     auto const decision = advanced == 0         ? Observations::Selection::not_ready
                           : selection == fusion ? Observations::Selection::repeated
                           : published           ? Observations::Selection::selected
@@ -254,38 +289,45 @@ void verify_observation_pop(Observations owner, Record output)
             owner.m_seed_time_us == seed && owner.m_latest_time_us == latest && owner.m_fusion_time_us == fusion &&
             owner.m_advanced_at_us == advanced && same_double(owner.m_average_period_us, average),
         "Pop configuration and clock frame");
+
 #if FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 0
     auto expected_time = gnss_time;
     if (eligible)
     {
         expected_time.selection_time_us = fusion;
     }
+
     __ESBMC_assert(same_timeline(owner.m_gnss_time, expected_time), "Pop only advances its selection watermark");
 #else
     __ESBMC_assert(same_timeline(owner.m_gnss_time, gnss_time), "Pop retains other source timelines");
 #endif
+
 #if FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 1
     auto expected_time = magnetic_time;
     if (eligible)
     {
         expected_time.selection_time_us = fusion;
     }
+
     __ESBMC_assert(same_timeline(owner.m_magnetic_time, expected_time), "Pop only advances its selection watermark");
 #else
     __ESBMC_assert(same_timeline(owner.m_magnetic_time, magnetic_time), "Pop retains other source timelines");
 #endif
+
 #if FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 2
     auto expected_time = barometer_time;
     if (eligible)
     {
         expected_time.selection_time_us = fusion;
     }
+
     __ESBMC_assert(same_timeline(owner.m_barometer_time, expected_time), "Pop only advances its selection watermark");
 #else
     __ESBMC_assert(same_timeline(owner.m_barometer_time, barometer_time), "Pop retains other source timelines");
 #endif
     check_metadata();
     check_storage();
+
 #if FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 0
     __ESBMC_assert(output.time_us == (eligible && published ? published_output.time_us : output_integers[0]),
                    "Pop output publication or failure frame time_us");
@@ -365,6 +407,7 @@ void verify_observation_pop(Observations owner, Record output)
                    "Pop output publication or failure frame sample.velocity_valid");
     __ESBMC_assert(output.sample.spoofed == (eligible && published ? published_output.sample.spoofed : output_flags[1]),
                    "Pop output publication or failure frame sample.spoofed");
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 1
     __ESBMC_assert(output.time_us == (eligible && published ? published_output.time_us : output_integers[0]),
                    "Pop output publication or failure frame time_us");
@@ -401,6 +444,7 @@ void verify_observation_pop(Observations owner, Record output)
         output.sample.stamp.source.calibration_count ==
             (eligible && published ? published_output.sample.stamp.source.calibration_count : output_tags[0]),
         "Pop output publication or failure frame sample.stamp.source.calibration_count");
+
 #elif FORMAL_ESKF_PROOF_OBSERVATION_SOURCE == 2
     __ESBMC_assert(output.time_us == (eligible && published ? published_output.time_us : output_integers[0]),
                    "Pop output publication or failure frame time_us");

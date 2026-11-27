@@ -2,6 +2,7 @@
 
 #include "support.hpp"
 using namespace output_proof;
+
 void verify_output_validation(Output input_owner, State state)
 {
     output_proof::bind_parameters(input_owner);

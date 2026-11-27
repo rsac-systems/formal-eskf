@@ -55,10 +55,12 @@ template <typename Linalg> struct ImuInput
     {
         return static_cast<value_type>(angular_period_us) * static_cast<value_type>(1e-6);
     }
+
     value_type acceleration_interval_s() const
     {
         return static_cast<value_type>(acceleration_period_us) * static_cast<value_type>(1e-6);
     }
+
     /** Requires admitted positive periods; callers check the resulting finite rates. */
     ImuSample<Linalg> mean_rates() const;
 };
@@ -105,6 +107,7 @@ public:
     };
 
     [[nodiscard]] bool configure(TimingParameters const & parameters, ImuTiming const & timing);
+
     /** Read-only preflight for a session coordinating several history owners. */
     [[nodiscard]] bool can_configure(TimingParameters const & parameters, ImuTiming const & timing) const
     {
@@ -112,7 +115,9 @@ public:
         return m_previous.time_us == 0 && m_fault == Fault::none &&
                configure_timing(parameters, timing, Capacity, candidate);
     }
+
     [[nodiscard]] bool seed(input_type const & sample, std::uint64_t now_us);
+
     /** Read-only admission check; does not latch a fault or acknowledge a source.
      * The caller must retain single-writer ownership through the following push.
      */
@@ -120,6 +125,7 @@ public:
     {
         return m_previous.time_us != 0 && m_fault == Fault::none && admission_fault(sample, now_us) == Fault::none;
     }
+
     [[nodiscard]] bool push(input_type const & sample, std::uint64_t now_us);
 
     /** Latest admitted interval for current-time output propagation; view expires on mutation. */
@@ -132,10 +138,15 @@ public:
     void reset();
 
     TimingConfiguration const & configuration() const { return m_configuration; }
+
     ImuSource const & source() const { return m_previous.source; }
+
     Fault fault() const { return m_fault; }
+
     std::size_t entries() const { return m_samples.entries(); }
+
     std::uint64_t latest_time_us() const { return m_previous.time_us; }
+
     std::uint64_t fusion_time_us() const { return m_fusion_time_us; }
 
 private:

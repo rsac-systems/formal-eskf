@@ -39,12 +39,14 @@ bool same_state(State const & a, State const & b)
     return same_matrix(a.p_n, b.p_n) && same_matrix(a.v_n, b.v_n) && same_matrix(a.b_a, b.b_a) &&
            same_matrix(a.b_g, b.b_g) && same_matrix(a.q_nb.coefficients(), b.q_nb.coefficients());
 }
+
 bool finite_state(State const & s)
 {
     return covariance_oracle::finite_matrix(s.p_n) && covariance_oracle::finite_matrix(s.v_n) &&
            covariance_oracle::finite_matrix(s.b_a) && covariance_oracle::finite_matrix(s.b_g) &&
            covariance_oracle::finite_matrix(s.q_nb.coefficients());
 }
+
 Status validation(State const & s, Covariance const & P, Observation const & observation, Observation const & variance)
 {
     if (!finite_state(s) || !covariance_oracle::finite_matrix(P) || !covariance_oracle::finite_matrix(observation) ||
@@ -52,6 +54,7 @@ Status validation(State const & s, Covariance const & P, Observation const & obs
     {
         return Status::non_finite_input;
     }
+
     Scalar prior[225];
     covariance_oracle::flatten(P, prior);
     bool symmetric = true;
@@ -70,10 +73,12 @@ Status validation(State const & s, Covariance const & P, Observation const & obs
             symmetric = (a == b) && symmetric;
         }
     }
+
     if (!symmetric)
     {
         return Status::domain_error;
     }
+
     for (std::size_t i = 0U; i < 15U; ++i)
     {
         if (prior[16U * i] < Scalar{0})
@@ -81,6 +86,7 @@ Status validation(State const & s, Covariance const & P, Observation const & obs
             return Status::domain_error;
         }
     }
+
     for (std::size_t i = 0U; i < size; ++i)
     {
         if (variance(i) < Scalar{0})
@@ -88,48 +94,59 @@ Status validation(State const & s, Covariance const & P, Observation const & obs
             return Status::domain_error;
         }
     }
+
     return Status::success;
 }
+
 bool selected(std::size_t axis)
 {
     if constexpr (model == 0U)
     {
         return axis < 2U;
     }
+
     if constexpr (model == 1U)
     {
         return axis == 2U;
     }
+
     if constexpr (model == 2U)
     {
         return axis == 2U || axis == 5U;
     }
+
     return axis < 6U;
 }
+
 Scalar floored(Scalar v)
 {
     constexpr Scalar deviation = static_cast<Scalar>(0.01);
     constexpr Scalar floor = deviation * deviation;
     return v < floor ? floor : v;
 }
+
 Scalar expected_diagonal(Scalar prior, Observation const & variance, Scalar horizontal, std::size_t axis)
 {
     if constexpr (model == 0U)
     {
         return floored(horizontal);
     }
+
     if constexpr (model == 1U)
     {
         return floored(variance(0U));
     }
+
     if constexpr (model == 2U)
     {
         return axis == 2U ? prior : floored(variance(0U));
     }
+
     if (axis < 3U)
     {
         return prior;
     }
+
     return floored(variance(axis - 3U));
 }
 
@@ -157,6 +174,7 @@ void verify_navigation_validation(State state, Covariance P, Observation observa
     __ESBMC_assert(same_matrix(P, old_P), "R-GNSS-RESET: validation preserves every covariance coefficient");
     __ESBMC_assert(same_matrix(observation, old_observation), "R-GNSS-RESET: validation preserves the observation");
     __ESBMC_assert(same_matrix(variance, old_variance), "R-GNSS-RESET: validation preserves the variances");
+
     auto const expected = validation(old_state, old_P, old_observation, old_variance);
     __ESBMC_assert(expected == Status::non_finite_input || expected == Status::domain_error ||
                        expected == Status::success,
@@ -181,6 +199,7 @@ struct ValidationCall
     inline static Status status{};
     inline static unsigned count{};
 };
+
 namespace formal_eskf::runtime::detail
 {
 template <>
@@ -192,6 +211,7 @@ inline Status validate_navigation_reset_inputs<Linalg, size>(State const & state
                        same_matrix(P, *ValidationCall::P) && same_matrix(observation, *ValidationCall::observation) &&
                        same_matrix(variance, *ValidationCall::variance),
                    "R-GNSS-RESET: caller validates the complete original request exactly once");
+
     return ValidationCall::status;
 }
 } // namespace formal_eskf::runtime::detail
@@ -214,10 +234,12 @@ void verify_navigation_reset(State state, Covariance P, Observation observation,
     {
         state_pointer = &state;
     }
+
     if constexpr (covariance_alias)
     {
         covariance_pointer = &P;
     }
+
     State & target_state = *state_pointer;
     Covariance & target_P = *covariance_pointer;
     auto const old_target_state = target_state;
@@ -248,6 +270,7 @@ void verify_navigation_reset(State state, Covariance P, Observation observation,
             expected.v_n(i) = observation(i);
         }
     }
+
     Scalar horizontal{0};
     if constexpr (model == 0U)
     {
@@ -268,6 +291,7 @@ void verify_navigation_reset(State state, Covariance P, Observation observation,
     {
         status = Status::non_finite_result;
     }
+
     Status actual;
 #if FORMAL_ESKF_PROOF_NAVIGATION_RESET == 0
     actual = formal_eskf::runtime::reset_gnss_horizontal_position(state, P, observation, variance, target_state,
@@ -286,10 +310,12 @@ void verify_navigation_reset(State state, Covariance P, Observation observation,
     __ESBMC_assert(ValidationCall::count == 1U, "R-GNSS-RESET: validation cannot be skipped");
 #endif
     __ESBMC_assert(actual == status, "R-GNSS-RESET: exact validation and finite-input overflow status");
+
     if (actual == Status::success)
     {
         __ESBMC_assert(same_state(target_state, expected) && same_matrix(delta_output, delta),
                        "R-GNSS-RESET: exact selected nominal coordinates and new-minus-old delta");
+
         Scalar before[225], after[225];
         covariance_oracle::flatten(old_P, before);
         covariance_oracle::flatten(target_P, after);
@@ -300,10 +326,12 @@ void verify_navigation_reset(State state, Covariance P, Observation observation,
         {
             value = Scalar{0};
         }
+
         if (row == column && selected(row))
         {
             value = expected_diagonal(value, old_variance, horizontal, row);
         }
+
         __ESBMC_assert(same(after[15U * row + column], value),
                        "R-GNSS-RESET: every covariance coefficient, complete decoupling and encoded variance floor");
     }
@@ -313,15 +341,19 @@ void verify_navigation_reset(State state, Covariance P, Observation observation,
                            same_matrix(delta_output, old_delta),
                        "R-GNSS-RESET: every failure preserves all three outputs for each legal alias mode");
     }
+
     __ESBMC_assert(same_matrix(observation, old_observation) && same_matrix(variance, old_variance),
                    "R-GNSS-RESET: borrowed observations and variances are unchanged");
+
     if constexpr (!state_alias)
     {
         __ESBMC_assert(same_state(state, old_state), "R-GNSS-RESET: disjoint prior state is unchanged");
     }
+
     if constexpr (!covariance_alias)
     {
         __ESBMC_assert(same_matrix(P, old_P), "R-GNSS-RESET: disjoint prior covariance is unchanged");
     }
 }
+
 int main() { return 0; }

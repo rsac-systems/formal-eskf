@@ -15,34 +15,42 @@ extern void __ESBMC_assert(bool, char const *);
 #define PX4_ERR(...) ((void)0)
 
 #include "module_clipping.inc"
+
 namespace
 {
 #include "module_constants.inc"
+
 struct Vector
 {
     bool finite{};
 };
+
 struct Rates
 {
     Vector specific_force_b{}, angular_rate_b{};
 };
+
 struct Input
 {
     std::uint64_t time_us{};
     std::uint32_t angular_period_us{}, acceleration_period_us{};
     std::uint8_t accelerometer_clipping{}, gyroscope_clipping{};
     Rates rates;
+
     Rates mean_rates() const { return rates; }
 };
+
 struct Observation
 {
     std::uint64_t time_us{}, arrival_time_us{}, residual_delay_us{};
     std::uint32_t half_period_us{};
     unsigned sample{};
 };
+
 std::uint64_t clock_time;
 std::uint64_t admission_clock;
 unsigned clock_reads;
+
 std::uint64_t hrt_absolute_time()
 {
     auto const next = nondet_time();
@@ -55,14 +63,17 @@ std::uint64_t hrt_absolute_time()
     ++clock_reads;
     return next;
 }
+
 struct History
 {
     struct Interval
     {
         Input sample;
     } newest;
+
     bool pushed{}, success{};
     Input const * source{};
+
     bool push(Input const & sample, std::uint64_t now)
     {
         __ESBMC_assert(!pushed && &sample == source && now == clock_time, "History admission uses this current sample");
@@ -73,16 +84,19 @@ struct History
         }
         return success;
     }
+
     Interval const * latest() const
     {
         __ESBMC_assert(pushed && success, "Newest interval is borrowed only after accepted insertion");
         return &newest;
     }
 };
+
 struct Observations
 {
     History * history{};
     bool recorded{}, success{};
+
     bool record_imu(History::interval_type const & interval, unsigned land, unsigned vehicle)
     {
         __ESBMC_assert(history->success && &interval == &history->newest && land == 1 && vehicle == 2,
@@ -91,10 +105,12 @@ struct Observations
         return success;
     }
 };
+
 struct Output
 {
     Observations * observations{};
     bool predicted{}, success{};
+
     bool predict(History::interval_type const & interval)
     {
         __ESBMC_assert(observations->recorded && observations->success && &interval == &observations->history->newest,
@@ -104,6 +120,7 @@ struct Output
     }
 };
 } // namespace
+
 namespace formal_eskf::linalg
 {
 bool all_finite(Vector vector) { return vector.finite; }
@@ -118,26 +135,36 @@ struct Flow
     bool reset{}, quality_called{}, quality_ok{}, initialized{}, healthy{}, validity_called{}, attitude_published{};
     unsigned m_errors{}, m_rejections{}, m_bias_learning_result{1};
     std::uint64_t m_time_us{}, m_imu_context{};
+
     struct Wire
     {
         std::uint64_t timestamp_sample{};
         unsigned identity{};
     } m_gps{0, 3}, m_baro{0, 4};
+
     struct Gnss
     {
         Observation input;
         std::uint64_t context{};
     } m_gnss;
+
     Observation m_barometer;
     History m_imu_history;
     Observations m_observations;
     Output m_output;
+
     std::uint64_t startup_context(std::uint64_t time, std::uint64_t) const { return time; }
+
     unsigned land_state() const { return 1; }
+
     unsigned vehicle_state() const { return 2; }
+
     static unsigned decode_gnss(Wire wire) { return wire.identity; }
+
     static unsigned decode_barometer(Wire wire) { return wire.identity; }
+
     void reset_imu_observations() { reset = true; }
+
     void update_gps_quality()
     {
         __ESBMC_assert(m_imu_context == m_time_us && m_gnss.context == m_gps.timestamp_sample &&
@@ -147,6 +174,7 @@ struct Flow
         quality_called = true;
         m_fault = !quality_ok;
     }
+
     void initialize(Input const & sample, Rates const & rates)
     {
         __ESBMC_assert(quality_called && !m_fault && m_time_us == sample.time_us && rates.specific_force_b.finite &&
@@ -158,10 +186,12 @@ struct Flow
         m_initialized = nondet_bool();
         m_fault = nondet_bool();
     }
+
     struct Validity
     {
         bool healthy{};
     };
+
     Validity output_validity(std::uint64_t now)
     {
         __ESBMC_assert(m_output.predicted && m_output.success && now == clock_time && !m_fault,
@@ -169,11 +199,13 @@ struct Flow
         validity_called = true;
         return {healthy};
     }
+
     void publish_attitude(std::uint64_t now)
     {
         __ESBMC_assert(validity_called && healthy && now == clock_time, "Fast attitude requires a healthy output gate");
         attitude_published = true;
     }
+
     bool check_timing(bool succeeded);
     bool accept_imu(Input const & sample);
     void process_imu(Input const & sample);

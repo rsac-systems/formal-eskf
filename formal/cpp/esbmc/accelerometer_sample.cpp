@@ -30,10 +30,12 @@ using formal_eskf::Status;
 using Sampler = formal_eskf::runtime::AccelerometerSample<Linalg, 10000U>;
 using Vector = Sampler::vector_type;
 using Imu = formal_eskf::ImuSample<Linalg>;
+
 inline bool same_double(double a, double b)
 {
     return (a == b && (a != 0.0 || std::signbit(a) == std::signbit(b))) || (std::isnan(a) && std::isnan(b));
 }
+
 inline bool same_history(Sampler const & a, Sampler const & b)
 {
     return a.m_magnitude.initialized() == b.m_magnitude.initialized() &&
@@ -44,6 +46,7 @@ inline bool same_history(Sampler const & a, Sampler const & b)
            same_double(a.m_target_period_us, b.m_target_period_us) &&
            same_double(a.m_minimum_period_us, b.m_minimum_period_us);
 }
+
 struct Calls
 {
     inline static Vector angle, increment, rotated_prior, rotated_increment;
@@ -71,6 +74,7 @@ inline Status exp<sample_proof::Linalg>(sample_proof::Vector const & angle, samp
     output = Calls::q;
     return Calls::status;
 }
+
 template <>
 inline sample_proof::Vector inverse_rotate<sample_proof::Linalg>(sample_proof::Quaternion const & q,
                                                                  sample_proof::Vector const & vector)
@@ -110,6 +114,7 @@ void verify_sample_initialization(sample_proof::Sampler history)
         same_history(history, fresh),
         "R-ACCELEROMETER-FUSION: reset discards every partial interval, average and magnitude history field");
 }
+
 void verify_sample_inverse_frame(sample_proof::Quaternion q, sample_proof::Vector vector)
 {
     using namespace sample_proof;
@@ -121,6 +126,7 @@ void verify_sample_inverse_frame(sample_proof::Quaternion q, sample_proof::Vecto
     __ESBMC_assert(same_vector(q.coefficients(), old_q.coefficients()) && same_vector(vector, old_vector),
                    "R-ACCELEROMETER-FUSION: actual inverse action preserves both inputs for every IEEE representation");
 }
+
 void verify_sample_integration(sample_proof::Sampler history, sample_proof::Imu imu, sample_proof::Scalar dt,
                                sample_proof::Scalar minimum, sample_proof::Vector output, sample_proof::Quaternion q,
                                sample_proof::Status exp_status, sample_proof::Vector rotated_prior,
@@ -164,4 +170,5 @@ void verify_sample_integration(sample_proof::Sampler history, sample_proof::Imu 
                        same_vector(imu.angular_rate_b, old_imu.angular_rate_b),
                    "R-ACCELEROMETER-FUSION: integration preserves all sample history and both IMU vectors");
 }
+
 int main() { return 0; }

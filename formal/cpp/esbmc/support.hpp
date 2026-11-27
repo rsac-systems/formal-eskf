@@ -27,8 +27,10 @@
 namespace std
 {
 inline float formal_eskf_proof_sqrt(float value) { return std::sqrt(value); }
+
 inline double formal_eskf_proof_sqrt(double value) { return std::sqrt(value); }
 } // namespace std
+
 #define sqrt formal_eskf_proof_sqrt
 
 #include <formal_eskf/linalg/linalg.hpp>
@@ -72,14 +74,18 @@ template <typename Number, std::size_t Size> struct ScalarArray
 {
     Number head;
     ScalarArray<Number, Size - 1U> tail;
+
     ScalarArray() : head{}, tail{} {}
+
     ScalarArray(ScalarArray const & other) : head(other.head), tail(other.tail) {}
+
     ScalarArray & operator=(ScalarArray const & other)
     {
         head = other.head;
         tail = other.tail;
         return *this;
     }
+
     Number & operator[](std::size_t index)
     {
         __ESBMC_assert(index < Size, "proof storage index is in bounds");
@@ -89,6 +95,7 @@ template <typename Number, std::size_t Size> struct ScalarArray
         }
         return tail[index - 1U];
     }
+
     Number const & operator[](std::size_t index) const
     {
         __ESBMC_assert(index < Size, "proof storage index is in bounds");
@@ -103,18 +110,23 @@ template <typename Number, std::size_t Size> struct ScalarArray
 template <typename Number> struct ScalarArray<Number, 1U>
 {
     Number head;
+
     ScalarArray() : head{} {}
+
     ScalarArray(ScalarArray const & other) : head(other.head) {}
+
     ScalarArray & operator=(ScalarArray const & other)
     {
         head = other.head;
         return *this;
     }
+
     Number & operator[](std::size_t index)
     {
         __ESBMC_assert(index == 0U, "proof storage last index is zero");
         return head;
     }
+
     Number const & operator[](std::size_t index) const
     {
         __ESBMC_assert(index == 0U, "proof storage last index is zero");
@@ -125,19 +137,24 @@ template <typename Number> struct ScalarArray<Number, 1U>
 template <typename Number> struct NoNormObserver
 {
     template <std::size_t Size, typename Values> static void input(Values const &) {}
+
     static void result(Number) {}
+
     template <std::size_t Rows, std::size_t Inner, std::size_t Columns, typename Left, typename Right, typename Result>
     static void product(Left const &, Right const &, Result const &)
     {
     }
+
     template <std::size_t Size, typename Left, typename Right, typename Result>
     static void addition(Left const &, Right const &, Result const &)
     {
     }
+
     template <std::size_t Size, typename Values, typename Result>
     static void quotient(Values const &, Number, Result const &)
     {
     }
+
     template <std::size_t Size, typename Values, typename Result>
     static void scaling(Values const &, Number, Result const &)
     {
