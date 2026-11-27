@@ -149,7 +149,8 @@ jobs:
   lean:
     name: Lean
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # Cold proof builds run generated rows sequentially to bound peak memory.
+    timeout-minutes: 60
     env:
       MATHLIB_NO_CACHE_ON_UPDATE: '1'
     steps:
