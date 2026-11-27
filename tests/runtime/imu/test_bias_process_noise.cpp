@@ -32,11 +32,16 @@ template <typename Linalg> struct BiasProcessNoiseFixture
     using vector_type = formal_eskf::linalg::Vector<Linalg, 3U>;
     using noise_type = formal_eskf::configuration::Ins::ProcessNoise<Linalg>;
     using covariance_type = formal_eskf::linalg::Matrix<Linalg, 15U, 15U>;
-    noise_type noise{vector_type::from_row_major({value_type{1}, value_type{2}, value_type{4}}),
-                     vector_type::from_row_major({value_type{0.25}, value_type{0.5}, value_type{1}}),
-                     vector_type::from_row_major({value_type{0.125}, value_type{0.25}, value_type{0.5}}),
-                     vector_type::from_row_major({value_type{0.03125}, value_type{0.0625}, value_type{0.125}})};
+    noise_type noise;
     covariance_type covariance = covariance_type::identity();
+
+    BiasProcessNoiseFixture()
+        : noise{vector_type::from_row_major({value_type{1}, value_type{2}, value_type{4}}),
+                vector_type::from_row_major({value_type{0.25}, value_type{0.5}, value_type{1}}),
+                vector_type::from_row_major({value_type{0.125}, value_type{0.25}, value_type{0.5}}),
+                vector_type::from_row_major({value_type{0.03125}, value_type{0.0625}, value_type{0.125}})}
+    {
+    }
 };
 
 template <typename Matrix> bool same_bits(Matrix const & a, Matrix const & b)

@@ -100,6 +100,14 @@ Use the [CI workflow](../../../.github/workflows/ci.yml) to select the actual
 commands, tool versions and affected compile-time profiles. Derive test oracles
 from the selected mathematical method; do not assume the default formulation also
 applies to an alternate mode or loosen tolerances to hide that mismatch.
+
+For C++ changes, inspect configure, compile and link diagnostics, not just exit
+codes. Build affected GCC/Clang Debug and optimized paths with existing warning
+flags plus `-Werror`, including instantiated backends, examples and disabled-feature
+branches. A default Debug build can miss optimizer- or configuration-specific
+warnings. Fix their causes without broad suppression or removing checks; report
+unavailable build paths explicitly. Keep warning flags private to project targets.
+
 C++ changes need the repository formatting check, including tests and examples.
 Before that check, read complete edited functions using the coding style's
 layout rules: separate logical phases and test scenarios with blank lines,

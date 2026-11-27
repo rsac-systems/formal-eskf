@@ -57,10 +57,17 @@ template <typename Linalg> struct GnssMeasurementFixture
     state_type state{};
     covariance_type P = covariance_type::identity() * value_type{3};
     noise_type V = noise_type::identity();
-    vector_type velocity = vector_type::from_row_major({value_type{0.5}, value_type{-0.5}, value_type{-10}});
+    vector_type velocity;
     value_type gate = value_type{1}; // S=4, limit=2, exactly representable boundaries.
     value_type minimum_norm = static_cast<value_type>(1e-6);
     formal_eskf::runtime::GnssVelocityConditions<value_type> conditions{true, value_type{0.25}, value_type{0.5}};
+
+    GnssMeasurementFixture()
+    {
+        velocity(0U) = value_type{0.5};
+        velocity(1U) = value_type{-0.5};
+        velocity(2U) = value_type{-10};
+    }
 
     auto fuse(state_type & output, covariance_type & output_P, Ins::BiasUpdate const & permissions = {}) const
     {
