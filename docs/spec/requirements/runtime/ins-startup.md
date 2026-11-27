@@ -21,7 +21,9 @@ does not wait for GNSS, barometer or magnetic heading. The staged contract adopt
 independent qualification with this project's Cartesian equations and gravity
 model. The profile adopts selected PX4 prior scales, expressed in this project's
 body-local error coordinates. Numerical continuity is separately owned by
-[R-INS-CONTINUITY](ins-continuity.md); stationary pseudo-updates remain excluded.
+[R-INS-CONTINUITY](ins-continuity.md). The baseline excludes stationary updates;
+the separate [R-ZUPT target](zero-velocity.md) adds an optional post-seed operation
+without changing IMU seed admission or introducing a second startup path.
 
 ## Required behavior
 
@@ -144,4 +146,5 @@ admission. A newly admitted source shall not erase other qualified capabilities.
 The selected priors/filtering and first benign-input accuracy/time criteria are
 bound by the staged profile. Broader motion/noise and mission qualification remain
 open. Existing strict-startup tests and the post-alignment predicate do not
-establish staged startup. No stationary velocity or zero-gyro update is implied.
+establish staged startup. R-ZUPT requires its own running rest/eligibility evidence
+after seeding; startup alone does not authorize it or a zero-gyro update.

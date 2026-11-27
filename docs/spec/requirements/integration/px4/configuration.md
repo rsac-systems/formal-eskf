@@ -56,6 +56,16 @@ period constant. Preserve the current default until its replacement is accepted.
 Frozen timing/extrinsic configuration is distinct from a driver's source or
 calibration event; the latter follows R-IMU-SOURCE without reloading the profile.
 
+### Stationary-update target
+
+The [R-ZUPT target](../../runtime/zero-velocity.md) requires a Kconfig ON/OFF
+selection, default ON, under the existing generated-header and packaged-profile
+path. The [profile](../../../profiles/zero-velocity.md) owns its values and
+dependencies. Explicit OFF must reach every module/test translation unit and
+bypass the operation; ON still requires qualified delayed rest and all eligibility
+checks. Expose effective readback without adding a live parameter or changing
+gravity/bias switches. Current packaging does not yet implement this option.
+
 ### GNSS control target
 
 [R-GNSS-CONTROL](../../runtime/gnss/control.md) permits fusion/check masks to change

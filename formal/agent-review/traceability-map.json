@@ -6965,7 +6965,7 @@
     },
     {
       "id": "R-PX4-STATUS",
-      "title": "PX4 capability, uncertainty, bias, innovation and failure reporting: native/SIH evidence only; staged capabilities have pinned consumer subsets; complete consumer/target and formal source qualification remain open; diagnostic epoch, per-group and completed-update counting target pending; independent bias-stability monitors and PX4 consumer binding are Draft targets with Pending tests",
+      "title": "PX4 capability, uncertainty, bias, innovation and failure reporting: native/SIH evidence only; staged capabilities have pinned consumer subsets; complete consumer/target and formal source qualification remain open; diagnostic epoch, per-group and completed-update counting target pending; independent bias-stability monitors and PX4 consumer binding are Draft targets with Pending tests; selectable default-ON ZUPT composition is a Draft target with Pending tests",
       "references": {
         "spec": [
           {
@@ -7007,6 +7007,34 @@
           {
             "file": "docs/spec/requirements/integration/px4/status.md",
             "symbol": "## Bias-stability target"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/zero-velocity.md",
+            "symbol": "# R-ZUPT:"
+          },
+          {
+            "file": "docs/spec/architecture/zero-velocity.md",
+            "symbol": "# Stationary Zero-Velocity Updates"
+          },
+          {
+            "file": "docs/spec/profiles/zero-velocity.md",
+            "symbol": "# Stationary Zero-Velocity Profile"
+          },
+          {
+            "file": "docs/spec/verification/zero-velocity-tests.md",
+            "symbol": "## Cases"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/ins-session.md",
+            "symbol": "### Stationary zero-velocity target"
+          },
+          {
+            "file": "docs/spec/requirements/integration/px4/status.md",
+            "symbol": "## Stationary-update target"
+          },
+          {
+            "file": "docs/spec/requirements/integration/px4/configuration.md",
+            "symbol": "### Stationary-update target"
           }
         ],
         "lean": [],
@@ -8278,7 +8306,7 @@
     },
     {
       "id": "R-INS-SESSION",
-      "title": "Portable INS session phase composition: native regression and independent fixtures; full symbolic and target evidence remain open; IMU source continuation has native coverage; historical mismatch-rejection proofs require migration; diagnostic-reporting composition target pending; ground-effect event composition target pending; mixed-precision session target is Draft/Pending and is not covered by existing binary64 evidence; IMU accumulation and aggregate prediction are Draft targets with Pending tests, outside existing direct evidence; GNSS selection, independent startup, live controls and logical-stream composition are Draft targets with Pending tests; independent bias-stability monitors and PX4 consumer binding are Draft targets with Pending tests",
+      "title": "Portable INS session phase composition: native regression and independent fixtures; full symbolic and target evidence remain open; IMU source continuation has native coverage; historical mismatch-rejection proofs require migration; diagnostic-reporting composition target pending; ground-effect event composition target pending; mixed-precision session target is Draft/Pending and is not covered by existing binary64 evidence; IMU accumulation and aggregate prediction are Draft targets with Pending tests, outside existing direct evidence; GNSS selection, independent startup, live controls and logical-stream composition are Draft targets with Pending tests; independent bias-stability monitors and PX4 consumer binding are Draft targets with Pending tests; selectable default-ON ZUPT composition is a Draft target with Pending tests",
       "references": {
         "spec": [
           {
@@ -8400,6 +8428,34 @@
           {
             "file": "docs/spec/requirements/integration/px4/status.md",
             "symbol": "## Bias-stability target"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/zero-velocity.md",
+            "symbol": "# R-ZUPT:"
+          },
+          {
+            "file": "docs/spec/architecture/zero-velocity.md",
+            "symbol": "# Stationary Zero-Velocity Updates"
+          },
+          {
+            "file": "docs/spec/profiles/zero-velocity.md",
+            "symbol": "# Stationary Zero-Velocity Profile"
+          },
+          {
+            "file": "docs/spec/verification/zero-velocity-tests.md",
+            "symbol": "## Cases"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/ins-session.md",
+            "symbol": "### Stationary zero-velocity target"
+          },
+          {
+            "file": "docs/spec/requirements/integration/px4/status.md",
+            "symbol": "## Stationary-update target"
+          },
+          {
+            "file": "docs/spec/requirements/integration/px4/configuration.md",
+            "symbol": "### Stationary-update target"
           }
         ],
         "lean": [],
@@ -8558,7 +8614,7 @@
     },
     {
       "id": "R-INS-CONTINUITY",
-      "title": "Bounded staged INS numerical continuity, transported intervention provenance and real-source reset recovery; finite native fixtures, formal and target evidence deferred",
+      "title": "Bounded staged INS numerical continuity, transported intervention provenance and real-source reset recovery; finite native fixtures, formal and target evidence deferred; selectable default-ON ZUPT composition is a Draft target with Pending tests",
       "references": {
         "spec": [
           {
@@ -8576,6 +8632,34 @@
           {
             "file": "docs/spec/verification/tests/runtime/ins-continuity.md",
             "symbol": "## Cases"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/zero-velocity.md",
+            "symbol": "# R-ZUPT:"
+          },
+          {
+            "file": "docs/spec/architecture/zero-velocity.md",
+            "symbol": "# Stationary Zero-Velocity Updates"
+          },
+          {
+            "file": "docs/spec/profiles/zero-velocity.md",
+            "symbol": "# Stationary Zero-Velocity Profile"
+          },
+          {
+            "file": "docs/spec/verification/zero-velocity-tests.md",
+            "symbol": "## Cases"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/ins-session.md",
+            "symbol": "### Stationary zero-velocity target"
+          },
+          {
+            "file": "docs/spec/requirements/integration/px4/status.md",
+            "symbol": "## Stationary-update target"
+          },
+          {
+            "file": "docs/spec/requirements/integration/px4/configuration.md",
+            "symbol": "### Stationary-update target"
           }
         ],
         "lean": [],

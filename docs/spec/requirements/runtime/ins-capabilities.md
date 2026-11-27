@@ -172,6 +172,19 @@ protection is not physical observability; implementation and validation remain
 required. Genuine IMU/history/numerical failures retain the restart-required fault
 contract; silently publishing a stale quaternion is not degraded operation.
 
+### Stationary-update target
+
+[R-ZUPT](zero-velocity.md) reports a conditional stationary correction separately
+from real sensor aiding. Its success shall not itself promote the existing
+position/velocity/heading capability fields or refresh their real-source clocks.
+Retain existing reference, uncertainty and source-loss requirements. Updated
+state/P effects may still change a capability when its independently required
+source/reference conditions hold; do not freeze otherwise valid outputs.
+The stationary-update target grants no new standalone navigation capability.
+Internal continuity separation for that horizon's observed velocity rows is not
+a public navigation-validity grant. Loss of rest stops further ZUPT without undoing a
+previous successful estimate; numerical failure retains the session fault rule.
+
 ## Acceptance and verification
 
 Executable allocation is specified in the [planned staged INS cases](../../verification/staged-ins-tests.md).

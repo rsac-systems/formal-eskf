@@ -147,6 +147,11 @@ processed using an assumed identity mask; skip that guard without declaring its
 numerical protection satisfied. Real coupling/measurement
 correction is unchanged; D applies exclusively to this numerical operation.
 
+When the [R-ZUPT target](zero-velocity.md) succeeds at this horizon, include its
+velocity rows in H_active before this sweep, without granting a navigation
+capability or changing real-source success clocks. On a skipped ZUPT horizon,
+retain the existing policy; this target introduces no extra support timeout.
+
 For each permitted direction i whose variance exceeds its soft trigger L_i,
 using the latest candidate covariance, set:
 

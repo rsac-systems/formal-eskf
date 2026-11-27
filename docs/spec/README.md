@@ -215,6 +215,16 @@ and four [Pending case families](verification/bias-stability-tests.md) allocate
 runtime monitors, PX4 publication and the external calibration boundary. This
 Draft does not establish implemented monitoring or physical bias accuracy.
 
+## Stationary zero-velocity target
+
+[R-ZUPT](requirements/runtime/zero-velocity.md) defines the default-ON selectable
+stationary observation, delayed eligibility and cadence, existing 3D correction
+and failure/output boundaries. The [design](architecture/zero-velocity.md),
+[profile](profiles/zero-velocity.md) and six
+[Pending case families](verification/zero-velocity-tests.md) separate PX4-aligned
+observation policy from retained project numerical/context contracts. This Draft
+does not establish running ZUPT support or physical rest/accuracy qualification.
+
 ## Integration requirements
 
 | ID | Required behavior |

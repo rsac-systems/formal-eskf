@@ -216,6 +216,20 @@ boundaries, and no calibration service is added to the session. The
 [Pending cases](../../verification/bias-stability-tests.md) are required before
 claiming this composition implemented or verified.
 
+### Stationary zero-velocity target
+
+[R-ZUPT](zero-velocity.md) adds one optional default-ON correction phase after
+the existing real-sensor sequence and before continuity/output feedback. The
+session owns historical rest, preceding-cycle qualification, current tilt/aiding
+facts, last-success time and diagnostic outcome under the
+[design](../../architecture/zero-velocity.md). Reuse the existing 3D velocity
+correction and bias permissions. Normal ineligibility skips; numerical failure
+preserves the ZUPT input state/P and follows the existing latched fault contract.
+Earlier successful stages stay committed. No new observation queue, calibration
+service, rest detector or catch-up loop is introduced. The
+[Pending cases](../../verification/zero-velocity-tests.md) must exercise the real
+phase and configuration binding before claiming this target implemented.
+
 ## Acceptance and verification
 
 Compare the same explicit profile/backend/input sequence before and after owner

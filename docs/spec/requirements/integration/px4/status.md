@@ -125,6 +125,18 @@ contract once. Complete the actual caller/consumer cases in the
 disabled automatic calibration, stale messages and source/calibration changes.
 Existing always-false flag tests do not establish this target.
 
+## Stationary-update target
+
+The [R-ZUPT target](../../runtime/zero-velocity.md) shall expose its actual runtime
+outcome and epoch through the existing bounded diagnostic path. The adapter shall
+not fabricate GNSS, external-vision or other source flags, refresh their success
+timestamps, or promote navigation validity solely because ZUPT succeeded.
+Keep existing PX4 topic definitions and capability/fault mapping. In particular,
+current bindings do not implement PX4's optical-flow/airspeed-specific
+expected-in-air support; a standalone ZUPT must not impersonate it. The
+[actual caller/consumer cases](../../../verification/zero-velocity-tests.md) must
+check rest loss, skipped updates and numerical-fault withdrawal independently.
+
 ## Diagnostic-reporting target
 
 The adapter shall consume [R-INS-DIAGNOSTICS](../../runtime/diagnostics.md) owner

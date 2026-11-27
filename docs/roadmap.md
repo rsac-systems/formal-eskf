@@ -319,6 +319,16 @@ source decisions and previously committed stages. Resource qualification uses
 F-07.2; unresolved target budgets are not timing passes. Ground-effect redesign,
 optional stationary updates and local/global output changes remain separate work.
 
+### N5 — Optional stationary updates
+
+| Item | State | Scope / completion criteria |
+|---|---|---|
+| T-05 — Zero-velocity updates | Specification baseline | [Contract/design](spec/architecture/zero-velocity.md) defines the default-ON Kconfig switch, delayed rest/aid eligibility, PX4 cadence/noise and existing joint correction/fault semantics. Implement the session, continuity, packaging and publication binding; complete six Pending case families. Physical false-rest/error bounds, small-variance numerical qualification, target costs and caller proofs remain open. |
+
+Running stationary gyro-bias observations remain separately scoped and unapproved;
+ZUPT does not implicitly add them. Default ON is a target setting, not current
+implementation or evidence of flight qualification.
+
 ### V-01 — Remaining proof boundaries
 
 **Status: Partial.** Scoped core/runtime evidence exists. Close the source,
