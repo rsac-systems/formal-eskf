@@ -30,8 +30,15 @@ clear the histories required by the corresponding child contracts.
 
 ## Decomposition
 
+The target [R-GNSS-CONTROL](../runtime/gnss/control.md) adds session selection
+and caller composition, independent startup/reference handling, bounded live
+controls and the PX4 logical-stream binding. It adds no observation equation or
+partial-packet admission claim. Its implementation/acceptance remains open; existing evidence
+does not establish every proposed selector combination.
+
 | Child requirement | Allocated obligation |
 |---|---|
+| [R-GNSS-CONTROL](../runtime/gnss/control.md) | Target independent supported fusion groups, mandatory admission and selected quality checks. |
 | [R-GNSS-QUALITY](../runtime/gnss/quality.md) | Evaluate receiver checks and qualify continuous health. |
 | [R-GNSS-FUSION](../runtime/gnss/lifecycle.md) | Grant single-use correction/reset permissions and account for actual progress. |
 | [R-GNSS-RESET](../runtime/gnss/reset.md) | Apply checked position/velocity resets and covariance changes. |

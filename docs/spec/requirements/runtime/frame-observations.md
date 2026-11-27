@@ -56,6 +56,13 @@ output prediction shall use the selected new Down-aligned gravity consistently.
 Gravity refresh and heading-only projection are model/directional-policy changes;
 their post-event residuals or decisions are not claimed invariant.
 
+The [GNSS control target](gnss/control.md) permits direction-only velocity
+preparation before a position anchor exists. Its declared axis bases supply A
+without inventing an ECEF translation. Keep the observation-axis covariance and
+per-axis gate meaning above; only real initialization/reset transports the
+measurement prior into working axes. This target needs its own caller/history
+acceptance and does not make global position available.
+
 ## Acceptance and verification
 
 Use nontrivial rotations, translations, partial observations and correlated

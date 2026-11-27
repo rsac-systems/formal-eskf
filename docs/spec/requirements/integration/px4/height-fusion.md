@@ -55,6 +55,17 @@ Bias prediction uses the estimator tick; this is not a bit-identical EKF2 bias c
 The independent acceleration reset predicate remains owned by
 R-GNSS-VERTICAL-RECOVERY, separately from the held fault duration.
 
+### GNSS control target binding
+
+[R-GNSS-CONTROL](../../runtime/gnss/control.md) adds independent GNSS height
+selection and reference-only initialization. Forward separate fusion permission
+and reference eligibility to the height owner. Report actual reference/reset
+changes without setting GNSS height active or manufacturing fusion progress.
+Bind the logical GNSS stream independently of physical receiver provenance;
+retain barometer generation and ordinary height-source fault rules. This target
+qualifies the all-enabled GNSS-preferred baseline above; its
+[composition tests](../../../verification/gnss-control-tests.md) remain Pending.
+
 ### Optional barometric target binding
 
 The adapter shall retain the selected `vehicle_air_data.baro_alt_meter` input,

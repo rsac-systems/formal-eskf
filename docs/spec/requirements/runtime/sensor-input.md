@@ -84,8 +84,12 @@ learning shall not be treated as a driver calibration change. GNSS's current
 binding has no calibration counter and uses zero for that field.
 
 The adapter shall establish availability and identity continuity. It shall not
-invent an arbitrary nonzero ID to admit unavailable or blended GNSS data. Initial
-binding establishes a baseline; later IMU events are owned by
+invent an arbitrary nonzero hardware ID to admit unavailable or blended GNSS data.
+The [GNSS control target](gnss/control.md) adds an explicit logical-stream binding
+for PX4's selected/blended GNSS input, retaining physical identity separately.
+A blend's zero physical ID is not an absent logical stream; the target does not
+relax raw-receiver admission or make physical ID changes stream replacements.
+Initial binding establishes a baseline; later IMU events are owned by
 [R-IMU-SOURCE](imu/source-change.md). Aiding generations, invalidation and
 requalification retain R-OBSERVATION-HISTORY and source-lifecycle ownership.
 The producer binding shall qualify counter reset/wrap and missed-update behavior;

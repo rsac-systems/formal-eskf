@@ -32,6 +32,12 @@ Invoke the portable selection and historical-context operations according to
 consumers. Handle rejection, overwrite, generation change and missing context
 without refreshing fusion/qualification timestamps. Stop on IMU sequence failure.
 
+For the [GNSS control target](../../runtime/gnss/control.md), bind explicit logical
+stream identity and retain physical provenance separately. A selected receiver
+switch or blended physical ID zero does not alone retire the queue generation;
+actual stream replacement does. Keep original timestamps, delayed selection and
+other sensor-generation contracts unchanged.
+
 ## Acceptance and verification
 
 Portable admission, selection, retention, frame and generation obligations belong

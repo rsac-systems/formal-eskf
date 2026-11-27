@@ -73,6 +73,17 @@ is a caller obligation; the current PX4 binding is
 [R-PX4-DELAYED-FUSION](../../integration/px4/delayed-fusion.md). Target storage,
 stack and WCET need separate evidence.
 
+### GNSS logical-stream target
+
+Under [R-GNSS-CONTROL](../gnss/control.md), distinguish declared logical-stream
+identity from available physical GNSS provenance. Source-generation invalidation
+above applies to that logical identity in the PX4 stream binding, not each
+upstream receiver switch. Retain pending observations and ordinary time/age
+admission across a physical switch; do not rewrite their recorded provenance.
+A real stream replacement still retires its old generation. Raw-receiver,
+barometer and magnetic source rules remain unchanged. This target requires new
+caller/storage evidence; current physical-ID checks do not establish it.
+
 ### Protection-event target
 
 [R-BARO-GROUND-EFFECT](../barometer-ground-effect.md) adds an optional event stream,

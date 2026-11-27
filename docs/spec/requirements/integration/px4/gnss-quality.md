@@ -61,6 +61,24 @@ v1.16.2 (`54f0455ffcd755534539a7cf33a09a20bf71d29d`), not moving `main`.
   `R-HEIGHT-FUSION`. Lever-arm preprocessing follows `R-PX4-SENSOR-POSITIONS`;
   no emergency yaw or receiver blending is claimed.
 
+### GNSS control target
+
+[R-GNSS-CONTROL](../../runtime/gnss/control.md) supersedes this baseline's fixed
+fusion/check selectors, shared initialized-frame gate and physical-receiver-ID
+requalification in the target binding. Use independent group readiness, bounded
+live control updates and an explicitly identified `vehicle_gps_position` stream.
+Retain physical receiver provenance, including blended zero ID, without treating
+upstream selection as stream replacement. Real stream discontinuity keeps the
+owned invalidation/requalification policy. Do not reimplement PX4 receiver blending.
+
+Retain this project's effective measurement-time binding, finite-input guards and
+existing noise/gate/lifecycle contracts. GNSS reference acquisition, originless
+velocity and reference-only altitude initialization follow the
+[Cartesian composition design](../../../architecture/gnss-control.md), not an
+unconditional reset of all state/P at first GPS receipt. The
+[Pending acceptance cases](../../../verification/gnss-control-tests.md) require
+actual Run/session/publication evidence; existing baseline results do not close them.
+
 PX4 compilation, existing native runtime tests and closed-loop SITL with quality
 failure, outage and recovery checks are empirical evidence. This adapter has no
 Lean/ESBMC proof and does not establish complete EKF2 equivalence.

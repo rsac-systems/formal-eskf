@@ -196,6 +196,16 @@ The [design](architecture/imu-aggregate-prediction.md),
 PX4 adaptations and qualification gaps. Direct mode remains the default; no
 aggregate implementation or proof is established by these Draft contracts.
 
+## GNSS control target
+
+[R-GNSS-CONTROL](requirements/runtime/gnss/control.md) defines independent fusion
+and quality selection, startup/reference separation, live mask updates and the
+PX4 logical-stream boundary. The [design](architecture/gnss-control.md),
+[profile](profiles/gnss-controls.md) and
+[Pending acceptance cases](verification/gnss-control-tests.md) identify retained
+contracts and implementation gaps. Existing component evidence does not establish
+these new session and adapter paths.
+
 ## Integration requirements
 
 | ID | Required behavior |

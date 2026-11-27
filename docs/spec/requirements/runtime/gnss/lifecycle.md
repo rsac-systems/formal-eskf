@@ -199,3 +199,15 @@ not a completion label in this specification.
 ## Caller bindings
 
 - Replay GNSS lifecycle: [R-REPLAY-GNSS-LIFECYCLE](../../integration/replay/gnss-lifecycle.md).
+
+## GNSS control target
+
+[R-GNSS-CONTROL](control.md) permits live group/check selectors without treating
+every mask update as a full configuration reset. Revoke obsolete permissions at
+the owner boundary; stop disabled groups and preserve estimator state/P. Starting
+again uses this owner's readiness, quality, progress and scoped reset rules.
+The PX4 target's logical-stream identity determines source replacement; a physical
+receiver switch alone does not reset lifecycle history. The two-source height
+owner retains separate authority, including explicitly permitted reference-only
+initialization. Existing standalone source/configuration contracts and proof
+premises are not broadened by this target.

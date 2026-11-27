@@ -40,8 +40,9 @@ Each independent owner retains its own validation. Timing replacement shall
 preflight every participant before changing any owner; rejection preserves the
 previous complete configuration. No seed is permitted without successful timing
 configuration. Settings are copied into their owners, and configuration shall
-not change after the first admitted estimator epoch. Installation/reference
-configuration shall reject non-finite values before assignment.
+not change after the first admitted estimator epoch, except for the explicitly
+bounded GNSS control target below. Installation/reference configuration shall
+reject non-finite values before assignment.
 
 These are domain and consistency checks, not sensor calibration, physical
 noise-model acceptance or target resource qualification. The
@@ -188,6 +189,17 @@ transactions to the selected local scalar. Its
 [acceptance cases](../../verification/navigation-precision-tests.md) remain
 separate from existing binary64 evidence. The deployed baseline stays binary64;
 no component's domain or verification claim is widened by this target alone.
+
+### GNSS control target
+
+[R-GNSS-CONTROL](gnss/control.md) qualifies the current shared navigation-ready
+condition, startup-only control masks and physical-receiver source binding.
+The session shall own independent fusion permissions, live mask application,
+reference acquisition and originless velocity under the
+[GNSS design](../../architecture/gnss-control.md). Preserve single-writer phase
+ownership, explicit frame/output transactions and the existing fault boundary.
+These target compositions require the [Pending cases](../../verification/gnss-control-tests.md);
+current all-enabled session evidence does not establish them.
 
 ## Acceptance and verification
 

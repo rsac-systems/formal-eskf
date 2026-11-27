@@ -14,7 +14,8 @@
 
 ## Required behavior
 
-The deployment configuration is immutable during a module session. Kconfig
+The packaged deployment configuration is immutable during a module session,
+except for the explicitly specified target GNSS control updates below. Kconfig
 selections are validated on the host, translated into numeric compile-time
 definitions in `DeploymentConfig.hpp`, and packaged with their selected `.config`
 and hashes. `DeploymentProfile.hpp` binds them to the existing typed parameters;
@@ -54,3 +55,15 @@ A future rate option shall select a complete validated profile, not just a new
 period constant. Preserve the current default until its replacement is accepted.
 Frozen timing/extrinsic configuration is distinct from a driver's source or
 calibration event; the latter follows R-IMU-SOURCE without reloading the profile.
+
+### GNSS control target
+
+[R-GNSS-CONTROL](../../runtime/gnss/control.md) permits fusion/check masks to change
+at the session's single-owner boundary. The [control profile](../../../profiles/gnss-controls.md)
+owns defaults, encodings and complete-request validation. Bind project-owned live
+parameters through named conversions; Kconfig/startup sets defaults, while accepted
+live values become the effective controls. Reject unsupported requests without
+partially applying them or silently restoring startup values. Retain effective
+readback and actual activity separately. Timing, storage, extrinsics, numerical
+tuning and all other restart-required settings retain the immutable contract.
+This target is not implemented by the current startup-only parameter loader.

@@ -53,11 +53,30 @@ geometry uses ellipsoidal height. MSL conversion separately requires a valid
 paired GNSS datum under R-HEIGHT-DATUM; absent metadata shall not imply zero
 geoid separation or prevent separately supported ellipsoid geometry.
 
+### GNSS control target
+
+[R-GNSS-CONTROL](gnss/control.md) separates pre-alignment geographic-reference
+acquisition from this Cartesian state/history attachment. The former retains
+admitted epoch/provenance but supplies neither aligned axes nor usable global
+position. Attachment still requires the orientation, current measurement and
+transaction premises above. It shall not replay an old retained fix as a new
+measurement. Only enabled subspaces receive measurement resets; established valid
+velocity/height retain their values unless their own reset rules authorize change.
+
+For velocity-only startup, the [GNSS design](../../architecture/gnss-control.md)
+owns an explicit navigation-axis reference without a position anchor. When that
+reference exists, use the proper rotation between the retained and destination
+bases in the transport below, rather than assuming an arbitrary initial yaw gauge.
+The same full-P/history/reset transaction applies. This target adds no fictitious
+ECEF origin and does not change the Cartesian state or gravity model.
+
 ### Representation and measurement effects
 
-For the initial local-level axes, let A be the proper rotation about Down from
-the old horizontal gauge to true North, and let t place the selected old local
-anchor at the new origin. With the corresponding unit quaternion q_A:
+For initially unreferenced local-level axes, let A be the proper rotation about
+Down from the old horizontal gauge to true North. With an established axis
+reference under the target above, A is its full proper basis rotation instead.
+Let t place the selected old local anchor at the new origin. With the corresponding
+unit quaternion q_A:
 
 \[
 p^+=Ap+t,\qquad v^+=Av,\qquad q^+=q_A\otimes q,\qquad

@@ -91,6 +91,13 @@ attitude frame. This does not restore any navigation capability.
 Attitude admission shall use its own IMU/tilt-support conditions, not a GNSS
 no-aid timer. The completed-alignment latch alone is not a current accuracy claim.
 
+The [GNSS control target](gnss/control.md) permits known-axis velocity aiding
+without geographic position attachment and permits geographic-reference storage
+before alignment. Neither fact alone grants global position. Its PX4 logical-stream
+identity, rather than a physical receiver change inside that stream, determines
+source replacement in the transition rules below. Actual stream discontinuity
+retains requalification and generation invalidation.
+
 ### Application acceptance boundary
 
 Runtime shall publish support capabilities and uncertainty diagnostics; the

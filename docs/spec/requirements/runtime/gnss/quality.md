@@ -39,6 +39,17 @@ validity remain open. This monitor does not implement innovation gating,
 source-specific fusion lifecycle, stationary-motion detection or jamming detection.
 See the [verification scope](../../../../guides/verification.md).
 
+## Live GNSS control target
+
+[R-GNSS-CONTROL](control.md) qualifies the configuration/source reset rule for
+its target session: a quality-mask-only update preserves filters, historical
+qualification and health times, applying the new participation mask to subsequent
+selected samples. In the PX4 binding, receiver identity within one continuous
+logical stream is provenance, not a monitor-reset event. Real stream replacement,
+unsupported configuration/continuity changes and existing mandatory numerical
+rejection retain their owned responses. Existing proof profiles retain their
+original parameter/caller scope; these compositions need separate acceptance.
+
 ## Caller bindings
 
 - Replay GNSS quality: [R-REPLAY-GNSS-QUALITY](../../integration/replay/gnss-quality.md).

@@ -163,6 +163,11 @@ eligibility and success must still be established by the runtime logic.
 
 ## PX4 binding
 
+The [GNSS control target](../spec/profiles/gnss-controls.md) separately defines
+live fusion/check-mask updates and effective readback. That target is not supplied
+by the current startup-only loader below; it leaves other settings frozen and
+requires new caller/configuration acceptance before being advertised.
+
 ### Existing startup parameters: 15 definitions
 
 Source: [formal_eskf_params.c](../../integrations/px4/module/formal_eskf_params.c).

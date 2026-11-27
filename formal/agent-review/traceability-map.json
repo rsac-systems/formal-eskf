@@ -8230,7 +8230,7 @@
     },
     {
       "id": "R-INS-SESSION",
-      "title": "Portable INS session phase composition: native regression and independent fixtures; full symbolic and target evidence remain open; IMU source continuation has native coverage; historical mismatch-rejection proofs require migration; diagnostic-reporting composition target pending; ground-effect event composition target pending; mixed-precision session target is Draft/Pending and is not covered by existing binary64 evidence; IMU accumulation and aggregate prediction are Draft targets with Pending tests, outside existing direct evidence",
+      "title": "Portable INS session phase composition: native regression and independent fixtures; full symbolic and target evidence remain open; IMU source continuation has native coverage; historical mismatch-rejection proofs require migration; diagnostic-reporting composition target pending; ground-effect event composition target pending; mixed-precision session target is Draft/Pending and is not covered by existing binary64 evidence; IMU accumulation and aggregate prediction are Draft targets with Pending tests, outside existing direct evidence; GNSS selection, independent startup, live controls and logical-stream composition are Draft targets with Pending tests",
       "references": {
         "spec": [
           {
@@ -8308,6 +8308,26 @@
           {
             "file": "docs/spec/requirements/runtime/ins-session.md",
             "symbol": "## IMU accumulation target"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/gnss/control.md",
+            "symbol": "# R-GNSS-CONTROL:"
+          },
+          {
+            "file": "docs/spec/architecture/gnss-control.md",
+            "symbol": "# GNSS Control and Reference Composition"
+          },
+          {
+            "file": "docs/spec/profiles/gnss-controls.md",
+            "symbol": "# GNSS Control Profile"
+          },
+          {
+            "file": "docs/spec/verification/gnss-control-tests.md",
+            "symbol": "## Cases"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/ins-session.md",
+            "symbol": "### GNSS control target"
           }
         ],
         "lean": [],

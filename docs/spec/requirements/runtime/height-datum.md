@@ -49,6 +49,12 @@ held separation at a different time/location is established by the adapter's
 declared datum envelope, not by a successful arithmetic conversion. No new GNSS
 sample is required at the instant of a coordinate rebase when that premise holds.
 
+The [GNSS control target](gnss/control.md) keeps this conversion path independent
+of fusion selection. An admitted paired-height update does not require a GNSS
+fusion permission or the fusion-quality latch. It shall not establish geographic
+attachment, initialize navigation height or refresh aiding. The adapter must still establish this owner's datum/input
+premises; independence from fusion masks does not bypass validation.
+
 ## Acceptance and verification
 
 Exercise first-sample initialization, irregular intervals, both separation signs,

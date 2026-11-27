@@ -67,6 +67,12 @@ unshifted context, keeps provenance for other consumers and defaults the feature
 OFF. Native producer/caller bindings are recorded in the ground-effect test
 allocation; source proofs and physical/target qualification remain separate.
 
+The [GNSS control target](gnss-control.md) qualifies startup-only fusion/check
+masks and physical-receiver identity handling. The adapter accepts one upstream
+selected/blended stream; it does not acquire receiver-selection responsibility.
+Runtime owns live mask application and independent startup/reference conditions.
+Other configuration and timing/resource boundaries remain unchanged.
+
 ## Requirement allocation
 
 | Responsibility | Contract |

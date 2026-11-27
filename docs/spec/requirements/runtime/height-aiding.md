@@ -130,6 +130,19 @@ requires consumers to clear their corresponding reporting history. Reset reports
 shall accumulate multiple reset deltas in one tick. Height validity includes
 fusion-timeout equality after actual fusion/reset and is distinct from source activity.
 
+### GNSS control target
+
+[R-GNSS-CONTROL](gnss/control.md) adds independent GNSS height enablement while
+retaining barometer/reference coordination. Its clause 4 qualifies unconditional
+GNSS start/re-entry above: disabled height receives no ordinary correction or
+recovery reset, but may initialize an absent altitude reference under that
+clause's explicit conditions. Commit real covariance, source-offset, history and
+reset-notification effects without setting GNSS height active or advancing its
+fusion clock. Do not repeat initialization once the reference exists. Logical
+GNSS stream identity, not upstream physical receiver selection alone, controls
+source replacement in this target. Existing height proofs do not establish the
+new selector/reference-only caller composition.
+
 ### Optional ground-effect composition
 
 Under [R-BARO-GROUND-EFFECT](barometer-ground-effect.md), consume the session's
