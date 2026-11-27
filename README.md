@@ -19,11 +19,10 @@ sudo apt install git build-essential cmake libeigen3-dev python3
 git clone https://github.com/recos-dev/formal-eskf.git
 cd formal-eskf
 cmake -S . -B build/demo -DBUILD_TESTING=ON -DFORMAL_ESKF_BUILD_EXAMPLES=ON
-cmake --build build/demo --parallel 2
-./build/demo/ins_runtime
+cmake --build build/demo --parallel "$(nproc)"
 ```
 
-The example uses synthetic stationary data; no dataset is needed. Run the tests:
+Run the tests:
 
 ```bash
 python3 scripts/verify_tests.py --build-dir build/demo --no-build --ctest
