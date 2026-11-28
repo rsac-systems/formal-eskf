@@ -86,6 +86,7 @@ typename InsSession<Linalg, Layout>::Diagnostics InsSession<Linalg, Layout>::dia
 {
     Diagnostics view;
     view.session_id = m_session_id;
+    view.configuration = configuration();
     view.capture_time_us = now_us;
     view.output_time_us = m_output.current().time_us;
     view.covariance_time_us = m_covariance_time_us;

@@ -72,8 +72,7 @@ Bindings shall preserve explicit user selections and settled defaults. The exist
 session baseline remains binary64/direct 250 Hz, generated INS arithmetic, exact attitude
 prediction/reset, magnetic tilt protection ON and ground-effect protection OFF.
 Other implemented defaults remain with the configuration inventory and owning
-profiles. The [ZUPT target](zero-velocity.md) is default ON when implemented;
-it shall not be described as already available.
+profiles. The implemented [ZUPT option](zero-velocity.md) defaults ON.
 
 Shared algorithm selections shall reach the library and declared module/replay
 builds. PX4-only deployment settings shall not silently retune replay, which retains
@@ -117,7 +116,7 @@ and recorded identity shall not be presented as physical or target qualification
 
 ## Acceptance and verification
 
-The four [Pending case families](../../verification/navigation-configuration-tests.md)
+The four [case families](../../verification/tests/runtime/navigation-configuration.md)
 allocate all six clauses to build, component and actual caller tests. Reuse existing
 Kconfig negative tests and GNSS/output acceptance families; verify effective values,
 consumer behavior and unchanged-on-failure state, not only generated text or flags.

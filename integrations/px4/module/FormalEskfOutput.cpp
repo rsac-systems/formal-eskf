@@ -616,6 +616,12 @@ int FormalEskf::print_status()
              (unsigned long long)snapshot.gravity_samples, (unsigned long long)snapshot.gravity_corrections,
              (unsigned long long)snapshot.gravity_interval_us);
     auto const & report = snapshot.session;
+    auto const & config = report.configuration;
+    PX4_INFO("config: id=%016llx revision=%llu controls=%llu after_fusion_us=%llu rejected=%llu frozen=%u error=%s",
+             (unsigned long long)config.id, (unsigned long long)config.revision,
+             (unsigned long long)config.controls_revision, (unsigned long long)config.controls_after_fusion_us,
+             (unsigned long long)config.rejections, unsigned(config.frozen),
+             config.error != nullptr ? config.error : "none");
     PX4_INFO("session=%llu phase=%u failing_operation=%u; GNSS evaluated=%u sample=%llu evaluation=%llu",
              (unsigned long long)report.session_id, unsigned(report.phase), unsigned(report.failure_operation),
              unsigned(report.gnss_quality_evaluated), (unsigned long long)report.gnss_quality_epoch.selection_time_us,

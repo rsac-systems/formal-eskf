@@ -66,7 +66,8 @@ def cmake_settings(CONFIG, KCONFIGLIB):
     if ERRORS:
         raise ValueError("\n".join(ERRORS))
     BACKEND = "px4_matrix" if CONFIG.syms["REPLAY_PX4_MATRIX"].str_value == "y" else "eigen"
-    SETTINGS["FORMAL_ESKF_REPLAY_BACKEND"] = ("STRING", BACKEND)
+    if CONFIG.syms["FORMAL_ESKF_BUILD_EXAMPLES"].str_value == "y":
+        SETTINGS["FORMAL_ESKF_REPLAY_BACKEND"] = ("STRING", BACKEND)
     return SETTINGS
 
 

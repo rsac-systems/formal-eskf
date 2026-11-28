@@ -339,7 +339,7 @@ flight qualification.
 
 | Task | Status | Completion boundary |
 |---|---|---|
-| <a id="t-07"></a>T-07 — Configuration | Specification baseline | [Contract/design](spec/architecture/navigation-configuration.md) defines complete startup validation, unchanged defaults, bounded live GNSS controls and effective identity through existing owners. Implement/qualify package, startup and diagnostic consumers using four Pending test families; retain separate replay settings and feature-owned bindings. Physical tuning and target qualification remain separate. |
+| <a id="t-07"></a>T-07 — Configuration | Implemented; software acceptance | Composed startup validation, frozen settings, accepted GNSS control receipts, package/replay identity and native/adapter [tests](spec/verification/tests/runtime/navigation-configuration.md). Physical tuning and target qualification remain separate. |
 
 <a id="t-08"></a>
 

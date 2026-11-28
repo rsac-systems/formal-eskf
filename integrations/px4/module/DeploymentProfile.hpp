@@ -13,6 +13,9 @@
 #include <formal_eskf/runtime/sensors/gnss/gnss_quality.hpp>
 
 #include "DeploymentConfig.hpp"
+#ifndef ESKF_CFG_CONFIGURATION_ID
+#define ESKF_CFG_CONFIGURATION_ID 0ULL
+#endif
 #include <formal_eskf/runtime/sensors/magnetic/magnetic_field.hpp>
 #include <formal_eskf/runtime/sensors/magnetic/magnetometer_lifecycle.hpp>
 
@@ -370,6 +373,7 @@ template <typename Session> typename Session::Parameters session_parameters(std:
 {
     typename Session::Parameters result;
     result.session_id = session_id;
+    result.configuration_id = ESKF_CFG_CONFIGURATION_ID;
     result.continuity = {.position_variance_limit = 1e6,
                          .velocity_variance_limit = 1e6,
                          .heading_variance_limit = 0.09,

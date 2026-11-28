@@ -20,6 +20,8 @@ namespace formal_eskf::runtime
 /** Independent observations; disabled groups still retain cross-covariance effects. */
 struct GnssFusionSelection
 {
+    bool operator==(GnssFusionSelection const &) const = default;
+
     bool horizontal_position = true;
     bool height = true;
     bool velocity = true;
@@ -29,6 +31,8 @@ struct GnssFusionSelection
 
 struct GnssControls
 {
+    bool operator==(GnssControls const &) const = default;
+
     GnssFusionSelection fusion{};
     GnssQualityChecks checks{true, true, true, true, true, true, true, true, true, true};
 };

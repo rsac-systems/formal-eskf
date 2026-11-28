@@ -293,7 +293,8 @@ public:
 
     struct Parameters
     {
-        std::uint64_t session_id{}; // Caller-owned instance identity; zero explicitly means unavailable.
+        std::uint64_t session_id{};       // Caller-owned instance identity; zero explicitly means unavailable.
+        std::uint64_t configuration_id{}; // Caller-owned profile/evidence identity; zero means unavailable.
         InsSettings<value_type> settings{};
         GeographicPrecision geographic_precision{};
         typename types_type::parameter_type estimator{};
@@ -309,6 +310,13 @@ public:
         GnssQualityParameters<value_type> gnss_quality{};
         GnssFusionSelection gnss_fusion{};
         std::uint64_t magnetic_lookup_interval_us{};
+    };
+
+    struct Configuration
+    {
+        std::uint64_t id{}, revision{}, controls_revision{}, controls_after_fusion_us{}, rejections{};
+        char const * error{}; // Static setting/relation name from the last rejected request; nullptr on acceptance.
+        bool ready{}, frozen{};
     };
 
     struct ContextInput
@@ -428,6 +436,7 @@ public:
         unsigned local_scalar_bits = sizeof(value_type) * 8;
         unsigned geographic_scalar_bits = sizeof(double) * 8;
         std::uint64_t session_id{}, capture_time_us{}, output_time_us{}, covariance_time_us{}, completed_fusion_us{};
+        Configuration configuration{};
         std::uint64_t frame_epoch{}, evaluations{}, predictions{}, output_predictions{}, faults{}, imu_admissions{};
         std::uint64_t imu_rejections{}, imu_raw_time_us{}, imu_arrival_time_us{}, lag_us{};
         typename bias_stability_type::State accelerometer_stability{}, gyroscope_stability{};
@@ -489,6 +498,14 @@ public:
     [[nodiscard]] bool configure_sensor_positions(SensorPositions const & positions);
 
     [[nodiscard]] bool startup_valid() const { return m_parameters_valid; }
+
+    Configuration configuration() const
+    {
+        auto result = m_configuration;
+        result.ready = m_configured && m_parameters_valid && !m_fault;
+        result.frozen = m_time_us != 0;
+        return result;
+    }
 
     // One writer supplies coherent snapshots; complete a pending phase before admitting another IMU.
     void process_imu(ImuInput const & sample, std::uint64_t arrival_us, ContextInput const & context);
@@ -603,7 +620,7 @@ public:
     /** Live pair, accepted only between completed events. No health or estimator reset. */
     [[nodiscard]] bool configure_gnss(GnssControls const & controls);
 
-    bool gnss_controls_ready() const { return !m_fault && m_phase == Phase::idle; }
+    bool gnss_controls_ready() const { return m_parameters_valid && !m_fault && m_phase == Phase::idle; }
 
     bool fault() const { return m_fault; }
 
@@ -632,7 +649,15 @@ public:
     OutputValidity output_validity(std::uint64_t now) const;
 
 private:
-    static bool valid_parameters(Parameters const & parameters);
+    static char const * parameter_error(Parameters const & parameters);
+
+    bool reject_configuration(char const * error)
+    {
+        m_configuration.error = error;
+        ++m_configuration.rejections;
+        return false;
+    }
+
     static constexpr double seconds_per_microsecond = 1e-6;
     static constexpr double microtesla_per_gauss = 100.;
 
@@ -753,6 +778,7 @@ private:
 
     std::uint64_t m_time_us{};
     bool m_initialized{}, m_fault{}, m_parameters_valid{}, m_configured{};
+    Configuration m_configuration{};
     bool m_msl_initialized{};
     std::uint64_t m_seed_time_us{};
     std::uint32_t m_heading_reference_id{};

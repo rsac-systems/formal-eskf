@@ -83,6 +83,10 @@ def collect_sources(CONFIG):
         CONFIG_DATA = CONFIG.read_bytes()
         FILES[f"{MODULE}/DeploymentConfig.hpp"] = configure_module(REPO_DIR, CONFIG_DATA)
         FILES[f"{MODULE}/configuration.config"] = CONFIG_DATA
+    PROFILE_HASH = digest(FILES[f"{MODULE}/DeploymentConfig.hpp"])
+    PROFILE_ID = PROFILE_HASH[:16]
+    FILES[f"{MODULE}/DeploymentConfig.hpp"] += (
+        f"\n#define ESKF_CFG_CONFIGURATION_ID 0x{PROFILE_ID}ULL\n".encode())
     for FILE in sorted((REPO_DIR / "include/formal_eskf").rglob("*")):
         if FILE.is_file() and FILE.suffix in HEADER_SUFFIXES and not FILE.name.startswith("."):
             FILES[f"{MODULE}/core/include/{FILE.relative_to(REPO_DIR / 'include').as_posix()}"] = FILE.read_bytes()
@@ -96,6 +100,8 @@ def collect_sources(CONFIG):
         "formal_eskf_commit": REVISION.stdout.decode().strip() if REVISION.returncode == 0 else None,
         "formal_eskf_dirty": bool(STATUS.stdout) if STATUS.returncode == 0 else None,
         "patch_sha256": digest(PATCH),
+        "configuration_sha256": PROFILE_HASH,
+        "configuration_id": PROFILE_ID,
         "files": {NAME: digest(DATA) for NAME, DATA in sorted(FILES.items())},
     }
     return MANIFEST, FILES, PATCH

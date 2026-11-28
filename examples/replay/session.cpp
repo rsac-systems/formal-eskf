@@ -69,11 +69,34 @@ struct Configuration
     bool model_provider{};
 };
 
+// Host-only identity of the exact input settings bytes. This is not authentication;
+// the runner retains SHA-256 settings/binary identities with the execution result.
+std::uint64_t settings_identity(std::filesystem::path const & input)
+{
+    std::ifstream stream(input / "settings.csv", std::ios::binary);
+    if (!stream)
+    {
+        throw std::runtime_error("cannot identify replay settings");
+    }
+    std::uint64_t value = 14695981039346656037ULL;
+    char byte{};
+    while (stream.get(byte))
+    {
+        value = (value ^ static_cast<unsigned char>(byte)) * 1099511628211ULL;
+    }
+    if (!stream.eof())
+    {
+        throw std::runtime_error("cannot read replay settings identity");
+    }
+    return value;
+}
+
 Configuration configuration(std::filesystem::path const & input, bool kitti_prior)
 {
     auto settings = read_settings(input);
     Configuration result;
     auto & p = result.parameters;
+    p.configuration_id = settings_identity(input);
     auto & s = p.settings;
     result.model_provider = metadata_integer(take(settings, "model_provider"), 0, 1) != 0;
     result.magnetic = {metadata_integer(take(settings, "model_heading"), 0, 1) != 0,
@@ -609,6 +632,8 @@ void replay_session(std::filesystem::path const & input, std::filesystem::path c
             << "  \"initialized_at_us\": " << seed_time << ",\n  \"tilt_aligned_at_us\": " << tilt_time
             << ",\n  \"heading_available_at_us\": " << heading_time
             << ",\n  \"navigation_available_at_us\": " << navigation_time
+            << ",\n  \"configuration_id\": " << final.configuration.id
+            << ",\n  \"configuration_revision\": " << final.configuration.revision
             << ",\n  \"predictions\": " << stats.predictions
             << ",\n  \"gravity_corrections\": " << session->gravity().corrections
             << ",\n  \"magnetic_corrections\": " << session->magnetic_state().corrections

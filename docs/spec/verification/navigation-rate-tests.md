@@ -40,7 +40,7 @@ Pending rather than manufacturing a pass from the current implementation.
 The five IDs are families spanning normal, boundary, failure and recovery
 partitions, not five executions or a coverage percentage. Reuse
 [sensor-input cases](sensor-input-tests.md),
-[configuration cases](navigation-configuration-tests.md) and
+[configuration cases](tests/runtime/navigation-configuration.md) and
 [output cases](tests/runtime/navigation-output.md) for existing behavior; add the rate and
 target partitions here rather than duplicating their policy state machines.
 

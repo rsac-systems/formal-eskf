@@ -244,7 +244,7 @@ tracker or current covariance and does not establish implementation acceptance.
 dependency/startup validation, defaults, the bounded live GNSS exception and
 identifiable effective configuration. The [design and PX4 comparison](architecture/navigation-configuration.md)
 retain existing owners and make deliberate differences explicit. Four
-[Pending test families](verification/navigation-configuration-tests.md) cover
+[Pending test families](verification/tests/runtime/navigation-configuration.md) cover
 build/startup and actual consumer behavior; existing tool checks are not full
 configuration acceptance. The [inventory](../guides/configuration.md) records
 implemented options separately from these targets.

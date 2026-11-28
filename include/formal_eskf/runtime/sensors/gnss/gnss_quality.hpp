@@ -15,6 +15,8 @@ namespace formal_eskf::runtime
 /** Named check selections and failure diagnostics. */
 struct GnssQualityChecks
 {
+    bool operator==(GnssQualityChecks const &) const = default;
+
     bool satellites = false;
     bool pdop = false;
     bool horizontal_accuracy = false;

@@ -87,7 +87,7 @@ where an accepted live GNSS request becomes effective. Parameter storage/arrival
 alone shall not imply application by the estimator. Preserve existing PX4 messages
 and logging responsibilities; no new standard uORB configuration field is assumed.
 
-The [configuration test families](../../../verification/navigation-configuration-tests.md)
+The [configuration test families](../../../verification/tests/runtime/navigation-configuration.md)
 require real package/startup/consumer bindings and separate effective settings from
 fusion status. GNSS/output tests retain stop/recovery/reset-consumer acceptance.
 The [pinned comparison](../../../architecture/navigation-configuration.md#pinned-px4-comparison)

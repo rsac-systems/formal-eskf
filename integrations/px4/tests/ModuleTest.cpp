@@ -5427,10 +5427,20 @@ public:
         expect(session.m_navigation_frame.initialized() && session.m_gnss.quality_result.qualified,
                "enabling position attaches qualified GNSS navigation");
         auto const seed = session.m_seed_time_us;
+        auto const configuration = session.configuration();
+        expect(configuration.ready && configuration.frozen && configuration.id == ESKF_CFG_CONFIGURATION_ID &&
+                   configuration.id != 0,
+               "compiled package identity reaches the accepted session");
         for (int32_t mask = 0; mask < 8; ++mask)
         {
+            auto const previous = session.configuration();
             request(mask, 1023);
             advance(500);
+            auto const accepted = session.configuration();
+            expect(accepted.id == previous.id && accepted.controls_revision == previous.controls_revision + 1 &&
+                       accepted.controls_after_fusion_us >= previous.controls_after_fusion_us &&
+                       accepted.controls_after_fusion_us <= session.diagnostics(clock_us).completed_fusion_us,
+                   "live requested pair has a distinct receipt at an actual completed event");
             auto const controls = session.gnss_controls();
             expect(controls.fusion.horizontal_position == bool(mask & 1) && controls.fusion.height == bool(mask & 2) &&
                        controls.fusion.velocity == bool(mask & 4),

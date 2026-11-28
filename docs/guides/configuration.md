@@ -1,16 +1,10 @@
 # Configuration inventory and ownership
 
-F-06.2 configuration reference. This records implemented choices from numerical
-foundations through core, runtime and PX4. Kconfig now exposes build options and a packaged PX4
-deployment profile while preserving defaults. Replay retains its separate
-settings. Remaining configuration work is [F-06.2 in the roadmap](../roadmap.md#f-06--diagnostics-and-configuration).
-
-The [configuration target](../spec/requirements/runtime/navigation-configuration.md)
-and its [PX4 comparison](../spec/architecture/navigation-configuration.md) govern
-extensions to this implemented inventory. Live GNSS masks, complete startup
-transaction acceptance and correlated effective-identity reporting remain targets;
-the current PX4 parameter loader is startup-only. ZUPT is a reviewed default-ON
-target, not an implemented switch.
+This inventory maps numerical, runtime and deployment settings to their owners.
+Kconfig exposes build options and a packaged PX4 profile; replay retains separate
+settings. The [configuration contract](../spec/requirements/runtime/navigation-configuration.md)
+and [design](../spec/architecture/navigation-configuration.md) own validation,
+startup freezing, the live GNSS exception and accepted configuration receipts.
 
 ## Scope and interpretation
 
@@ -26,7 +20,7 @@ been tested. Arrays and aggregates below are named settings, not scalar counts.
 | Kind | Meaning and owner | Change boundary |
 | --- | --- | --- |
 | Build choice | Scalar/backend, state formulation, algorithm switch, reserved capacity; selected by the embedding build | Rebuild and configuration-specific verification |
-| Session setting | Noise, gate, installation, qualification/timing policy; supplied by caller/module | Core operations consume arguments; stateful runtime owners may require reset. PX4 settings are startup-only |
+| Session setting | Noise, gate, installation, qualification/timing policy; supplied by caller/module | Core operations consume arguments; stateful runtime owners may require reset. PX4 settings freeze at startup except the complete GNSS fusion/check pair |
 | Per-call input/control | Actual measurement/covariance, clipping, health, alignment, source identity, fusion permission | Supplied at the correct sample horizon; never a menu setting that fabricates sensor health |
 | Fixed behavior | Frame conventions, numerical branches, supported reset/gating rules and protocol meanings | Design/specification change; not ordinary tuning |
 | Derived value | Discrete noise, gains, history lengths, thresholds derived from another setting | Compute from the owning setting; do not expose a second independent knob |
@@ -116,7 +110,7 @@ All floating inputs still require their operation's finite/arithmetic checks.
 | Same: `accelerometer_enabled`, `gyroscope_enabled` | true, true | Both true; these control correction permissions, not the independent process-noise inhibition rule |
 | `select_imu_process_noise` argument `fault_variance` | Explicit variance in m²/s⁴, finite ≥0; replaces selected axes, even if lower than the nominal value | 4.9²; not an additive variance or a density |
 | `BiasLimits.accelerometer`, `.gyroscope` | 0; m/s² and rad/s; finite ≥0, zero forces zero bias | Per-axis bounds 0.4 / 0.15 by default; menu selects one bound per bias type |
-| [GnssQualityParameters](../../include/formal_eskf/runtime/sensors/gnss/gnss_quality.hpp): `enabled_checks` | Ten selectors listed below; all true in the parameter aggregate | Module uses the runtime defaults; change requires monitor reset/requalification |
+| [GnssQualityParameters](../../include/formal_eskf/runtime/sensors/gnss/gnss_quality.hpp): `enabled_checks` | Ten selectors listed below; all true in the parameter aggregate | Module binds the named live GNSS check mask; changes preserve prior quality history under R-GNSS-CONTROL |
 | `minimum_satellites`, `maximum_pdop` | 6 satellites, 2.5; satellite field is uint8, PDOP positive normal finite | Same; configurable quality policy, not mandatory fix validity |
 | `maximum_horizontal_accuracy`, `maximum_vertical_accuracy`, `maximum_speed_accuracy` | 3 m, 5 m, 0.5 m/s (standard deviations); positive normal finite | Same; speed limit is also used by the bounded vertical-innovation exception |
 | `maximum_horizontal_drift`, `maximum_vertical_drift`, `velocity_limit` | 0.1, 0.2, 100 m/s; positive normal finite with overflow/underflow checks | Same; drift limits also bound stationary speed checks |
@@ -263,7 +257,7 @@ read `.config`. The PX4 installer uses the menu only with explicit `--config`;
 otherwise it uses checked-in defaults. A configured package records the config
 and generated header in its manifest and is self-contained after export.
 Changing source/configuration requires reinstall/rebuild; startup parameters
-require restart. Replay retains its existing macros and tuning.
+require restart except the reviewed live GNSS pair. Replay retains its existing macros and tuning.
 
 ## Verification and review boundary
 
@@ -292,14 +286,13 @@ startup parameter does not automatically extend that evidence to a deployment.
 
 Acceptance for parameter binding: unchanged defaults, actual conversion into
 each consumer, invalid/NaN/infinite/boundary/cross-constraint rejection before
-estimation, no live mutation before restart, and affected integration tests.
+estimation, frozen startup values and the owned live GNSS boundary, and affected integration tests.
 Then identify numerical/proof/resource gaps for new supported combinations.
 No new proof pass or flight qualification is claimed by this documentation.
 
 Review focus: ownership split, candidate versus fixed groups, noise units,
 coupled settings, restart semantics and the standalone menu's build boundary.
-Remaining F-06.2 decisions concern additional startup bindings and supported
-profiles, not whether the listed build-profile controls reach the module.
+New profile qualification remains separate from configuration validity.
 
 ## Source of truth
 
@@ -324,3 +317,21 @@ The shared `ESKF_ZUPT` build choice defaults ON. It controls the INS stationary
 zero-velocity phase; PX4 packages retain the same choice as host runtime targets.
 The [profile](../spec/profiles/zero-velocity.md) owns fixed cadence and variance
 settings. No live selector or tuning of those constants is introduced.
+
+## Configuration acceptance allocation
+
+| Setting family | Responsible validation / consumer | Executable coverage owner |
+|---|---|---|
+| Build, dependency and algorithm choices | CMake/Kconfig/package generator; target definitions | `test_kconfig.py`, algorithm/backend CTests |
+| Timing, storage and cross-owner relations | Session preflight; history, observations, output and height | `test_ins_configuration.cpp`, `test_navigation_configuration.cpp`, history/output cases |
+| Numerical and observation domains | Typed owner constructors and session startup; existing core operations | Configuration, precision, GNSS/height/magnetic component cases |
+| Frozen installation, gravity and magnetic settings | Session setters and actual admission/measurement consumers | Session configuration, lever-arm and sensor-fusion cases |
+| GNSS live pair and effective identity | Idle session boundary; quality/lifecycle and PX4 Run | `test_gnss_controls.cpp`, `test_navigation_configuration.cpp`, actual PX4 `gnss_controls` |
+| Recorded profile/build identity | Package manifest and host replay summary; bounded runtime receipt | Kconfig/package and replay session tests |
+
+This allocation identifies owners, not exhaustive qualification of every parameter
+value or Cartesian product. A caller using typed parameters supplies and retains
+its own immutable profile record keyed by `configuration_id`; zero explicitly
+means unavailable. The accepted revision and control revision identify subsequent
+accepted calls. Keep the actual live GNSS values alongside that receipt. Physical
+noise/tuning and target resource claims need their own evidence.

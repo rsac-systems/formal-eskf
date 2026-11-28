@@ -3,6 +3,7 @@
 
 import argparse
 import csv
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -66,6 +67,11 @@ class ReplaySession(unittest.TestCase):
     def test_standard_startup_and_magnetic_loss(self):
         LOG = stationary_log()
         SUMMARY, STATUS, STATE = self.run_session(LOG)
+        self.assertGreater(SUMMARY["configuration_id"], 0)
+        self.assertGreater(SUMMARY["configuration_revision"], 0)
+        self.assertEqual(SUMMARY["settings_sha256"],
+                         hashlib.sha256((self.ROOT / "input/settings.csv").read_bytes()).hexdigest())
+        self.assertEqual(SUMMARY["executable_sha256"], hashlib.sha256(Path(BINARY).read_bytes()).hexdigest())
         self.assertEqual(SUMMARY["position_velocity_frame"], "fixed_plot_ned")
         self.assertEqual(SUMMARY["quaternion_frame"], "geographic_ned_or_unattached_local")
         self.assertEqual(SUMMARY["output_point"], "configured_body_origin")

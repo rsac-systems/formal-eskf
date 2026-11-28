@@ -1,6 +1,7 @@
 """Input preparation and process/output management for host replay entrypoints."""
 
 import csv
+import hashlib
 import math
 import json
 import os
@@ -125,4 +126,9 @@ def run_estimator(BINARY, INPUT, OUTPUT, MAGNETIC=True, MAGNETIC_MODEL=None, MOD
             PROCESS.kill()
             PROCESS.wait()
             raise
+    SUMMARY_FILE = OUTPUT / "summary.json"
+    SUMMARY = json.loads(SUMMARY_FILE.read_text())
+    SUMMARY["settings_sha256"] = hashlib.sha256((INPUT / "settings.csv").read_bytes()).hexdigest()
+    SUMMARY["executable_sha256"] = hashlib.sha256(Path(BINARY).read_bytes()).hexdigest()
+    SUMMARY_FILE.write_text(json.dumps(SUMMARY, indent=2) + "\n")
     return "".join(LINES)

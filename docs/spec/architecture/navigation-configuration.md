@@ -54,16 +54,28 @@ Reference: **PX4 v1.16.2, `54f0455ffcd755534539a7cf33a09a20bf71d29d`**.
 
 ## Implementation and acceptance boundary
 
-Kconfig/direct CMake generation, packaged algorithm defaults and startup validation
-already exist. The module parameter loader is currently startup-only. Complete
-startup transaction coverage, live GNSS controls and correlated effective-identity
-reporting remain targets requiring their actual consumer tests. New precision,
-accumulation, ZUPT and rate choices remain subject to their owning implementation
-and qualification; menu exposure alone cannot close them.
+Startup validation reports the rejected setting or owner relation. Timing replacement
+preflights all owners before committing. Startup setters freeze after seed; the
+complete GNSS pair alone may change at an idle event boundary.
 
-The [configuration inventory](../../guides/configuration.md) records implemented
-settings; owning feature profiles define reviewed target defaults. Four
-[Pending test families](../verification/navigation-configuration-tests.md) cover
-configuration composition without duplicating GNSS numerical or controller tests.
-No new tuning values, target budgets, proof executions or certification claims are
-introduced by this specification.
+The session's bounded configuration receipt contains a caller-supplied ID (zero
+means unavailable), accepted revision, live-control revision and last completed
+fusion time at acceptance. Rejection increments a separate counter and exposes a
+static reason without changing accepted values/revisions. Readiness and frozen
+state are derived from the session. The ID is a record key, not proof of tuning or
+a hash computed by the runtime.
+
+The PX4 installer hashes the deployment header, embeds the first 64 bits as its
+profile key, and keeps the full SHA-256 plus source payload hashes in the package
+manifest. Module status exposes the session receipt; existing parameter/uORB
+records retain requested and active controls. It does not add a standard PX4 topic
+or claim that parameter logs capture every acceptance boundary. Replay uses a
+settings-file key in the session and records full settings/executable SHA-256 in
+its host summary. Full hashes and retained settings/build records disambiguate
+short keys; consumers must not treat those keys as authentication.
+
+The [configuration inventory](../../guides/configuration.md) maps settings to their
+owners and consumers. [Acceptance families](../verification/tests/runtime/navigation-configuration.md)
+bind native, build/package, replay and actual PX4 tests. New precision,
+accumulation and rate selections retain their separate qualification obligations.
+No new runtime parser, allocation, proof execution or target qualification is added.

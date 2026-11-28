@@ -2,6 +2,7 @@
 """Check menu selections against real CMake configuration and compiler flags."""
 
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -82,6 +83,18 @@ class KconfigTests(unittest.TestCase):
             for COMMAND in RUNTIME_COMMANDS:
                 SELF.assertIn(f"-DESKF_ZUPT={TILT_BIT}", COMMAND)
             SELF.assertIn(f"#define ESKF_CFG_ZUPT {TILT_BIT}\n", FRONTEND.px4_header(SELF.read_config(SELF.CONFIG_FILE.read_text()), SELF.KCONFIGLIB))
+
+    def test_direct_cmake_unknown_selection(SELF):
+        RESULT = subprocess.run(["cmake", "-S", str(REPO_DIR), "-B", str(SELF.ROOT / "unknown"),
+                                 "-DESKF_ZUPTT:BOOL=OFF"], capture_output=True, text=True)
+        SELF.assertNotEqual(RESULT.returncode, 0)
+        SELF.assertIn("Unknown or inactive project setting: ESKF_ZUPTT", RESULT.stdout + RESULT.stderr)
+
+    def test_direct_cmake_invalid_boolean(SELF):
+        RESULT = subprocess.run(["cmake", "-S", str(REPO_DIR), "-B", str(SELF.ROOT / "boolean"),
+                                 "-DESKF_ZUPT=enabled"], capture_output=True, text=True)
+        SELF.assertNotEqual(RESULT.returncode, 0)
+        SELF.assertIn("Invalid boolean project setting: ESKF_ZUPT", RESULT.stderr)
 
     def test_invalid_requests_are_rejected(SELF):
         for TEXT in (
@@ -192,7 +205,9 @@ class KconfigTests(unittest.TestCase):
         SELF.assertEqual(RESULT.returncode, 0, RESULT.stdout + RESULT.stderr)
         MODULE = PACKAGE / "overlay/src/modules/formal_eskf"
         HEADER = (MODULE / "DeploymentConfig.hpp").read_text()
-        SELF.assertEqual(HEADER, FRONTEND.px4_header(CONFIG, SELF.KCONFIGLIB))
+        ORIGINAL = FRONTEND.px4_header(CONFIG, SELF.KCONFIGLIB)
+        HASH = hashlib.sha256(ORIGINAL.encode()).hexdigest()
+        SELF.assertEqual(HEADER, ORIGINAL + f"\n#define ESKF_CFG_CONFIGURATION_ID 0x{HASH[:16]}ULL\n")
         SELF.assertIn("#define ESKF_CFG_WMM 0\n", HEADER)
         SELF.assertIn("#define ESKF_CFG_GROUND_EFFECT 0\n", HEADER)
         SELF.assertIn("#define ESKF_CFG_BAROMETER 0\n", HEADER)
@@ -202,6 +217,8 @@ class KconfigTests(unittest.TestCase):
         SELF.assertIn("#define ESKF_CFG_CODEGEN 0\n", HEADER)
         SELF.assertEqual((MODULE / "configuration.config").read_bytes(), SELF.CONFIG_FILE.read_bytes())
         MANIFEST = json.loads((PACKAGE / "manifest.json").read_text())
+        SELF.assertEqual(MANIFEST["configuration_sha256"], HASH)
+        SELF.assertEqual(MANIFEST["configuration_id"], HASH[:16])
         SELF.assertIn("src/modules/formal_eskf/DeploymentConfig.hpp", MANIFEST["files"])
         SELF.assertIn("src/modules/formal_eskf/configuration.config", MANIFEST["files"])
         RELOCATED = SELF.ROOT / "relocated"

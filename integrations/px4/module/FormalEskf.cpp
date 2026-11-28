@@ -37,7 +37,8 @@ bool FormalEskf::load_timing_parameters()
         param_get(param_find("FESKF_MAG_DLY"), &timing.magnetic_delay_ms) != 0 ||
         param_get(param_find("FESKF_BARO_DLY"), &timing.barometer_delay_ms) != 0 || !m_session.configure_timing(timing))
     {
-        PX4_ERR("unsupported delayed-fusion timing settings");
+        auto const error = m_session.configuration().error;
+        PX4_ERR("unsupported timing: %s", error != nullptr ? error : "PX4 parameter read failed");
         return false;
     }
     return true;
