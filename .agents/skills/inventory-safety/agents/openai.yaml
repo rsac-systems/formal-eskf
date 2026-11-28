@@ -1,0 +1,4 @@
+interface:
+  display_name: "Safety Scenario Inventory"
+  short_description: "Inventory FHA, FMEA and FTA candidates from requirements"
+  default_prompt: "Use $inventory-safety to enumerate preliminary safety scenarios from all project requirements, check coverage and cross-link the three analysis views."
