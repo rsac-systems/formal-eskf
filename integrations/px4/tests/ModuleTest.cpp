@@ -27,6 +27,7 @@ using formal_eskf::testing::InsSessionTest;
 
 // This standalone executable has no PX4 shell command registry.
 void init_app_map(apps_map_type &) {}
+
 void list_builtins(apps_map_type &) {}
 
 namespace
@@ -119,6 +120,7 @@ matrix::SquareMatrix<double, 3> oracle_ned(double latitude, double longitude)
 // Real scheduler startup and forced-timeout shutdown remain outside this fixture.
 // Separate cases exercise the snapshot protocol and the normal module lifecycle lock.
 extern "C" hrt_abstime __wrap_hrt_absolute_time() { return clock_us; }
+
 extern "C" void __wrap_hrt_call_after(hrt_call *, hrt_abstime delay, hrt_callout, void *)
 {
     ++watchdog_calls;
@@ -126,27 +128,32 @@ extern "C" void __wrap_hrt_call_after(hrt_call *, hrt_abstime delay, hrt_callout
 }
 
 extern "C" void __wrap_hrt_cancel(hrt_call *) {}
+
 // Resource tests inject returned dependency errors; all normal calls use the
 // actual PX4 implementation. Injection is disabled during concurrent tests.
 extern "C" int __real_pthread_mutex_init(pthread_mutex_t *, pthread_mutexattr_t const *);
+
 extern "C" int __wrap_pthread_mutex_init(pthread_mutex_t * mutex, pthread_mutexattr_t const * attr)
 {
     return mutex == failed_init_mutex ? ENOMEM : __real_pthread_mutex_init(mutex, attr);
 }
 
 extern "C" int __real_pthread_mutex_lock(pthread_mutex_t *);
+
 extern "C" int __wrap_pthread_mutex_lock(pthread_mutex_t * mutex)
 {
     return mutex == failed_lock_mutex ? EINVAL : __real_pthread_mutex_lock(mutex);
 }
 
 extern "C" int __real_pthread_mutex_trylock(pthread_mutex_t *);
+
 extern "C" int __wrap_pthread_mutex_trylock(pthread_mutex_t * mutex)
 {
     return mutex == failed_trylock_mutex ? EINVAL : __real_pthread_mutex_trylock(mutex);
 }
 
 extern "C" int __real__ZN4uORB7Manager11orb_publishEPK12orb_metadataPvPKv(orb_id_t, orb_advert_t, void const *);
+
 extern "C" int __wrap__ZN4uORB7Manager11orb_publishEPK12orb_metadataPvPKv(orb_id_t topic, orb_advert_t handle,
                                                                           void const * data)
 {
@@ -156,12 +163,14 @@ extern "C" int __wrap__ZN4uORB7Manager11orb_publishEPK12orb_metadataPvPKv(orb_id
 }
 
 extern "C" void * __real__ZnwmRKSt9nothrow_t(std::size_t, std::nothrow_t const &);
+
 extern "C" void * __wrap__ZnwmRKSt9nothrow_t(std::size_t size, std::nothrow_t const & tag)
 {
     return failed_allocation ? nullptr : __real__ZnwmRKSt9nothrow_t(size, tag);
 }
 
 extern "C" perf_counter_t __real_perf_alloc(perf_counter_type, char const *);
+
 extern "C" perf_counter_t __wrap_perf_alloc(perf_counter_type type, char const * name)
 {
     return failed_perf ? nullptr : __real_perf_alloc(type, name);
@@ -391,6 +400,7 @@ public:
         {
             using ::px4::WorkItem::Run;
         };
+
         ControlledAttitude controller;
         uORB::Publication<vehicle_control_mode_s> control_pub{ORB_ID(vehicle_control_mode)};
         uORB::Publication<manual_control_setpoint_s> manual_pub{ORB_ID(manual_control_setpoint)};
@@ -2515,6 +2525,48 @@ public:
         test.snapshot("gravity-invalid-metadata");
     }
 
+    static void accumulated_profile()
+    {
+        // The startup parameter must explicitly match the compiled profile.
+        std::int32_t period = 10000;
+        expect(param_set(param_find("FESKF_DT_US"), &period) == 0, "set aggregate filter interval");
+        InsSessionTest test;
+        auto & session = test.m_filter.m_session;
+        unsigned fast_only = 0, fused = 0;
+        for (unsigned i = 0; i < 8500; ++i)
+        {
+            bool const initialized = session.initialized();
+            auto const covariance = session.covariance();
+            auto const predictions = session.statistics().predictions;
+            test.m_sample.timestamp_sample += 4000;
+            test.tick();
+            if (!initialized)
+            {
+                continue;
+            }
+            expect(!session.fault() && session.output_predictor().current().time_us == test.m_sample.timestamp_sample,
+                   "production Run propagates every raw vehicle_imu endpoint");
+            if (session.statistics().predictions == predictions)
+            {
+                ++fast_only;
+                expect(same_bits(covariance, session.covariance()), "raw-only Run leaves main covariance unchanged");
+            }
+            else
+            {
+                ++fused;
+                expect(session.fusion_time_us() == session.output_predictor().fusion_time_us(),
+                       "production Run completes feedback at the exact aggregate endpoint");
+            }
+        }
+        expect(!session.fault() && fast_only > fused && fused > 1000 && session.gnss_state().corrections > 0,
+               "accumulated production session initializes, aids and wraps history");
+        expect(session.estimator_parameters().process_noise.specific_force_variance(0) == ESKF_CFG_AGG_ACCEL_VARIANCE &&
+                   session.estimator_parameters().process_noise.angular_rate_variance(0) == ESKF_CFG_AGG_GYRO_VARIANCE,
+               "explicit aggregate effective noise reaches production core");
+        std::printf("Aggregate module bytes: %zu; raw-only ticks: %u; fused endpoints: %u\n", sizeof(FormalEskf),
+                    fast_only, fused);
+    }
+
     static void configured_profile()
     {
         namespace profile = formal_eskf::px4::profile;
@@ -2638,6 +2690,7 @@ public:
         uORB::Publication<trajectory_setpoint_s> trajectory_pub{ORB_ID(trajectory_setpoint)};
         uORB::Publication<takeoff_status_s> takeoff_pub{ORB_ID(takeoff_status)};
         uORB::Subscription land_sub{ORB_ID(vehicle_land_detected)};
+
         struct Scenario
         {
             std::uint8_t takeoff;
@@ -2645,6 +2698,7 @@ public:
             float command, distance;
             bool requested;
         };
+
         // Expected truth table comes from the three pinned producer conditions,
         // not a second implementation used to compute expectations at runtime.
         Scenario const cases[]{{takeoff_status_s::TAKEOFF_STATE_RAMPUP, false, true, true, false, NAN, 0, true},
@@ -2727,12 +2781,14 @@ public:
     static void ground_effect_binding()
     {
         using Event = formal_eskf::runtime::GroundEffectEvent;
+
         struct Scenario
         {
             std::uint64_t land_age, status_age;
             bool armed, landed, fixed;
             bool air, wing, request, land_fresh, status_fresh;
         };
+
         constexpr auto absent = std::numeric_limits<std::uint64_t>::max();
         constexpr auto future = absent - 1;
         Scenario const cases[]{{0, 0, false, false, false, true, false, true, true, true},
@@ -3719,11 +3775,13 @@ public:
         InsSessionTest test;
         test.warmup();
         auto & f = test.m_filter;
+
         struct Case
         {
             float variance[3];
             bool valid;
         };
+
         for (auto const & sample :
              {Case{{0.f, 0.f, 0.f}, false}, Case{{0.1f, 0.f, 0.f}, true},
               Case{{std::nextafter(0.1f, INFINITY), 0.f, 0.f}, false}, Case{{0.05f, 0.05f, 0.05f}, true},
@@ -4261,6 +4319,7 @@ public:
         tilt,
         output
     };
+
     static void origin_failure(OriginFailure fault)
     {
         InsSessionTest test;
@@ -4611,11 +4670,13 @@ public:
     static void timing_parameters()
     {
         InsSessionTest test;
+
         struct Setting
         {
             char const * name;
             std::int32_t rejected;
         };
+
         for (auto const & setting :
              {Setting{"FESKF_DT_US", 10000}, Setting{"FESKF_DELAY_MS", 240}, Setting{"FESKF_GPS_DLY", -1},
               Setting{"FESKF_MAG_DLY", 101}, Setting{"FESKF_BARO_DLY", 101}})
@@ -5471,6 +5532,13 @@ int main(int argc, char ** argv)
 
     uORB::Manager::initialize();
     param_init();
+    if constexpr (ESKF_CFG_IMU_ACCUMULATION)
+    {
+        InsSessionTest::accumulated_profile();
+        std::printf("PX4 accumulation: %u scenarios, %u failures\n", scenarios, failures);
+        return failures == 0 ? 0 : 1;
+    }
+
     if constexpr (!formal_eskf::px4::profile::height::barometer_enabled)
     {
         InsSessionTest::barometer_disabled();

@@ -53,6 +53,10 @@ class KconfigTests(unittest.TestCase):
         CONFIG = FRONTEND.load_config(SELF.KCONFIGLIB, SELF.CONFIG_FILE)
         MENU_CACHE, DIRECT_CACHE = SELF.cache(SELF.BUILD_DIR), SELF.cache(DIRECT_DIR)
         for NAME, (TYPE, _) in FRONTEND.cmake_settings(CONFIG, SELF.KCONFIGLIB).items():
+            if NAME == "FORMAL_ESKF_REPLAY_BACKEND" and f"{NAME}:{TYPE}" not in DIRECT_CACHE:
+                # The examples subdirectory registers this setting only when enabled.
+                SELF.assertEqual(DIRECT_CACHE["FORMAL_ESKF_BUILD_EXAMPLES:BOOL"], "OFF")
+                continue
             SELF.assertEqual(MENU_CACHE[f"{NAME}:{TYPE}"], DIRECT_CACHE[f"{NAME}:{TYPE}"], NAME)
 
     def test_mode_changes_replace_cache_and_compiler_flags(SELF):
@@ -116,6 +120,22 @@ class KconfigTests(unittest.TestCase):
         for SYMBOL in CONFIG.unique_defined_syms:
             if SYMBOL.name.startswith("PX4_"):
                 SELF.assertIn("ESKF_CFG_" + SYMBOL.name[4:], SOURCES, SYMBOL.name)
+
+    def test_imu_accumulation_profile(SELF):
+        DEFAULT = FRONTEND.px4_header(SELF.read_config(), SELF.KCONFIGLIB)
+        SELF.assertIn("#define ESKF_CFG_IMU_ACCUMULATION 0\n", DEFAULT)
+        with SELF.assertRaisesRegex(ValueError, "variance"):
+            FRONTEND.px4_header(SELF.read_config("CONFIG_PX4_IMU_ACCUMULATION=y\n"), SELF.KCONFIGLIB)
+        CONFIG = SELF.read_config('CONFIG_PX4_IMU_ACCUMULATION=y\n'
+                                 'CONFIG_PX4_AGG_ACCEL_VARIANCE="0.8"\n'
+                                 'CONFIG_PX4_AGG_GYRO_VARIANCE="0.002"\n')
+        HEADER = FRONTEND.px4_header(CONFIG, SELF.KCONFIGLIB)
+        SELF.assertIn("#define ESKF_CFG_IMU_ACCUMULATION 1\n", HEADER)
+        SELF.assertIn("#define ESKF_CFG_AGG_ACCEL_VARIANCE 0.8\n", HEADER)
+        SELF.assertIn("#define ESKF_CFG_AGG_GYRO_VARIANCE 0.002\n", HEADER)
+        with SELF.assertRaises(ValueError):
+            CONFIG = SELF.read_config("CONFIG_ESKF_QUAT_APPROX=y\nCONFIG_PX4_IMU_ACCUMULATION=y\n")
+            FRONTEND.px4_header(CONFIG, SELF.KCONFIGLIB)
 
     def test_ground_effect_choices(SELF):
         DEFAULT = FRONTEND.px4_header(SELF.read_config(), SELF.KCONFIGLIB)

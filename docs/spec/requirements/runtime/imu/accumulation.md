@@ -103,7 +103,7 @@ source-triggered emission or restart policy.
 
 ## Acceptance and verification
 
-[Planned cases](../../../verification/imu-accumulation-tests.md#runtime-cases)
+[Acceptance cases](../../../verification/tests/runtime/imu-accumulation.md#runtime-cases)
 include noncommuting rotations, rotating force, nonzero biases, unequal durations,
 source boundaries, exact endpoint matching and clipping provenance. Independent
 rotation composition and high-rate analytic trajectories are required; testing

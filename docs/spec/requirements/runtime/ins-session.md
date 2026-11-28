@@ -176,7 +176,7 @@ exact delayed feedback endpoints and separately timed corrections/resets.
 
 Validate both cadences and all required histories before startup; never infer
 compatibility from equal ring lengths. Direct defaults remain unchanged. The
-[planned family](../../verification/imu-accumulation-tests.md) covers startup,
+[Acceptance family](../../verification/tests/runtime/imu-accumulation.md) covers startup,
 source/hold/mixed-group handling, two-rate processing, consumers and rollback;
 existing direct evidence does not establish this target.
 

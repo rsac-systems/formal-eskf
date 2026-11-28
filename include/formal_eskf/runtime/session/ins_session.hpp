@@ -12,6 +12,7 @@
 #include <formal_eskf/runtime/session/ins_diagnostics.hpp>
 #include <formal_eskf/runtime/session/output_predictor.hpp>
 #include <formal_eskf/runtime/history/observation_history.hpp>
+#include <formal_eskf/runtime/history/accumulated_imu_history.hpp>
 #include <formal_eskf/runtime/sensors/height/height_aiding.hpp>
 #include <formal_eskf/runtime/sensors/height/ground_effect.hpp>
 #include <formal_eskf/runtime/sensors/height/barometric_altitude.hpp>
@@ -80,11 +81,16 @@ public:
         std::uint64_t accelerometer_time_us{}, gyroscope_time_us{};
     };
 
-    using imu_history_type = formal_eskf::runtime::ImuHistory<backend_type, Layout::imu_capacity>;
+    static constexpr bool accumulated_imu = Layout::imu_accumulation_capacity != 0;
+    using imu_history_type =
+        std::conditional_t<accumulated_imu,
+                           AccumulatedImuHistory<backend_type, Layout::imu_capacity, Layout::imu_accumulation_capacity>,
+                           ImuHistory<backend_type, Layout::imu_capacity>>;
     using observation_history_type =
         formal_eskf::runtime::ObservationHistory<backend_type, Layout::gnss_capacity, Layout::magnetic_capacity,
                                                  Layout::barometer_capacity, Layout::context_capacity>;
-    using output_predictor_type = formal_eskf::runtime::OutputPredictor<backend_type, Layout::imu_capacity>;
+    using output_predictor_type =
+        formal_eskf::runtime::OutputPredictor<backend_type, Layout::imu_capacity, accumulated_imu>;
 
     struct NavigationOrigin
     {
@@ -248,12 +254,21 @@ public:
         void record_vertical_velocity(std::uint64_t time_us, double delta);
     };
 
+    struct Accumulation
+    {
+        ImuAccumulationParameters<value_type> input{};
+        ImuTiming timing{}; // Actual aggregate period/retention bounds, independent of raw input bounds.
+        AggregateLimits<value_type> limits{};
+        std::optional<configuration::Ins::ProcessNoise<backend_type>> effective_noise{};
+    };
+
     struct Parameters
     {
         std::uint64_t session_id{}; // Caller-owned instance identity; zero explicitly means unavailable.
         InsSettings<value_type> settings{};
         GeographicPrecision geographic_precision{};
         typename types_type::parameter_type estimator{};
+        Accumulation accumulation{};
         typename startup_type::Parameters startup{};
         typename continuity_type::Parameters continuity{};
         ObservationTiming observation_timing{};
@@ -664,6 +679,7 @@ private:
     std::uint64_t m_velocity_seed_time_us{};
 
     imu_history_type m_imu_history{};
+    AggregateLimits<value_type> m_aggregate_limits{};
     observation_history_type m_observations;
     output_predictor_type m_output;
     typename observation_history_type::Context m_imu_context{};

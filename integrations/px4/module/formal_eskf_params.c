@@ -63,7 +63,8 @@ PARAM_DEFINE_INT32(FESKF_GRAV_EN, 1);
 /**
  * Main filter interval
  *
- * Only the 250 Hz one-interval mode (4000 us) is implemented.
+ * Use 4000 us for the default direct profile or 10000 us when the build
+ * enables integrated IMU accumulation. The compiled profile must match.
  * Unsupported combinations are rejected at startup. Read once; restart required.
  *
  * @unit us

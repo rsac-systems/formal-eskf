@@ -153,8 +153,10 @@ public:
         std::size_t retired{};
     };
 
-    explicit ObservationHistory(ObservationTiming const & timing)
-        : m_timing(timing), m_average_period_us(timing.imu.filter_interval_us)
+    explicit ObservationHistory(ObservationTiming const & timing) : ObservationHistory(timing, timing.imu) {}
+
+    ObservationHistory(ObservationTiming const & timing, ImuTiming const & filter)
+        : m_timing(timing), m_filter_timing(filter), m_average_period_us(filter.filter_interval_us)
     {
     }
 
@@ -164,7 +166,7 @@ public:
     {
         TimingConfiguration candidate;
         return m_seed_time_us == 0 && valid_timing() &&
-               configure_timing(parameters, m_timing.imu, imu_capacity, candidate);
+               configure_timing(parameters, m_filter_timing, imu_capacity, candidate);
     }
 
     [[nodiscard]] bool seed(Seed const & initial);
@@ -277,6 +279,7 @@ private:
 
     RingBuffer<ContextRecord, ContextCapacity> m_context{ContextCapacity};
     ObservationTiming m_timing{};
+    ImuTiming m_filter_timing{};
     Timeline m_gnss_time{}, m_magnetic_time{}, m_barometer_time{};
     std::uint64_t m_barometer_push_time_us{};
     TimingConfiguration m_configuration{};
@@ -290,17 +293,17 @@ template <typename Linalg, std::size_t GnssCapacity, std::size_t MagneticCapacit
 bool ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, ContextCapacity>::valid_timing()
     const
 {
-    if (!valid_imu_timing(m_timing.imu) || m_timing.maximum_age_us == 0 || m_timing.gnss_spacing_us == 0 ||
-        m_timing.magnetic_spacing_us == 0 || m_timing.barometer_spacing_us == 0 ||
+    if (!valid_imu_timing(m_timing.imu) || !valid_imu_timing(m_filter_timing) || m_timing.maximum_age_us == 0 ||
+        m_timing.gnss_spacing_us == 0 || m_timing.magnetic_spacing_us == 0 || m_timing.barometer_spacing_us == 0 ||
         !(m_timing.interval_history_weight >= 0. && m_timing.interval_history_weight <= 1.) ||
         !(m_timing.interval_sample_weight >= 0. && m_timing.interval_sample_weight <= 1.) ||
         m_timing.interval_history_weight + m_timing.interval_sample_weight != 1.)
     {
         return false;
     }
-    std::uint64_t const retention_us =
-        static_cast<std::uint64_t>(m_timing.imu.maximum_lag_us) + m_timing.maximum_age_us + m_timing.imu.maximum_age_us;
-    std::uint64_t const context_retention_us = static_cast<std::uint64_t>(m_timing.imu.maximum_lag_us) +
+    std::uint64_t const retention_us = static_cast<std::uint64_t>(m_filter_timing.maximum_lag_us) +
+                                       m_timing.maximum_age_us + m_timing.imu.maximum_age_us;
+    std::uint64_t const context_retention_us = static_cast<std::uint64_t>(m_filter_timing.maximum_lag_us) +
                                                m_timing.maximum_age_us + m_timing.imu.maximum_interval_us;
     return GnssCapacity >= (retention_us + m_timing.gnss_spacing_us - 1) / m_timing.gnss_spacing_us + 2 &&
            MagneticCapacity >= (retention_us + m_timing.magnetic_spacing_us - 1) / m_timing.magnetic_spacing_us + 2 &&
@@ -316,7 +319,8 @@ bool ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacit
     TimingParameters const & parameters, std::size_t imu_capacity)
 {
     TimingConfiguration candidate;
-    if (m_seed_time_us != 0 || !valid_timing() || !configure_timing(parameters, m_timing.imu, imu_capacity, candidate))
+    if (m_seed_time_us != 0 || !valid_timing() ||
+        !configure_timing(parameters, m_filter_timing, imu_capacity, candidate))
     {
         return false;
     }
@@ -401,15 +405,15 @@ bool ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacit
     auto const & sample = interval.sample;
     if (m_seed_time_us == 0 || m_advanced_at_us == m_latest_time_us || interval.start_time_us != m_fusion_time_us ||
         interval.time_us != sample.time_us || interval.time_us <= m_fusion_time_us ||
-        interval.time_us > m_latest_time_us || sample.angular_period_us < m_timing.imu.minimum_period_us ||
-        sample.angular_period_us > m_timing.imu.maximum_period_us ||
-        sample.acceleration_period_us < m_timing.imu.minimum_period_us ||
-        sample.acceleration_period_us > m_timing.imu.maximum_period_us)
+        interval.time_us > m_latest_time_us || sample.angular_period_us < m_filter_timing.minimum_period_us ||
+        sample.angular_period_us > m_filter_timing.maximum_period_us ||
+        sample.acceleration_period_us < m_filter_timing.minimum_period_us ||
+        sample.acceleration_period_us > m_filter_timing.maximum_period_us)
     {
         return false;
     }
     auto const lag = m_latest_time_us - interval.time_us;
-    if (lag < m_configuration.minimum_lag_us || lag > m_timing.imu.maximum_lag_us)
+    if (lag < m_configuration.minimum_lag_us || lag > m_filter_timing.maximum_lag_us)
     {
         return false;
     }
@@ -426,7 +430,7 @@ bool ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacit
         return false;
     }
     auto const & sample = interval.sample;
-    // Match the main-filter period reference: mean of the two REAL integration periods, never the held gap.
+    // Match the selected main-filter interval, not the fast producer cadence.
     double const period_us = 0.5 * (static_cast<double>(sample.angular_period_us) + sample.acceleration_period_us);
     m_average_period_us =
         m_timing.interval_history_weight * m_average_period_us + m_timing.interval_sample_weight * period_us;
@@ -714,7 +718,7 @@ void ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacit
     m_latest_time_us = 0;
     m_fusion_time_us = 0;
     m_advanced_at_us = 0;
-    m_average_period_us = m_timing.imu.filter_interval_us;
+    m_average_period_us = m_filter_timing.filter_interval_us;
 }
 
 } /* end namespace formal_eskf::runtime */

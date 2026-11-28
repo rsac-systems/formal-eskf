@@ -51,6 +51,35 @@ config PX4_GYRO_BIAS_LEARNING
 
 endmenu
 
+menu "IMU accumulation"
+
+config PX4_IMU_ACCUMULATION
+    bool "Accumulate IMU increments before INS prediction (experimental)"
+    depends on ESKF_QUAT_EXACT
+    default n
+    help
+      Keep current output at the producer rate and predict the delayed INS from
+      accumulated intervals. This binding uses 250 Hz vehicle_imu inputs and a
+      10 ms requested interval, with actual intervals retained. Exact attitude
+      is required; direct 250 Hz remains the default. Hardware and physical
+      noise qualification are separate from enabling the implementation.
+
+config PX4_AGG_ACCEL_VARIANCE
+    string "Aggregate effective acceleration rate variance (m^2/s^4; required when enabled)"
+    default ""
+    help
+      Supply the effective rate variance for the accumulated producer stream.
+      No default or raw-variance/sample-count conversion is supplied.
+
+config PX4_AGG_GYRO_VARIANCE
+    string "Aggregate effective gyro rate variance (rad^2/s^2; required when enabled)"
+    default ""
+    help
+      Supply the effective rate variance for the accumulated producer stream.
+      Existing bias random-walk variance densities retain their units.
+
+endmenu
+
 menu "IMU noise and bias"
 
 config PX4_ACCEL_VARIANCE

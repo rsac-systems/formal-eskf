@@ -126,6 +126,27 @@ To export this selected profile, use `make px4-export PACKAGE_DIR=output/px4-pac
 The exported installer requires neither Kconfiglib nor the original checkout.
 Direct `install.py` without `--config` continues to package the default profile.
 
+### Optional integrated IMU accumulation
+
+Enable `PX4_IMU_ACCUMULATION` in menuconfig and supply both aggregate effective
+rate variances (`PX4_AGG_ACCEL_VARIANCE`, `PX4_AGG_GYRO_VARIANCE`). After packaging,
+set `FESKF_DT_US` to `10000` before starting the module; its default `4000` matches
+the direct build. Mismatched startup periods are rejected. Approximate attitude
+prediction is incompatible with this profile; codegen remains enabled for other
+operations, while aggregate covariance uses its own dense equations.
+
+The 250 Hz `vehicle_imu` producer remains unchanged. Current output advances each
+input; the delayed main filter advances once per emitted group. PX4's scheduler
+rounds to real input boundaries, so a requested 10 ms does not force exactly
+100 Hz. See the [profile bounds](../../docs/spec/profiles/imu-accumulation.md#implemented-software-profile).
+This optional software profile has synthetic tests, not qualified IMU noise or
+hardware/flight acceptance. Replay remains direct.
+
+When built with accumulation, `formal_eskf_module_test` selects its aggregate
+production-path scenario automatically, including noise binding, wrapped history,
+raw-only covariance preservation and exact feedback epochs. The default build
+continues to run the full direct regression fixture.
+
 ## Export a package to another machine
 
 ```bash

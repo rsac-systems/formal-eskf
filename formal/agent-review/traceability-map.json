@@ -4954,7 +4954,7 @@
             "symbol": "InsSession<Linalg, Layout>::accept_imu("
           },
           {
-            "file": "include/formal_eskf/runtime/history/imu_history.hpp",
+            "file": "include/formal_eskf/runtime/history/imu_input.hpp",
             "symbol": "ImuInput<Linalg>::mean_rates()"
           },
           {
@@ -5080,7 +5080,7 @@
             "symbol": "select_imu_process_noise(configuration::Ins::ProcessNoise"
           },
           {
-            "file": "include/formal_eskf/runtime/history/imu_history.hpp",
+            "file": "include/formal_eskf/runtime/history/imu_input.hpp",
             "symbol": "bool imu_clipping_acceptable("
           },
           {
@@ -6194,7 +6194,7 @@
     },
     {
       "id": "R-PX4-IMU-HISTORY",
-      "title": "Delayed IMU source transactions, complete storage frames and contract-derived temporal induction; live binding remains separate; IMU source continuation has native coverage; historical mismatch-rejection proofs require migration",
+      "title": "Delayed IMU source transactions, complete storage frames and contract-derived temporal induction; live binding remains separate; IMU source continuation has native coverage; historical mismatch-rejection proofs require migration; T-02 shared-source changes require proof revalidation; aggregate operation has native evidence only",
       "references": {
         "spec": [
           {
@@ -6253,8 +6253,8 @@
             "symbol": "ImuHistory<Linalg, Capacity>::latest()"
           },
           {
-            "file": "include/formal_eskf/runtime/history/imu_history.hpp",
-            "symbol": "ImuHistory<Linalg, Capacity>::valid_input("
+            "file": "include/formal_eskf/runtime/history/imu_input.hpp",
+            "symbol": "bool valid_imu_input("
           }
         ],
         "esbmc": [
@@ -6367,7 +6367,7 @@
     },
     {
       "id": "R-PX4-OUTPUT-PREDICTOR",
-      "title": "Current-time output tracking and coordinate transport; new owner transitions need formal evidence refresh; IMU source continuation has native coverage; historical mismatch-rejection proofs require migration; corrected navigation-output composition and PX4 consumer acceptance remain Draft/Pending",
+      "title": "Current-time output tracking and coordinate transport; new owner transitions need formal evidence refresh; IMU source continuation has native coverage; historical mismatch-rejection proofs require migration; corrected navigation-output composition and PX4 consumer acceptance remain Draft/Pending; T-02 shared-source changes require proof revalidation; aggregate operation has native evidence only",
       "references": {
         "spec": [
           {
@@ -6608,31 +6608,31 @@
           },
           {
             "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
-            "symbol": "OutputPredictor<Linalg, Capacity>::configure("
+            "symbol": "OutputPredictor<Linalg, Capacity, Integrated>::configure("
           },
           {
             "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
-            "symbol": "OutputPredictor<Linalg, Capacity>::seed("
+            "symbol": "OutputPredictor<Linalg, Capacity, Integrated>::seed("
           },
           {
             "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
-            "symbol": "OutputPredictor<Linalg, Capacity>::predict("
+            "symbol": "OutputPredictor<Linalg, Capacity, Integrated>::predict("
           },
           {
             "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
-            "symbol": "OutputPredictor<Linalg, Capacity>::delayed()"
+            "symbol": "OutputPredictor<Linalg, Capacity, Integrated>::delayed()"
           },
           {
             "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
-            "symbol": "OutputPredictor<Linalg, Capacity>::correct("
+            "symbol": "OutputPredictor<Linalg, Capacity, Integrated>::correct("
           },
           {
             "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
-            "symbol": "OutputPredictor<Linalg, Capacity>::apply_reset("
+            "symbol": "OutputPredictor<Linalg, Capacity, Integrated>::apply_reset("
           },
           {
             "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
-            "symbol": "OutputPredictor<Linalg, Capacity>::reset()"
+            "symbol": "OutputPredictor<Linalg, Capacity, Integrated>::reset()"
           },
           {
             "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
@@ -6640,27 +6640,27 @@
           },
           {
             "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
-            "symbol": "OutputPredictor<Linalg, Capacity>::valid_quaternion("
+            "symbol": "OutputPredictor<Linalg, Capacity, Integrated>::valid_quaternion("
           },
           {
             "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
-            "symbol": "OutputPredictor<Linalg, Capacity>::valid_state("
+            "symbol": "OutputPredictor<Linalg, Capacity, Integrated>::valid_state("
           },
           {
             "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
-            "symbol": "OutputPredictor<Linalg, Capacity>::advance("
+            "symbol": "OutputPredictor<Linalg, Capacity, Integrated>::advance("
           },
           {
             "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
-            "symbol": "OutputPredictor<Linalg, Capacity>::stage_translation("
+            "symbol": "OutputPredictor<Linalg, Capacity, Integrated>::stage_translation("
           },
           {
             "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
-            "symbol": "OutputPredictor<Linalg, Capacity>::commit_history("
+            "symbol": "OutputPredictor<Linalg, Capacity, Integrated>::commit_history("
           },
           {
             "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
-            "symbol": "OutputPredictor<Linalg, Capacity>::fail("
+            "symbol": "OutputPredictor<Linalg, Capacity, Integrated>::fail("
           },
           {
             "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
@@ -6676,11 +6676,11 @@
           },
           {
             "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
-            "symbol": "OutputPredictor<Linalg, Capacity>::valid_parameters()"
+            "symbol": "OutputPredictor<Linalg, Capacity, Integrated>::valid_parameters()"
           },
           {
             "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
-            "symbol": "OutputPredictor<Linalg, Capacity>::initial_interval()"
+            "symbol": "OutputPredictor<Linalg, Capacity, Integrated>::initial_interval()"
           }
         ],
         "esbmc": [
@@ -7113,7 +7113,7 @@
     },
     {
       "id": "R-PX4-OBSERVATION-HISTORY",
-      "title": "Delayed observations and context: scoped typed source contracts and temporal/physical induction; live callers and target resources remain separate; extended input/profile qualification pending",
+      "title": "Delayed observations and context: scoped typed source contracts and temporal/physical induction; live callers and target resources remain separate; extended input/profile qualification pending; T-02 shared-source changes require proof revalidation; aggregate operation has native evidence only",
       "references": {
         "spec": [
           {
@@ -8322,7 +8322,7 @@
     },
     {
       "id": "R-INS-SESSION",
-      "title": "Portable INS session phase composition: native regression and independent fixtures; full symbolic and target evidence remain open; IMU source continuation has native coverage; historical mismatch-rejection proofs require migration; diagnostic-reporting composition target pending; ground-effect event composition target pending; mixed-precision session target is Draft/Pending and is not covered by existing binary64 evidence; IMU accumulation and aggregate prediction are Draft targets with Pending tests, outside existing direct evidence; GNSS selection, independent startup, live controls and logical-stream composition are Draft targets with Pending tests; independent bias-stability monitors and PX4 consumer binding are Draft targets with Pending tests; selectable default-ON ZUPT composition is a Draft target with Pending tests; corrected navigation-output composition and PX4 consumer acceptance remain Draft/Pending",
+      "title": "Portable INS session phase composition: native regression and independent fixtures; full symbolic and target evidence remain open; IMU source continuation has native coverage; historical mismatch-rejection proofs require migration; diagnostic-reporting composition target pending; ground-effect event composition target pending; mixed-precision session target is Draft/Pending and is not covered by existing binary64 evidence; IMU accumulation and aggregate prediction are Draft targets with Pending tests, outside existing direct evidence; GNSS selection, independent startup, live controls and logical-stream composition are Draft targets with Pending tests; independent bias-stability monitors and PX4 consumer binding are Draft targets with Pending tests; selectable default-ON ZUPT composition is a Draft target with Pending tests; corrected navigation-output composition and PX4 consumer acceptance remain Draft/Pending; T-02 accumulation is implemented with scoped native cases; aggregate proofs and deployment qualification pending",
       "references": {
         "spec": [
           {
@@ -8390,11 +8390,11 @@
             "symbol": "# IMU Accumulation Profile"
           },
           {
-            "file": "docs/spec/verification/imu-accumulation-tests.md",
+            "file": "docs/spec/verification/tests/runtime/imu-accumulation.md",
             "symbol": "## Runtime cases"
           },
           {
-            "file": "docs/spec/verification/imu-accumulation-tests.md",
+            "file": "docs/spec/verification/tests/runtime/imu-accumulation.md",
             "symbol": "## Core cases"
           },
           {
@@ -9143,6 +9143,90 @@
           {
             "file": "tests/runtime/session/test_precision.cpp",
             "symbol": "void history_transaction("
+          }
+        ],
+        "esbmc": []
+      }
+    },
+    {
+      "id": "E-PRED-AGGREGATE",
+      "title": "Integrated INS nominal and truncated local-error covariance: independent native algebra/status/alias tests; formal and physical qualification pending",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/core/aggregate-prediction.md",
+            "symbol": "# E-PRED-AGGREGATE:"
+          },
+          {
+            "file": "docs/spec/verification/tests/runtime/imu-accumulation.md",
+            "symbol": "## Core cases"
+          }
+        ],
+        "lean": [],
+        "cpp": [
+          {
+            "file": "include/formal_eskf/eskf/aggregate_prediction.hpp",
+            "symbol": "Status predict_aggregate("
+          },
+          {
+            "file": "include/formal_eskf/eskf/aggregate_prediction.hpp",
+            "symbol": "Status predict_aggregate_nominal("
+          },
+          {
+            "file": "tests/core/test_aggregate_prediction.cpp",
+            "symbol": "int main("
+          }
+        ],
+        "esbmc": []
+      }
+    },
+    {
+      "id": "R-IMU-ACCUMULATION",
+      "title": "Bounded integrated-IMU accumulation and two-rate session: native component/session/PX4 fixtures; source proof, physical-noise and target qualification pending",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/runtime/imu/accumulation.md",
+            "symbol": "# R-IMU-ACCUMULATION:"
+          },
+          {
+            "file": "docs/spec/profiles/imu-accumulation.md",
+            "symbol": "## Implemented software profile"
+          },
+          {
+            "file": "docs/spec/verification/tests/runtime/imu-accumulation.md",
+            "symbol": "## Runtime cases"
+          }
+        ],
+        "lean": [],
+        "cpp": [
+          {
+            "file": "include/formal_eskf/runtime/sensors/imu/accumulator.hpp",
+            "symbol": "class ImuAccumulator"
+          },
+          {
+            "file": "include/formal_eskf/runtime/history/accumulated_imu_history.hpp",
+            "symbol": "class AccumulatedImuHistory"
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/output_predictor.hpp",
+            "symbol": "::predict_integrated("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "::predict_and_fuse("
+          },
+          {
+            "file": "tests/runtime/imu/test_accumulator.cpp",
+            "symbol": "int main("
+          },
+          {
+            "file": "tests/runtime/session/test_accumulation.cpp",
+            "symbol": "int main("
+          },
+          {
+            "file": "integrations/px4/tests/ModuleTest.cpp",
+            "symbol": "static void accumulated_profile()"
           }
         ],
         "esbmc": []

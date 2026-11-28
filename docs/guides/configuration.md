@@ -191,8 +191,8 @@ subscription exists. Metadata bounds are not a substitute for startup checks.
 | `FESKF_DECL_TYPE` | 3 | Integer bit mask 0..3: geographic heading / stored fallback |
 | `FESKF_MAG_DECL` | 0 | Finite east-positive degrees, −180..180 |
 | `FESKF_GRAV_EN` | 1 | Integer 0 or 1 |
-| `FESKF_DT_US` | 4000 | Only 4000 us implemented; metadata's minimum 0 does not admit other periods |
-| `FESKF_DELAY_MS` | 200 | Nonnegative metadata; actual positive value must satisfy joint arrival/delay/capacity constraints; zero source delays admit integer 153..239 ms |
+| `FESKF_DT_US` | 4000 | 4000 us for direct, 10000 us for the optional accumulated build; must match the compiled profile |
+| `FESKF_DELAY_MS` | 200 | Nonnegative metadata; actual positive value must satisfy joint arrival/delay/capacity constraints; direct zero-source-delay profile admits integer 153..239 ms; aggregate bounds are separately validated |
 | `FESKF_GPS_DLY`, `FESKF_MAG_DLY`, `FESKF_BARO_DLY` | 0 each | Nonnegative integer ms; jointly validated with delay and fixed storage |
 | `FESKF_IMU_POS_X`, `FESKF_IMU_POS_Y`, `FESKF_IMU_POS_Z` | 0 each | Finite metres, body forward/right/down, each −10..10 |
 | `FESKF_GPS_POS_X`, `FESKF_GPS_POS_Y`, `FESKF_GPS_POS_Z` | 0 each | Same installation convention and per-axis bounds |
@@ -219,6 +219,7 @@ neither enables live retuning. Instructions are in the [PX4 guide](../../integra
 | Group | Settings | Existing defaults / behavior |
 | --- | --- | --- |
 | Features (6) | Barometric height, WMM, ground-effect protection, gravity aiding support, accelerometer/gyro bias learning | Ground-effect protection defaults OFF; other features default ON. Required motion, health and alignment conditions remain effective |
+| IMU accumulation (3) | Optional integrated/coning-compensated producer binding and two explicit effective aggregate rate variances | Disabled by default; exact attitude only; [timing/noise/qualification profile](../spec/profiles/imu-accumulation.md#implemented-software-profile) |
 | IMU noise and bias (10) | Sample variances, bias variance densities, fault acceleration standard deviation, learning force/rate/decay and two bias limits | Units and sampled/density scaling remain as listed above |
 | Magnetic aiding (14) | Three health selectors, strength/inclination tolerances, minimum horizontal field, heading noise/acceleration criterion, observation variance, innovation gate, health/sample/fusion/model intervals | Strength check on; inclination and require-WMM off; health 1 s, sample interval 0.5 s, fusion timeout 7 s, model lookup 10 s |
 | GNSS quality (19) | Ten check selectors, satellites/PDOP/position/speed/drift limits, speed input bound and health duration | All ten checks on; six satellites, PDOP 2.5, 3/5 m, 0.5 m/s accuracy, health 10 s |
@@ -298,7 +299,7 @@ No new proof pass or flight qualification is claimed by this documentation.
 Review focus: ownership split, candidate versus fixed groups, noise units,
 coupled settings, restart semantics and the standalone menu's build boundary.
 Remaining F-06.2 decisions concern additional startup bindings and supported
-profiles, not whether these 64 build-profile controls reach the module.
+profiles, not whether the listed build-profile controls reach the module.
 
 ## Source of truth
 

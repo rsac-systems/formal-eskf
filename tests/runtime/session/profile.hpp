@@ -12,6 +12,7 @@ inline constexpr formal_eskf::runtime::TimingParameters timing{4000, 200, 0, 0, 
 
 struct Layout
 {
+    static constexpr std::size_t imu_accumulation_capacity = 0;
     static constexpr std::size_t imu_capacity = 64, context_capacity = 128;
     static constexpr std::size_t gnss_capacity = 16, magnetic_capacity = 64, barometer_capacity = 128;
     static constexpr std::uint64_t gravity_interval_us = 10000;

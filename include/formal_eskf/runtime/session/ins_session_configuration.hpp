@@ -14,7 +14,26 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::val
     auto const & timing = p.observation_timing.imu;
     auto const & e = p.estimator;
     auto const & s = p.settings;
-    double const nominal = double(timing.filter_interval_us) / 1000000.;
+    auto const & filter_timing = accumulated_imu ? p.accumulation.timing : timing;
+    double const nominal = double(filter_timing.filter_interval_us) / 1000000.;
+    if constexpr (accumulated_imu)
+    {
+        auto const & a = p.accumulation;
+        auto const & input = a.input;
+        if (ESKF_QUAT_APPROX || !a.effective_noise.has_value() || !valid_imu_timing(a.timing) ||
+            input.minimum_period_us != timing.minimum_period_us ||
+            input.maximum_period_us != timing.maximum_period_us ||
+            input.minimum_quaternion_norm != e.minimum_quaternion_norm ||
+            input.target_interval_s != static_cast<value_type>(nominal) ||
+            input.maximum_angle_rad != a.limits.raw_angle_rad ||
+            !(a.limits.corrected_angle_rad > 0 && a.limits.corrected_angle_rad < math_type::pi()) ||
+            p.output.aggregate_limits.raw_angle_rad != a.limits.raw_angle_rad ||
+            p.output.aggregate_limits.corrected_angle_rad != a.limits.corrected_angle_rad ||
+            e.dt_max < double(a.timing.maximum_interval_us) / 1000000.)
+        {
+            return false;
+        }
+    }
     // A held segment starts at the first integer microsecond beyond tolerance.
     double const smallest_step =
         double(std::min<std::uint64_t>(timing.minimum_period_us, std::uint64_t(timing.gap_tolerance_us) + 1)) /
@@ -42,7 +61,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::val
         return false;
     }
 
-    auto const & noise = e.process_noise;
+    auto const & noise = accumulated_imu ? *p.accumulation.effective_noise : e.process_noise;
     for (std::size_t i = 0; i < 3; ++i)
     {
         if (!nonnegative(noise.specific_force_variance(i)) || !nonnegative(noise.angular_rate_variance(i)) ||
@@ -152,8 +171,10 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::val
 
 template <typename Linalg, typename Layout>
 InsSession<Linalg, Layout>::InsSession(Parameters const & p)
-    : m_parameters(p.estimator), m_startup(p.startup), m_continuity(p.continuity), m_observations(p.observation_timing),
-      m_output(p.output), m_height_aiding(p.height, p.geographic_precision), m_bias_learning(p.bias_learning),
+    : m_parameters(p.estimator), m_startup(p.startup), m_continuity(p.continuity),
+      m_observations(p.observation_timing, accumulated_imu ? p.accumulation.timing : p.observation_timing.imu),
+      m_output(p.output, accumulated_imu ? p.accumulation.timing : p.output.timing),
+      m_height_aiding(p.height, p.geographic_precision), m_bias_learning(p.bias_learning),
       m_average_imu_interval(p.settings.imu.nominal_interval_s), m_magnetic_model(p.magnetic_lookup_interval_us),
       m_geographic_precision(p.geographic_precision), m_settings(p.settings), m_imu_timing(p.observation_timing.imu)
 {
@@ -161,6 +182,16 @@ InsSession<Linalg, Layout>::InsSession(Parameters const & p)
     m_operation = InsOperation::initialization;
     m_parameters_valid =
         valid_parameters(p) && m_startup.valid() && m_continuity.valid() && m_height_aiding.valid_parameters();
+    if constexpr (accumulated_imu)
+    {
+        m_parameters_valid =
+            m_parameters_valid && m_imu_history.configure_accumulation(p.accumulation.input, p.accumulation.timing);
+        m_aggregate_limits = p.accumulation.limits;
+        if (p.accumulation.effective_noise.has_value())
+        {
+            m_parameters.process_noise = *p.accumulation.effective_noise;
+        }
+    }
     m_gnss.quality_parameters = p.gnss_quality;
     m_origin.projection = projection_type{p.settings.projection_radius_m};
     m_gnss.previous_fix = projection_type{p.settings.projection_radius_m};

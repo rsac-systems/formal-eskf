@@ -28,6 +28,7 @@ inline constexpr auto timing = ins_example::timing;
 // Logical history lengths still come from each profile; this is not a target layout.
 struct Layout
 {
+    static constexpr std::size_t imu_accumulation_capacity = 0;
     static constexpr std::size_t imu_capacity = 128, context_capacity = 4096;
     static constexpr std::size_t gnss_capacity = 1024, magnetic_capacity = 128, barometer_capacity = 16;
     static constexpr std::uint64_t gravity_interval_us = 10000;

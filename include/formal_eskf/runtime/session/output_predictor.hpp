@@ -8,6 +8,7 @@
 #include <type_traits>
 
 #include <formal_eskf/eskf/prediction.hpp>
+#include <formal_eskf/runtime/sensors/imu/accumulator.hpp>
 
 #include <formal_eskf/runtime/history/imu_history.hpp>
 
@@ -30,6 +31,7 @@ struct OutputParameters
     double interval_sample_weight{};
     double attitude_tracking_gain{};
     double integral_tracking_gain{};
+    AggregateLimits<double> aggregate_limits{}; // Consumed only by integrated mode.
 };
 
 /**
@@ -39,7 +41,7 @@ struct OutputParameters
  * Use the same configuration and seed epoch as ImuHistory. Predict from latest(),
  * then correct from the successfully completed main state at delayed().
  */
-template <typename Linalg, std::size_t Capacity> class OutputPredictor
+template <typename Linalg, std::size_t Capacity, bool Integrated = false> class OutputPredictor
 {
 public:
     using value_type = typename Linalg::value_type;
@@ -75,7 +77,10 @@ public:
         numerical_failure
     };
 
-    explicit OutputPredictor(OutputParameters const & parameters) : m_parameters(parameters)
+    explicit OutputPredictor(OutputParameters const & parameters) : OutputPredictor(parameters, parameters.timing) {}
+
+    OutputPredictor(OutputParameters const & parameters, ImuTiming const & retention)
+        : m_parameters(parameters), m_retention(retention)
     {
         m_filter_interval_s = initial_interval();
     }
@@ -86,12 +91,12 @@ public:
     {
         TimingConfiguration candidate;
         return m_current.time_us == 0 && m_fault == Fault::none && valid_parameters() &&
-               configure_timing(parameters, m_parameters.timing, Capacity, candidate);
+               configure_timing(parameters, m_retention, Capacity, candidate);
     }
 
     [[nodiscard]] bool seed(state_type const & state, std::uint64_t time_us);
     /** Requires an admitted real interval from ImuHistory::latest(), exactly once. */
-    [[nodiscard]] bool predict(interval_type const & interval);
+    [[nodiscard]] bool predict(interval_type const & interval, ImuAggregate<Linalg> const * endpoint = nullptr);
     /** Requires successful main prediction/fusion at the exact oldest output epoch. */
     [[nodiscard]] bool correct(std::uint64_t time_us, state_type const & state);
     /** q_new = q_delta * q_old; additive NED deltas. Caller owns reset counters. */
@@ -132,6 +137,10 @@ private:
     bool valid_quaternion(quaternion_type const & q) const;
     bool valid_state(state_type const & state) const;
     bool advance(Sample & output, ImuSample<Linalg> imu, value_type dt) const;
+    bool predict_integrated(interval_type const & interval, ImuAggregate<Linalg> const * endpoint);
+    bool advance_integrated(Sample & output, IntegratedImu<Linalg> imu) const;
+    bool reset_sample(Sample & sample, quaternion_type const & q_delta, vector3_type const & velocity_delta,
+                      vector3_type const & position_delta, bool identity) const;
     bool stage_translation(vector3_type const & velocity_delta, vector3_type const & position_delta);
     void commit_history();
     bool fail(Fault reason);
@@ -147,6 +156,7 @@ private:
     };
 
     OutputParameters m_parameters{};
+    ImuTiming m_retention{};
     RingBuffer<Sample, Capacity> m_history{0};
     // Persistent workspace keeps failure-atomic history updates off the callback stack.
     std::array<Sample, Capacity> m_staged{};
@@ -166,8 +176,9 @@ private:
     Fault m_fault = Fault::none;
 }; /* end class OutputPredictor */
 
-template <typename Linalg, std::size_t Capacity>
-typename OutputPredictor<Linalg, Capacity>::value_type OutputPredictor<Linalg, Capacity>::initial_interval() const
+template <typename Linalg, std::size_t Capacity, bool Integrated>
+typename OutputPredictor<Linalg, Capacity, Integrated>::value_type
+OutputPredictor<Linalg, Capacity, Integrated>::initial_interval() const
 {
     // Construction and restart are safe even before configuration is accepted.
     auto const interval = m_parameters.nominal_interval_s;
@@ -178,7 +189,8 @@ typename OutputPredictor<Linalg, Capacity>::value_type OutputPredictor<Linalg, C
     return value_type{0};
 }
 
-template <typename Linalg, std::size_t Capacity> bool OutputPredictor<Linalg, Capacity>::valid_parameters() const
+template <typename Linalg, std::size_t Capacity, bool Integrated>
+bool OutputPredictor<Linalg, Capacity, Integrated>::valid_parameters() const
 {
     auto positive = [](double value)
     {
@@ -193,6 +205,17 @@ template <typename Linalg, std::size_t Capacity> bool OutputPredictor<Linalg, Ca
                static_cast<value_type>(value) > value_type{0};
     };
     auto nonnegative = [&](double value) { return value == 0. || positive(value); };
+    if constexpr (Integrated)
+    {
+        auto const & limits = m_parameters.aggregate_limits;
+        if (!positive(limits.raw_angle_rad) || !positive(limits.corrected_angle_rad) ||
+            limits.raw_angle_rad >= scalar::pi<typename Linalg::scalar_math_type>() ||
+            limits.corrected_angle_rad >= scalar::pi<typename Linalg::scalar_math_type>() ||
+            !valid_imu_timing(m_retention))
+        {
+            return false;
+        }
+    }
     return positive(m_parameters.gravity_m_s2) && positive(m_parameters.minimum_quaternion_norm) &&
            positive(m_parameters.minimum_interval_s) && positive(m_parameters.maximum_interval_s) &&
            positive(m_parameters.nominal_interval_s) && positive(m_parameters.velocity_time_constant_s) &&
@@ -206,14 +229,13 @@ template <typename Linalg, std::size_t Capacity> bool OutputPredictor<Linalg, Ca
            m_parameters.interval_history_weight + m_parameters.interval_sample_weight == 1.;
 }
 
-template <typename Linalg, std::size_t Capacity>
-bool OutputPredictor<Linalg, Capacity>::configure(TimingParameters const & parameters)
+template <typename Linalg, std::size_t Capacity, bool Integrated>
+bool OutputPredictor<Linalg, Capacity, Integrated>::configure(TimingParameters const & parameters)
 {
     m_rebase.prepared = false;
     TimingConfiguration candidate;
     if (m_current.time_us != 0 || m_fault != Fault::none || !valid_parameters() ||
-        !configure_timing(parameters, m_parameters.timing, Capacity, candidate) ||
-        !m_history.allocate(candidate.imu_length))
+        !configure_timing(parameters, m_retention, Capacity, candidate) || !m_history.allocate(candidate.imu_length))
     {
         return false;
     }
@@ -221,23 +243,23 @@ bool OutputPredictor<Linalg, Capacity>::configure(TimingParameters const & param
     return true;
 }
 
-template <typename Linalg, std::size_t Capacity>
-bool OutputPredictor<Linalg, Capacity>::valid_quaternion(quaternion_type const & q) const
+template <typename Linalg, std::size_t Capacity, bool Integrated>
+bool OutputPredictor<Linalg, Capacity, Integrated>::valid_quaternion(quaternion_type const & q) const
 {
     auto const residual = linalg::squared_norm(q.coefficients()) - value_type{1};
     auto const tolerance = static_cast<value_type>(m_parameters.quaternion_squared_norm_tolerance);
     return residual >= -tolerance && residual <= tolerance;
 }
 
-template <typename Linalg, std::size_t Capacity>
-bool OutputPredictor<Linalg, Capacity>::valid_state(state_type const & state) const
+template <typename Linalg, std::size_t Capacity, bool Integrated>
+bool OutputPredictor<Linalg, Capacity, Integrated>::valid_state(state_type const & state) const
 {
     return valid_quaternion(state.q_nb) && linalg::all_finite(state.v_n) && linalg::all_finite(state.p_n) &&
            linalg::all_finite(state.b_a) && linalg::all_finite(state.b_g);
 }
 
-template <typename Linalg, std::size_t Capacity>
-bool OutputPredictor<Linalg, Capacity>::seed(state_type const & state, std::uint64_t time_us)
+template <typename Linalg, std::size_t Capacity, bool Integrated>
+bool OutputPredictor<Linalg, Capacity, Integrated>::seed(state_type const & state, std::uint64_t time_us)
 {
     m_rebase.prepared = false;
     if (!m_history.valid() || m_current.time_us != 0 || m_fault != Fault::none || time_us == 0 || !valid_state(state))
@@ -251,14 +273,15 @@ bool OutputPredictor<Linalg, Capacity>::seed(state_type const & state, std::uint
     return true;
 }
 
-template <typename Linalg, std::size_t Capacity> bool OutputPredictor<Linalg, Capacity>::fail(Fault reason)
+template <typename Linalg, std::size_t Capacity, bool Integrated>
+bool OutputPredictor<Linalg, Capacity, Integrated>::fail(Fault reason)
 {
     m_fault = reason;
     return false;
 }
 
-template <typename Linalg, std::size_t Capacity>
-bool OutputPredictor<Linalg, Capacity>::advance(Sample & output, ImuSample<Linalg> imu, value_type dt) const
+template <typename Linalg, std::size_t Capacity, bool Integrated>
+bool OutputPredictor<Linalg, Capacity, Integrated>::advance(Sample & output, ImuSample<Linalg> imu, value_type dt) const
 {
     state_type state{output.p_n, output.v_n, output.q_nb, m_accel_bias, m_gyro_bias};
     configuration::Ins::Parameters<Linalg> parameters;
@@ -279,8 +302,9 @@ bool OutputPredictor<Linalg, Capacity>::advance(Sample & output, ImuSample<Linal
     return true;
 }
 
-template <typename Linalg, std::size_t Capacity>
-bool OutputPredictor<Linalg, Capacity>::predict(interval_type const & interval)
+template <typename Linalg, std::size_t Capacity, bool Integrated>
+bool OutputPredictor<Linalg, Capacity, Integrated>::predict(interval_type const & interval,
+                                                            ImuAggregate<Linalg> const * endpoint)
 {
     m_rebase.prepared = false;
     if (m_current.time_us == 0 || m_fault != Fault::none)
@@ -292,6 +316,11 @@ bool OutputPredictor<Linalg, Capacity>::predict(interval_type const & interval)
     {
         return fail(Fault::epoch_mismatch);
     }
+    if constexpr (Integrated)
+    {
+        return predict_integrated(interval, endpoint);
+    }
+
     bool const full = m_history.entries() == m_history.get_length();
     if (full && m_history.get_oldest().time_us > m_fusion_time_us)
     {
@@ -331,9 +360,97 @@ bool OutputPredictor<Linalg, Capacity>::predict(interval_type const & interval)
     return true;
 }
 
-template <typename Linalg, std::size_t Capacity>
-typename OutputPredictor<Linalg, Capacity>::Sample const * OutputPredictor<Linalg, Capacity>::delayed() const
+template <typename Linalg, std::size_t Capacity, bool Integrated>
+bool OutputPredictor<Linalg, Capacity, Integrated>::predict_integrated(interval_type const & interval,
+                                                                       ImuAggregate<Linalg> const * endpoint)
 {
+    bool const full = m_history.entries() == m_history.get_length();
+    if (endpoint != nullptr &&
+        (endpoint->time_us != interval.time_us ||
+         endpoint->start_time_us != (m_history.entries() != 0 ? m_history.get_newest().time_us : m_fusion_time_us)))
+    {
+        return fail(Fault::epoch_mismatch);
+    }
+    if (endpoint != nullptr && full && m_history.get_oldest().time_us > m_fusion_time_us)
+    {
+        return fail(Fault::history_loss);
+    }
+    auto index = m_history.get_oldest_index();
+    for (std::size_t count = 0; count < m_history.entries(); ++count)
+    {
+        auto const & retained = m_history[index];
+        if (retained.time_us > m_fusion_time_us)
+        {
+            if (interval.time_us - retained.time_us > m_retention.maximum_lag_us)
+            {
+                return fail(Fault::lag_out_of_range);
+            }
+            break;
+        }
+        index = (index + 1) % m_history.get_length();
+    }
+
+    auto candidate = m_current;
+    if (interval.hold_period_us != 0)
+    {
+        value_type const dt = value_type(interval.hold_period_us) * value_type(1e-6);
+        IntegratedImu<Linalg> const hold{interval.held_rate.angular_rate_b * dt,
+                                         interval.held_rate.specific_force_b * dt, dt, dt, dt};
+        if (!advance_integrated(candidate, hold))
+        {
+            return fail(Fault::numerical_failure);
+        }
+    }
+    auto const & sample = interval.sample;
+    auto const elapsed = interval.time_us - interval.start_time_us;
+    if (interval.hold_period_us >= elapsed)
+    {
+        return fail(Fault::epoch_mismatch);
+    }
+    IntegratedImu<Linalg> const increment{sample.delta_angle_b, sample.delta_velocity_b, sample.angular_interval_s(),
+                                          sample.acceleration_interval_s(),
+                                          value_type(elapsed - interval.hold_period_us) * value_type(1e-6)};
+    if (!advance_integrated(candidate, increment))
+    {
+        return fail(Fault::numerical_failure);
+    }
+    candidate.time_us = interval.time_us;
+    candidate.start_time_us = interval.start_time_us;
+    candidate.angular_period_us = sample.angular_period_us;
+    if (endpoint != nullptr)
+    {
+        auto retained = candidate;
+        retained.start_time_us = endpoint->start_time_us;
+        retained.angular_period_us = endpoint->sample.angular_period_us;
+        m_history.push(retained);
+    }
+    m_current = candidate;
+    m_output_angular_rate_b = sample.mean_rates().angular_rate_b + m_angular_rate_correction - m_gyro_bias;
+    return true;
+}
+
+template <typename Linalg, std::size_t Capacity, bool Integrated>
+typename OutputPredictor<Linalg, Capacity, Integrated>::Sample const *
+OutputPredictor<Linalg, Capacity, Integrated>::delayed() const
+{
+    if constexpr (Integrated)
+    {
+        if (m_fault != Fault::none || !m_history.valid())
+        {
+            return nullptr;
+        }
+        auto index = m_history.get_oldest_index();
+        for (std::size_t count = 0; count < m_history.entries(); ++count)
+        {
+            auto const & sample = m_history[index];
+            if (sample.time_us > m_fusion_time_us)
+            {
+                return m_current.time_us - sample.time_us >= m_configuration.minimum_lag_us ? &sample : nullptr;
+            }
+            index = (index + 1) % m_history.get_length();
+        }
+        return nullptr;
+    }
     if (m_fault != Fault::none || !m_history.valid() || m_history.entries() != m_history.get_length())
     {
         return nullptr;
@@ -342,10 +459,20 @@ typename OutputPredictor<Linalg, Capacity>::Sample const * OutputPredictor<Linal
     return sample.time_us > m_fusion_time_us ? &sample : nullptr;
 }
 
-template <typename Linalg, std::size_t Capacity>
-bool OutputPredictor<Linalg, Capacity>::stage_translation(vector3_type const & velocity_delta,
-                                                          vector3_type const & position_delta)
+template <typename Linalg, std::size_t Capacity, bool Integrated>
+bool OutputPredictor<Linalg, Capacity, Integrated>::stage_translation(vector3_type const & velocity_delta,
+                                                                      vector3_type const & position_delta)
 {
+    if constexpr (Integrated)
+    {
+        m_rebase.current = m_current;
+        m_rebase.current.v_n = m_current.v_n + velocity_delta;
+        m_rebase.current.p_n = m_current.p_n + position_delta;
+        if (!linalg::all_finite(m_rebase.current.v_n) || !linalg::all_finite(m_rebase.current.p_n))
+        {
+            return false;
+        }
+    }
     auto index = m_history.get_oldest_index();
     for (std::size_t count = 0; count < m_history.entries(); ++count)
     {
@@ -362,7 +489,8 @@ bool OutputPredictor<Linalg, Capacity>::stage_translation(vector3_type const & v
     return true;
 }
 
-template <typename Linalg, std::size_t Capacity> void OutputPredictor<Linalg, Capacity>::commit_history()
+template <typename Linalg, std::size_t Capacity, bool Integrated>
+void OutputPredictor<Linalg, Capacity, Integrated>::commit_history()
 {
     auto index = m_history.get_oldest_index();
     for (std::size_t count = 0; count < m_history.entries(); ++count)
@@ -370,11 +498,18 @@ template <typename Linalg, std::size_t Capacity> void OutputPredictor<Linalg, Ca
         m_history[index] = m_staged[index];
         index = (index + 1) % m_history.get_length();
     }
-    m_current = m_history.get_newest();
+    if constexpr (Integrated)
+    {
+        m_current = m_rebase.current;
+    }
+    else
+    {
+        m_current = m_history.get_newest();
+    }
 }
 
-template <typename Linalg, std::size_t Capacity>
-bool OutputPredictor<Linalg, Capacity>::correct(std::uint64_t time_us, state_type const & state)
+template <typename Linalg, std::size_t Capacity, bool Integrated>
+bool OutputPredictor<Linalg, Capacity, Integrated>::correct(std::uint64_t time_us, state_type const & state)
 {
     m_rebase.prepared = false;
     if (m_current.time_us == 0 || m_fault != Fault::none)
@@ -436,10 +571,10 @@ bool OutputPredictor<Linalg, Capacity>::correct(std::uint64_t time_us, state_typ
     return true;
 }
 
-template <typename Linalg, std::size_t Capacity>
-bool OutputPredictor<Linalg, Capacity>::apply_reset(quaternion_type const & q_delta,
-                                                    vector3_type const & velocity_delta_n,
-                                                    vector3_type const & position_delta_n)
+template <typename Linalg, std::size_t Capacity, bool Integrated>
+bool OutputPredictor<Linalg, Capacity, Integrated>::apply_reset(quaternion_type const & q_delta,
+                                                                vector3_type const & velocity_delta_n,
+                                                                vector3_type const & position_delta_n)
 {
     m_rebase.prepared = false;
     if (m_current.time_us == 0 || m_fault != Fault::none)
@@ -452,6 +587,14 @@ bool OutputPredictor<Linalg, Capacity>::apply_reset(quaternion_type const & q_de
     }
     bool const identity = q_delta.coefficients()(0) == value_type{1} && q_delta.coefficients()(1) == value_type{0} &&
                           q_delta.coefficients()(2) == value_type{0} && q_delta.coefficients()(3) == value_type{0};
+    if constexpr (Integrated)
+    {
+        m_rebase.current = m_current;
+        if (!reset_sample(m_rebase.current, q_delta, velocity_delta_n, position_delta_n, identity))
+        {
+            return fail(Fault::numerical_failure);
+        }
+    }
     // Before the first interval, stage the seed in one workspace slot instead.
     bool const seed_only = m_history.entries() == 0;
     auto const count = seed_only ? std::size_t{1} : m_history.entries();
@@ -460,19 +603,7 @@ bool OutputPredictor<Linalg, Capacity>::apply_reset(quaternion_type const & q_de
     {
         auto & candidate = m_staged[index];
         candidate = seed_only ? m_current : m_history[index];
-        candidate.v_n = candidate.v_n + velocity_delta_n;
-        candidate.p_n = candidate.p_n + position_delta_n;
-        if (!identity)
-        {
-            auto const rotated = q_delta * candidate.q_nb;
-            if (!succeeded(quaternion_type::from_coefficients(
-                    rotated.coefficients(), static_cast<value_type>(m_parameters.minimum_quaternion_norm),
-                    candidate.q_nb)))
-            {
-                return fail(Fault::numerical_failure);
-            }
-        }
-        if (!linalg::all_finite(candidate.v_n) || !linalg::all_finite(candidate.p_n))
+        if (!reset_sample(candidate, q_delta, velocity_delta_n, position_delta_n, identity))
         {
             return fail(Fault::numerical_failure);
         }
@@ -491,10 +622,10 @@ bool OutputPredictor<Linalg, Capacity>::apply_reset(quaternion_type const & q_de
     return true;
 }
 
-template <typename Linalg, std::size_t Capacity>
-bool OutputPredictor<Linalg, Capacity>::rebase_sample(Sample & sample, quaternion_type const & q_new_old,
-                                                      linalg::Matrix<Linalg, 3, 3> const & rotation,
-                                                      vector3_type const & translation) const
+template <typename Linalg, std::size_t Capacity, bool Integrated>
+bool OutputPredictor<Linalg, Capacity, Integrated>::rebase_sample(Sample & sample, quaternion_type const & q_new_old,
+                                                                  linalg::Matrix<Linalg, 3, 3> const & rotation,
+                                                                  vector3_type const & translation) const
 {
     sample.p_n = rotation * sample.p_n + translation;
     sample.v_n = rotation * sample.v_n;
@@ -503,9 +634,9 @@ bool OutputPredictor<Linalg, Capacity>::rebase_sample(Sample & sample, quaternio
                q_new_old, sample.q_nb, static_cast<value_type>(m_parameters.minimum_quaternion_norm), sample.q_nb));
 }
 
-template <typename Linalg, std::size_t Capacity>
-bool OutputPredictor<Linalg, Capacity>::prepare_rebase(quaternion_type const & q_new_old,
-                                                       vector3_type const & translation)
+template <typename Linalg, std::size_t Capacity, bool Integrated>
+bool OutputPredictor<Linalg, Capacity, Integrated>::prepare_rebase(quaternion_type const & q_new_old,
+                                                                   vector3_type const & translation)
 {
     m_rebase.prepared = false;
     if (m_current.time_us == 0 || m_fault != Fault::none || !valid_quaternion(q_new_old) ||
@@ -534,7 +665,7 @@ bool OutputPredictor<Linalg, Capacity>::prepare_rebase(quaternion_type const & q
         }
         index = (index + 1) % m_history.get_length();
     }
-    if (m_history.entries() == 0)
+    if (Integrated || m_history.entries() == 0)
     {
         m_rebase.current = m_current;
         if (!rebase_sample(m_rebase.current, q_new_old, A, translation))
@@ -546,7 +677,8 @@ bool OutputPredictor<Linalg, Capacity>::prepare_rebase(quaternion_type const & q
     return true;
 }
 
-template <typename Linalg, std::size_t Capacity> void OutputPredictor<Linalg, Capacity>::commit_rebase()
+template <typename Linalg, std::size_t Capacity, bool Integrated>
+void OutputPredictor<Linalg, Capacity, Integrated>::commit_rebase()
 {
     if (!m_rebase.prepared)
     {
@@ -566,12 +698,14 @@ template <typename Linalg, std::size_t Capacity> void OutputPredictor<Linalg, Ca
     m_rebase.prepared = false;
 }
 
-template <typename Linalg, std::size_t Capacity> void OutputPredictor<Linalg, Capacity>::reset()
+template <typename Linalg, std::size_t Capacity, bool Integrated>
+void OutputPredictor<Linalg, Capacity, Integrated>::reset()
 {
     m_rebase.prepared = false;
     m_history.reset();
     m_staged.fill(Sample{});
     m_current = {};
+    m_rebase.current = {};
     m_accel_bias = {};
     m_gyro_bias = {};
     m_angular_rate_correction = {};
@@ -583,6 +717,49 @@ template <typename Linalg, std::size_t Capacity> void OutputPredictor<Linalg, Ca
     m_fusion_time_us = 0;
     m_tracking = false;
     m_fault = Fault::none;
+}
+
+template <typename Linalg, std::size_t Capacity, bool Integrated>
+bool OutputPredictor<Linalg, Capacity, Integrated>::advance_integrated(Sample & output, IntegratedImu<Linalg> imu) const
+{
+    state_type state{output.p_n, output.v_n, output.q_nb, m_accel_bias, m_gyro_bias};
+    configuration::Ins::Parameters<Linalg> parameters;
+    parameters.gravity_n(2) = value_type(m_parameters.gravity_m_s2);
+    parameters.minimum_quaternion_norm = value_type(m_parameters.minimum_quaternion_norm);
+    parameters.quaternion_squared_norm_tolerance = value_type(m_parameters.quaternion_squared_norm_tolerance);
+    parameters.dt_min = value_type(m_parameters.minimum_interval_s);
+    parameters.dt_max = value_type(m_parameters.maximum_interval_s);
+    auto const & limits = m_parameters.aggregate_limits;
+    AggregateLimits<value_type> const domain{value_type(limits.raw_angle_rad), value_type(limits.corrected_angle_rad)};
+    imu.delta_angle_b = imu.delta_angle_b + m_angular_rate_correction * imu.angular_interval_s;
+    if (!succeeded(predict_aggregate_nominal(state, imu, parameters, domain, state)))
+    {
+        return false;
+    }
+    output.q_nb = state.q_nb;
+    output.v_n = state.v_n;
+    output.p_n = state.p_n;
+    return true;
+}
+
+template <typename Linalg, std::size_t Capacity, bool Integrated>
+bool OutputPredictor<Linalg, Capacity, Integrated>::reset_sample(Sample & sample, quaternion_type const & q_delta,
+                                                                 vector3_type const & velocity_delta,
+                                                                 vector3_type const & position_delta,
+                                                                 bool identity) const
+{
+    sample.v_n = sample.v_n + velocity_delta;
+    sample.p_n = sample.p_n + position_delta;
+    if (!identity)
+    {
+        auto const rotated = q_delta * sample.q_nb;
+        if (!succeeded(quaternion_type::from_coefficients(
+                rotated.coefficients(), value_type(m_parameters.minimum_quaternion_norm), sample.q_nb)))
+        {
+            return false;
+        }
+    }
+    return linalg::all_finite(sample.v_n) && linalg::all_finite(sample.p_n);
 }
 
 } /* end namespace formal_eskf::runtime */

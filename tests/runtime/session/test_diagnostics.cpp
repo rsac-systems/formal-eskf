@@ -7,6 +7,7 @@ struct DiagnosticsNoGravity
 {
     // Consumed through InsSession's dependent Layout type, which Cppcheck does not resolve here.
     // cppcheck-suppress-begin unusedStructMember
+    static constexpr std::size_t imu_accumulation_capacity = 0;
     static constexpr std::size_t imu_capacity = ins_test_profile::Layout::imu_capacity;
     static constexpr std::size_t context_capacity = ins_test_profile::Layout::context_capacity;
     static constexpr std::size_t gnss_capacity = ins_test_profile::Layout::gnss_capacity;

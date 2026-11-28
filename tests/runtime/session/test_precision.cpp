@@ -8,6 +8,7 @@ namespace precision_test
 struct MinimalLayout
 {
     using Full = ins_test_profile::Layout;
+    static constexpr std::size_t imu_accumulation_capacity = 0;
     static constexpr std::size_t imu_capacity = Full::imu_capacity, context_capacity = Full::context_capacity;
     static constexpr std::size_t gnss_capacity = Full::gnss_capacity, magnetic_capacity = Full::magnetic_capacity,
                                  barometer_capacity = Full::barometer_capacity;

@@ -1,13 +1,13 @@
 # IMU Accumulation and Prediction
 
-**Status:** Draft. Optional INS target; not implemented or deployment-qualified.
+**Status:** Draft. Optional INS software implemented; physical and target qualification remain open.
 The direct binary64/250 Hz baseline remains unchanged.
 
 [R-IMU-ACCUMULATION](../requirements/runtime/imu/accumulation.md) owns input
 accumulation and two-rate runtime composition. [E-PRED-AGGREGATE](../requirements/core/aggregate-prediction.md)
 owns the integrated-increment nominal update and truncated covariance model.
 The [profile](../profiles/imu-accumulation.md) owns settings and qualification;
-[planned tests](../verification/imu-accumulation-tests.md) own acceptance allocation.
+[Acceptance cases](../verification/tests/runtime/imu-accumulation.md) own acceptance allocation.
 
 ## Ownership and flow
 

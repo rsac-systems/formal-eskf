@@ -216,12 +216,20 @@ bool InsSession<Linalg, Layout>::update_imu_bias(ImuInput const & sample, imu_ty
 {
     double const angular_interval = sample.angular_interval_s();
     double const force_interval = sample.acceleration_interval_s();
-    m_average_imu_interval =
-        m_settings.imu.interval_history_weight * m_average_imu_interval +
-        m_settings.imu.interval_sample_weight *
-            std::clamp<double>(0.5 * (angular_interval + force_interval),
-                               m_settings.imu.minimum_interval_ratio * m_settings.imu.nominal_interval_s,
-                               m_settings.imu.maximum_interval_ratio * m_settings.imu.nominal_interval_s);
+    if constexpr (accumulated_imu)
+    {
+        m_average_imu_interval = m_settings.imu.interval_history_weight * m_average_imu_interval +
+                                 m_settings.imu.interval_sample_weight * (0.5 * (angular_interval + force_interval));
+    }
+    else
+    {
+        m_average_imu_interval =
+            m_settings.imu.interval_history_weight * m_average_imu_interval +
+            m_settings.imu.interval_sample_weight *
+                std::clamp<double>(0.5 * (angular_interval + force_interval),
+                                   m_settings.imu.minimum_interval_ratio * m_settings.imu.nominal_interval_s,
+                                   m_settings.imu.maximum_interval_ratio * m_settings.imu.nominal_interval_s);
+    }
     typename bias_learning_type::Conditions conditions;
     conditions.at_rest = m_imu_context.land.known && m_imu_context.land.at_rest;
     conditions.accelerometer_clipping = sample.accelerometer_clipping;
@@ -306,7 +314,12 @@ bool InsSession<Linalg, Layout>::admit_imu(ImuInput const & sample, std::uint64_
 
         if (!m_imu_history.can_push(sample, arrival_us))
         {
-            return check_timing(m_imu_history.push(sample, arrival_us));
+            bool const admitted = m_imu_history.push(sample, arrival_us);
+            if constexpr (accumulated_imu)
+            {
+                return check(m_imu_history.status());
+            }
+            return check_timing(admitted);
         }
 
         auto const & prior = m_startup.parameters();
@@ -325,7 +338,15 @@ bool InsSession<Linalg, Layout>::admit_imu(ImuInput const & sample, std::uint64_
     }
 
     m_operation = InsOperation::input;
-    if (!check_timing(m_imu_history.push(sample, arrival_us)))
+    bool const admitted = m_imu_history.push(sample, arrival_us);
+    if constexpr (accumulated_imu)
+    {
+        if (!check(m_imu_history.status()))
+        {
+            return false;
+        }
+    }
+    else if (!check_timing(admitted))
     {
         return false;
     }
@@ -379,7 +400,14 @@ void InsSession<Linalg, Layout>::process_imu(ImuInput const & sample, std::uint6
 
         m_operation = InsOperation::output_prediction;
         ++m_output_prediction_attempts;
-        check_timing(m_output.predict(interval));
+        if constexpr (accumulated_imu)
+        {
+            check_timing(m_output.predict(interval, m_imu_history.emitted()));
+        }
+        else
+        {
+            check_timing(m_output.predict(interval));
+        }
         return;
     }
 
@@ -711,11 +739,32 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::pre
 template <typename Linalg, typename Layout>
 void InsSession<Linalg, Layout>::predict_and_fuse(typename imu_history_type::interval_type const & interval)
 {
+    auto const observation_interval = [&]()
+    {
+        if constexpr (accumulated_imu)
+        {
+            return interval.interval();
+        }
+        else
+        {
+            return interval;
+        }
+    }();
+    bool held = false, mixed = false;
+    if constexpr (accumulated_imu)
+    {
+        held = interval.has_hold;
+        mixed = interval.accelerometer_changed || interval.gyroscope_changed;
+    }
+    else
+    {
+        held = interval.hold_period_us != 0;
+    }
     auto const & sample = interval.sample;
     m_delayed_imu_arrival_us = interval.arrival_time_us;
     auto const imu = sample.mean_rates();
-    bool const changed = !m_filtered_imu_source.matches(sample.source);
-    if (changed || interval.hold_period_us != 0)
+    bool const changed = mixed || !m_filtered_imu_source.matches(sample.source);
+    if (changed || held)
     {
         // Discard partial observations at their delayed source boundary. Bias
         // reset already happened at ingress; historical records never repeat it.
@@ -727,7 +776,7 @@ void InsSession<Linalg, Layout>::predict_and_fuse(typename imu_history_type::int
             m_gravity_conditions = {};
         }
 
-        if (interval.hold_period_us == 0)
+        if (!held)
         {
             m_gravity.reset_samples();
         }
@@ -736,49 +785,92 @@ void InsSession<Linalg, Layout>::predict_and_fuse(typename imu_history_type::int
         m_filtered_imu_source = sample.source;
     }
 
-    m_imu_context = m_observations.prediction_context(interval, m_settings.imu.rest_maximum_age_us);
+    m_imu_context = m_observations.prediction_context(observation_interval, m_settings.imu.rest_maximum_age_us);
     if (!sample.accelerometer_clipping_available)
     {
         m_vertical_health.reset();
     }
 
-    if (interval.hold_period_us != 0)
+    if constexpr (!accumulated_imu)
+    {
+        if (interval.hold_period_us != 0)
+        {
+            ++m_statistics.gaps;
+            reset_imu_observations();
+            m_operation = InsOperation::prediction;
+            ++m_prediction_attempts;
+            if (!check(formal_eskf::runtime::predict_imu(
+                    m_state, m_covariance, interval.held_rate,
+                    static_cast<value_type>(interval.hold_period_us * seconds_per_microsecond), m_parameters, 0, false,
+                    m_settings.imu.faulty_specific_force_variance)))
+            {
+                return;
+            }
+
+            m_covariance_time_us = interval.start_time_us + interval.hold_period_us;
+        }
+    }
+    else if (held)
     {
         ++m_statistics.gaps;
         reset_imu_observations();
-        m_operation = InsOperation::prediction;
-        ++m_prediction_attempts;
-        if (!check(formal_eskf::runtime::predict_imu(
-                m_state, m_covariance, interval.held_rate,
-                static_cast<value_type>(interval.hold_period_us * seconds_per_microsecond), m_parameters, 0, false,
-                m_settings.imu.faulty_specific_force_variance)))
-        {
-            return;
-        }
-
-        m_covariance_time_us = interval.start_time_us + interval.hold_period_us;
     }
 
     m_operation = InsOperation::bias_learning;
-    if (!update_imu_bias(sample, imu))
+    auto protection_sample = sample;
+    if constexpr (accumulated_imu)
+    {
+        // Known clipping remains protection evidence even when another input
+        // in the same group had no clipping availability.
+        protection_sample.accelerometer_clipping = interval.accelerometer_clipping;
+    }
+    if (!update_imu_bias(protection_sample, imu))
     {
         return;
     }
 
     m_operation = InsOperation::prediction;
     ++m_prediction_attempts;
-    if (!check(formal_eskf::runtime::predict_imu(
-            m_state, m_covariance, imu, sample.angular_interval_s(), m_parameters, sample.accelerometer_clipping,
-            m_vertical_health.state().bad_vertical_acceleration, m_settings.imu.faulty_specific_force_variance)))
+    if constexpr (accumulated_imu)
     {
-        return;
+        auto parameters = m_parameters;
+        ImuNoiseConditions conditions;
+        conditions.bad_vertical_acceleration = m_vertical_health.state().bad_vertical_acceleration;
+        for (std::size_t axis = 0; axis < 3; ++axis)
+        {
+            conditions.accelerometer_clipped[axis] = (interval.accelerometer_clipping & (1U << axis)) != 0;
+        }
+        auto status = select_imu_process_noise(m_parameters.process_noise, conditions,
+                                               m_settings.imu.faulty_specific_force_variance, parameters.process_noise);
+        if (succeeded(status))
+        {
+            status = inhibit_bias_process_noise(m_covariance, parameters.process_noise, parameters.process_noise);
+        }
+        if (succeeded(status))
+        {
+            status = predict_aggregate(m_state, m_covariance, interval.increment(), parameters, m_aggregate_limits,
+                                       m_state, m_covariance);
+        }
+        if (!check(status))
+        {
+            return;
+        }
+    }
+    else
+    {
+        if (!check(formal_eskf::runtime::predict_imu(
+                m_state, m_covariance, imu, sample.angular_interval_s(), m_parameters, sample.accelerometer_clipping,
+                m_vertical_health.state().bad_vertical_acceleration, m_settings.imu.faulty_specific_force_variance)))
+        {
+            return;
+        }
     }
 
     m_time_us = sample.time_us;
     m_covariance_time_us = m_time_us;
     ++m_statistics.predictions;
     m_operation = InsOperation::observation_selection;
-    if (!check_timing(m_observations.begin_fusion(interval)))
+    if (!check_timing(m_observations.begin_fusion(observation_interval)))
     {
         return;
     }
@@ -793,7 +885,8 @@ void InsSession<Linalg, Layout>::predict_and_fuse(typename imu_history_type::int
     restrict_bias_learning();
     m_operation = InsOperation::magnetic;
     auto const acceleration_n = formal_eskf::so3::rotate(m_state.q_nb, imu.specific_force_b - m_state.b_a);
-    if (m_fault || !check(m_magnetic.heading.update_acceleration(acceleration_n, sample.acceleration_interval_s())))
+    if (m_fault || ((!accumulated_imu || (!mixed && !held)) &&
+                    !check(m_magnetic.heading.update_acceleration(acceleration_n, sample.acceleration_interval_s()))))
     {
         return;
     }
@@ -812,7 +905,10 @@ void InsSession<Linalg, Layout>::predict_and_fuse(typename imu_history_type::int
         return;
     }
 
-    fuse_gravity(sample, imu);
+    if (!accumulated_imu || (!mixed && !held))
+    {
+        fuse_gravity(sample, imu);
+    }
     if (!m_fault)
     {
         begin_magnetic();

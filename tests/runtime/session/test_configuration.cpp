@@ -189,6 +189,7 @@ struct Layout
 {
     // Consumed through InsSession's dependent Layout type.
     // cppcheck-suppress-begin unusedStructMember
+    static constexpr std::size_t imu_accumulation_capacity = 0;
     static constexpr std::size_t imu_capacity = Imu, context_capacity = ContextSize;
     static constexpr std::size_t gnss_capacity = Gnss, magnetic_capacity = Magnetic, barometer_capacity = Barometer;
     static constexpr std::uint64_t gravity_interval_us = ins_test_profile::Layout::gravity_interval_us;

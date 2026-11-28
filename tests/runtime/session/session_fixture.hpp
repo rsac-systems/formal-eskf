@@ -62,10 +62,11 @@ template <typename Runtime = Session> struct Fixture
     bool send_barometer = true, send_gnss = true, send_magnetic = true;
     bool at_rest = true;
 
-    explicit Fixture(typename Runtime::Parameters const & parameters = ins_test_profile::parameters<Runtime>())
+    explicit Fixture(typename Runtime::Parameters const & parameters = ins_test_profile::parameters<Runtime>(),
+                     formal_eskf::runtime::TimingParameters const & timing = ins_test_profile::timing)
         : session(parameters)
     {
-        configured = session.configure_timing(ins_test_profile::timing) && session.configure_gravity(true) &&
+        configured = session.configure_timing(timing) && session.configure_gravity(true) &&
                      session.configure_magnetic({true, true, 0}) && session.configure_sensor_positions({});
         input.gnss.stamp.source.device_id = 201;
         input.gnss.latitude_deg = 47.397742;

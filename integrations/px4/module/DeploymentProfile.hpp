@@ -203,7 +203,7 @@ inline constexpr std::uint64_t maximum_age_us = 100000U;
 inline constexpr std::uint64_t dead_reckoning_age_us = 1000000U;
 } // namespace output
 
-// First delayed-fusion profile: one real SIH IMU interval per main-filter step.
+// Producer cadence remains SIH 250 Hz; only complete aggregate endpoints are retained in optional accumulation mode.
 namespace history
 {
 inline constexpr std::int32_t filter_interval_us = 4000;
@@ -214,18 +214,20 @@ inline constexpr std::uint64_t maximum_lag_us = 300000;
 inline constexpr std::uint64_t gnss_arrival_age_us = 150000;
 inline constexpr std::uint64_t magnetic_arrival_age_us = 100000;
 inline constexpr std::uint64_t barometer_arrival_age_us = 100000;
-inline constexpr std::size_t imu_capacity = 64;
-inline constexpr std::size_t context_capacity = 128;
+// ceil(200 ms / 7.2 ms) + 1 = 29 aggregate slots; leave bounded headroom.
+inline constexpr std::size_t imu_capacity = ESKF_CFG_IMU_ACCUMULATION ? 32 : 64;
+inline constexpr std::size_t context_capacity = ESKF_CFG_IMU_ACCUMULATION ? 192 : 128;
 inline constexpr std::size_t gnss_capacity = 16;
-inline constexpr std::size_t magnetic_capacity = 64;
-inline constexpr std::size_t barometer_capacity = 128;
+inline constexpr std::size_t magnetic_capacity = ESKF_CFG_IMU_ACCUMULATION ? 80 : 64;
+inline constexpr std::size_t barometer_capacity = ESKF_CFG_IMU_ACCUMULATION ? 160 : 128;
 inline constexpr std::uint64_t observation_maximum_age_us = 100000;
 inline constexpr std::uint64_t gnss_spacing_us = 50000;
 inline constexpr std::uint64_t magnetic_spacing_us = 10000;
 inline constexpr std::uint64_t barometer_spacing_us = 5000;
 inline constexpr std::size_t storage_budget_bytes = 64 * 1024;
 
-inline constexpr runtime::TimingParameters parameters{filter_interval_us, fusion_delay_ms, 0, 0, 0};
+inline constexpr runtime::TimingParameters parameters{ESKF_CFG_IMU_ACCUMULATION ? 10000 : filter_interval_us,
+                                                      fusion_delay_ms, 0, 0, 0};
 inline constexpr runtime::ImuTiming timing{
     filter_interval_us,     minimum_period_us, maximum_period_us,   imu::maximum_interval_us, imu::gap_tolerance_us,
     output::maximum_age_us, maximum_lag_us,    gnss_arrival_age_us, magnetic_arrival_age_us,  barometer_arrival_age_us};
@@ -317,6 +319,7 @@ template <typename Height> typename Height::Parameters height_parameters()
 
 struct InsLayout
 {
+    static constexpr std::size_t imu_accumulation_capacity = ESKF_CFG_IMU_ACCUMULATION ? 32 : 0;
     static constexpr std::size_t imu_capacity = history::imu_capacity;
     static constexpr std::size_t context_capacity = history::context_capacity;
     static constexpr std::size_t gnss_capacity = history::gnss_capacity;
@@ -412,6 +415,38 @@ template <typename Session> typename Session::Parameters session_parameters(std:
             imu::accelerometer_bias_variance_density;
         result.estimator.process_noise.gyroscope_bias_random_walk_variance_density(axis) =
             imu::gyroscope_bias_variance_density;
+    }
+
+    if constexpr (Session::accumulated_imu)
+    {
+        auto & accumulation = result.accumulation;
+        accumulation.input = {runtime::ImuIntegration::integrated_with_coning,
+                              0.01,
+                              minimum_quaternion_norm,
+                              1.0,
+                              history::minimum_period_us,
+                              history::maximum_period_us,
+                              16000,
+                              200,
+                              200,
+                              400,
+                              400};
+        accumulation.timing = history::timing;
+        accumulation.timing.filter_interval_us = 10000;
+        accumulation.timing.minimum_period_us = 7200;
+        accumulation.timing.maximum_period_us = 16000;
+        accumulation.timing.maximum_interval_us = 16000;
+        accumulation.timing.maximum_lag_us = 450000;
+        accumulation.limits = {1.0, 1.0};
+        accumulation.effective_noise = result.estimator.process_noise;
+        for (std::size_t axis = 0; axis < 3; ++axis)
+        {
+            accumulation.effective_noise->specific_force_variance(axis) = ESKF_CFG_AGG_ACCEL_VARIANCE;
+            accumulation.effective_noise->angular_rate_variance(axis) = ESKF_CFG_AGG_GYRO_VARIANCE;
+        }
+        result.output.nominal_interval_s = 0.01;
+        result.output.aggregate_limits = {1.0, 1.0};
+        result.settings.imu.nominal_interval_s = 0.01;
     }
 
     result.bias_learning.maximum_specific_force = imu::maximum_specific_force_m_s2;

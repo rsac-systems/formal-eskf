@@ -193,9 +193,9 @@ not establish a supported binary32 deployment.
 INS accumulator, two-rate session and integrated-increment core operation.
 The [design](architecture/imu-aggregate-prediction.md),
 [profile](profiles/imu-accumulation.md) and
-[Pending acceptance cases](verification/imu-accumulation-tests.md) retain explicit
+[Native acceptance cases](verification/tests/runtime/imu-accumulation.md) retain explicit
 PX4 adaptations and qualification gaps. Direct mode remains the default; no
-aggregate implementation or proof is established by these Draft contracts.
+aggregate flight qualification or formal proof is established by the native checks.
 
 ## GNSS control target
 

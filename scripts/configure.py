@@ -77,7 +77,7 @@ def px4_header(CONFIG, KCONFIGLIB):
     for NAME in ("ESKF_CODEGEN", "ESKF_QUAT_APPROX", "ESKF_RESET_APPROX", "ESKF_MAG_TILT"):
         LINES.append(f"#define ESKF_CFG_{NAME[5:]} {int(SETTINGS[NAME][1] == 'ON')}\n")
     VALUES = {}
-    ALLOW_ZERO = {"ACCEL_VARIANCE", "GYRO_VARIANCE", "ACCEL_BIAS_DENSITY", "GYRO_BIAS_DENSITY",
+    ALLOW_ZERO = {"ACCEL_VARIANCE", "GYRO_VARIANCE", "AGG_ACCEL_VARIANCE", "AGG_GYRO_VARIANCE", "ACCEL_BIAS_DENSITY", "GYRO_BIAS_DENSITY",
                   "FAULT_ACCEL_STD", "ACCEL_BIAS_LIMIT", "GYRO_BIAS_LIMIT", "MAG_STRENGTH_TOL",
                   "MAG_INCLINATION_TOL", "MAG_ACCEL_LIMIT", "GROUND_DEADZONE"}
     for SYMBOL in CONFIG.unique_defined_syms:
@@ -90,6 +90,10 @@ def px4_header(CONFIG, KCONFIGLIB):
         elif SYMBOL.type == KCONFIGLIB.INT:
             VALUE = str(int(VALUE, 10))
         elif SYMBOL.type == KCONFIGLIB.STRING:
+            if NAME in ("AGG_ACCEL_VARIANCE", "AGG_GYRO_VARIANCE") and VALUE == "":
+                if CONFIG.syms["PX4_IMU_ACCUMULATION"].str_value == "y":
+                    raise ValueError(f"{SYMBOL.name}: provide an explicit aggregate effective rate variance")
+                VALUE = "0"  # Unused in direct mode; does not establish an aggregate noise profile.
             if not re.fullmatch(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?", VALUE):
                 raise ValueError(f"{SYMBOL.name}: expected a decimal number")
             NUMBER = float(VALUE)

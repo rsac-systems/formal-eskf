@@ -5,7 +5,8 @@
 **Status:** Draft
 
 **Applies to:** Optional INS prediction from one admitted aggregate; binary32 or
-binary64 under a qualified profile. Implementation and evidence are pending.
+binary64 under an explicitly configured profile. Native software checks exist;
+formal, physical and target qualification remain open.
 Existing direct INS/AHRS operations keep E-PRED, E-PCOV and E-NOISE unchanged.
 
 **Parent:** [SW-CORE](../software/core-estimation.md).
@@ -157,7 +158,7 @@ again. Bias-density scaling by T_e is a project adaptation; PX4's conditional
 
 ## Acceptance and verification
 
-[Core cases](../../verification/imu-accumulation-tests.md#core-cases) allocate
+[Core cases](../../verification/tests/runtime/imu-accumulation.md#core-cases) allocate
 nominal reference calculations, global/local covariance equivalence, noise units,
 validation, failure frames and aliasing. Compare the selected truncated model to
 its own oracle, not to the full derivative of the nominal map. Separately measure

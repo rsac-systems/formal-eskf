@@ -7,6 +7,7 @@ namespace ins_example
 {
 struct Layout
 {
+    static constexpr std::size_t imu_accumulation_capacity = 0;
     static constexpr std::size_t imu_capacity = 64, context_capacity = 128;
     static constexpr std::size_t gnss_capacity = 16, magnetic_capacity = 64, barometer_capacity = 128;
     static constexpr std::uint64_t gravity_interval_us = 10000;

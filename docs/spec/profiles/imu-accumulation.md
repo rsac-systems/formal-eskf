@@ -7,7 +7,7 @@ and [E-PRED-AGGREGATE](../requirements/core/aggregate-prediction.md).
 ## Mode and timing
 
 The existing direct binary64/250 Hz configuration remains the default. Aggregate
-mode is an optional INS profile, not an enabled deployment choice. Retain exact
+mode is an optional implemented INS profile, disabled by default. Retain exact
 Exp attitude for this target; the direct approximation option does not silently
 select a new aggregate formula. Binary32 needs complete-session qualification
 under [R-NAV-PRECISION](../requirements/runtime/navigation-precision.md).
@@ -85,3 +85,40 @@ Derive each ring's length from its actual retained cadence and worst admitted
 span, including jitter/warmup. Do not reuse equal 64-slot rings as proof of equal
 horizons. Qualification is incremental: synthetic component fixtures may support
 implementation, but they do not qualify real IMU noise, flight behavior or hardware.
+
+## Implemented software profile
+
+The session selects direct history with layout accumulation capacity zero, or
+bounded aggregate history with a positive maximum constituent count. Configuration
+must explicitly provide the integrated-producer contract, aggregate retention,
+angular/skew limits and effective process noise; missing noise is not inherited
+from the direct profile. Output still propagates each admitted producer interval.
+
+The optional PX4 package exposes `PX4_IMU_ACCUMULATION`, disabled by default and
+incompatible with approximate attitude prediction. It consumes the existing
+`vehicle_imu` integrated/coning-compensated producer at 250 Hz. Request 10000 us
+with `FESKF_DT_US`; the default direct parameter remains 4000 us. Configure both
+aggregate effective rate variances explicitly; no flight tuning is supplied.
+
+| Bound | Optional PX4 software profile |
+|---|---|
+| Raw gyro/accel duration | 3800 through 4200 us |
+| Requested group period | 10000 us; actual emitted periods are retained, not forced to 100 Hz |
+| Aggregate duration/elapsed domain | 7200 through 16000 us |
+| Raw window / endpoint skew | At most 200 us each |
+| Aggregate window / endpoint skew | At most 400 us each |
+| Raw/corrected angular domain | At most 1 rad each; conservative unwrapped sum for raw constituents |
+| Maximum constituents | 32 real inputs; held motion is separately marked |
+| Minimum fusion lag | 200 ms default; startup validates the full delay/capacity tuple |
+| Maximum retention lag | 450 ms |
+| Aggregate/output capacity | 32 each; default lag needs ceil(200000/7200)+1 = 29 occupied slots |
+| Raw context / GNSS / magnetic / barometer capacity | 192 / 16 / 80 / 160 |
+| Module storage ceiling | Existing 64 KiB static assertion; includes staged output records |
+
+These bounds instantiate a host-tested software profile. Holds are allowed only
+when the complete group remains inside its declared duration/angle/skew domain.
+This is narrower than the direct gap domain and never silently truncates a hold.
+A constant 4 ms producer can emit 8 ms or 12 ms groups because PX4's rounded-count
+and strict-duration rule chooses real input boundaries. Physical noise, motion
+error and target stack/WCET remain qualification tasks. KITTI and ULog replay
+retain their existing direct profiles until their producers are qualified.
