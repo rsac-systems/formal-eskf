@@ -7,6 +7,7 @@ A portable C++20 inertial navigation system (INS) based on an error-state Kalman
 - **Sensor fusion:** IMU prediction with GNSS, magnetometer and barometer aiding.
 - **Portable design:** platform-independent core and runtime with Eigen, PX4 matrix and CMSIS-DSP backends.
 - **VeriCoding-inspired development:** AI-assisted code and proof construction with explicit specifications and machine verification.
+- **Safety-oriented development:** FHA, FMEA and FTA guide hazard identification, failure analysis and verification.
 - **Traceability:** links requirements, code, formal proofs and test evidence.
 
 ## Quick Start
@@ -113,6 +114,7 @@ certification work; the project is not certified.
 | Architecture and usage | [Architecture](docs/spec/architecture/overview.md), [runtime guide](docs/guides/navigation-runtime.md) |
 | Configuration | [Build and deployment settings](docs/guides/configuration.md) |
 | Specifications | [Documentation index](docs/README.md) |
+| Safety analysis | [FHA, FMEA and FTA inventories](docs/analysis/scenarios/README.md) — functional hazards, component failure modes and potential causes of system failures. |
 | Planned work | [Roadmap](docs/roadmap.md) |
 | Contributing | [Coding style](docs/guides/coding-style.md), [C++ subset](docs/spec/requirements/common/cpp-subset.md) |
 
