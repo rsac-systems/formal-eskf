@@ -212,9 +212,10 @@ qualification remain separate from this software evidence.
 [R-BIAS-STABILITY](requirements/runtime/imu/bias-stability.md) defines separate
 accelerometer/gyro qualification without changing ESKF estimation. The
 [design](architecture/bias-stability.md), [profile](profiles/bias-stability.md)
-and four [Pending case families](verification/bias-stability-tests.md) allocate
+and four [case families](verification/tests/runtime/bias-stability.md) bind
 runtime monitors, PX4 publication and the external calibration boundary. This
-Draft does not establish implemented monitoring or physical bias accuracy.
+Draft retains its approval status. Executable software bindings do not establish
+physical bias accuracy, target qualification or new formal proofs.
 
 ## Stationary zero-velocity target
 

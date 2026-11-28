@@ -90,6 +90,8 @@ typename InsSession<Linalg, Layout>::Diagnostics InsSession<Linalg, Layout>::dia
     view.output_time_us = m_output.current().time_us;
     view.covariance_time_us = m_covariance_time_us;
     view.completed_fusion_us = m_completed_fusion_us;
+    view.accelerometer_stability = m_accelerometer_stability.state();
+    view.gyroscope_stability = m_gyroscope_stability.state();
     view.frame_epoch = m_frame_epoch;
     view.evaluations = m_evaluation_order;
     view.predictions = m_prediction_attempts;

@@ -115,6 +115,7 @@ int main()
             }
         }
 
+        session.update_bias_stability();
         (void)session.take_innovations();
         if (session.fault())
         {

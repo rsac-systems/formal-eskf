@@ -36,7 +36,8 @@ if(FORMAL_ESKF_MODULE_TESTS)
 	target_include_directories(formal_eskf_module_test PRIVATE
 		"${CMAKE_CURRENT_SOURCE_DIR}"
 		"${CMAKE_CURRENT_SOURCE_DIR}/core/include"
-		"${PX4_SOURCE_DIR}/src/modules/mc_att_control/AttitudeControl")
+		"${PX4_SOURCE_DIR}/src/modules/mc_att_control/AttitudeControl"
+		"${PX4_SOURCE_DIR}/src/modules/sensors")
 	set_target_properties(formal_eskf_module_test PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED YES)
 	target_compile_definitions(formal_eskf_module_test PRIVATE MODULE_NAME="formal_eskf_test"
 		${FORMAL_ESKF_ALGORITHMS})
@@ -46,7 +47,7 @@ if(FORMAL_ESKF_MODULE_TESTS)
 	target_link_libraries(formal_eskf_module_test PRIVATE modules__formal_eskf
 		px4_layer px4_platform uORB systemlib cdev px4_work_queue px4_daemon
 		work_queue parameters events perf tinybson uorb_msgs geo world_magnetic_model
-		health_and_arming_checks mode_util modules__mc_att_control modules__land_detector)
+		health_and_arming_checks mode_util modules__mc_att_control modules__land_detector vehicle_imu)
 	target_link_options(formal_eskf_module_test PRIVATE
 		-Wl,--wrap=hrt_absolute_time -Wl,--wrap=hrt_call_after -Wl,--wrap=hrt_cancel
 		-Wl,--wrap=pthread_mutex_init

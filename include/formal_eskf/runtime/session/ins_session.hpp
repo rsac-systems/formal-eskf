@@ -6,6 +6,7 @@
 #include <type_traits>
 #include <formal_eskf/eskf/eskf.hpp>
 #include <formal_eskf/runtime/session/ins_settings.hpp>
+#include <formal_eskf/runtime/sensors/imu/bias_stability.hpp>
 #include <formal_eskf/runtime/session/ins_startup.hpp>
 #include <formal_eskf/runtime/session/ins_capabilities.hpp>
 #include <formal_eskf/runtime/session/ins_continuity.hpp>
@@ -62,6 +63,7 @@ public:
     using height_type = formal_eskf::runtime::HeightAiding<backend_type, geographic_backend_type>;
     using barometric_type = formal_eskf::runtime::BarometricAltitude<geographic_math_type>;
     using bias_learning_type = formal_eskf::runtime::ImuBiasInhibition<backend_type>;
+    using bias_stability_type = BiasStability<backend_type>;
     using vertical_health_type = formal_eskf::runtime::VerticalAccelerationHealth<backend_type>;
     using gravity_sampler_type = formal_eskf::runtime::AccelerometerSample<backend_type, Layout::gravity_interval_us>;
     using quaternion_type = formal_eskf::so3::UnitQuaternion<backend_type>;
@@ -404,6 +406,7 @@ public:
         std::uint64_t session_id{}, capture_time_us{}, output_time_us{}, covariance_time_us{}, completed_fusion_us{};
         std::uint64_t frame_epoch{}, evaluations{}, predictions{}, output_predictions{}, faults{}, imu_admissions{};
         std::uint64_t imu_rejections{}, imu_raw_time_us{}, imu_arrival_time_us{}, lag_us{};
+        typename bias_stability_type::State accelerometer_stability{}, gyroscope_stability{};
         ImuSource imu_source{}, gravity_source{}; // Current admission versus last completed gravity interval.
         ImuAdmission imu_admission = ImuAdmission::none;
         std::array<double, 15> covariance_diagonal{}; // Working p/v, body attitude error, body biases.
@@ -488,6 +491,23 @@ public:
     [[nodiscard]] bool complete_fusion(std::optional<typename magnetic_model_type::sample_type> const & model);
 
     ModelRequest const & model_request() const { return m_model_request; }
+
+    /** Evaluate once after reporting a successfully completed update (PX4 publication order).
+     *  No-IMU, failed, duplicate or pending estimates cannot earn qualification time.
+     */
+    void update_bias_stability();
+
+    typename bias_stability_type::State const & accelerometer_stability() const
+    {
+        return m_accelerometer_stability.state();
+    }
+
+    typename bias_stability_type::State const & gyroscope_stability() const { return m_gyroscope_stability.state(); }
+
+    typename bias_learning_type::Parameters const & bias_learning_parameters() const
+    {
+        return m_bias_learning.parameters();
+    }
 
     Phase phase() const { return m_phase; }
 
@@ -721,6 +741,9 @@ private:
     bool m_gravity_enabled = true;
     bool m_gravity_clipping_available{};
     bias_learning_type m_bias_learning;
+    bias_stability_type m_accelerometer_stability{}, m_gyroscope_stability{};
+    std::uint64_t m_bias_stability_completion{};
+    bool m_bias_stability_hold{}, m_bias_stability_in_air{};
     typename bias_learning_type::Result m_bias_learning_result{};
     vertical_health_type m_vertical_health{};
     double m_average_imu_interval;

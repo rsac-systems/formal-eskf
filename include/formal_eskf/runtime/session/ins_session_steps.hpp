@@ -354,14 +354,20 @@ bool InsSession<Linalg, Layout>::admit_imu(ImuInput const & sample, std::uint64_
     if (accel_changed)
     {
         m_imu_source_changes.accelerometer_time_us = sample.time_us;
+        m_accelerometer_stability.reset(sample.source.accelerometer_id, sample.source.accelerometer_calibration);
     }
 
     if (gyro_changed)
     {
         m_imu_source_changes.gyroscope_time_us = sample.time_us;
+        m_gyroscope_stability.reset(sample.source.gyroscope_id, sample.source.gyroscope_calibration);
     }
-    // Motion/protection envelopes retain their actual delayed history. This
-    // owner has no separate learned calibration accumulator to clear.
+    if (accel_changed || gyro_changed)
+    {
+        // The previous completed estimate predates this reset and cannot qualify the new source.
+        m_bias_stability_completion = m_completed_fusion_us;
+    }
+    // Motion/protection envelopes retain their actual delayed history.
     return true;
 }
 
@@ -489,6 +495,8 @@ bool InsSession<Linalg, Layout>::seed(state_type const & seed_state, covariance_
     m_seed_time_us = m_time_us;
     m_covariance_time_us = m_time_us;
     m_initialized = true;
+    m_accelerometer_stability.reset(sample.source.accelerometer_id, sample.source.accelerometer_calibration);
+    m_gyroscope_stability.reset(sample.source.gyroscope_id, sample.source.gyroscope_calibration);
     return true;
 }
 
@@ -661,6 +669,12 @@ bool InsSession<Linalg, Layout>::complete_fusion(std::optional<typename magnetic
         return false;
     }
 
+    if (m_bias_stability_completion != m_completed_fusion_us)
+    {
+        // A caller skipped monitoring an estimate. Never count that unobserved interval later.
+        m_accelerometer_stability.pause();
+        m_gyroscope_stability.pause();
+    }
     m_completed_fusion_us = m_time_us;
     m_operation = InsOperation::frame_change;
     if (!m_navigation_frame.initialized())
@@ -674,6 +688,47 @@ bool InsSession<Linalg, Layout>::complete_fusion(std::optional<typename magnetic
 
     update_origin();
     return true;
+}
+
+template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::update_bias_stability()
+{
+    if (m_fault || m_phase != Phase::idle || m_completed_fusion_us == 0 || m_completed_fusion_us != m_time_us ||
+        m_bias_stability_completion == m_completed_fusion_us)
+    {
+        return;
+    }
+
+    auto const & health = m_vertical_health.state();
+    auto const & parameters = m_bias_learning.parameters();
+    typename bias_stability_type::Conditions conditions;
+    conditions.tilt_aligned = m_tilt_alignment.aligned();
+    conditions.health_available = health.last_update_time_us == m_time_us && succeeded(m_bias_learning_result.status);
+    conditions.filter_fault = health.bad_vertical_acceleration || health.bad_clipping;
+    conditions.held = m_bias_stability_hold;
+    if (m_imu_context.land.known)
+    {
+        bool const in_air = !m_imu_context.land.landed;
+        conditions.takeoff = in_air && !m_bias_stability_in_air;
+        m_bias_stability_in_air = in_air;
+    }
+
+    vector3_type accel_variance, gyro_variance;
+    for (std::size_t axis = 0; axis < 3; ++axis)
+    {
+        accel_variance(axis) = m_covariance(9 + axis, 9 + axis);
+        gyro_variance(axis) = m_covariance(12 + axis, 12 + axis);
+    }
+    auto const evaluation_us = m_imu_history.latest_time_us();
+    conditions.enabled = parameters.accelerometer_enabled;
+    conditions.learning = m_bias_learning_result.bias_update.accelerometer;
+    (void)m_accelerometer_stability.update(m_completed_fusion_us, evaluation_us, m_state.b_a, accel_variance,
+                                           m_settings.bias_limits.accelerometer, conditions);
+    conditions.enabled = parameters.gyroscope_enabled;
+    conditions.learning = m_bias_learning_result.bias_update.gyroscope;
+    (void)m_gyroscope_stability.update(m_completed_fusion_us, evaluation_us, m_state.b_g, gyro_variance,
+                                       m_settings.bias_limits.gyroscope, conditions);
+    m_bias_stability_completion = m_completed_fusion_us;
+    m_bias_stability_hold = false;
 }
 
 template <typename Linalg, typename Layout>
@@ -760,6 +815,7 @@ void InsSession<Linalg, Layout>::predict_and_fuse(typename imu_history_type::int
     {
         held = interval.hold_period_us != 0;
     }
+    m_bias_stability_hold |= held;
     auto const & sample = interval.sample;
     m_delayed_imu_arrival_us = interval.arrival_time_us;
     auto const imu = sample.mean_rates();

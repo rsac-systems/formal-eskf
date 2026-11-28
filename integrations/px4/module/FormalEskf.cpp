@@ -220,6 +220,8 @@ void FormalEskf::Run()
         publish_status(now);
         m_last_status = now;
     }
+    // The bias topic reads retained qualification before the current estimate is evaluated.
+    m_session.update_bias_stability();
     perf_end(m_cycle_perf);
     update_diagnostics(now);
 }

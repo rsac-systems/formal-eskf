@@ -154,7 +154,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::val
     }
 
     return nonnegative(p.geographic_precision.position_m) && nonnegative(p.geographic_precision.rotation) &&
-           nonnegative(s.bias_limits.accelerometer) && nonnegative(s.bias_limits.gyroscope) &&
+           positive(s.bias_limits.accelerometer) && positive(s.bias_limits.gyroscope) &&
            nonnegative(s.imu.faulty_specific_force_variance) && nonnegative(s.magnetic.field.strength_tolerance) &&
            nonnegative(s.magnetic.field.inclination_tolerance) &&
            s.magnetic.field.inclination_tolerance <= math_type::pi() &&

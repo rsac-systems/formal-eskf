@@ -561,6 +561,7 @@ void replay_session(std::filesystem::path const & input, std::filesystem::path c
             }
         }
 
+        session->update_bias_stability();
         auto const d = session->diagnostics(now);
         write_status(status, d, parameters.session_id);
         write_fusion(fusion, d, recorded);

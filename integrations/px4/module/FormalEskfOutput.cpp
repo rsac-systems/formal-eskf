@@ -412,12 +412,15 @@ void FormalEskf::publish_sensor_bias(std::uint64_t now, bool healthy)
         bias.gyro_bias_variance[i] = m_session.covariance()(i + 12, i + 12);
     }
 
-    bias.accel_bias_valid = healthy && bias.accel_device_id != 0 &&
+    auto const & enabled = m_session.bias_learning_parameters();
+    bias.accel_bias_valid = healthy && enabled.accelerometer_enabled && bias.accel_device_id != 0 &&
                             bias_valid(matrix::Vector3f(bias.accel_bias), matrix::Vector3f(bias.accel_bias_variance));
-    bias.gyro_bias_valid = healthy && bias.gyro_device_id != 0 &&
+    bias.gyro_bias_valid = healthy && enabled.gyroscope_enabled && bias.gyro_device_id != 0 &&
                            bias_valid(matrix::Vector3f(bias.gyro_bias), matrix::Vector3f(bias.gyro_bias_variance));
-    // Temporary learning inhibition is not loss of the stored estimate. Stable stays false:
-    // this module has no PX4 calibration-learning/convergence monitor.
+    bias.accel_bias_stable = healthy && enabled.accelerometer_enabled && bias.accel_device_id != 0 &&
+                             m_session.accelerometer_stability().stable;
+    bias.gyro_bias_stable =
+        healthy && enabled.gyroscope_enabled && bias.gyro_device_id != 0 && m_session.gyroscope_stability().stable;
     record_publication(m_bias_pub.publish(bias));
 }
 

@@ -4903,7 +4903,7 @@
     },
     {
       "id": "R-PX4-IMU-BIAS",
-      "title": "PX4 IMU bias: shared inhibition and vertical-health source contracts verified; actual module sequencing remains open; independent bias-stability monitors and PX4 consumer binding are Draft targets with Pending tests",
+      "title": "PX4 IMU bias: shared inhibition and vertical-health source contracts verified; actual module sequencing remains open; independent bias-stability monitors and PX4 consumer binding have native tests; formal/target qualification remains open",
       "references": {
         "spec": [
           {
@@ -4931,7 +4931,7 @@
             "symbol": "# Bias Stability Profile"
           },
           {
-            "file": "docs/spec/verification/bias-stability-tests.md",
+            "file": "docs/spec/verification/tests/runtime/bias-stability.md",
             "symbol": "## Cases"
           },
           {
@@ -6981,7 +6981,7 @@
     },
     {
       "id": "R-PX4-STATUS",
-      "title": "PX4 capability, uncertainty, bias, innovation and failure reporting: native/SIH evidence only; staged capabilities have pinned consumer subsets; complete consumer/target and formal source qualification remain open; diagnostic epoch, per-group and completed-update counting target pending; independent bias-stability monitors and PX4 consumer binding are Draft targets with Pending tests; selectable default-ON ZUPT composition is a Draft target with Pending tests",
+      "title": "PX4 capability, uncertainty, bias, innovation and failure reporting: native/SIH evidence only; staged capabilities have pinned consumer subsets; complete consumer/target and formal source qualification remain open; diagnostic epoch, per-group and completed-update counting target pending; independent bias-stability monitors and PX4 consumer binding have native tests; formal/target qualification remains open; selectable default-ON ZUPT composition is a Draft target with Pending tests",
       "references": {
         "spec": [
           {
@@ -7013,7 +7013,7 @@
             "symbol": "# Bias Stability Profile"
           },
           {
-            "file": "docs/spec/verification/bias-stability-tests.md",
+            "file": "docs/spec/verification/tests/runtime/bias-stability.md",
             "symbol": "## Cases"
           },
           {
@@ -8322,7 +8322,7 @@
     },
     {
       "id": "R-INS-SESSION",
-      "title": "Portable INS session phase composition: native regression and independent fixtures; full symbolic and target evidence remain open; IMU source continuation has native coverage; historical mismatch-rejection proofs require migration; diagnostic-reporting composition target pending; ground-effect event composition target pending; mixed-precision session target is Draft/Pending and is not covered by existing binary64 evidence; IMU accumulation and aggregate prediction are Draft targets with Pending tests, outside existing direct evidence; GNSS selection, independent startup, live controls and logical-stream composition are Draft targets with Pending tests; independent bias-stability monitors and PX4 consumer binding are Draft targets with Pending tests; selectable default-ON ZUPT composition is a Draft target with Pending tests; corrected navigation-output composition and PX4 consumer acceptance remain Draft/Pending; T-02 accumulation is implemented with scoped native cases; aggregate proofs and deployment qualification pending",
+      "title": "Portable INS session phase composition: native regression and independent fixtures; full symbolic and target evidence remain open; IMU source continuation has native coverage; historical mismatch-rejection proofs require migration; diagnostic-reporting composition target pending; ground-effect event composition target pending; mixed-precision session target is Draft/Pending and is not covered by existing binary64 evidence; IMU accumulation and aggregate prediction are Draft targets with Pending tests, outside existing direct evidence; GNSS selection, independent startup, live controls and logical-stream composition are Draft targets with Pending tests; independent bias-stability monitors and PX4 consumer binding have native tests; formal/target qualification remains open; selectable default-ON ZUPT composition is a Draft target with Pending tests; corrected navigation-output composition and PX4 consumer acceptance remain Draft/Pending; T-02 accumulation is implemented with scoped native cases; aggregate proofs and deployment qualification pending",
       "references": {
         "spec": [
           {
@@ -8434,7 +8434,7 @@
             "symbol": "# Bias Stability Profile"
           },
           {
-            "file": "docs/spec/verification/bias-stability-tests.md",
+            "file": "docs/spec/verification/tests/runtime/bias-stability.md",
             "symbol": "## Cases"
           },
           {
@@ -9275,6 +9275,38 @@
           {
             "file": "integrations/px4/module/FormalEskf.cpp",
             "symbol": "void FormalEskf::refresh_gnss_controls()"
+          }
+        ],
+        "esbmc": []
+      }
+    },
+    {
+      "id": "R-BIAS-STABILITY",
+      "title": "Independent bias stability monitors and session/PX4 calibration-consumer binding; native tests, new formal proofs pending",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/runtime/imu/bias-stability.md",
+            "symbol": "# R-BIAS-STABILITY: Bias stability qualification"
+          },
+          {
+            "file": "docs/spec/verification/tests/runtime/bias-stability.md",
+            "symbol": "## Cases"
+          }
+        ],
+        "lean": [],
+        "cpp": [
+          {
+            "file": "include/formal_eskf/runtime/sensors/imu/bias_stability.hpp",
+            "symbol": "bool BiasStability<Linalg>::update("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "void InsSession<Linalg, Layout>::update_bias_stability()"
+          },
+          {
+            "file": "integrations/px4/module/FormalEskfOutput.cpp",
+            "symbol": "void FormalEskf::publish_sensor_bias("
           }
         ],
         "esbmc": []

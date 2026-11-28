@@ -213,8 +213,8 @@ Source/bias reset clears the affected monitor at the existing reset boundary;
 buffered source metadata must not cause another reset. A skipped/held estimate
 cannot earn elapsed time. Monitoring does not change state/P or existing failure
 boundaries, and no calibration service is added to the session. The
-[Pending cases](../../verification/bias-stability-tests.md) are required before
-claiming this composition implemented or verified.
+[Acceptance cases](../../verification/tests/runtime/bias-stability.md) bind native
+session and actual PX4 consumer tests. Formal and target qualification remain open.
 
 ### Stationary zero-velocity target
 

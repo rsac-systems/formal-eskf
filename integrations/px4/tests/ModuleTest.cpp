@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 #include "FormalEskf.hpp"
 #include <modules/land_detector/MulticopterLandDetector.h>
+#include <modules/sensors/vehicle_imu/VehicleIMU.hpp>
 #include <lib/geo/geo.h>
 #include <modules/commander/HealthAndArmingChecks/checks/estimatorCheck.hpp>
 #include <modules/commander/HealthAndArmingChecks/checks/modeCheck.hpp>
@@ -3813,6 +3814,150 @@ public:
         }
     }
 
+    // TC-R-BIAS-STABILITY-04: actual publication ordering and pinned external calibration consumer.
+    static void bias_stability()
+    {
+        InsSessionTest test;
+        test.warmup();
+        auto & module = test.m_filter;
+        auto & session = module.m_session;
+        using Monitor = FormalEskf::session_type::bias_stability_type;
+        auto qualify = [&]()
+        {
+            Monitor::Conditions c{true, true, true, false, false, false, {true, true, true}};
+            auto const variance = FormalEskf::vector3(.0001, .0001, .0001);
+            auto const source = session.imu_history().source();
+            session.m_accelerometer_stability.reset(source.accelerometer_id, source.accelerometer_calibration);
+            session.m_gyroscope_stability.reset(source.gyroscope_id, source.gyroscope_calibration);
+            auto const lag = session.imu_history().latest_time_us() - session.fusion_time_us();
+            for (auto time : {clock_us - 10'000'002, clock_us - 1})
+            {
+                expect(session.m_accelerometer_stability.update(time - lag - 1, time, {}, variance, .4, c) &&
+                           session.m_gyroscope_stability.update(time - lag - 1, time, {}, variance, .15, c),
+                       "explicit previously qualified monitor precondition for publication test");
+            }
+            expect(session.accelerometer_stability().stable && session.gyroscope_stability().stable,
+                   "publication fixture begins with qualified records");
+        };
+        qualify();
+        for (unsigned axis = 0; axis < 3; ++axis)
+        {
+            session.m_covariance(9 + axis, 9 + axis) = .04;
+            session.m_covariance(12 + axis, 12 + axis) = .04;
+        }
+        module.m_last_status = 0;
+        test.m_sample.timestamp_sample += 4000;
+        test.tick();
+        estimator_sensor_bias_s wire{};
+        expect(orb_copy(ORB_ID(estimator_sensor_bias), test.m_outputs[6], &wire) == 0 && wire.accel_bias_stable &&
+                   wire.gyro_bias_stable && !session.accelerometer_stability().stable &&
+                   !session.gyroscope_stability().stable && wire.timestamp_sample == session.fusion_time_us(),
+               "actual Run publishes retained stable before evaluating the new unqualified covariance");
+        module.m_last_status = 0;
+        test.m_sample.timestamp_sample += 4000;
+        test.tick();
+        orb_copy(ORB_ID(estimator_sensor_bias), test.m_outputs[6], &wire);
+        expect(!wire.accel_bias_stable && !wire.gyro_bias_stable, "next publication carries new qualification");
+        auto const evaluation = session.accelerometer_stability().evaluation_us;
+        module.Run();
+        expect(session.accelerometer_stability().evaluation_us == evaluation,
+               "watchdog reporting earns no monitor evaluation");
+
+        // Consumer predicates are executed in upstream VehicleIMU, not copied into a local mock.
+        sensors::VehicleIMU consumer(0, 0, 0, ::px4::wq_configurations::INS0);
+        consumer._accel_calibration.set_device_id(wire.accel_device_id);
+        consumer._gyro_calibration.set_device_id(wire.gyro_device_id);
+        for (unsigned mask = 0; mask < 16; ++mask)
+        {
+            consumer._accel_learned_calibration[0] = {};
+            consumer._gyro_learned_calibration[0] = {};
+            wire.timestamp = clock_us - ((mask & 4) ? 999999 : 1000000);
+            wire.timestamp_sample = 1; // Consumer freshness is publication time, not delayed estimate age.
+            wire.accel_bias_valid = wire.gyro_bias_valid = (mask & 1) != 0;
+            wire.accel_bias_stable = wire.gyro_bias_stable = (mask & 2) != 0;
+            wire.accel_device_id = (mask & 8) ? test.m_sample.accel_device_id : 0;
+            wire.gyro_device_id = (mask & 8) ? test.m_sample.gyro_device_id : 999;
+            wire.accel_bias[0] = .125f;
+            wire.gyro_bias[0] = .03125f;
+            expect(module.m_bias_pub.publish(wire), "test candidate publication");
+            consumer.SensorCalibrationUpdate();
+            expect(consumer._accel_learned_calibration[0].valid == (mask == 15) &&
+                       consumer._gyro_learned_calibration[0].valid == (mask == 15),
+                   "actual VehicleIMU requires both flags, age below one second and matching nonzero ID");
+        }
+        wire.accel_bias_stable = wire.gyro_bias_stable = false;
+        expect(module.m_bias_pub.publish(wire), "later unstable publication");
+        consumer.SensorCalibrationUpdate();
+        expect(consumer._accel_learned_calibration[0].valid && consumer._gyro_learned_calibration[0].valid,
+               "later false flag does not revoke an existing consumer candidate");
+
+        // Run uses its external option; it must neither adopt nor save while disabled.
+        (void)consumer.ParametersUpdate(true);
+        consumer._accel_learned_calibration[0] = {};
+        consumer._gyro_learned_calibration[0] = {};
+        consumer._accel_cal_available = consumer._gyro_cal_available = false;
+        consumer._param_sens_imu_autocal.set(false);
+        consumer._armed = true;
+        consumer._in_flight_calibration_check_timestamp_last = 0;
+        wire.timestamp = clock_us;
+        wire.accel_bias_stable = wire.gyro_bias_stable = true;
+        expect(module.m_bias_pub.publish(wire), "fresh valid candidate for disabled consumer");
+        consumer.Run();
+        expect(!consumer._accel_learned_calibration[0].valid && !consumer._gyro_learned_calibration[0].valid,
+               "disabled external auto-calibration does not adopt candidates");
+        consumer._param_sens_imu_autocal.set(true);
+        consumer.Run();
+        expect(consumer._accel_learned_calibration[0].valid && consumer._gyro_learned_calibration[0].valid &&
+                   consumer._accel_calibration.offset().norm() == 0.f &&
+                   consumer._gyro_calibration.offset().norm() == 0.f,
+               "armed external consumer adopts candidates without saving calibration");
+        consumer._armed = false;
+        consumer._in_flight_calibration_check_timestamp_last = clock_us;
+        consumer.Run();
+        expect(consumer._accel_calibration.offset()(0) == .125f && consumer._gyro_calibration.offset()(0) == .03125f,
+               "disarmed external consumer alone saves eligible offsets");
+
+        // Known calibration: exercise both strict save thresholds in the actual consumer.
+        for (int side : {-1, 0, 1})
+        {
+            float const accel = side < 0    ? std::nextafter(.05f, 0.f)
+                                : side == 0 ? .05f
+                                            : std::nextafter(.05f, INFINITY);
+            float const gyro = side < 0 ? std::nextafter(.01f, 0.f) : side == 0 ? .01f : std::nextafter(.01f, INFINITY);
+            consumer._accel_calibration._offset = {};
+            consumer._gyro_calibration._offset = {};
+            consumer._accel_calibration._calibration_index = consumer._gyro_calibration._calibration_index = 0;
+            consumer._accel_calibration._calibration_count = consumer._gyro_calibration._calibration_count = 1;
+            consumer._accel_learned_calibration[0] = {{accel, 0.f, 0.f}, {.0001f, .0001f, .0001f}, true};
+            consumer._gyro_learned_calibration[0] = {{gyro, 0.f, 0.f}, {.0001f, .0001f, .0001f}, true};
+            consumer._accel_cal_available = consumer._gyro_cal_available = true;
+            consumer.SensorCalibrationSaveAccel();
+            consumer.SensorCalibrationSaveGyro();
+            expect(consumer._accel_calibration.offset()(0) == (side > 0 ? accel : 0.f) &&
+                       consumer._gyro_calibration.offset()(0) == (side > 0 ? gyro : 0.f),
+                   "actual calibrated consumer saves only strictly above its accel/gyro offset threshold");
+        }
+        float const next_accel_offset = .25f, next_gyro_offset = .125f;
+        expect(param_set_no_notification(param_find("CAL_ACC0_XOFF"), &next_accel_offset) == 0 &&
+                   param_set_no_notification(param_find("CAL_GYRO0_XOFF"), &next_gyro_offset) == 0,
+               "calibration change is confined to the isolated fixture parameter store");
+        consumer._accel_learned_calibration[0].valid = consumer._gyro_learned_calibration[0].valid = true;
+        expect(consumer.ParametersUpdate(true) && !consumer._accel_learned_calibration[0].valid &&
+                   !consumer._gyro_learned_calibration[0].valid,
+               "actual calibration change clears retained consumer candidates");
+
+        // Feed the actual new calibration counts back through production ingress once.
+        qualify();
+        test.m_sample.accel_calibration_count = consumer._accel_calibration.calibration_count();
+        test.m_sample.gyro_calibration_count = consumer._gyro_calibration.calibration_count();
+        auto input = FormalEskf::decode_imu(test.m_sample);
+        input.time_us += 4000;
+        clock_us = input.time_us;
+        module.process_imu(input);
+        expect(!session.accelerometer_stability().stable && !session.gyroscope_stability().stable,
+               "consumer calibration feedback clears affected monitors at admitted source boundary");
+    }
+
     static void innovation_reporting()
     {
         InsSessionTest test;
@@ -5561,6 +5706,7 @@ public:
                                            ? module.lookup_magnetic_model(direct.model_request())
                                            : std::optional<Session::magnetic_model_type::sample_type>{};
                     (void)direct.complete_fusion(model);
+                    direct.update_bias_stability();
                     (void)direct.take_innovations();
                 }
             }
@@ -5831,6 +5977,7 @@ int main(int argc, char ** argv)
 
     InsSessionTest::configured_profile();
     InsSessionTest::portable_session_equivalence();
+    InsSessionTest::bias_stability();
     trace_file = comparison_trace;
     if (trace_file != nullptr)
     {

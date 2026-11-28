@@ -38,7 +38,7 @@ Existing estimation-control evidence does not verify the new monitor.
 
 | Child requirement | Allocated obligation |
 |---|---|
-| [R-BIAS-STABILITY](../runtime/imu/bias-stability.md) | Target independent bias stability monitors and valid/stable reporting. |
+| [R-BIAS-STABILITY](../runtime/imu/bias-stability.md) | Independent bias stability monitors and valid/stable reporting; no estimator-state or calibration-write authority. |
 | [R-IMU-BIAS-INHIBITION](../runtime/imu/bias-inhibition.md) | Maintain motion envelopes and select per-axis bias-learning permissions. |
 | [R-VERTICAL-ACCELERATION](../runtime/imu/vertical-health.md) | Track clipping/apparent-falling health and its distinct timing signals. |
 | [R-IMU-PREDICTION](../runtime/imu/prediction.md) | Compose noise selection, bias inhibition and atomic prediction with explicit fault variance. |

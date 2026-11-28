@@ -166,6 +166,15 @@ make -C /path/to/PX4-Autopilot px4_sitl_formal_eskf -j2
 
 The destination requires the pinned PX4 checkout and its build dependencies. It does not need the formal-eskf source repository. Exports require a new directory to avoid overwriting an earlier package. The manifest detects accidental changes to exported payload files and the host patch.
 
+## Bias stability
+
+The runtime independently qualifies accelerometer and gyroscope biases after
+completed updates. The existing bias topic publishes retained stable flags before
+the next monitor evaluation; valid and stable remain separate. Qualification does
+not gate estimator bias use. Pinned PX4 VehicleIMU retains ownership of optional
+automatic calibration and saving; the module does not enable that setting or
+write calibration parameters. See the [policy and ordering](../../docs/spec/architecture/bias-stability.md).
+
 ## Production module tests
 
 Native component/session tests in `tests/runtime/` are built by the repository's

@@ -60,6 +60,8 @@ public:
 
     explicit ImuBiasInhibition(Parameters const & parameters) : m_parameters(parameters) {}
 
+    Parameters const & parameters() const { return m_parameters; }
+
     /**
      * Evaluate before prediction, using the prior unit q_nb and biases. The
      * accel/gyro integration periods are supplied separately in seconds. All current

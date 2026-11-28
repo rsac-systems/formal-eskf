@@ -1,7 +1,8 @@
 # Bias Stability Monitoring
 
 **Status:** Draft. T-04 design for [R-BIAS-STABILITY](../requirements/runtime/imu/bias-stability.md).
-The current PX4 module publishes stable=false; this design is not yet implemented.
+The runtime monitors and session/PX4 binding are implemented; acceptance scope is
+allocated by the linked test design. Formal and target qualification remain open.
 
 ## Ownership and flow
 
@@ -36,12 +37,17 @@ that ordering under the session's single writer; adapter reporting shall not
 reimplement qualification or advance its timers. Read retained flags before
 evaluating the new completed estimate, preserving their actual evaluation epoch.
 An admitted source/bias reset clears its monitor before any subsequent publication.
+`InsSession::update_bias_stability` evaluates the completed estimate once after
+reporting. PX4 calls it after scheduled status publication, including cycles where
+publication is skipped. Standalone examples call it after completion without a
+bias-topic consumer. Diagnostics retain the resulting estimate/evaluation epochs.
 No monitor evaluation is earned by publication, a failed estimator step or an
-unchanged snapshot. Other callers must declare their evaluation/report ordering;
+unchanged snapshot; skipping a completed estimate breaks the eligible-time chain.
+Other callers must declare their evaluation/report ordering;
 they cannot claim PX4 cycle equivalence merely by sharing the monitor.
 
-Finite candidate/comparison arithmetic, positive variances, checked duration, explicit estimate
-freshness and regressed-time rejection are project guards. PX4's helper does not
+Finite candidate/comparison arithmetic, positive variances, checked duration,
+explicit estimate freshness and regressed-time rejection are project guards. PX4's helper does not
 independently perform all of them. The current sample and delayed estimate times
 remain distinct; the PX4 wire topic has no separate monitor-epoch field, so retain
 that provenance in runtime diagnostics without redefining timestamp_sample.
@@ -55,7 +61,7 @@ that provenance in runtime diagnostics without redefining timestamp_sample.
 3. Bind actual PX4 publication/consumer paths under
    [R-PX4-STATUS](../requirements/integration/px4/status.md#bias-stability-target).
    Retain the existing external calibration owner and parameter setting.
-4. Complete the four [case families](../verification/bias-stability-tests.md),
+4. Complete the four [case families](../verification/tests/runtime/bias-stability.md),
    affected regressions and target resource checks before claiming support.
 
 Formal monitor/caller obligations remain unproved. Native tests do not establish

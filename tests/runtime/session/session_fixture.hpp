@@ -141,6 +141,7 @@ template <typename Runtime = Session> struct Fixture
                 {
                     return false;
                 }
+                session.update_bias_stability();
                 events = session.take_innovations();
             }
         }

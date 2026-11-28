@@ -46,9 +46,9 @@ converged are different facts. Reporting must not change fusion decisions.
   published bias/variance, nonnegative variance components and a variance-vector
   norm in `(0, 0.1]`, using the published float representation as PX4 does.
   Temporary learning inhibition does not invalidate a stored estimate. The
-  current implementation keeps `*_bias_stable` false; the
-  [bias-stability target](#bias-stability-target) supplies its missing monitor
-  without changing this separate validity predicate.
+  [bias-stability monitor](#bias-stability-target) supplies retained `*_bias_stable`
+  independently. Disabled estimators publish neither usable flag; stability
+  does not replace the separate validity predicate.
 - Summarize each active source's **signed filtered squared** gate ratios. Convert
   our measurement-minus-prediction residual to PX4's opposite sign. At each new
   diagnostic measurement use `dt = clamp(delta_time, 0.001, 1)` seconds and
@@ -121,9 +121,10 @@ external policy; the adapter shall not enable that option or write calibration
 parameters itself. A false flag does not revoke an already retained external
 candidate. Later calibration metadata changes follow the existing source-reset
 contract once. Complete the actual caller/consumer cases in the
-[acceptance design](../../../verification/bias-stability-tests.md), including
+[acceptance design](../../../verification/tests/runtime/bias-stability.md), including
 disabled automatic calibration, stale messages and source/calibration changes.
-Existing always-false flag tests do not establish this target.
+The actual module fixture covers publication and the pinned VehicleIMU consumer;
+it does not qualify physical calibration efficacy or target timing.
 
 ## Stationary-update target
 

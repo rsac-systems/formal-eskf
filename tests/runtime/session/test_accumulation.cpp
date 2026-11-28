@@ -340,6 +340,10 @@ template <typename Scalar> void source_sequence(Context & test, std::string_view
         session.begin_fusion();
         test.expect(session.complete_fusion(fixture.model), profile,
                     "complete the real delayed cycle after source admission");
+        session.update_bias_stability();
+        test.expect(session.accelerometer_stability().estimate_us == session.fusion_time_us() &&
+                        session.accelerometer_stability().evaluation_us == session.imu_history().latest_time_us(),
+                    profile, "aggregate monitor retains distinct completed and latest raw IMU epochs");
     }
     auto const source_epoch = fixture.imu.time_us;
     test.expect(session.imu_source_changes().accelerometer_time_us == source_epoch &&

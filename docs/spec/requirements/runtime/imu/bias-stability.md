@@ -5,7 +5,8 @@
 **Status:** Draft
 
 **Applies to:** Independent accelerometer and gyroscope monitors in portable INS
-runtime, with PX4 adapter reporting. Implementation and acceptance are pending.
+runtime, with PX4 adapter reporting. Native and actual adapter/consumer test
+bindings are allocated below; formal and target qualification remain separate.
 
 **Parent:** [SW-IMU](../../software/imu-protection.md).
 
@@ -34,8 +35,8 @@ the latest admitted IMU sample time as evaluation time, with the completed delay
 bias and covariance; it does not use wall-clock time or relabel the estimate epoch.
 The caller shall preserve the existing admitted-time/history domain. Duplicate
 estimates earn no time; regressed evaluation time rejects without changing the
-monitor. A declared held gap or unavailable estimate breaks the elapsed-time chain, so the
-next fresh evaluation cannot earn the intervening duration. Valid learning pauses
+monitor. A declared held gap or unavailable estimate breaks the elapsed-time
+chain, so the next fresh evaluation cannot earn the intervening duration. Valid learning pauses
 retain qualification; missing required health invalidates it. Numerical/history
 faults retain their existing session failure response.
 
@@ -90,7 +91,7 @@ stable. Later calibration metadata changes use R-IMU-SOURCE once.
 
 ## Acceptance and verification
 
-The four [Pending case families](../../../verification/bias-stability-tests.md)
+The four [case families](../../../verification/tests/runtime/bias-stability.md)
 cover predicate boundaries, exact eligible-time accounting, reset/pause sequences
 and actual session/adapter/consumer binding. An independent transition table is
 the oracle; compare unchanged state/P and source epochs, not only final flags.
