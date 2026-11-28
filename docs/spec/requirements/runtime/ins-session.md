@@ -248,6 +248,15 @@ The [configuration cases](../../verification/navigation-configuration-tests.md)
 qualify these composed paths; current startup checks alone do not establish the
 whole target. Source/calibration/context events retain their own live-input rules.
 
+## Direct-rate qualification target
+
+[R-NAV-RATE](navigation-rate.md) owns complete direct profiles and their timing,
+fixed-storage, noise and tested-target acceptance. Keep the existing 250 Hz default
+and the separate aggregate-input cadence. The
+[rate cases](../../verification/navigation-rate-tests.md) qualify composed owners
+and actual target response; a valid configuration alone does not establish support.
+Existing input/history/numerical and permitted-gap behavior remains in force.
+
 ## Acceptance and verification
 
 Compare the same explicit profile/backend/input sequence before and after owner

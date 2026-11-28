@@ -247,6 +247,17 @@ build/startup and actual consumer behavior; existing tool checks are not full
 configuration acceptance. The [inventory](../guides/configuration.md) records
 implemented options separately from these targets.
 
+## Navigation rate target
+
+[R-NAV-RATE](requirements/runtime/navigation-rate.md) defines complete direct-rate
+qualification while retaining the 250 Hz default. The
+[design and PX4 comparison](architecture/navigation-rate.md) distinguish candidate
+400/500 Hz direct profiles from accumulation mode. Reuse the
+[sensor-input profile](profiles/sensor-input.md#rate-and-storage-qualification)
+for sizing; five [Pending test families](verification/navigation-rate-tests.md)
+cover software, physical noise/motion and tested-board acceptance. No faster-rate
+support or target timing guarantee is established by this Draft baseline.
+
 ## Integration requirements
 
 | ID | Required behavior |

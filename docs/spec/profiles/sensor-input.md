@@ -45,6 +45,8 @@ bindings and the remaining physical/producer qualifications.
 
 ## Rate and storage qualification
 
+[R-NAV-RATE](../requirements/runtime/navigation-rate.md) owns direct-rate
+qualification and the [Pending acceptance families](../verification/navigation-rate-tests.md).
 Keep 250 Hz as the default. Candidate 400/500 Hz profiles process each real IMU
 interval directly; neither adds a downsampler, interpolation nor an IMU drain loop.
 Freeze the entire validated profile before seeding. Changed timing/extrinsics
@@ -52,7 +54,8 @@ require restart/requalification; driver source/calibration events instead use th
 specific continuation contract below.
 
 The table is sizing arithmetic for proposed +/-5% period envelopes and a 200 ms
-minimum lag. It does not choose final compile-time capacities or claim target
+minimum lag. Final admission tolerances and compile-time capacities remain pending
+in the [T-08 work list](../../roadmap.md#t-08); the table does not establish target
 feasibility. Let `T_min`, `T_nom` and `T_max` be the minimum, nominal and maximum
 real IMU periods; `D_min` the minimum lag; and `C` the required context span.
 In microseconds, derive:

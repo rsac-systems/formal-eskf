@@ -94,6 +94,7 @@ qualified. Core template support alone does not discharge this composition.
 
 | Child | Allocated obligation |
 |---|---|
+| [R-NAV-RATE](../runtime/navigation-rate.md) | Complete direct-rate qualification, fixed histories, physical-time/noise semantics and tested-target references; 400/500 Hz remain candidates. |
 | [R-NAV-CONFIG](../runtime/navigation-configuration.md) | Target complete configuration validation, frozen/live boundaries and effective identity; implementation and acceptance pending. |
 | [R-NAV-PRECISION](../runtime/navigation-precision.md) | Target local scalar selection with binary64 geography and checked conversion boundaries. |
 | [R-IMU-ACCUMULATION](../runtime/imu/accumulation.md) | Optional increment accumulation, two-rate ownership and the integrated-increment core binding; implementation/qualification pending. |

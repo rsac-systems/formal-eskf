@@ -8504,6 +8504,22 @@
           {
             "file": "docs/spec/requirements/integration/px4/configuration.md",
             "symbol": "### Effective configuration target"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/navigation-rate.md",
+            "symbol": "# R-NAV-RATE:"
+          },
+          {
+            "file": "docs/spec/architecture/navigation-rate.md",
+            "symbol": "## Pinned PX4 comparison"
+          },
+          {
+            "file": "docs/spec/verification/navigation-rate-tests.md",
+            "symbol": "## Cases"
+          },
+          {
+            "file": "docs/spec/profiles/sensor-input.md",
+            "symbol": "## Rate and storage qualification"
           }
         ],
         "lean": [],

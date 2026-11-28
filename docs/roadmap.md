@@ -276,7 +276,7 @@ prerequisite. It does not reorder those features or authorize ground-effect work
 |---|---|---|
 | A-05.1 — Contract and test baseline | Completed | Draft input/source and core bias-reset contracts, profile, PX4 bindings and planned acceptance cases. No implementation, physical qualification or proof claim. |
 | A-05.2 — Complete profile validation | Implemented | Session validates component domains, shared gravity/timing, integration bounds, noise and all fixed-history capacities before applying timing. Rejected requests preserve the prior profile; admitted startup freezes copied settings. Native boundary/ownership cases and full-object/staging accounting are bound in the configuration family. Variance-prior reuse is bound by A-05.5; physical/target acceptance remains A-05.6. |
-| A-05.3 — Direct 400/500 Hz profiles | Planned | After A-05.2 and required A-05.6 criteria, supply explicit fixed-capacity candidates, per-step filter/count/noise bindings and target budgets. Process each admitted real interval once; keep 250 Hz default. No downsampler or support claim from parameter exposure alone. |
+| A-05.3 — Direct 400/500 Hz profiles (T-08) | Specification baseline | The [T-08 work list](#t-08) owns candidate timing/storage, physical-time coefficients, noise-unit qualification, tested board references and five Pending acceptance families. Keep 250 Hz default; implementation and physical/target acceptance remain open. No downsampler or support claim from parameter exposure alone. |
 | A-05.4 — Input timing and causal context | Implemented for declared profiles | PX4/SIH sample fields and unit/frame conversion have direct decoder and actual Run fixtures. Reviewed history cases bind frozen centering/delay, GNSS spacing boundaries, retirement, overflow and causal context. The input test allocation identifies delegated evidence and unsupported external producer mappings; physical clock/noise calibration remains A-05.6. |
 | A-05.5 — Frames and source continuation | Implemented for declared profiles | Core selected bias/P reset, runtime ingress/history/feedback continuation and actual PX4 Run/publication are implemented with native tests. Motion-protection history is retained; partial observations restart at the delayed source boundary. Declared adapter frame/unit binding is covered by A-05.4; physical source transient and formal migration remain A-05.6/V-01. |
 | A-05.6 — Noise, timing and resource qualification | Design | Establish producer noise/averaging models, independent truth, motion/error limits and target budgets before acceptance. Quantify residual-delay/centering and IMU-source transient errors. Missing calibration/data/limits block qualification, not necessarily unrelated contract implementation. |
@@ -340,6 +340,25 @@ implementation or evidence of flight qualification.
 | Task | Status | Completion boundary |
 |---|---|---|
 | <a id="t-07"></a>T-07 — Configuration | Specification baseline | [Contract/design](spec/architecture/navigation-configuration.md) defines complete startup validation, unchanged defaults, bounded live GNSS controls and effective identity through existing owners. Implement/qualify package, startup and diagnostic consumers using four Pending test families; retain separate replay settings and feature-owned bindings. Physical tuning and target qualification remain separate. |
+
+<a id="t-08"></a>
+
+### T-08 — Direct-rate qualification
+
+The [rate contract/design](spec/architecture/navigation-rate.md) and five
+[Pending case families](spec/verification/navigation-rate-tests.md) define the
+baseline. Keep direct 250 Hz default and 400/500 Hz experimental until qualified;
+T-02 accumulation remains separate. The following details must be resolved before
+new-rate acceptance; no concrete tolerance, coefficient or target budget is
+inferred from approval of the design.
+
+| Action | Status | Completion boundary |
+|---|---|---|
+| T-08.1 — Timing and storage | Planned | Confirm actual period/jitter, endpoint/gap/arrival/delay and maximum-lag bounds. Recompute every IMU/output/aiding/context active and backing capacity with checked integer arithmetic and predecessor coverage. Review final values and supported build combinations; the +/-5% and 54/86/107 sizing examples remain candidates. |
+| T-08.2 — Physical-time coefficients | Planned | Inventory startup, mean-period filters, motion/bias health, timeouts, output feedback/cadence and gravity accumulation. Decide which weights/counts retain sample semantics and which need interval-dependent binding; derive response/discretization/error limits. Preserve the existing approximately 10 ms gravity intent and test whole-interval jitter/source transitions. |
+| T-08.3 — Noise-unit and calibration binding | Planned | With A-05.6 (sensor/noise qualification), distinguish amplitude spectral density, variance spectral density, sample variance and bias random-walk variance density. Trace producer bandwidth/filtering/averaging/correlation and actual intervals to E-NOISE inputs, including the different PX4 bias convention. Review conversions/calibrated values; surface a model mismatch before changing equations or units. |
+| T-08.4 — Tested board references | Planned; hardware dependent | With F-07.2/F-07.3 (resources/hardware), choose available boards/builds and declared sensor/system load, then set response deadlines/margins and full RAM/staging/call-chain stack budgets. Provide reproducible board configurations and corresponding results, including missed inputs/deadlines and fault/reset/aiding load. Other boards remain usable with their own qualification; no whitelist or universal rate guarantee. |
+| T-08.5 — Implementation and acceptance | Planned | After the required inputs above, implement complete candidate profiles and actual consumer bindings; bind the five families and run software, independent motion/noise and target checks. Reuse existing tests with explicit rate partitions. Keep unsupported/missing-evidence combinations experimental, preserve the default and failure behavior, and publish only the scope actually qualified. |
 
 ### V-01 — Remaining proof boundaries
 
