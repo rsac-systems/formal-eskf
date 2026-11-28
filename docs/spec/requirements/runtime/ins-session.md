@@ -236,7 +236,7 @@ remain separate.
 Expose the existing state, predictor, geometry and reset owners under
 [R-NAV-OUTPUT](navigation-output.md). Its portable views distinguish session/frame,
 physical point and current/delayed epochs; PX4 mapping remains with the adapter.
-The [output acceptance design](../../verification/navigation-output-tests.md)
+The [output acceptance design](../../verification/tests/runtime/navigation-output.md)
 qualifies actual callers and external consumers. No extra tracker, covariance,
 control layer or runtime directory is required. New bindings remain Pending.
 

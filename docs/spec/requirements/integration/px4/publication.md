@@ -98,10 +98,10 @@ Retain the existing runtime/adapter split and message layouts.
 
 ## Acceptance and verification
 
-The four [output test families](../../../verification/navigation-output-tests.md)
+The four [output test families](../../../verification/tests/runtime/navigation-output.md)
 require actual module, controller and Commander behavior for frame/time/point
-mapping, partial availability, resets, source loss and faults. New bindings remain
-Pending. Existing metadata/publication paths need alignment and acceptance under
-[T-06](../../../../roadmap.md#t-06); this specification does not change runtime code.
+mapping, partial availability, resets, source loss and faults. The session, replay and actual PX4 consumer fixtures exercise these bindings.
+Geographic/resource qualification remains separate under
+[T-06](../../../../roadmap.md#t-06).
 Do not bypass PX4 consumer checks or modify controllers to hide producer errors.
 Topic publication success alone does not establish downstream acceptance.

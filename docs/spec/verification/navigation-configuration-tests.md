@@ -44,7 +44,7 @@ without a tested consumer or justified inspection remains a gap.
 - [GNSS control cases](tests/runtime/gnss-controls.md), especially 04-06, own mask sequences,
   qualification history, actual correction/reset calls and PX4 update delivery.
   Reuse them for clause 5 rather than creating another live-control state machine.
-- [Navigation output cases](navigation-output-tests.md) own source-loss capability
+- [Navigation output cases](tests/runtime/navigation-output.md) own source-loss capability
   reporting and actual controller/reset-consumer acceptance. A mask or log check
   alone cannot close those obligations.
 - [Diagnostic reporting cases](diagnostic-reporting-tests.md) own coherent owner

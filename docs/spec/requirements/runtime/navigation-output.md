@@ -114,12 +114,13 @@ abstraction layer.
 
 ## Acceptance and verification
 
-The four [output case families](../../verification/navigation-output-tests.md)
+The four [output case families](../../verification/tests/runtime/navigation-output.md)
 cover these clauses through actual session, replay and PX4 consumers. Include
 motion, mounting offsets, tilted/correlated priors, distinct nominal/covariance
 epochs, attachment, source loss, feedback, resets, rebases, faults and restart.
 Constant-output fixtures alone cannot establish continuity or motion correctness.
-New executable bindings remain Pending.
+Registered session tests and actual replay/PX4 fixtures cover the implemented binding;
+geographic/resource qualification and formal evidence remain separate.
 
 Numerical acceptance follows
 [C-NUMERICAL-ACCEPTANCE](../common/numerical-acceptance.md) and existing frame-domain

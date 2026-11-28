@@ -333,7 +333,7 @@ flight qualification.
 
 | Task | Status | Completion boundary |
 |---|---|---|
-| <a id="t-06"></a>T-06 — Navigation output | Specification baseline | [Contract/design](spec/architecture/navigation-output.md) defines corrected products, point/frame/epoch, delayed uncertainty proxies, reset/rebase and partial-availability semantics through existing owners. Complete portable provenance, PX4 global-publication/absent-reference alignment and counter/restart acceptance; bind the four Pending test families to actual replay, module, controller and Commander paths. No independent odometry tracker or current covariance is included. Geographic/physical/target and new caller-proof claims remain separately qualified. |
+| <a id="t-06"></a>T-06 — Navigation outputs | Implemented; software acceptance | Portable session/frame/sample and delayed-covariance provenance, PX4 reference/heading publication gates and body-point resets. [Cases](spec/verification/tests/runtime/navigation-output.md) bind native session, replay and actual PX4 consumers. Geographic/resource qualification and formal evidence remain open. |
 
 ### T-07 — Navigation configuration
 

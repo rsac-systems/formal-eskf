@@ -216,3 +216,5 @@ Pending owner review. Independent core/runtime design and cross-checking can
 identify omissions; they do not establish execution coverage or approval.
 
 - [Stationary zero-velocity updates](runtime/zero-velocity.md): eligibility, cadence, full correction and session/configuration binding.
+
+- [Navigation outputs](runtime/navigation-output.md): session provenance, geometry, resets and adapter consumers.

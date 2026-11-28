@@ -602,7 +602,11 @@ void replay_session(std::filesystem::path const & input, std::filesystem::path c
 
     auto const & stats = session->statistics();
     auto const final = session->diagnostics(imu.back().time_us);
-    summary << "{\n  \"initialized_at_us\": " << seed_time << ",\n  \"tilt_aligned_at_us\": " << tilt_time
+    summary << "{\n  \"position_velocity_frame\": \"fixed_plot_ned\",\n"
+            << "  \"quaternion_frame\": \"geographic_ned_or_unattached_local\",\n"
+            << "  \"output_point\": \"configured_body_origin\",\n"
+            << "  \"covariance_source\": \"delayed_imu_point\",\n"
+            << "  \"initialized_at_us\": " << seed_time << ",\n  \"tilt_aligned_at_us\": " << tilt_time
             << ",\n  \"heading_available_at_us\": " << heading_time
             << ",\n  \"navigation_available_at_us\": " << navigation_time
             << ",\n  \"predictions\": " << stats.predictions

@@ -47,13 +47,16 @@ contracts. No additional tuning constant or output mode is required. Existing
 source-expiry and numerical-fault policy remain with their owners. Restart is a
 new session, not guaranteed trajectory continuity or PX4 automatic recovery.
 
-The target still needs explicit portable covariance/session/frame provenance and
-caller acceptance. PX4 publication must gate global messages on geographic
-reference and heading alignment, and use its absent-reference metadata convention;
-current publication does not fully meet these targets. Preserve independent
-heading/height capabilities when mapping the PX4 compatibility fields.
+`BodyOutput::epoch` identifies its session, seed, frame and reference epochs and
+current IMU sample. Its binding distinguishes local Cartesian service from
+projected position with geographic NED velocity/attitude. `NavigationVariance::epoch`
+identifies delayed IMU covariance; capabilities and diagnostics retain independent
+availability and publication/capture epochs. These views allocate no new state/P.
+PX4 global publication requires an established reference and admitted heading alignment;
+missing local-reference components use zero timestamp/NaN coordinates and flags.
+
 Counter aggregation, repeated notifications, rollover and restart consumption
-require explicit tests; byte-for-byte PX4 counter parity is not claimed. PX4
+are exercised through session and actual consumer tests; byte-for-byte PX4 counter parity is not claimed. PX4
 heading-good-for-control additionally uses its final in-flight magnetic-alignment
 policy; our heading permission remains with R-PX4-STATUS, not an identical flag
 algorithm. Consumer acceptance must expose this difference rather than equating
@@ -63,8 +66,7 @@ The current replay exports position/velocity in its fixed plotting frame while
 its quaternion follows the geographic body-output frame. Acceptance must identify
 these per-field frames; it must not label the entire record as one rigid NED pose.
 
-The four [planned test families](../verification/navigation-output-tests.md)
-retain stable IDs and Pending bindings. Implementation, affected caller/proof
-evidence, geographic numerical bounds and target time/stack qualification remain
-separate work under [T-06](../../roadmap.md#t-06) and existing qualification tracks.
+The four [test families](../verification/tests/runtime/navigation-output.md)
+retain stable IDs and executable bindings. Affected caller/proof evidence,
+geographic numerical bounds and target time/stack qualification remain separate work under [T-06](../../roadmap.md#t-06) and existing qualification tracks.
 The fixed output reference does not remove geographic operating limits.

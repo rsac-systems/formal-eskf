@@ -7,6 +7,7 @@
 #include <modules/commander/HealthAndArmingChecks/checks/modeCheck.hpp>
 #include <modules/commander/ModeUtil/mode_requirements.hpp>
 #include <modules/mc_att_control/mc_att_control.hpp>
+#include <modules/mc_pos_control/MulticopterPositionControl.hpp>
 #include <matrix/matrix/math.hpp>
 using formal_eskf::testing::InsSessionTest;
 
@@ -4247,6 +4248,98 @@ public:
                "fault recovery is also a status transition");
     }
 
+    static void navigation_output_contract()
+    {
+        // TC-R-NAV-OUTPUT-01/03/04: actual topics retain the reference/phase contract.
+        InsSessionTest test;
+        test.m_send_gps = test.m_send_magnetic = test.m_send_barometer = false;
+        for (unsigned i = 0; i < 2000; ++i)
+        {
+            test.m_sample.timestamp_sample += 4000;
+            test.tick();
+        }
+        auto & f = test.m_filter;
+        auto & session = f.m_session;
+        vehicle_local_position_s local{};
+        vehicle_global_position_s global{};
+        orb_copy(ORB_ID(vehicle_local_position), test.m_outputs[1], &local);
+        orb_copy(ORB_ID(vehicle_global_position), test.m_outputs[2], &global);
+        expect(local.timestamp_sample != 0 && local.ref_timestamp == 0 && std::isnan(local.ref_lat) &&
+                   std::isnan(local.ref_lon) && std::isnan(local.ref_alt) && !local.xy_global && !local.z_global &&
+                   global.timestamp == 0,
+               "unattached local service has no invented reference or fresh global publication");
+
+        test.m_send_gps = test.m_send_magnetic = test.m_send_barometer = true;
+        for (unsigned i = 0; i < 8500; ++i)
+        {
+            test.m_sample.timestamp_sample += 4000;
+            test.tick();
+        }
+        expect(session.navigation_frame().initialized() && session.heading_aligned(), "actual geographic attachment");
+        orb_copy(ORB_ID(vehicle_global_position), test.m_outputs[2], &global);
+        auto const last_global = global.timestamp;
+        session.m_heading_aligned = false;
+        f.m_last_output = session.output_predictor().current().time_us - 10000;
+        clock_us += 1;
+        f.publish(FormalEskf::decode_imu(test.m_sample).mean_rates());
+        orb_copy(ORB_ID(vehicle_global_position), test.m_outputs[2], &global);
+        expect(global.timestamp == last_global, "stored origin without admitted heading cannot refresh global topic");
+        session.m_heading_aligned = true;
+
+        // TC-R-NAV-OUTPUT-02: unmodified pinned position controller consumes actual reset topics.
+        MulticopterPositionControl control;
+        vehicle_local_position_s old{};
+        orb_copy(ORB_ID(vehicle_local_position), test.m_outputs[1], &old);
+        trajectory_setpoint_s setpoint{};
+        control.adjustSetpointForEKFResets(old, setpoint); // Synchronize the consumer's prior counters.
+        setpoint.timestamp = old.timestamp;
+        setpoint.position[0] = 10.f;
+        setpoint.position[1] = 20.f;
+        setpoint.position[2] = -5.f;
+        setpoint.yaw = .2f;
+        expect(session.reset_output({}, {}, FormalEskf::vector3(1., -2., .5),
+                                    {.horizontal_position = true, .height_count = 1}),
+               "real body point reset");
+        f.m_last_output = session.output_predictor().current().time_us - 10000;
+        clock_us += 1;
+        f.publish(FormalEskf::decode_imu(test.m_sample).mean_rates());
+        orb_copy(ORB_ID(vehicle_local_position), test.m_outputs[1], &local);
+        control.adjustSetpointForEKFResets(local, setpoint);
+        expect(std::abs(setpoint.position[0] - (10.f + local.delta_xy[0])) < 1e-6f &&
+                   std::abs(setpoint.position[1] - (20.f + local.delta_xy[1])) < 1e-6f &&
+                   std::abs(setpoint.position[2] - (-5.f + local.delta_z)) < 1e-6f,
+               "actual pinned controller shifts an older setpoint by the published body deltas");
+        auto const once = setpoint;
+        control.adjustSetpointForEKFResets(local, setpoint);
+        expect(std::memcmp(&once, &setpoint, sizeof(once)) == 0, "same reset publication cannot shift setpoint twice");
+
+        expect(session.reset_output({}, {}, FormalEskf::vector3(2., 0., 0.), {.horizontal_position = true}),
+               "second reset transaction");
+        f.m_last_output = session.output_predictor().current().time_us - 10000;
+        clock_us += 1;
+        f.publish(FormalEskf::decode_imu(test.m_sample).mean_rates());
+        orb_copy(ORB_ID(vehicle_local_position), test.m_outputs[1], &local);
+        setpoint.timestamp = local.timestamp;
+        auto const newer = setpoint;
+        control.adjustSetpointForEKFResets(local, setpoint);
+        expect(std::memcmp(&newer, &setpoint, sizeof(newer)) == 0,
+               "a setpoint from the new reference epoch is not shifted again");
+
+        FormalEskf::quaternion_type tilted_reset;
+        expect(formal_eskf::succeeded(
+                   FormalEskf::quaternion_type::from_coefficients(.8, .3, .4, std::sqrt(.11), 1e-6, tilted_reset)) &&
+                   session.reset_output(tilted_reset, {}, {}, {.attitude = true}),
+               "non-pure-yaw reset setup");
+        f.m_last_output = session.output_predictor().current().time_us - 10000;
+        clock_us += 1;
+        f.publish(FormalEskf::decode_imu(test.m_sample).mean_rates());
+        orb_copy(ORB_ID(vehicle_local_position), test.m_outputs[1], &local);
+        auto const & q = session.resets().attitude_delta.coefficients();
+        double const yaw = std::atan2(2. * (q(0) * q(3) + q(1) * q(2)), 1. - 2. * (q(2) * q(2) + q(3) * q(3)));
+        expect(std::abs(double(local.delta_heading) - yaw) < 2e-7,
+               "heading reset is Euler yaw of the full rotation, not the pure-yaw shortcut");
+    }
+
     static void navigation_covariance_frame()
     {
         for (double roll : {0., 0.7, std::numbers::pi / 2.})
@@ -6019,6 +6112,7 @@ int main(int argc, char ** argv)
 
     InsSessionTest::configured_profile();
     InsSessionTest::portable_session_equivalence();
+    InsSessionTest::navigation_output_contract();
     InsSessionTest::zero_velocity();
     InsSessionTest::bias_stability();
     trace_file = comparison_trace;

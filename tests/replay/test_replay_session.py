@@ -66,6 +66,10 @@ class ReplaySession(unittest.TestCase):
     def test_standard_startup_and_magnetic_loss(self):
         LOG = stationary_log()
         SUMMARY, STATUS, STATE = self.run_session(LOG)
+        self.assertEqual(SUMMARY["position_velocity_frame"], "fixed_plot_ned")
+        self.assertEqual(SUMMARY["quaternion_frame"], "geographic_ned_or_unattached_local")
+        self.assertEqual(SUMMARY["output_point"], "configured_body_origin")
+        self.assertEqual(SUMMARY["covariance_source"], "delayed_imu_point")
         self.assertEqual(SUMMARY["initialized_at_us"], 1000000)
         self.assertGreater(SUMMARY["tilt_aligned_at_us"], SUMMARY["initialized_at_us"])
         self.assertGreaterEqual(SUMMARY["heading_available_at_us"], SUMMARY["tilt_aligned_at_us"])

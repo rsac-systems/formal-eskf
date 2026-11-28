@@ -162,13 +162,29 @@ public:
         matrix3_type rotation{};
     };
 
+    // Point/frame semantics belong to the containing product. Epochs refer to
+    // retained owner data, never the wall time at which this view is read.
+    struct OutputEpoch
+    {
+        std::uint64_t session_id{}, seed_time_us{}, frame_epoch{}, reference_time_us{}, sample_time_us{};
+    };
+
     struct NavigationVariance
     {
         vector3_type position{}, velocity{}, attitude{};
+        OutputEpoch epoch{}; // Delayed IMU-point P, rotated into delayed output axes; not current/body-point P.
     };
 
     struct BodyOutput
     {
+        enum class Binding
+        {
+            unavailable,
+            local_cartesian,
+            geographic_projection // Projected horizontal position; geographic NED velocity/attitude.
+        };
+        OutputEpoch epoch{};
+        Binding binding = Binding::unavailable;
         status_type status = status_type::domain_error;
         vector3_type position_n{}, velocity_n{};
         quaternion_type q_nb{};

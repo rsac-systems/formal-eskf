@@ -47,7 +47,7 @@ if(FORMAL_ESKF_MODULE_TESTS)
 	target_link_libraries(formal_eskf_module_test PRIVATE modules__formal_eskf
 		px4_layer px4_platform uORB systemlib cdev px4_work_queue px4_daemon
 		work_queue parameters events perf tinybson uorb_msgs geo world_magnetic_model
-		health_and_arming_checks mode_util modules__mc_att_control modules__land_detector vehicle_imu)
+		health_and_arming_checks mode_util modules__mc_att_control modules__mc_pos_control GotoControl motion_planning modules__land_detector vehicle_imu)
 	target_link_options(formal_eskf_module_test PRIVATE
 		-Wl,--wrap=hrt_absolute_time -Wl,--wrap=hrt_call_after -Wl,--wrap=hrt_cancel
 		-Wl,--wrap=pthread_mutex_init

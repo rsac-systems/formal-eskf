@@ -41,7 +41,7 @@ The five IDs are families spanning normal, boundary, failure and recovery
 partitions, not five executions or a coverage percentage. Reuse
 [sensor-input cases](sensor-input-tests.md),
 [configuration cases](navigation-configuration-tests.md) and
-[output cases](navigation-output-tests.md) for existing behavior; add the rate and
+[output cases](tests/runtime/navigation-output.md) for existing behavior; add the rate and
 target partitions here rather than duplicating their policy state machines.
 
 Use exact expectations for statuses, identities, integer timestamps/counts,

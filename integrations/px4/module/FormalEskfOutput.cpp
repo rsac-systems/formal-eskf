@@ -174,14 +174,16 @@ vehicle_local_position_s FormalEskf::publish_local_position(std::uint64_t now, i
     local.tilt_var = rotation_variance(0) + rotation_variance(1);
     local.heading_good_for_control = validity.magnetic;
     auto const & delta = m_session.resets().attitude_delta.coefficients();
-    local.delta_heading = 2. * std::atan2(delta(3), delta(0));
+    local.delta_heading =
+        matrix::Eulerf(matrix::Quatf(float(delta(0)), float(delta(1)), float(delta(2)), float(delta(3)))).psi();
     local.heading_reset_counter = m_session.resets().attitude_count;
     local.xy_global = body.geographic_available;
     local.z_global = body.msl_available;
-    local.ref_timestamp = m_session.navigation_origin().time_us;
-    local.ref_lat = m_session.navigation_origin().projection.latitude_deg();
-    local.ref_lon = m_session.navigation_origin().projection.longitude_deg();
-    local.ref_alt = m_session.navigation_origin().altitude_msl_m;
+    auto const & origin = m_session.navigation_origin();
+    local.ref_timestamp = local.xy_global ? origin.time_us : 0;
+    local.ref_lat = local.xy_global ? origin.projection.latitude_deg() : double(NAN);
+    local.ref_lon = local.xy_global ? origin.projection.longitude_deg() : double(NAN);
+    local.ref_alt = local.z_global ? origin.altitude_msl_m : double(NAN);
     auto const & position_variance = variance.position;
     auto const & velocity_variance = variance.velocity;
     local.eph = std::sqrt(position_variance(0) + position_variance(1));
@@ -199,6 +201,11 @@ vehicle_local_position_s FormalEskf::publish_local_position(std::uint64_t now, i
 void FormalEskf::publish_global_position(std::uint64_t now, vehicle_local_position_s const & local,
                                          BodyOutput const & body, OutputValidity const & validity)
 {
+    if (!m_session.navigation_frame().initialized() || !m_session.heading_aligned())
+    {
+        return;
+    }
+
     vehicle_global_position_s global{};
     global.timestamp_sample = m_session.output_predictor().current().time_us;
     global.timestamp = now;

@@ -628,15 +628,31 @@ InsSession<Linalg, Layout>::navigation_variance(std::size_t start) const
 template <typename Linalg, typename Layout>
 typename InsSession<Linalg, Layout>::NavigationVariance InsSession<Linalg, Layout>::navigation_variances() const
 {
+    if (!m_initialized || m_covariance_time_us == 0)
+    {
+        auto const unavailable = vector3_type::from_row_major({NAN, NAN, NAN});
+        return {unavailable,
+                unavailable,
+                unavailable,
+                {m_session_id, m_seed_time_us, m_frame_epoch, m_origin.time_us, m_covariance_time_us}};
+    }
     auto const axes = delayed_output_axes();
-    return {navigation_variance(0, axes), navigation_variance(3, axes), navigation_variance(6, axes)};
+    return {navigation_variance(0, axes),
+            navigation_variance(3, axes),
+            navigation_variance(6, axes),
+            {m_session_id, m_seed_time_us, m_frame_epoch, m_origin.time_us, m_covariance_time_us}};
 }
 
 template <typename Linalg, typename Layout>
 typename InsSession<Linalg, Layout>::BodyOutput InsSession<Linalg, Layout>::body_output() const
 {
     auto const & output = m_output.current();
-    return body_output(output.p_n, output.v_n, output.q_nb, m_output.angular_rate_b());
+    auto body = body_output(output.p_n, output.v_n, output.q_nb, m_output.angular_rate_b());
+    body.epoch = {m_session_id, m_seed_time_us, m_frame_epoch, m_origin.time_us, output.time_us};
+    body.binding = body.geographic_available ? BodyOutput::Binding::geographic_projection
+                   : !m_navigation_frame.working().initialized() && m_initialized ? BodyOutput::Binding::local_cartesian
+                                                                                  : BodyOutput::Binding::unavailable;
+    return body;
 }
 
 } // namespace formal_eskf::runtime

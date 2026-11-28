@@ -13,7 +13,7 @@ InsCapabilities InsSession<Linalg, Layout>::capabilities(std::uint64_t now_us) c
     result.session_epoch_us = m_seed_time_us;
     result.frame_epoch = m_navigation_frame.generation();
     result.output_time_us = m_output.current().time_us;
-    result.covariance_time_us = m_time_us;
+    result.covariance_time_us = m_covariance_time_us;
     result.gnss_generation = m_observations.gnss_generation();
     result.magnetic_generation = m_observations.magnetic_generation();
     result.barometer_generation = m_observations.barometer_generation();

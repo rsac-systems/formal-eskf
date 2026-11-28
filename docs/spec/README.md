@@ -234,7 +234,7 @@ local/global products through the existing runtime and PX4 adapter. The
 [design and pinned comparison](architecture/navigation-output.md) preserve
 Cartesian estimation and document output point/epoch, delayed covariance proxies,
 reset/reference semantics and independent availability. Four
-[Pending case families](verification/navigation-output-tests.md) include actual
+[Pending case families](verification/tests/runtime/navigation-output.md) include actual
 controller/Commander behavior. This Draft baseline adds no independent odometry
 tracker or current covariance and does not establish implementation acceptance.
 
