@@ -92,6 +92,7 @@ typename InsSession<Linalg, Layout>::Diagnostics InsSession<Linalg, Layout>::dia
     view.completed_fusion_us = m_completed_fusion_us;
     view.accelerometer_stability = m_accelerometer_stability.state();
     view.gyroscope_stability = m_gyroscope_stability.state();
+    view.zero_velocity = m_zero_velocity.state();
     view.frame_epoch = m_frame_epoch;
     view.evaluations = m_evaluation_order;
     view.predictions = m_prediction_attempts;

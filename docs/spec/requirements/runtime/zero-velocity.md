@@ -21,7 +21,8 @@ The [pinned PX4 comparison](../../architecture/zero-velocity.md#px4-comparison)
 owns the reference and adaptations. ZUPT uses a qualified physical premise that
 the IMU point is stationary. It is a zero-velocity pseudo-observation, not a new
 sensor packet, gravity correction, geographical fix or numerical-only variance
-reduction. This target is not implemented by existing velocity-correction tests.
+reduction. Its session/configuration binding has dedicated tests; existing core tests alone
+do not establish that composition.
 
 ## Required behavior
 
@@ -124,7 +125,7 @@ sensor's control. Running zero-gyro observations remain a separate task.
 
 ## Acceptance and verification
 
-Six [Pending case families](../../verification/zero-velocity-tests.md) cover
+Six [case families](../../verification/tests/runtime/zero-velocity.md) cover
 historical eligibility, exact cadence, both uncertainty branches, correlated-P
 correction, failure/source sequences, actual configuration/publication and physical
 premises. Existing core results retain their scope and do not prove the new caller.

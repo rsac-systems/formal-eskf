@@ -108,6 +108,12 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::mai
         separate(B, 2, 1, 0);
     }
 
+    // ZUPT observes all velocity directions in this horizon without granting navigation validity.
+    if (m_zero_velocity.state().fused && m_zero_velocity.state().sample.time_us == m_time_us)
+    {
+        separate(matrix3_type::identity(), 0, 3, 3);
+    }
+
     if (!check(m_continuity.translation(m_covariance, B, unavailable)))
     {
         return false;

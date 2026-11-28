@@ -158,6 +158,7 @@ void input_and_motion(Context & test, std::string_view profile)
                     profile, "external prior does not bypass IMU admission");
     }
     Fixture moving;
+    moving.at_rest = false; // This analytic moving-platform fixture does not assert physical rest.
     moving.send_gnss = moving.send_barometer = moving.send_magnetic = false;
     moving.imu.delta_angle_b(2) = 0.004;
     moving.imu.delta_velocity_b(0) = 0.02;

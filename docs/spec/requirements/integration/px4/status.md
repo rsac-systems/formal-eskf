@@ -135,7 +135,7 @@ timestamps, or promote navigation validity solely because ZUPT succeeded.
 Keep existing PX4 topic definitions and capability/fault mapping. In particular,
 current bindings do not implement PX4's optical-flow/airspeed-specific
 expected-in-air support; a standalone ZUPT must not impersonate it. The
-[actual caller/consumer cases](../../../verification/zero-velocity-tests.md) must
+[actual caller/consumer cases](../../../verification/tests/runtime/zero-velocity.md) must
 check rest loss, skipped updates and numerical-fault withdrawal independently.
 
 ## Diagnostic-reporting target

@@ -55,6 +55,15 @@ config ESKF_MAG_TILT
 
 endmenu
 
+menu "Navigation runtime"
+config ESKF_ZUPT
+    bool "Stationary zero-velocity updates"
+    default y
+    help
+      Correct INS velocity at qualified delayed rest. No rest detector or
+      navigation-validity grant is added. Disable to omit this correction.
+endmenu
+
 rsource "configs/px4.Kconfig"
 
 menu "Linear algebra backends"

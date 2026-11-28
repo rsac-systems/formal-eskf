@@ -214,3 +214,5 @@ are counted separately; they do not expand the core/runtime plan's totals.
 
 Pending owner review. Independent core/runtime design and cross-checking can
 identify omissions; they do not establish execution coverage or approval.
+
+- [Stationary zero-velocity updates](runtime/zero-velocity.md): eligibility, cadence, full correction and session/configuration binding.

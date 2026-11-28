@@ -223,7 +223,7 @@ physical bias accuracy, target qualification or new formal proofs.
 stationary observation, delayed eligibility and cadence, existing 3D correction
 and failure/output boundaries. The [design](architecture/zero-velocity.md),
 [profile](profiles/zero-velocity.md) and six
-[Pending case families](verification/zero-velocity-tests.md) separate PX4-aligned
+[case families](verification/tests/runtime/zero-velocity.md) separate PX4-aligned
 observation policy from retained project numerical/context contracts. This Draft
 does not establish running ZUPT support or physical rest/accuracy qualification.
 

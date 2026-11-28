@@ -6,6 +6,8 @@
 #include <type_traits>
 #include <formal_eskf/eskf/eskf.hpp>
 #include <formal_eskf/runtime/session/ins_settings.hpp>
+#include <formal_eskf/runtime/fusion/zero_velocity.hpp>
+
 #include <formal_eskf/runtime/sensors/imu/bias_stability.hpp>
 #include <formal_eskf/runtime/session/ins_startup.hpp>
 #include <formal_eskf/runtime/session/ins_capabilities.hpp>
@@ -24,6 +26,11 @@
 #include <formal_eskf/runtime/fusion/frame_navigation.hpp>
 #include <formal_eskf/runtime/frames/navigation_frame.hpp>
 #include <formal_eskf/runtime/frames/spherical_projection.hpp>
+
+#ifndef ESKF_ZUPT
+#define ESKF_ZUPT 1
+#endif
+static_assert(ESKF_ZUPT == 0 || ESKF_ZUPT == 1, "ESKF_ZUPT must be 0 or 1");
 
 namespace formal_eskf::testing
 {
@@ -64,6 +71,7 @@ public:
     using barometric_type = formal_eskf::runtime::BarometricAltitude<geographic_math_type>;
     using bias_learning_type = formal_eskf::runtime::ImuBiasInhibition<backend_type>;
     using bias_stability_type = BiasStability<backend_type>;
+    using zero_velocity_type = ZeroVelocityUpdate<backend_type>;
     using vertical_health_type = formal_eskf::runtime::VerticalAccelerationHealth<backend_type>;
     using gravity_sampler_type = formal_eskf::runtime::AccelerometerSample<backend_type, Layout::gravity_interval_us>;
     using quaternion_type = formal_eskf::so3::UnitQuaternion<backend_type>;
@@ -407,6 +415,8 @@ public:
         std::uint64_t frame_epoch{}, evaluations{}, predictions{}, output_predictions{}, faults{}, imu_admissions{};
         std::uint64_t imu_rejections{}, imu_raw_time_us{}, imu_arrival_time_us{}, lag_us{};
         typename bias_stability_type::State accelerometer_stability{}, gyroscope_stability{};
+        typename zero_velocity_type::State zero_velocity{};
+        bool zero_velocity_enabled = ESKF_ZUPT;
         ImuSource imu_source{}, gravity_source{}; // Current admission versus last completed gravity interval.
         ImuAdmission imu_admission = ImuAdmission::none;
         std::array<double, 15> covariance_diagonal{}; // Working p/v, body attitude error, body biases.
@@ -742,6 +752,8 @@ private:
     bool m_gravity_clipping_available{};
     bias_learning_type m_bias_learning;
     bias_stability_type m_accelerometer_stability{}, m_gyroscope_stability{};
+    zero_velocity_type m_zero_velocity{};
+    bool m_zero_velocity_imu_valid{};
     std::uint64_t m_bias_stability_completion{};
     bool m_bias_stability_hold{}, m_bias_stability_in_air{};
     typename bias_learning_type::Result m_bias_learning_result{};

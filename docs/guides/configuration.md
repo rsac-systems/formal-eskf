@@ -319,3 +319,8 @@ history envelope. They are not unrestricted menu tuning controls: changing them
 requires reassessing that profile and its boundary/resource evidence. Replay
 uses the session's automatic origin owner with its declared host bounds; it does
 not expose the retired explicit-event CSV interface.
+
+The shared `ESKF_ZUPT` build choice defaults ON. It controls the INS stationary
+zero-velocity phase; PX4 packages retain the same choice as host runtime targets.
+The [profile](../spec/profiles/zero-velocity.md) owns fixed cadence and variance
+settings. No live selector or tuning of those constants is introduced.

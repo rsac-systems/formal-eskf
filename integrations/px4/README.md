@@ -166,6 +166,15 @@ make -C /path/to/PX4-Autopilot px4_sitl_formal_eskf -j2
 
 The destination requires the pinned PX4 checkout and its build dependencies. It does not need the formal-eskf source repository. Exports require a new directory to avoid overwriting an earlier package. The manifest detects accidental changes to exported payload files and the host patch.
 
+## Stationary velocity
+
+ESKF_ZUPT defaults to ON and can be disabled in menuconfig or the host CMake
+runtime target. The PX4 package carries the same selection. Qualified delayed
+land-detector rest can trigger a zero-velocity correction; landed alone cannot.
+The runtime diagnostics expose its separate attempts, outcomes and context epochs.
+It does not report GNSS aiding or create navigation validity. See the
+[stationary policy](../../docs/spec/architecture/zero-velocity.md).
+
 ## Bias stability
 
 The runtime independently qualifies accelerometer and gyroscope biases after

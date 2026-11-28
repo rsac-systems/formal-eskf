@@ -366,6 +366,7 @@ bool InsSession<Linalg, Layout>::admit_imu(ImuInput const & sample, std::uint64_
     {
         // The previous completed estimate predates this reset and cannot qualify the new source.
         m_bias_stability_completion = m_completed_fusion_us;
+        m_zero_velocity.break_rest();
     }
     // Motion/protection envelopes retain their actual delayed history.
     return true;
@@ -655,6 +656,25 @@ bool InsSession<Linalg, Layout>::complete_fusion(std::optional<typename magnetic
     }
 
     complete_magnetic(model);
+#if ESKF_ZUPT
+    if (!m_fault)
+    {
+        m_operation = InsOperation::zero_velocity;
+        typename zero_velocity_type::Sample sample;
+        sample.time_us = m_time_us;
+        sample.context_time_us = m_imu_context.land.time_us;
+        sample.known_at_us = m_imu_context.time_us;
+        sample.source = m_filtered_imu_source;
+        sample.at_rest = m_zero_velocity_imu_valid && m_imu_context.land.known && m_imu_context.land.at_rest;
+        sample.tilt_aligned = m_tilt_alignment.aligned();
+        sample.vertical_velocity_aiding = m_gnss.lifecycle.state().velocity.active;
+        if (!check(m_zero_velocity.update(sample, m_state, m_covariance, m_parameters.minimum_quaternion_norm,
+                                          m_bias_learning_result.bias_update)))
+        {
+            return false;
+        }
+    }
+#endif
     m_operation = InsOperation::continuity;
     if (!m_fault && !maintain_continuity())
     {
@@ -820,6 +840,12 @@ void InsSession<Linalg, Layout>::predict_and_fuse(typename imu_history_type::int
     m_delayed_imu_arrival_us = interval.arrival_time_us;
     auto const imu = sample.mean_rates();
     bool const changed = mixed || !m_filtered_imu_source.matches(sample.source);
+    m_zero_velocity_imu_valid =
+        !held && !changed && sample.accelerometer_clipping == 0 && sample.gyroscope_clipping == 0;
+    if constexpr (accumulated_imu)
+    {
+        m_zero_velocity_imu_valid &= interval.accelerometer_clipping == 0;
+    }
     if (changed || held)
     {
         // Discard partial observations at their delayed source boundary. Bias

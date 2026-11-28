@@ -227,8 +227,9 @@ correction and bias permissions. Normal ineligibility skips; numerical failure
 preserves the ZUPT input state/P and follows the existing latched fault contract.
 Earlier successful stages stay committed. No new observation queue, calibration
 service, rest detector or catch-up loop is introduced. The
-[Pending cases](../../verification/zero-velocity-tests.md) must exercise the real
-phase and configuration binding before claiming this target implemented.
+[case families](../../verification/tests/runtime/zero-velocity.md) bind the real
+phase and configuration paths. Physical, target and new formal qualification
+remain separate.
 
 ## Navigation output target
 

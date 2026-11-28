@@ -6981,7 +6981,7 @@
     },
     {
       "id": "R-PX4-STATUS",
-      "title": "PX4 capability, uncertainty, bias, innovation and failure reporting: native/SIH evidence only; staged capabilities have pinned consumer subsets; complete consumer/target and formal source qualification remain open; diagnostic epoch, per-group and completed-update counting target pending; independent bias-stability monitors and PX4 consumer binding have native tests; formal/target qualification remains open; selectable default-ON ZUPT composition is a Draft target with Pending tests",
+      "title": "PX4 capability, uncertainty, bias, innovation and failure reporting: native/SIH evidence only; staged capabilities have pinned consumer subsets; complete consumer/target and formal source qualification remain open; diagnostic epoch, per-group and completed-update counting target pending; independent bias-stability monitors and PX4 consumer binding have native tests; formal/target qualification remains open; selectable default-ON ZUPT composition has software tests; physical/target and formal qualification remain open",
       "references": {
         "spec": [
           {
@@ -7037,7 +7037,7 @@
             "symbol": "# Stationary Zero-Velocity Profile"
           },
           {
-            "file": "docs/spec/verification/zero-velocity-tests.md",
+            "file": "docs/spec/verification/tests/runtime/zero-velocity.md",
             "symbol": "## Cases"
           },
           {
@@ -8322,7 +8322,7 @@
     },
     {
       "id": "R-INS-SESSION",
-      "title": "Portable INS session phase composition: native regression and independent fixtures; full symbolic and target evidence remain open; IMU source continuation has native coverage; historical mismatch-rejection proofs require migration; diagnostic-reporting composition target pending; ground-effect event composition target pending; mixed-precision session target is Draft/Pending and is not covered by existing binary64 evidence; IMU accumulation and aggregate prediction are Draft targets with Pending tests, outside existing direct evidence; GNSS selection, independent startup, live controls and logical-stream composition are Draft targets with Pending tests; independent bias-stability monitors and PX4 consumer binding have native tests; formal/target qualification remains open; selectable default-ON ZUPT composition is a Draft target with Pending tests; corrected navigation-output composition and PX4 consumer acceptance remain Draft/Pending; T-02 accumulation is implemented with scoped native cases; aggregate proofs and deployment qualification pending",
+      "title": "Portable INS session phase composition: native regression and independent fixtures; full symbolic and target evidence remain open; IMU source continuation has native coverage; historical mismatch-rejection proofs require migration; diagnostic-reporting composition target pending; ground-effect event composition target pending; mixed-precision session target is Draft/Pending and is not covered by existing binary64 evidence; IMU accumulation and aggregate prediction are Draft targets with Pending tests, outside existing direct evidence; GNSS selection, independent startup, live controls and logical-stream composition are Draft targets with Pending tests; independent bias-stability monitors and PX4 consumer binding have native tests; formal/target qualification remains open; selectable default-ON ZUPT composition has software tests; physical/target and formal qualification remain open; corrected navigation-output composition and PX4 consumer acceptance remain Draft/Pending; T-02 accumulation is implemented with scoped native cases; aggregate proofs and deployment qualification pending",
       "references": {
         "spec": [
           {
@@ -8458,7 +8458,7 @@
             "symbol": "# Stationary Zero-Velocity Profile"
           },
           {
-            "file": "docs/spec/verification/zero-velocity-tests.md",
+            "file": "docs/spec/verification/tests/runtime/zero-velocity.md",
             "symbol": "## Cases"
           },
           {
@@ -8678,7 +8678,7 @@
     },
     {
       "id": "R-INS-CONTINUITY",
-      "title": "Bounded staged INS numerical continuity, transported intervention provenance and real-source reset recovery; finite native fixtures, formal and target evidence deferred; selectable default-ON ZUPT composition is a Draft target with Pending tests",
+      "title": "Bounded staged INS numerical continuity, transported intervention provenance and real-source reset recovery; finite native fixtures, formal and target evidence deferred; selectable default-ON ZUPT composition has software tests; physical/target and formal qualification remain open",
       "references": {
         "spec": [
           {
@@ -8710,7 +8710,7 @@
             "symbol": "# Stationary Zero-Velocity Profile"
           },
           {
-            "file": "docs/spec/verification/zero-velocity-tests.md",
+            "file": "docs/spec/verification/tests/runtime/zero-velocity.md",
             "symbol": "## Cases"
           },
           {
@@ -9307,6 +9307,34 @@
           {
             "file": "integrations/px4/module/FormalEskfOutput.cpp",
             "symbol": "void FormalEskf::publish_sensor_bias("
+          }
+        ],
+        "esbmc": []
+      }
+    },
+    {
+      "id": "R-ZUPT",
+      "title": "Selectable stationary zero-velocity correction and session/PX4 binding; software tests, physical/target and new proofs pending",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/runtime/zero-velocity.md",
+            "symbol": "# R-ZUPT:"
+          },
+          {
+            "file": "docs/spec/verification/tests/runtime/zero-velocity.md",
+            "symbol": "## Cases"
+          }
+        ],
+        "lean": [],
+        "cpp": [
+          {
+            "file": "include/formal_eskf/runtime/fusion/zero_velocity.hpp",
+            "symbol": "class ZeroVelocityUpdate"
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_steps.hpp",
+            "symbol": "bool InsSession<Linalg, Layout>::complete_fusion("
           }
         ],
         "esbmc": []

@@ -130,6 +130,7 @@ public:
         {
             Fixture f;
             start(f, test, profile);
+            f.at_rest = false; // Isolate history/reset ownership from legitimate stationary corrections.
             std::uint64_t completed = 1000000;
             std::uint64_t changed_epoch = 1000000 + 4000 * std::uint64_t{change_step};
             for (unsigned n = 1; n < change_step + 70; ++n)

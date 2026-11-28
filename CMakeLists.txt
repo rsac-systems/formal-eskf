@@ -66,8 +66,10 @@ target_compile_definitions(
         ESKF_MAG_TILT=$<BOOL:${ESKF_MAG_TILT}>
 )
 
+option(ESKF_ZUPT "Enable stationary INS zero-velocity updates" ON)
 add_library(formal_eskf_runtime INTERFACE)
 add_library(formal_eskf::runtime ALIAS formal_eskf_runtime)
+target_compile_definitions(formal_eskf_runtime INTERFACE ESKF_ZUPT=$<BOOL:${ESKF_ZUPT}>)
 target_link_libraries(formal_eskf_runtime INTERFACE formal_eskf::core formal_eskf::geodesy)
 
 option(FORMAL_ESKF_BUILD_EIGEN_BACKEND "Build the Eigen linear-algebra backend" ON)

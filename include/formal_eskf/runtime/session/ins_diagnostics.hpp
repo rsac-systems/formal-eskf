@@ -156,7 +156,8 @@ enum class InsOperation
     continuity,
     output_feedback,
     frame_change,
-    output_preparation
+    output_preparation,
+    zero_velocity
 };
 
 } // namespace formal_eskf::runtime

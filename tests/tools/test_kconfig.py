@@ -64,7 +64,7 @@ class KconfigTests(unittest.TestCase):
             PREDICTION = "APPROX" if APPROX == "y" else "EXACT"
             SELF.read_config(f"CONFIG_ESKF_QUAT_{PREDICTION}=y\n"
                              f"CONFIG_ESKF_RESET_{PREDICTION}=y\nCONFIG_ESKF_MAG_TILT={TILT}\n"
-                             f"CONFIG_ESKF_CODEGEN={TILT}\n")
+                             f"CONFIG_ESKF_CODEGEN={TILT}\nCONFIG_ESKF_ZUPT={TILT}\n")
             SELF.run_configure("-DCMAKE_EXPORT_COMPILE_COMMANDS=ON")
             CACHE = SELF.cache(SELF.BUILD_DIR)
             SELF.assertEqual(CACHE["ESKF_QUAT_APPROX:BOOL"], BOOL)
@@ -77,6 +77,11 @@ class KconfigTests(unittest.TestCase):
                 SELF.assertIn(f"-DESKF_RESET_APPROX={BIT}", COMMAND)
                 SELF.assertIn(f"-DESKF_MAG_TILT={TILT_BIT}", COMMAND)
                 SELF.assertIn(f"-DESKF_CODEGEN={TILT_BIT}", COMMAND)
+            RUNTIME_COMMANDS = [ENTRY["command"] for ENTRY in COMMANDS if "runtime/session/" in ENTRY["file"]]
+            SELF.assertTrue(RUNTIME_COMMANDS)
+            for COMMAND in RUNTIME_COMMANDS:
+                SELF.assertIn(f"-DESKF_ZUPT={TILT_BIT}", COMMAND)
+            SELF.assertIn(f"#define ESKF_CFG_ZUPT {TILT_BIT}\n", FRONTEND.px4_header(SELF.read_config(SELF.CONFIG_FILE.read_text()), SELF.KCONFIGLIB))
 
     def test_invalid_requests_are_rejected(SELF):
         for TEXT in (

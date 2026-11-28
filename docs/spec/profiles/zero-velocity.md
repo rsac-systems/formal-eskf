@@ -1,7 +1,7 @@
 # Stationary Zero-Velocity Profile
 
 **Status:** Draft. Target for [R-ZUPT](../requirements/runtime/zero-velocity.md);
-not an implemented or deployment-qualified profile.
+implemented software settings, not a deployment-qualified profile.
 
 The [pinned PX4 comparison](../architecture/zero-velocity.md#px4-comparison)
 identifies values and adaptations. Let t be the current delayed fusion time and

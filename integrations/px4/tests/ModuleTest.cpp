@@ -2495,10 +2495,10 @@ public:
             }
 
             expect(test.m_filter.m_session.initialized() && !test.m_filter.m_session.fault() &&
-                       !test.m_filter.m_session.tilt_alignment().aligned() &&
-                       !test.m_filter.m_session.navigation_frame().initialized() &&
+                       test.m_filter.m_session.tilt_alignment().aligned() == bool(ESKF_ZUPT) &&
+                       test.m_filter.m_session.navigation_frame().initialized() == bool(ESKF_ZUPT) &&
                        test.m_filter.m_session.gravity().corrections == 0,
-                   "disabled gravity cannot fabricate staged tilt alignment or navigation");
+                   "disabled gravity stays inactive; enabled stationary velocity may align tilt and enable real GNSS");
 
             return;
         }
@@ -3798,20 +3798,62 @@ public:
             }
 
             auto const before = f.m_session.m_covariance;
+            bool const accel_stable = f.m_session.accelerometer_stability().stable;
+            bool const gyro_stable = f.m_session.gyroscope_stability().stable;
             f.m_session.m_bias_learning_result.bias_update = {{false, false, false}, {false, false, false}};
             f.publish_sensor_bias(clock_us, true);
             estimator_sensor_bias_s bias{};
             orb_copy(ORB_ID(estimator_sensor_bias), test.m_outputs[6], &bias);
             expect(
                 bias.accel_bias_valid == sample.valid && bias.gyro_bias_valid == sample.valid &&
-                    !bias.accel_bias_stable && !bias.gyro_bias_stable && !bias.mag_bias_valid &&
-                    same_bits(before, f.m_session.m_covariance),
+                    bias.accel_bias_stable == accel_stable && bias.gyro_bias_stable == gyro_stable &&
+                    !bias.mag_bias_valid && same_bits(before, f.m_session.m_covariance),
                 "bias covariance threshold is independent of temporary learning inhibition and calibration stability");
 
             f.publish_sensor_bias(clock_us, false);
             orb_copy(ORB_ID(estimator_sensor_bias), test.m_outputs[6], &bias);
             expect(!bias.accel_bias_valid && !bias.gyro_bias_valid, "unhealthy output revokes both bias-valid flags");
         }
+    }
+
+    // TC-R-ZUPT-05: real land context, session correction and output flags.
+    static void zero_velocity()
+    {
+        ++scenarios;
+        InsSessionTest test;
+        test.m_send_gps = test.m_send_magnetic = test.m_send_barometer = false;
+        bool initial_variance = false, aligned_variance = false;
+        for (unsigned i = 0; i < 2000; ++i)
+        {
+            test.m_sample.timestamp_sample += 4000;
+            test.tick();
+            auto const z = test.m_filter.m_session.diagnostics(clock_us).zero_velocity;
+            if (z.fused)
+            {
+                initial_variance |= z.variance == .000001;
+                aligned_variance |= z.variance == .04;
+            }
+        }
+        auto & session = test.m_filter.m_session;
+        auto const d = session.diagnostics(clock_us);
+        expect(d.zero_velocity_enabled == bool(ESKF_ZUPT) && !session.fault(),
+               "packaged ZUPT selection reaches runtime");
+        expect(!ESKF_ZUPT || (initial_variance && aligned_variance && d.zero_velocity.successes > 0),
+               "actual PX4 startup/context reaches both ZUPT uncertainty branches");
+        expect(ESKF_ZUPT || d.zero_velocity.attempts == 0, "disabled package performs no stationary corrections");
+        estimator_status_flags_s flags{};
+        expect(orb_copy(ORB_ID(estimator_status_flags), test.m_outputs[5], &flags) == 0, "actual status publication");
+        expect(!flags.cs_gnss_pos && !flags.cs_gnss_vel && !flags.cs_gps_hgt,
+               "stationary correction is never published as GNSS aiding");
+        test.m_at_rest = false; // Landed remains true: landed alone must not continue ZUPT.
+        for (unsigned i = 0; i < 100; ++i)
+        {
+            test.m_sample.timestamp_sample += 4000;
+            test.tick();
+        }
+        auto const stopped = session.diagnostics(clock_us).zero_velocity;
+        expect(!stopped.attempted && !stopped.sample.at_rest,
+               "actual delayed at_rest=false stops stationary corrections");
     }
 
     // TC-R-BIAS-STABILITY-04: actual publication ordering and pinned external calibration consumer.
@@ -5977,6 +6019,7 @@ int main(int argc, char ** argv)
 
     InsSessionTest::configured_profile();
     InsSessionTest::portable_session_equivalence();
+    InsSessionTest::zero_velocity();
     InsSessionTest::bias_stability();
     trace_file = comparison_trace;
     if (trace_file != nullptr)

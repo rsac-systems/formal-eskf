@@ -786,6 +786,7 @@ void physical_tilt(Context & test, std::string_view profile)
 void prealignment_refinement(Context & test, std::string_view profile)
 {
     Fixture f;
+    f.at_rest = false; // Measure gravity refinement alone; ZUPT has its own startup acceptance.
     f.send_gnss = f.send_magnetic = f.send_barometer = false;
     double const angle = 10. * std::acos(-1.) / 180.;
     f.imu.delta_velocity_b = Vector::from_row_major(
@@ -935,6 +936,7 @@ void aiding_clocks(Context & test, std::string_view profile)
 void disabled_refinement(Context & test, std::string_view profile)
 {
     Fixture f;
+    f.at_rest = false; // No qualified stationary observation in this propagation-only case.
     f.send_gnss = f.send_magnetic = f.send_barometer = false;
     test.expect(f.session.configure_gravity(false) && f.run(15000), profile,
                 "disabled gravity still permits finite IMU seed and propagation");

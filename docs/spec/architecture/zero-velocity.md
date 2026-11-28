@@ -1,8 +1,8 @@
 # Stationary Zero-Velocity Updates
 
 **Status:** Draft. T-05 design for [R-ZUPT](../requirements/runtime/zero-velocity.md).
-Current production has no running ZUPT operation. The target default is ON with
-an explicit OFF selection; configuration and implementation remain pending.
+The session runs ZUPT after real aiding and before continuity/output feedback.
+ESKF_ZUPT is ON by default, with an explicit OFF build selection.
 
 ## Ownership and execution
 
@@ -56,7 +56,7 @@ per-axis success, whereas our session stops valid output on numerical failure.
    success/failure diagnostics, continuity separation and normal output feedback.
 3. Connect the default-ON Kconfig option through existing build/deployment binding;
    test explicit OFF and actual adapter context/flags without inventing new aiding.
-4. Complete the six [case families](../verification/zero-velocity-tests.md), including
+4. Complete the six [case families](../verification/tests/runtime/zero-velocity.md), including
    pre-alignment numerical behavior, correlated covariance and real consumer paths.
 
 The [profile](../profiles/zero-velocity.md) owns settings. Physical rest-detection
