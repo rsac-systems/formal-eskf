@@ -189,8 +189,19 @@ public:
                      frame_session.accelerometer_stability().evaluation_us == qualification.evaluation_us,
                  p, "pure coordinate rebase preserves body bias qualification and its epochs");
 
-        for (double limit :
-             {0., -1., std::numeric_limits<double>::infinity(), std::numeric_limits<double>::quiet_NaN()})
+        // Zero is a valid numerical bias clamp, but gives no positive stability
+        // band. It must inhibit this monitor without rejecting the whole session.
+        parameters.settings.bias_limits.accelerometer = 0.;
+        Fixture zero_limit(parameters);
+        zero_limit.send_gnss = zero_limit.send_magnetic = zero_limit.send_barometer = false;
+        t.expect(zero_limit.configured && zero_limit.run(4000) &&
+                     !zero_limit.session.accelerometer_stability().stable &&
+                     !zero_limit.session.accelerometer_stability().learning &&
+                     zero_limit.session.accelerometer_stability().eligible_us == 0 &&
+                     zero_limit.session.gyroscope_stability().stable,
+                 p, "zero clamp limit prevents accel qualification without stopping gyro monitoring or estimation");
+
+        for (double limit : {-1., std::numeric_limits<double>::infinity(), std::numeric_limits<double>::quiet_NaN()})
         {
             parameters.settings.bias_limits.accelerometer = limit;
             Fixture invalid(parameters);
