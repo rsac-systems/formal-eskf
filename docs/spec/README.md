@@ -234,9 +234,10 @@ local/global products through the existing runtime and PX4 adapter. The
 [design and pinned comparison](architecture/navigation-output.md) preserve
 Cartesian estimation and document output point/epoch, delayed covariance proxies,
 reset/reference semantics and independent availability. Four
-[Pending case families](verification/tests/runtime/navigation-output.md) include actual
-controller/Commander behavior. This Draft baseline adds no independent odometry
-tracker or current covariance and does not establish implementation acceptance.
+[case families](verification/tests/runtime/navigation-output.md) include actual
+controller/Commander behavior. Native runtime, adapter and position-controller
+bindings do not establish complete flight-mode or target acceptance. No independent
+odometry tracker or current covariance is added.
 
 ## Navigation configuration target
 
@@ -244,9 +245,9 @@ tracker or current covariance and does not establish implementation acceptance.
 dependency/startup validation, defaults, the bounded live GNSS exception and
 identifiable effective configuration. The [design and PX4 comparison](architecture/navigation-configuration.md)
 retain existing owners and make deliberate differences explicit. Four
-[Pending test families](verification/tests/runtime/navigation-configuration.md) cover
-build/startup and actual consumer behavior; existing tool checks are not full
-configuration acceptance. The [inventory](../guides/configuration.md) records
+[case families](verification/tests/runtime/navigation-configuration.md) cover
+build/startup and actual consumer behavior. Implemented software bindings do not
+qualify every board or calibrated tuning profile. The [inventory](../guides/configuration.md) records
 implemented options separately from these targets.
 
 ## Navigation rate target
@@ -256,9 +257,10 @@ qualification while retaining the 250 Hz default. The
 [design and PX4 comparison](architecture/navigation-rate.md) distinguish candidate
 400/500 Hz direct profiles from accumulation mode. Reuse the
 [sensor-input profile](profiles/sensor-input.md#rate-and-storage-qualification)
-for sizing; five [Pending test families](verification/navigation-rate-tests.md)
-cover software, physical noise/motion and tested-board acceptance. No faster-rate
-support or target timing guarantee is established by this Draft baseline.
+for sizing; five [case families](verification/tests/runtime/navigation-rate.md)
+separate implemented software checks from pending physical noise/motion and
+tested-board acceptance. Experimental 400/500 Hz software profiles do not establish
+flight support or target timing guarantees.
 
 ## Integration requirements
 

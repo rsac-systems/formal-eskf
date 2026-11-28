@@ -51,11 +51,42 @@ config PX4_GYRO_BIAS_LEARNING
 
 endmenu
 
+menu "Direct IMU input rate"
+
+choice PX4_INPUT_RATE
+    prompt "Vehicle IMU input rate"
+    default PX4_INPUT_250
+
+config PX4_INPUT_250
+    bool "250 Hz (default)"
+
+config PX4_INPUT_400
+    bool "400 Hz (experimental; direct mode only)"
+
+config PX4_INPUT_500
+    bool "500 Hz (experimental; direct mode only)"
+
+endchoice
+
+config PX4_MODULE_BUDGET_BYTES
+    int "Complete module object memory limit (bytes)"
+    range 65536 1048576
+    default 65536
+    help
+      The default 64 KiB limit is unchanged by selecting a faster rate. Larger
+      fixed histories may exceed it: a separate explicit budget is required.
+      This bounds sizeof(module), not stack, OS storage or target qualification.
+
+comment "400/500 Hz require explicit per-sample noise and matching producer/FESKF_DT_US settings"
+comment "These experimental profiles have no target timing or physical-noise qualification"
+
+endmenu
+
 menu "IMU accumulation"
 
 config PX4_IMU_ACCUMULATION
     bool "Accumulate IMU increments before INS prediction (experimental)"
-    depends on ESKF_QUAT_EXACT
+    depends on ESKF_QUAT_EXACT && PX4_INPUT_250
     default n
     help
       Keep current output at the producer rate and predict the delayed INS from

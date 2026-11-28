@@ -101,7 +101,7 @@ quality rejection. Release evidence shall identify the exact qualified scope.
 
 ## Acceptance and verification
 
-Five [Pending test families](../../verification/navigation-rate-tests.md) allocate
+Five [test families](../../verification/tests/runtime/navigation-rate.md) allocate
 all six clauses to configuration, timing/policy, physical noise/motion, target
 resource and qualification checks. Existing evidence keeps its original profile
 scope. Planned cases are not executed tests or proofs.
@@ -111,5 +111,6 @@ scope. Planned cases are not executed tests or proofs.
 The [T-08 work list](../../../roadmap.md#t-08) owns final period/jitter/gap bounds,
 capacities, coefficient responses, noise-unit conversions/calibration, supported
 build combinations, tested board configurations and numerical/resource limits.
-Those inputs and executable acceptance bindings remain pending. This Draft
-specifies qualification; it does not declare 400/500 Hz supported.
+Experimental software profiles and native/adapter bindings implement the
+configuration path. Physical noise/trajectory and board resource qualification
+remain pending. This Draft does not declare 400/500 Hz flight-supported.

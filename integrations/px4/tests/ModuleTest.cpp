@@ -5390,6 +5390,43 @@ public:
         }
     }
 
+    // TC-R-NAV-RATE-01/02/05: actual adapter with controlled uORB and wall clock.
+    static void direct_rate_profile()
+    {
+        namespace profile = formal_eskf::px4::profile;
+        std::int32_t const period = profile::input_period_us;
+        expect(param_set_no_notification(param_find("FESKF_DT_US"), &period) == 0, "select compiled direct period");
+        InsSessionTest test;
+        test.m_sample.delta_angle_dt = static_cast<std::uint16_t>(period);
+        test.m_sample.delta_velocity_dt = static_cast<std::uint16_t>(period);
+        test.m_sample.delta_velocity[2] = float(-9.80665 * period * 1e-6);
+        auto & session = test.m_filter.m_session;
+        auto const length = session.imu_history().configuration().imu_length;
+        auto const rate = 1000000U / profile::input_period_us;
+        for (unsigned i = 0; i < 34 * rate; ++i)
+        {
+            test.m_sample.timestamp_sample += static_cast<std::uint64_t>(period);
+            auto const predictions = session.statistics().predictions;
+            test.tick();
+            expect(!session.fault() && session.output_predictor().current().time_us == test.m_sample.timestamp_sample,
+                   "Run consumes every real input at the configured current-output rate");
+            if (i > length)
+            {
+                expect(session.statistics().predictions == predictions + 1,
+                       "each eligible direct input runs one full delayed prediction");
+            }
+        }
+        vehicle_local_position_s local{};
+        expect(orb_copy(ORB_ID(vehicle_local_position), test.m_outputs[1], &local) == 0 && local.xy_valid &&
+                   local.v_xy_valid && local.timestamp_sample <= test.m_sample.timestamp_sample &&
+                   test.m_sample.timestamp_sample - local.timestamp_sample < 10000,
+               "actual local publication retains navigation cadence and current output epoch");
+        expect(session.gnss_state().quality_result.qualified && session.gravity().corrections > 0,
+               "actual quality hold and gravity fusion operate at the selected rate");
+        std::printf("Direct %u Hz: session=%zu module=%zu budget=%zu bytes; host fixture, target acceptance pending\n",
+                    rate, sizeof(FormalEskf::session_type), sizeof(FormalEskf), profile::module_budget_bytes);
+    }
+
     // TC-R-GNSS-CONTROL-05 / 07: actual parameters, uORB, Run and publications.
     static void gnss_controls()
     {
@@ -5918,13 +5955,15 @@ int main(int argc, char ** argv)
 {
     if (argc > 2)
     {
-        std::fprintf(stderr, "Usage: %s [trace-file | --configuration | --origin-benchmark]\n", argv[0]);
+        std::fprintf(stderr, "Usage: %s [trace-file | --configuration | --origin-benchmark | --rate-profile]\n",
+                     argv[0]);
         return 2;
     }
 
+    bool const rate_only = argc == 2 && std::strcmp(argv[1], "--rate-profile") == 0;
     bool const configuration_only = argc == 2 && std::strcmp(argv[1], "--configuration") == 0;
     bool const origin_benchmark = argc == 2 && std::strcmp(argv[1], "--origin-benchmark") == 0;
-    if (argc == 2 && !configuration_only && !origin_benchmark)
+    if (argc == 2 && !configuration_only && !origin_benchmark && !rate_only)
     {
         trace_file = std::fopen(argv[1], "wb");
         if (trace_file == nullptr)
@@ -5947,6 +5986,13 @@ int main(int argc, char ** argv)
         InsSessionTest::barometer_disabled();
         std::printf("PX4 barometer disabled: %u scenarios, %u failures\n", scenarios, failures);
         return failures == 0U ? 0 : 1;
+    }
+
+    if (rate_only)
+    {
+        InsSessionTest::direct_rate_profile();
+        std::printf("PX4 rate: %u scenarios, %u failures\n", scenarios, failures);
+        return failures == 0 ? 0 : 1;
     }
 
     if (origin_benchmark)

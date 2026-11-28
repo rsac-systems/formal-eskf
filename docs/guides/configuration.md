@@ -335,3 +335,17 @@ its own immutable profile record keyed by `configuration_id`; zero explicitly
 means unavailable. The accepted revision and control revision identify subsequent
 accepted calls. Keep the actual live GNSS values alongside that receipt. Physical
 noise/tuning and target resource claims need their own evidence.
+
+## Experimental direct-rate profiles
+
+The PX4 menu selects 250 Hz (default), 400 Hz or 500 Hz direct input. Faster
+profiles bind fixed capacities and nominal-period filter poles together and
+require explicit per-sample IMU variances. The selected module object memory
+limit defaults to 65536 bytes at every rate; increasing it is a separate explicit
+choice and does not qualify target RAM or stack. Aggregate mode remains restricted
+to its 250 Hz producer profile. Runtime rejects mismatched startup periods.
+
+See the [sensor-input profile](../spec/profiles/sensor-input.md#direct-rate-coefficient-and-noise-binding)
+for units, producer/startup settings and limits. Host test configs under
+`integrations/px4/configs/test-*hz.config` are synthetic fixtures, not calibrated
+sensor profiles or tested flight-board references. Replay tuning is unchanged.

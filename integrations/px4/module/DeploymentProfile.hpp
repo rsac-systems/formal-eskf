@@ -31,6 +31,10 @@ inline constexpr double seconds_per_microsecond = 1e-6;
 inline constexpr double microtesla_per_gauss = 100.;
 inline constexpr float maximum_sensor_position_m = 10.f; // Per-axis small-vehicle installation envelope.
 
+static_assert(ESKF_CFG_INPUT_250 + ESKF_CFG_INPUT_400 + ESKF_CFG_INPUT_500 == 1);
+static_assert(!ESKF_CFG_IMU_ACCUMULATION || ESKF_CFG_INPUT_250);
+inline constexpr std::uint32_t input_period_us = ESKF_CFG_INPUT_400 ? 2500 : (ESKF_CFG_INPUT_500 ? 2000 : 4000);
+
 namespace startup
 {
 inline constexpr double minimum_force_ratio = 0.8;
@@ -47,12 +51,14 @@ namespace imu
 {
 inline constexpr double minimum_interval_s = 1e-6;
 inline constexpr double maximum_interval_s = 0.05;
-inline constexpr double nominal_interval_s = 0.004; // vehicle_imu: 250 Hz.
+inline constexpr double nominal_interval_s = input_period_us * seconds_per_microsecond;
 inline constexpr std::uint64_t maximum_interval_us = 50000U;
 inline constexpr std::int64_t gap_tolerance_us = 200;
 inline constexpr std::uint64_t rest_maximum_age_us = 2000000U;
-inline constexpr double interval_history_weight = 0.99;
-inline constexpr double interval_sample_weight = 0.01;
+// Pole matching: weight(rate) = weight(250 Hz)^(T / 0.004 s).
+inline constexpr double interval_history_weight =
+    ESKF_CFG_INPUT_400 ? 0.9937382272179853 : (ESKF_CFG_INPUT_500 ? 0.99498743710662 : 0.99);
+inline constexpr double interval_sample_weight = ESKF_CFG_INPUT_250 ? 0.01 : 1. - interval_history_weight;
 inline constexpr double minimum_interval_ratio = 0.5;
 inline constexpr double maximum_interval_ratio = 2.;
 inline constexpr double specific_force_variance = ESKF_CFG_ACCEL_VARIANCE; // m^2/s^4, per sample.
@@ -82,7 +88,6 @@ inline constexpr double maximum_height_m = 10000.;
 inline constexpr double maximum_speed_m_s = 100.;
 inline constexpr std::uint64_t datum_maximum_age_us = 30000000U;
 inline constexpr double datum_maximum_distance_m = 1000.;
-inline constexpr std::size_t module_budget_bytes = 64 * 1024;
 } // namespace origin
 
 namespace gravity
@@ -121,13 +126,14 @@ inline constexpr int32_t fusion_mask = horizontal_position_bit | height_bit | ve
 inline constexpr int32_t quality_mask = (1 << 10) - 1;
 inline constexpr std::uint8_t selected_stream_id = 1; // vehicle_gps_position, not a hardware ID.
 
-inline bool decode_controls(int32_t fusion, int32_t checks, runtime::GnssControls & output)
+inline bool decode_controls(int32_t fusion_bits, int32_t checks, runtime::GnssControls & output)
 {
-    if (fusion < 0 || (fusion & ~fusion_mask) != 0 || checks < 0 || (checks & ~quality_mask) != 0)
+    if (fusion_bits < 0 || (fusion_bits & ~fusion_mask) != 0 || checks < 0 || (checks & ~quality_mask) != 0)
     {
         return false;
     }
-    output = {{(fusion & horizontal_position_bit) != 0, (fusion & height_bit) != 0, (fusion & velocity_bit) != 0},
+    output = {{(fusion_bits & horizontal_position_bit) != 0, (fusion_bits & height_bit) != 0,
+               (fusion_bits & velocity_bit) != 0},
               {(checks & (1 << 0)) != 0, (checks & (1 << 1)) != 0, (checks & (1 << 2)) != 0, (checks & (1 << 3)) != 0,
                (checks & (1 << 4)) != 0, (checks & (1 << 5)) != 0, (checks & (1 << 6)) != 0, (checks & (1 << 7)) != 0,
                (checks & (1 << 8)) != 0, (checks & (1 << 9)) != 0}};
@@ -230,8 +236,10 @@ inline constexpr double innovation_maximum_interval_s = 1.;
 inline constexpr double innovation_ratio_limit = 4.;
 inline constexpr double velocity_time_constant_s = ESKF_CFG_OUTPUT_VEL_TAU;
 inline constexpr double position_time_constant_s = ESKF_CFG_OUTPUT_POS_TAU;
-inline constexpr double interval_history_weight = 0.8;
-inline constexpr double interval_sample_weight = 0.2;
+// Pole matching: weight(rate) = weight(250 Hz)^(T / 0.004 s).
+inline constexpr double interval_history_weight =
+    ESKF_CFG_INPUT_400 ? 0.8698237104163927 : (ESKF_CFG_INPUT_500 ? 0.8944271909999159 : 0.8);
+inline constexpr double interval_sample_weight = ESKF_CFG_INPUT_250 ? 0.2 : 1. - interval_history_weight;
 inline constexpr double attitude_tracking_gain = 0.5;
 inline constexpr double integral_tracking_gain = 0.1;
 inline constexpr std::uint64_t navigation_interval_us = 10000U;
@@ -239,28 +247,34 @@ inline constexpr std::uint64_t maximum_age_us = 100000U;
 inline constexpr std::uint64_t dead_reckoning_age_us = 1000000U;
 } // namespace output
 
-// Producer cadence remains SIH 250 Hz; only complete aggregate endpoints are retained in optional accumulation mode.
+// Direct profiles retain every admitted input. Aggregate mode remains a separate 250 Hz producer binding.
 namespace history
 {
-inline constexpr std::int32_t filter_interval_us = 4000;
+inline constexpr std::int32_t filter_interval_us = input_period_us;
 inline constexpr std::int32_t fusion_delay_ms = 200;
-inline constexpr std::uint32_t minimum_period_us = 3800;
-inline constexpr std::uint32_t maximum_period_us = 4200;
+inline constexpr std::uint32_t minimum_period_us = input_period_us * 95 / 100;
+inline constexpr std::uint32_t maximum_period_us = input_period_us * 105 / 100;
 inline constexpr std::uint64_t maximum_lag_us = 300000;
 inline constexpr std::uint64_t gnss_arrival_age_us = 150000;
 inline constexpr std::uint64_t magnetic_arrival_age_us = 100000;
 inline constexpr std::uint64_t barometer_arrival_age_us = 100000;
 // ceil(200 ms / 7.2 ms) + 1 = 29 aggregate slots; leave bounded headroom.
-inline constexpr std::size_t imu_capacity = ESKF_CFG_IMU_ACCUMULATION ? 32 : 64;
-inline constexpr std::size_t context_capacity = ESKF_CFG_IMU_ACCUMULATION ? 192 : 128;
+inline constexpr std::uint64_t observation_maximum_age_us = 100000;
+inline constexpr std::size_t direct_imu_length =
+    1 + (std::uint64_t(fusion_delay_ms) * 1000 + minimum_period_us - 1) / minimum_period_us;
+inline constexpr std::size_t direct_context_length =
+    1 + (maximum_lag_us + observation_maximum_age_us + imu::maximum_interval_us + minimum_period_us - 1) /
+            minimum_period_us;
+inline constexpr std::size_t imu_capacity =
+    ESKF_CFG_IMU_ACCUMULATION ? 32 : (ESKF_CFG_INPUT_250 ? 64 : direct_imu_length);
+inline constexpr std::size_t context_capacity =
+    ESKF_CFG_IMU_ACCUMULATION ? 192 : (ESKF_CFG_INPUT_250 ? 128 : direct_context_length);
 inline constexpr std::size_t gnss_capacity = 16;
 inline constexpr std::size_t magnetic_capacity = ESKF_CFG_IMU_ACCUMULATION ? 80 : 64;
 inline constexpr std::size_t barometer_capacity = ESKF_CFG_IMU_ACCUMULATION ? 160 : 128;
-inline constexpr std::uint64_t observation_maximum_age_us = 100000;
 inline constexpr std::uint64_t gnss_spacing_us = 50000;
 inline constexpr std::uint64_t magnetic_spacing_us = 10000;
 inline constexpr std::uint64_t barometer_spacing_us = 5000;
-inline constexpr std::size_t storage_budget_bytes = 64 * 1024;
 
 inline constexpr runtime::TimingParameters parameters{ESKF_CFG_IMU_ACCUMULATION ? 10000 : filter_interval_us,
                                                       fusion_delay_ms, 0, 0, 0};
@@ -290,7 +304,8 @@ inline constexpr runtime::OutputParameters output_parameters{history::timing,
                                                              output::attitude_tracking_gain,
                                                              output::integral_tracking_gain};
 
-// SITL scheduling profile; target resource acceptance is separate.
+// SITL resource profile; target acceptance is separate.
+inline constexpr std::size_t module_budget_bytes = ESKF_CFG_MODULE_BUDGET_BYTES;
 inline constexpr std::uint16_t work_queue_stack_bytes = 60U * 1024U;
 inline constexpr std::int8_t work_queue_relative_priority = -15;
 inline constexpr std::uint32_t backup_interval_us = 20000U;
@@ -364,7 +379,7 @@ struct InsLayout
     static constexpr std::uint64_t gravity_interval_us = gravity::observation_interval_us;
     static constexpr bool barometer_aiding = height::barometer_enabled;
     static constexpr bool gravity_aiding = gravity::enabled;
-    static constexpr std::size_t ground_effect_capacity = 64;
+    static constexpr std::size_t ground_effect_capacity = ESKF_CFG_INPUT_250 ? 64 : history::direct_imu_length;
     static constexpr bool ground_effect = height::ground_effect_enabled;
     static constexpr bool magnetic_model = magnetic::use_model;
 };

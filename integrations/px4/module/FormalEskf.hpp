@@ -232,4 +232,4 @@ private:
     perf_counter_t m_cycle_perf{perf_alloc(PC_ELAPSED, "formal_eskf: cycle")};
 }; /* end class FormalEskf */
 
-static_assert(sizeof(FormalEskf) <= formal_eskf::px4::profile::origin::module_budget_bytes);
+static_assert(sizeof(FormalEskf) <= formal_eskf::px4::profile::module_budget_bytes);

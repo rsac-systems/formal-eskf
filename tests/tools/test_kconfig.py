@@ -163,6 +163,21 @@ class KconfigTests(unittest.TestCase):
             CONFIG = SELF.read_config("CONFIG_ESKF_QUAT_APPROX=y\nCONFIG_PX4_IMU_ACCUMULATION=y\n")
             FRONTEND.px4_header(CONFIG, SELF.KCONFIGLIB)
 
+    def test_direct_rate_profiles(SELF):
+        for RATE in (400, 500):
+            with SELF.assertRaisesRegex(ValueError, "explicit per-sample variance"):
+                FRONTEND.px4_header(SELF.read_config(f"CONFIG_PX4_INPUT_{RATE}=y\n"), SELF.KCONFIGLIB)
+            TEXT = (REPO_DIR / f"integrations/px4/configs/test-{RATE}hz.config").read_text()
+            HEADER = FRONTEND.px4_header(SELF.read_config(TEXT), SELF.KCONFIGLIB)
+            SELF.assertIn(f"#define ESKF_CFG_INPUT_{RATE} 1\n", HEADER)
+            SELF.assertIn("#define ESKF_CFG_MODULE_BUDGET_BYTES 131072\n", HEADER)
+            # Faster selection alone does not raise the existing object budget.
+            DEFAULT_BUDGET = FRONTEND.px4_header(SELF.read_config(
+                TEXT.replace("CONFIG_PX4_MODULE_BUDGET_BYTES=131072\n", "")), SELF.KCONFIGLIB)
+            SELF.assertIn("#define ESKF_CFG_MODULE_BUDGET_BYTES 65536\n", DEFAULT_BUDGET)
+            with SELF.assertRaises(ValueError):
+                FRONTEND.px4_header(SELF.read_config(TEXT + 'CONFIG_PX4_IMU_ACCUMULATION=y\n'), SELF.KCONFIGLIB)
+
     def test_ground_effect_choices(SELF):
         DEFAULT = FRONTEND.px4_header(SELF.read_config(), SELF.KCONFIGLIB)
         SELF.assertIn("#define ESKF_CFG_GROUND_EFFECT 0\n", DEFAULT)

@@ -77,6 +77,10 @@ def px4_header(CONFIG, KCONFIGLIB):
              "// Generated from Kconfig; configure through make menuconfig.\n"]
     for NAME in ("ESKF_CODEGEN", "ESKF_QUAT_APPROX", "ESKF_RESET_APPROX", "ESKF_MAG_TILT", "ESKF_ZUPT"):
         LINES.append(f"#define ESKF_CFG_{NAME[5:]} {int(SETTINGS[NAME][1] == 'ON')}\n")
+    if CONFIG.syms["PX4_INPUT_250"].str_value != "y":
+        for NAME in ("PX4_ACCEL_VARIANCE", "PX4_GYRO_VARIANCE"):
+            if CONFIG.syms[NAME].user_value is None:
+                raise ValueError(f"{NAME}: provide an explicit per-sample variance for the experimental rate")
     VALUES = {}
     ALLOW_ZERO = {"ACCEL_VARIANCE", "GYRO_VARIANCE", "AGG_ACCEL_VARIANCE", "AGG_GYRO_VARIANCE", "ACCEL_BIAS_DENSITY", "GYRO_BIAS_DENSITY",
                   "FAULT_ACCEL_STD", "ACCEL_BIAS_LIMIT", "GYRO_BIAS_LIMIT", "MAG_STRENGTH_TOL",

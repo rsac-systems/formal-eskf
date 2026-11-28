@@ -254,7 +254,7 @@ whole target. Source/calibration/context events retain their own live-input rule
 [R-NAV-RATE](navigation-rate.md) owns complete direct profiles and their timing,
 fixed-storage, noise and tested-target acceptance. Keep the existing 250 Hz default
 and the separate aggregate-input cadence. The
-[rate cases](../../verification/navigation-rate-tests.md) qualify composed owners
+[rate cases](../../verification/tests/runtime/navigation-rate.md) qualify composed owners
 and actual target response; a valid configuration alone does not establish support.
 Existing input/history/numerical and permitted-gap behavior remains in force.
 

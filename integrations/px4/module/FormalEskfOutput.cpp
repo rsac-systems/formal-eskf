@@ -616,6 +616,10 @@ int FormalEskf::print_status()
              (unsigned long long)snapshot.gravity_samples, (unsigned long long)snapshot.gravity_corrections,
              (unsigned long long)snapshot.gravity_interval_us);
     auto const & report = snapshot.session;
+    PX4_INFO("input: %u Hz, main: %u us; IMU/context slots=%u/%u; module=%u/%u bytes",
+             unsigned(1000000 / profile::input_period_us), unsigned(profile::history::parameters.filter_interval_us),
+             unsigned(profile::history::imu_capacity), unsigned(profile::history::context_capacity),
+             unsigned(sizeof(FormalEskf)), unsigned(profile::module_budget_bytes));
     auto const & config = report.configuration;
     PX4_INFO("config: id=%016llx revision=%llu controls=%llu after_fusion_us=%llu rejected=%llu frozen=%u error=%s",
              (unsigned long long)config.id, (unsigned long long)config.revision,

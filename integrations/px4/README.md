@@ -418,3 +418,28 @@ necessary manifests/results as retrievable artifacts. The
 [verification guide](../../docs/guides/verification.md) describes claim boundaries;
 [requirements and traceability](../../formal/agent-review/traceability-map.json)
 link the declared obligations to source and proof references.
+
+### Experimental direct-rate verification
+
+The menu retains 250 Hz by default. 400/500 Hz direct profiles require explicit
+sample variances and an independently selected module object budget; they are not
+flight-qualified. Configure the producer and matching `FESKF_DT_US` at startup.
+The [profile](../../docs/spec/profiles/sensor-input.md#direct-rate-coefficient-and-noise-binding)
+owns capacities, coefficients, units and qualification gaps.
+
+To exercise a synthetic faster-rate package with the existing native module fixture:
+
+```bash
+python3 integrations/px4/scripts/install.py --px4 "$PX4_DIR" \
+    --config integrations/px4/configs/test-400hz.config
+cmake --build "$PX4_DIR/build/px4_sitl_formal_eskf" \
+    --target formal_eskf_module_test --parallel 1
+"$PX4_DIR/build/px4_sitl_formal_eskf/formal_eskf_module_test" --rate-profile
+```
+
+Use `test-500hz.config` for the second profile. The fixture selects its matching
+startup period and feeds controlled uORB inputs through the actual module. It
+prints complete session/module object sizes; its synchronous clock does not
+measure board deadlines or queue interference. Reinstall the default package
+before running the existing default full suite. The test configs' noise and
+128 KiB object limit must not be presented as calibrated deployment settings.

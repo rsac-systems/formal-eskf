@@ -51,7 +51,9 @@ Reference: **PX4 v1.16.2, `54f0455ffcd755534539a7cf33a09a20bf71d29d`**.
    reference. Another CPU/clock, compiler, build combination or workload requires
    an applicability review and affected checks; no automatic support inheritance.
 
-Five [Pending test families](../verification/navigation-rate-tests.md) cover this
+Five [test families](../verification/tests/runtime/navigation-rate.md) cover this
 flow. The [T-08 work list](../../roadmap.md#t-08) tracks unresolved profile values,
-noise calibration, executable bindings and target availability. No new capacities,
-coefficients, measured results or real-time guarantees are introduced here.
+noise calibration and target availability. The sensor-input profile records
+implemented experimental capacities and
+coefficient bindings. Their software acceptance establishes no target real-time
+guarantee; missing hardware/physical evidence remains explicit.

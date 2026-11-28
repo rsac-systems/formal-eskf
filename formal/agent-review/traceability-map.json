@@ -8514,7 +8514,7 @@
             "symbol": "## Pinned PX4 comparison"
           },
           {
-            "file": "docs/spec/verification/navigation-rate-tests.md",
+            "file": "docs/spec/verification/tests/runtime/navigation-rate.md",
             "symbol": "## Cases"
           },
           {
@@ -9395,6 +9395,38 @@
           {
             "file": "include/formal_eskf/runtime/session/ins_session_configuration.hpp",
             "symbol": "InsSession<Linalg, Layout>::configure_gnss("
+          }
+        ],
+        "esbmc": []
+      }
+    },
+    {
+      "id": "R-NAV-RATE",
+      "title": "Experimental direct-rate profiles and software acceptance; physical/target qualification and proofs pending",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/runtime/navigation-rate.md",
+            "symbol": "# R-NAV-RATE:"
+          },
+          {
+            "file": "docs/spec/verification/tests/runtime/navigation-rate.md",
+            "symbol": "## Cases"
+          }
+        ],
+        "lean": [],
+        "cpp": [
+          {
+            "file": "integrations/px4/module/DeploymentProfile.hpp",
+            "symbol": "input_period_us"
+          },
+          {
+            "file": "include/formal_eskf/runtime/history/timing.hpp",
+            "symbol": "inline bool configure_timing("
+          },
+          {
+            "file": "tests/runtime/session/test_navigation_rate.cpp",
+            "symbol": "void noise("
           }
         ],
         "esbmc": []

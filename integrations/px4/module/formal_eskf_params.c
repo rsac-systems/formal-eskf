@@ -63,8 +63,8 @@ PARAM_DEFINE_INT32(FESKF_GRAV_EN, 1);
 /**
  * Main filter interval
  *
- * Use 4000 us for the default direct profile or 10000 us when the build
- * enables integrated IMU accumulation. The compiled profile must match.
+ * Use 4000 us for the default direct profile, 2500/2000 us for the
+ * experimental 400/500 Hz builds, or 10000 us for integrated IMU accumulation. The compiled profile must match.
  * Unsupported combinations are rejected at startup. Read once; restart required.
  *
  * @unit us

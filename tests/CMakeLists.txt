@@ -206,3 +206,32 @@ endif()
 
 add_test(NAME formal_eskf.tools.test_plan
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_test_plan.py)
+
+# Exercise the actual deployment binding with independently selected rate fixtures.
+# Copy the production profile unchanged so its quoted config include resolves here.
+foreach(RATE IN ITEMS 250 400 500)
+    set(PROFILE_DIR "${CMAKE_CURRENT_BINARY_DIR}/rate-${RATE}")
+    configure_file("${PROJECT_SOURCE_DIR}/integrations/px4/module/DeploymentProfile.hpp"
+                   "${PROFILE_DIR}/DeploymentProfile.hpp" COPYONLY)
+    configure_file("${PROJECT_SOURCE_DIR}/integrations/px4/module/DeploymentConfig.hpp"
+                   "${PROFILE_DIR}/DefaultConfig.hpp" COPYONLY)
+    file(READ "${PROFILE_DIR}/DefaultConfig.hpp" RATE_CONFIG)
+    foreach(CHOICE IN ITEMS 250 400 500)
+        if(RATE EQUAL CHOICE)
+            set(SELECTED 1)
+        else()
+            set(SELECTED 0)
+        endif()
+        string(REGEX REPLACE "#define ESKF_CFG_INPUT_${CHOICE} [01]"
+               "#define ESKF_CFG_INPUT_${CHOICE} ${SELECTED}" RATE_CONFIG "${RATE_CONFIG}")
+    endforeach()
+    file(WRITE "${PROFILE_DIR}/DeploymentConfig.hpp" "${RATE_CONFIG}")
+    set(RATE_TARGET test_navigation_rate_${RATE})
+    formal_eskf_add_backend_test(${RATE_TARGET} runtime/session/test_navigation_rate
+        formal_eskf.navigation_rate_${RATE}.eigen formal_eskf::runtime)
+    foreach(TARGET IN ITEMS ${RATE_TARGET} ${RATE_TARGET}_px4_matrix ${RATE_TARGET}_cmsis_dsp)
+        if(TARGET ${TARGET})
+            target_include_directories(${TARGET} PRIVATE "${PROFILE_DIR}")
+        endif()
+    endforeach()
+endforeach()
