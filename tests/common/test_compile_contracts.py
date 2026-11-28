@@ -102,21 +102,46 @@ def configuration(ARGS, DIRECTORY):
 
 def dependencies(ARGS, DIRECTORY):
     INCLUDE_DIR = REPO_DIR / "include" / "formal_eskf"
-    HEADERS = sorted((INCLUDE_DIR / "eskf").glob("*.hpp")) + sorted((INCLUDE_DIR / "runtime").glob("*.hpp"))
-    HEADERS += sorted((INCLUDE_DIR / "geodesy").glob("*.hpp"))
-    if not HEADERS:
-        raise AssertionError("empty public-header inventory")
+    # Platform backend headers require their own external-library build profiles.
+    EXTERNAL_BACKENDS = {"linalg/backend/" + NAME + ".hpp" for NAME in ("eigen", "px4_matrix", "cmsis_dsp")}
+    HEADERS = sorted(HEADER for HEADER in INCLUDE_DIR.rglob("*.hpp")
+                     if HEADER.relative_to(INCLUDE_DIR).as_posix() not in EXTERNAL_BACKENDS)
+    if not any("runtime" in HEADER.relative_to(INCLUDE_DIR).parts for HEADER in HEADERS):
+        raise AssertionError("empty runtime-header inventory")
+    UPPER_LAYERS = {
+        "scalar": ("linalg", "so3", "geodesy", "eskf", "runtime"),
+        "linalg": ("so3", "geodesy", "eskf", "runtime"),
+        "so3": ("geodesy", "eskf", "runtime"),
+        "geodesy": ("eskf", "runtime"),
+        "eskf": ("runtime",),
+    }
+    DATA_BOUNDARIES = {
+        "runtime/history/imu_input.hpp": ("eskf/prediction.hpp", "eskf/aggregate_prediction.hpp",
+                                          "runtime/sensors/imu/accumulator.hpp"),
+        "runtime/history/observation_history.hpp": ("runtime/history/imu_history.hpp",),
+        "runtime/sensors/imu/accumulator.hpp": ("eskf/prediction.hpp", "eskf/aggregate_prediction.hpp",
+                                               "eskf/covariance.hpp"),
+        "runtime/session/output_predictor.hpp": ("runtime/sensors/imu/accumulator.hpp",
+                                                 "runtime/history/imu_history.hpp"),
+    }
     for HEADER in HEADERS:
-        NAME = HEADER.relative_to(REPO_DIR / "include").as_posix()
-        SOURCE = f"#include <{NAME}>\nint main() {{}}\n"
-        compile_source(ARGS, DIRECTORY, SOURCE)
+        RELATIVE = HEADER.relative_to(INCLUDE_DIR)
+        NAME = "formal_eskf/" + RELATIVE.as_posix()
+        # Implementation fragments are checked through their owning public header.
+        ENTRY = ("formal_eskf/runtime/session/ins_session.hpp"
+                 if RELATIVE.parent.as_posix() == "runtime/session" and RELATIVE.stem.startswith("ins_session_")
+                 else NAME)
+        SOURCE = f"#include <{ENTRY}>\nint main() {{}}\n"
+        if ENTRY == NAME:
+            compile_source(ARGS, DIRECTORY, SOURCE)
         DEPENDENCIES = compile_source(ARGS, DIRECTORY, SOURCE, OPTIONS=("-MM", "-MT", "fixture"))
         TOKENS = shlex.split(DEPENDENCIES.replace("\\\n", " "))[1:]
+        if ENTRY != NAME and str(HEADER) not in TOKENS:
+            raise AssertionError(f"{NAME} is not included by its owning header {ENTRY}")
+        TOKENS = [TOKEN.removeprefix(str(REPO_DIR) + "/") for TOKEN in TOKENS]
         FORBIDDEN = ("integrations/", "examples/", "uORB/", "px4_platform_common/", "nuttx/")
-        if HEADER.parent.name in ("eskf", "geodesy"):
-            FORBIDDEN += ("formal_eskf/runtime/",)
-        if HEADER.parent.name == "geodesy":
-            FORBIDDEN += ("formal_eskf/eskf/",)
+        FORBIDDEN += tuple(f"formal_eskf/{LAYER}/" for LAYER in UPPER_LAYERS.get(RELATIVE.parts[0], ()))
+        FORBIDDEN += tuple("formal_eskf/" + PART for PART in DATA_BOUNDARIES.get(RELATIVE.as_posix(), ()))
         BAD = [TOKEN for TOKEN in TOKENS if any(PART in TOKEN for PART in FORBIDDEN)]
         if BAD:
             raise AssertionError(f"{NAME} has forbidden transitive dependencies: {BAD}")

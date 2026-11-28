@@ -7,10 +7,9 @@
 #include <limits>
 #include <type_traits>
 
-#include <formal_eskf/eskf/prediction.hpp>
-#include <formal_eskf/runtime/sensors/imu/accumulator.hpp>
-
-#include <formal_eskf/runtime/history/imu_history.hpp>
+#include <formal_eskf/eskf/aggregate_prediction.hpp>
+#include <formal_eskf/runtime/history/imu_input.hpp>
+#include <formal_eskf/runtime/history/ring_buffer.hpp>
 
 namespace formal_eskf::runtime
 {

@@ -4,7 +4,8 @@
 #include <algorithm>
 #include <limits>
 
-#include <formal_eskf/eskf/aggregate_prediction.hpp>
+#include <formal_eskf/so3/operations.hpp>
+#include <formal_eskf/so3/rotation_vector.hpp>
 #include <formal_eskf/runtime/history/imu_input.hpp>
 
 namespace formal_eskf::runtime
@@ -28,32 +29,6 @@ template <typename Scalar> struct ImuAccumulationParameters
     std::uint32_t minimum_period_us{}, maximum_period_us{}, maximum_duration_us{};
     std::uint32_t maximum_window_skew_us{}, maximum_endpoint_skew_us{};
     std::uint32_t maximum_aggregate_window_skew_us{}, maximum_aggregate_endpoint_skew_us{};
-};
-
-/** Derived interval, never a new raw input. sample.source names only the LAST
- * source; the first identity, event masks and hold flag must accompany it.
- * Clipping OR retains all known bits even when another constituent is unknown.
- */
-template <typename Linalg> struct ImuAggregate
-{
-    std::uint64_t time_us{}, start_time_us{}, arrival_time_us{};
-    ImuInput<Linalg> sample{};
-    ImuSource first_source{};
-    bool accelerometer_changed{}, gyroscope_changed{}, has_hold{};
-    std::uint8_t accelerometer_clipping{};
-    std::size_t samples{};
-
-    /** Shared delayed-observation view. Hold motion is already integrated;
-     * the owning session must use has_hold/source flags before using it as evidence.
-     */
-    ImuInterval<Linalg> interval() const { return {time_us, start_time_us, sample, {}, 0, arrival_time_us}; }
-
-    IntegratedImu<Linalg> increment() const
-    {
-        using Scalar = typename Linalg::value_type;
-        return {sample.delta_angle_b, sample.delta_velocity_b, sample.angular_interval_s(),
-                sample.acceleration_interval_s(), Scalar(time_us - start_time_us) * Scalar(1e-6)};
-    }
 };
 
 /** Bounded single-owner PX4-style accumulation with transactional emission.

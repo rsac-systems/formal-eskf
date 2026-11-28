@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <limits>
 
+#include <formal_eskf/runtime/history/imu_history.hpp>
 #include <formal_eskf/runtime/session/output_predictor.hpp>
 #include "test_backend.hpp"
 #include "test_support.hpp"

@@ -7,6 +7,7 @@
 #include <numbers>
 
 #include <formal_eskf/runtime/sensors/imu/imu.hpp>
+#include <formal_eskf/runtime/sensors/imu/accumulator.hpp>
 #include <formal_eskf/runtime/history/timing.hpp>
 #include <formal_eskf/runtime/session/output_predictor.hpp>
 #include <formal_eskf/runtime/sensors/gnss/gnss_lifecycle.hpp>

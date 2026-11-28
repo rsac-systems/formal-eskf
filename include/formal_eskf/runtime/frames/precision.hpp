@@ -6,6 +6,7 @@
 #include <type_traits>
 
 #include <formal_eskf/linalg/matrix.hpp>
+#include <formal_eskf/status.hpp>
 
 namespace formal_eskf::runtime
 {

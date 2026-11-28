@@ -14,6 +14,7 @@
 #include <formal_eskf/runtime/session/ins_continuity.hpp>
 #include <formal_eskf/runtime/session/ins_diagnostics.hpp>
 #include <formal_eskf/runtime/session/output_predictor.hpp>
+#include <formal_eskf/runtime/history/imu_history.hpp>
 #include <formal_eskf/runtime/history/observation_history.hpp>
 #include <formal_eskf/runtime/history/accumulated_imu_history.hpp>
 #include <formal_eskf/runtime/sensors/height/height_aiding.hpp>

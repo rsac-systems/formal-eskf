@@ -6,7 +6,8 @@
 #include <cstddef>
 #include <cstdint>
 
-#include <formal_eskf/runtime/history/imu_history.hpp>
+#include <formal_eskf/runtime/history/imu_input.hpp>
+#include <formal_eskf/runtime/history/ring_buffer.hpp>
 
 namespace formal_eskf::runtime
 {

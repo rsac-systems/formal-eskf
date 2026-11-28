@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <limits>
 
+#include <formal_eskf/runtime/history/imu_history.hpp>
 #include <formal_eskf/runtime/history/observation_history.hpp>
 #include "test_backend.hpp"
 #include "test_support.hpp"

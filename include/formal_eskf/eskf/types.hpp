@@ -33,6 +33,23 @@ template <typename Linalg> struct ImuSample
     vector3_type angular_rate_b{};
 };
 
+/** One admitted integrated interval. Force increment is expressed in ending
+ * body coordinates; the three actual durations are seconds, not a target period.
+ * Runtime owns timestamp continuity, unwrapped-angle and producer provenance.
+ */
+template <typename Linalg> struct IntegratedImu
+{
+    using value_type = typename Linalg::value_type;
+    linalg::Vector<Linalg, 3> delta_angle_b{}, delta_velocity_b{};
+    value_type angular_interval_s{}, acceleration_interval_s{}, elapsed_interval_s{};
+};
+
+/** Explicit profile limits, strictly between zero and pi. */
+template <typename Scalar> struct AggregateLimits
+{
+    Scalar raw_angle_rad{}, corrected_angle_rad{};
+};
+
 /**
  * Resolve the fixed types and dimensions supplied by an ESKF configuration.
  *

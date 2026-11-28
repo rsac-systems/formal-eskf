@@ -6,11 +6,12 @@
 caller-driven INS session. [C-LAYER-BOUNDARY](../requirements/common/layer-boundaries.md)
 and the [C++ subset](../requirements/common/cpp-subset.md) constrain dependencies
 and implementation. Implementation status belongs
-to [A-01](../../roadmap.md#a-01--portable-navigation-runtime).
+to the [roadmap](../../roadmap.md).
 
-The binary64 INS session retains PX4 250 Hz timing, core equations, numerical
-choices and separate AHRS APIs. Startup now follows the staged contract below.
-New rate modes and stationary updates remain separately scoped. Corrected output
+The INS session retains Cartesian core equations and separate AHRS APIs.
+Deployment profiles select precision, timing and optional stationary updates;
+those selections do not change the ownership below. Startup follows the staged
+contract below. Corrected output
 uses the existing predictor; independent continuous odometry is outside the
 [navigation-output target](navigation-output.md).
 
@@ -21,9 +22,9 @@ one full INS and existing phase ownership. It separates output admission from
 state dimension, geographic admission and source lifecycle. An attitude-only
 output path uses current quaternion/history without requiring position geometry;
 frame attachment coordinates the affected owners when geographic prerequisites
-become available. Staged seed, independent output admission and first attachment are implemented;
-numerical continuity and real-source recovery are integrated. Formal, broader
-physical and deployment-resource qualification remain explicit A-03 work.
+become available. Component evidence does not establish complete-session or
+vehicle-level acceptance; formal, physical and deployment-resource qualification
+retain their separate claim boundaries.
 
 [R-INS-CONTINUITY](../requirements/runtime/ins-continuity.md) allocates the staged
 source-loss policy to the session: real-aiding clocks and bias permissions precede
@@ -65,6 +66,17 @@ Directory grouping does not create inheritance, policy dispatch or one-class-per
 file obligations. Histories depend on sample values/storage, not prediction
 policy. Session composes lower components; lower components do not include it.
 
+Integrated numerical IMU values and their angle bounds are declared with the
+common sensor types in [eskf/types.hpp](../../../include/formal_eskf/eskf/types.hpp).
+Timestamped raw intervals and derived aggregates belong to
+[history/imu_input.hpp](../../../include/formal_eskf/runtime/history/imu_input.hpp).
+The accumulator transforms those values using SO(3); it does not depend on
+covariance prediction. The output predictor calls nominal prediction directly
+and consumes the aggregate value without depending on the accumulator owner.
+Observation history consumes shared input/timing values and ring storage without
+depending on the direct IMU-history implementation. These dependencies preserve
+independent component use and do not introduce another estimate or dispatcher.
+
 ### Mixed-precision target
 
 [R-NAV-PRECISION](../requirements/runtime/navigation-precision.md) extends the
@@ -105,8 +117,9 @@ The [output design](navigation-output.md) retains this existing ownership split.
 R-NAV-OUTPUT makes corrected local/global products, reference points, independent
 validity and covariance epochs explicit. PX4-OUT binds existing wire messages;
 controllers and Commander remain external. No second tracker, covariance, source
-policy or new architectural layer is required. The four planned output families
-qualify actual callers and consumers before this target is claimed implemented.
+policy or new architectural layer is required. The four output families require
+caller/consumer acceptance under their declared profiles; host tests do not
+establish deployment qualification.
 
 ## Execution and state
 
@@ -133,11 +146,10 @@ allocation does not require a new class or wrapper per responsibility.
 ### Optional barometric height allocation
 
 The [barometric target profile](../profiles/barometric-height.md) extends existing
-height aiding. Conversion/admission, shared observation preparation, derived
-warmup/receipt tracking and optional geographic-session fusion are implemented.
-Relative startup and first geographic attachment compose through staged INS;
-their remaining acceptance partitions belong to A-03.
-These changes do not alter core state,
+height aiding through conversion/admission, shared observation preparation,
+derived warmup/receipt tracking and optional geographic-session fusion.
+Relative startup and first geographic attachment compose through staged INS.
+These responsibilities do not alter core state,
 prediction, Joseph correction or quaternion conventions. Requirements are
 [R-BAROMETRIC-ALTITUDE](../requirements/runtime/barometric-altitude.md) and
 [R-HEIGHT-AIDING](../requirements/runtime/height-aiding.md).
@@ -161,7 +173,7 @@ The optional build shall remove barometer-specific work without creating a secon
 height estimator or requiring dummy observations. Shared session infrastructure
 may remain. Names in this allocation identify responsibilities, not a requirement
 to introduce new classes, wrapper layers or one file per operation. Ground-effect
-contracts and their unfinished acceptance remain a separate workstream.
+protection has the separate allocation below.
 
 ### Staged service allocation
 
@@ -194,21 +206,6 @@ not another estimator mode or a mandatory all-sensors-ready phase. A source loss
 changes only supported capabilities and policies. A genuine required IMU/history
 or numerical fault follows the shared restart contract. First attachment is an
 atomic operation within running service; ordinary callbacks remain non-atomic.
-
-### Profile and contract change inventory
-
-| Document family | Required allocation |
-|---|---|
-| SW-NAV; R-INS-SESSION | Parent composition and bounded phase ordering; strict/staged scopes remain explicit. |
-| R-INS-STARTUP; staged profile | Seed producers/filtering, priors, pre-alignment refinement and independent admission. |
-| R-INS-CAPABILITIES | Output facts, loss/recovery reasons and application acceptance boundary. |
-| R-INS-CONTINUITY | Numerical-only update semantics, protected marginals, bias rules and real-source recovery; A-02 comparisons remain prerequisites. |
-| R-INS-ATTACHMENT | First geographic mapping, covariance/history transport and publication transaction. |
-| R-PX4-STATUS; R-PX4-GRAVITY; R-PX4-IMU-BIAS | Consumer mapping and staged caller bindings; old evidence retains strict scope. |
-| R-PX4-MAGNETIC-MODEL; R-PX4-FRAME-OUTPUT; PX4 timing profile | Candidate-position lookup before attachment, local-only attitude diagnostics and explicit reuse of timing/resource premises. |
-| E-STATE; core observations/correction; math/geodesy | Existing formulation and pure operations retained; no new equations or backend behavior implied. |
-| Gravity conditions/fusion; tilt; source lifecycle/reset; histories/datum | Reused dependencies. Existing post-alignment gravity predicate needs explicit staged admission; component evidence alone cannot close new callers. |
-| Test specifications and traceability | Allocate new cases separately from executed baseline cases; keep new source/proof bindings empty until implemented and verified. |
 
 ### Diagnostic reporting allocation
 
