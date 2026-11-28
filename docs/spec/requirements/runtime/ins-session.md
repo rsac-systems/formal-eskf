@@ -239,6 +239,15 @@ The [output acceptance design](../../verification/navigation-output-tests.md)
 qualifies actual callers and external consumers. No extra tracker, covariance,
 control layer or runtime directory is required. New bindings remain Pending.
 
+## Configuration target
+
+[R-NAV-CONFIG](navigation-configuration.md) owns complete startup validation,
+frozen settings with the bounded GNSS exception, and effective configuration
+identity. Retain component-owned checks and existing diagnostic ownership.
+The [configuration cases](../../verification/navigation-configuration-tests.md)
+qualify these composed paths; current startup checks alone do not establish the
+whole target. Source/calibration/context events retain their own live-input rules.
+
 ## Acceptance and verification
 
 Compare the same explicit profile/backend/input sequence before and after owner

@@ -140,7 +140,7 @@ not itself authorize a broad file relocation. Numerical thresholds come from ite
 | Task | Status | Scope and completion boundary |
 |---|---|---|
 | F-06.1 — Confidence and failure reporting | Completed | Existing strict-module baseline: capability flags, bias validity, faults, innovation summaries and covariance proxies follow the [status contract](spec/requirements/integration/px4/status.md). No bias-convergence or transported/current-time covariance claim; numerical/history faults require restart. The expanded portable/PX4 diagnostic target remains N4 below. |
-| F-06.2 — Deployment parameters | Partial | Startup parameters and the Kconfiglib build frontend bind packaged PX4 controls. Remaining work: review supported tuning profiles and additional startup bindings against the [configuration inventory](guides/configuration.md#px4-deployment-menu). Preserve units, defaults, restart semantics and configuration-specific evidence. Replay stays separate; do not import live EKF2 settings implicitly. |
+| F-06.2 — Deployment parameters | Partial | Startup parameters and the Kconfiglib build frontend bind packaged PX4 controls. The [T-07 baseline](#t-07) owns configuration composition and Pending acceptance. Remaining work: qualify supported tuning profiles and additional startup bindings against the [configuration inventory](guides/configuration.md#px4-deployment-menu). Preserve units, defaults, restart semantics and configuration-specific evidence. Replay stays separate; do not import live EKF2 settings implicitly. |
 | F-06.3 — Bias stability (T-04) | Specification baseline | [Contract/design](spec/architecture/bias-stability.md) defines independent monitors, PX4 thresholds/reset/pause behavior and publication to the existing external calibration consumer. Implement runtime monitors, session/reset ordering and actual adapter binding; complete four Pending case families. No monitor state/P writes, bias-use gate or new calibration writer. Physical/target qualification and monitor/caller proofs remain open. |
 
 ### F-07 — Deployment validation
@@ -334,6 +334,12 @@ implementation or evidence of flight qualification.
 | Task | Status | Completion boundary |
 |---|---|---|
 | <a id="t-06"></a>T-06 — Navigation output | Specification baseline | [Contract/design](spec/architecture/navigation-output.md) defines corrected products, point/frame/epoch, delayed uncertainty proxies, reset/rebase and partial-availability semantics through existing owners. Complete portable provenance, PX4 global-publication/absent-reference alignment and counter/restart acceptance; bind the four Pending test families to actual replay, module, controller and Commander paths. No independent odometry tracker or current covariance is included. Geographic/physical/target and new caller-proof claims remain separately qualified. |
+
+### T-07 — Navigation configuration
+
+| Task | Status | Completion boundary |
+|---|---|---|
+| <a id="t-07"></a>T-07 — Configuration | Specification baseline | [Contract/design](spec/architecture/navigation-configuration.md) defines complete startup validation, unchanged defaults, bounded live GNSS controls and effective identity through existing owners. Implement/qualify package, startup and diagnostic consumers using four Pending test families; retain separate replay settings and feature-owned bindings. Physical tuning and target qualification remain separate. |
 
 ### V-01 — Remaining proof boundaries
 

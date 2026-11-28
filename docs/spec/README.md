@@ -236,6 +236,17 @@ reset/reference semantics and independent availability. Four
 controller/Commander behavior. This Draft baseline adds no independent odometry
 tracker or current covariance and does not establish implementation acceptance.
 
+## Navigation configuration target
+
+[R-NAV-CONFIG](requirements/runtime/navigation-configuration.md) owns settings,
+dependency/startup validation, defaults, the bounded live GNSS exception and
+identifiable effective configuration. The [design and PX4 comparison](architecture/navigation-configuration.md)
+retain existing owners and make deliberate differences explicit. Four
+[Pending test families](verification/navigation-configuration-tests.md) cover
+build/startup and actual consumer behavior; existing tool checks are not full
+configuration acceptance. The [inventory](../guides/configuration.md) records
+implemented options separately from these targets.
+
 ## Integration requirements
 
 | ID | Required behavior |

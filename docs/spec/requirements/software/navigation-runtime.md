@@ -39,8 +39,9 @@ independent sensor-fusion authority. There shall be one writer per session.
 Inputs shall carry explicit values, units/frames, sample/arrival times and source/
 calibration provenance. The caller establishes the clock mapping and external
 context. Startup configuration shall be validated before seeding and remain
-frozen during the session. Storage capacities, admitted timing and maximum work
-shall be explicit and bounded. No clock, device, transport, OS scheduling,
+frozen during the session except for the explicit live GNSS controls under
+[R-GNSS-CONTROL](../runtime/gnss/control.md). Storage capacities, admitted timing
+and maximum work shall be explicit and bounded. No clock, device, transport, OS scheduling,
 allocation, logging or publication shall be performed by portable runtime.
 
 The session shall expose bounded phases sufficient to preserve current output
@@ -93,6 +94,7 @@ qualified. Core template support alone does not discharge this composition.
 
 | Child | Allocated obligation |
 |---|---|
+| [R-NAV-CONFIG](../runtime/navigation-configuration.md) | Target complete configuration validation, frozen/live boundaries and effective identity; implementation and acceptance pending. |
 | [R-NAV-PRECISION](../runtime/navigation-precision.md) | Target local scalar selection with binary64 geography and checked conversion boundaries. |
 | [R-IMU-ACCUMULATION](../runtime/imu/accumulation.md) | Optional increment accumulation, two-rate ownership and the integrated-increment core binding; implementation/qualification pending. |
 | [R-ZUPT](../runtime/zero-velocity.md) | Default-ON selectable stationary constraint, delayed eligibility and separate outcome provenance; implementation/qualification pending. |

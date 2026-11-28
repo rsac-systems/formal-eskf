@@ -77,3 +77,19 @@ partially applying them or silently restoring startup values. Retain effective
 readback and actual activity separately. Timing, storage, extrinsics, numerical
 tuning and all other restart-required settings retain the immutable contract.
 This target is not implemented by the current startup-only parameter loader.
+
+### Effective configuration target
+
+[R-NAV-CONFIG](../../runtime/navigation-configuration.md) owns complete startup
+validation and identifiable accepted settings. The adapter shall report rejected
+requests without replacing effective readback, and identify the owner boundary
+where an accepted live GNSS request becomes effective. Parameter storage/arrival
+alone shall not imply application by the estimator. Preserve existing PX4 messages
+and logging responsibilities; no new standard uORB configuration field is assumed.
+
+The [configuration test families](../../../verification/navigation-configuration-tests.md)
+require real package/startup/consumer bindings and separate effective settings from
+fusion status. GNSS/output tests retain stop/recovery/reset-consumer acceptance.
+The [pinned comparison](../../../architecture/navigation-configuration.md#pinned-px4-comparison)
+records the deliberately narrower live scope and rejection policy. These are target
+obligations, not claims that the startup-only loader already implements live updates.

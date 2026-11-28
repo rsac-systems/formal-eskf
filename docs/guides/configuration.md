@@ -5,6 +5,13 @@ foundations through core, runtime and PX4. Kconfig now exposes build options and
 deployment profile while preserving defaults. Replay retains its separate
 settings. Remaining configuration work is [F-06.2 in the roadmap](../roadmap.md#f-06--diagnostics-and-configuration).
 
+The [configuration target](../spec/requirements/runtime/navigation-configuration.md)
+and its [PX4 comparison](../spec/architecture/navigation-configuration.md) govern
+extensions to this implemented inventory. Live GNSS masks, complete startup
+transaction acceptance and correlated effective-identity reporting remain targets;
+the current PX4 parameter loader is startup-only. ZUPT is a reviewed default-ON
+target, not an implemented switch.
+
 ## Scope and interpretation
 
 Scope: scalar, linear algebra, SO(3), ESKF, portable runtime, root build
@@ -53,15 +60,17 @@ are not user-adjustable safety thresholds.
 | Choice | Library default / supported choices | PX4 module |
 | --- | --- | --- |
 | `Configuration` in `EskfTypes` | Explicit `Ins` or `Ahrs`; nominal/error/noise dimensions 16/15/12 or 4/3/3 | Fixed INS; no AHRS module switch |
+| `ESKF_CODEGEN` | 1 / CMake ON: generated INS matrix arithmetic; 0: dense products | Packaged profile; default 1 |
 | `ESKF_QUAT_APPROX` | 0 / CMake OFF: exponential attitude prediction; 1: normalized Euler and first-order attitude error transition | Packaged profile; default 0 |
 | `ESKF_RESET_APPROX` | 0 / OFF: SO(3) right Jacobian; 1: first-order reset | Packaged profile; default 0 |
 | `ESKF_MAG_TILT` | 1 / ON: restrict magnetic attitude gain to navigation Down; 0: full attitude gain | Packaged profile; default 1 |
 
-These three algorithm switches apply consistently to every translation unit using
-the same core types. Mixed definitions are not supported. No selectable accel2
-model, ENU state frame, estimated gravity state, dynamic state dimension or
-generated/sparse kernel exists in this baseline. Codegen remains a separate
-experiment; it must not appear as an already supported configuration.
+These four algorithm switches apply consistently to every translation unit using
+the same core types. Mixed definitions are not supported. Generated INS covariance prediction/reset and built-in observation/Joseph products
+follow the
+[codegen scope](../../codegen/README.md#generation-scope); AHRS and arbitrary-H
+correction products remain dense. No selectable accel2 model, ENU state frame,
+estimated gravity state or dynamic state dimension is provided.
 
 ### Caller-supplied parameters
 

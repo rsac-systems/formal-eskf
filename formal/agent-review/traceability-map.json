@@ -8488,6 +8488,22 @@
           {
             "file": "docs/spec/requirements/integration/px4/publication.md",
             "symbol": "## Navigation output binding"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/navigation-configuration.md",
+            "symbol": "# R-NAV-CONFIG:"
+          },
+          {
+            "file": "docs/spec/architecture/navigation-configuration.md",
+            "symbol": "## Pinned PX4 comparison"
+          },
+          {
+            "file": "docs/spec/verification/navigation-configuration-tests.md",
+            "symbol": "## Cases"
+          },
+          {
+            "file": "docs/spec/requirements/integration/px4/configuration.md",
+            "symbol": "### Effective configuration target"
           }
         ],
         "lean": [],
