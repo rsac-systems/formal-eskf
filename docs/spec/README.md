@@ -225,6 +225,17 @@ and failure/output boundaries. The [design](architecture/zero-velocity.md),
 observation policy from retained project numerical/context contracts. This Draft
 does not establish running ZUPT support or physical rest/accuracy qualification.
 
+## Navigation output target
+
+[R-NAV-OUTPUT](requirements/runtime/navigation-output.md) defines corrected
+local/global products through the existing runtime and PX4 adapter. The
+[design and pinned comparison](architecture/navigation-output.md) preserve
+Cartesian estimation and document output point/epoch, delayed covariance proxies,
+reset/reference semantics and independent availability. Four
+[Pending case families](verification/navigation-output-tests.md) include actual
+controller/Commander behavior. This Draft baseline adds no independent odometry
+tracker or current covariance and does not establish implementation acceptance.
+
 ## Integration requirements
 
 | ID | Required behavior |

@@ -6367,7 +6367,7 @@
     },
     {
       "id": "R-PX4-OUTPUT-PREDICTOR",
-      "title": "Current-time output tracking and coordinate transport; new owner transitions need formal evidence refresh; IMU source continuation has native coverage; historical mismatch-rejection proofs require migration",
+      "title": "Current-time output tracking and coordinate transport; new owner transitions need formal evidence refresh; IMU source continuation has native coverage; historical mismatch-rejection proofs require migration; corrected navigation-output composition and PX4 consumer acceptance remain Draft/Pending",
       "references": {
         "spec": [
           {
@@ -6385,6 +6385,22 @@
           {
             "file": "docs/spec/verification/sensor-input-tests.md",
             "symbol": "## IMU source sequence cases"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/navigation-output.md",
+            "symbol": "# R-NAV-OUTPUT:"
+          },
+          {
+            "file": "docs/spec/architecture/navigation-output.md",
+            "symbol": "## Pinned PX4 comparison"
+          },
+          {
+            "file": "docs/spec/verification/navigation-output-tests.md",
+            "symbol": "## Cases"
+          },
+          {
+            "file": "docs/spec/requirements/integration/px4/publication.md",
+            "symbol": "## Navigation output binding"
           }
         ],
         "lean": [
@@ -8306,7 +8322,7 @@
     },
     {
       "id": "R-INS-SESSION",
-      "title": "Portable INS session phase composition: native regression and independent fixtures; full symbolic and target evidence remain open; IMU source continuation has native coverage; historical mismatch-rejection proofs require migration; diagnostic-reporting composition target pending; ground-effect event composition target pending; mixed-precision session target is Draft/Pending and is not covered by existing binary64 evidence; IMU accumulation and aggregate prediction are Draft targets with Pending tests, outside existing direct evidence; GNSS selection, independent startup, live controls and logical-stream composition are Draft targets with Pending tests; independent bias-stability monitors and PX4 consumer binding are Draft targets with Pending tests; selectable default-ON ZUPT composition is a Draft target with Pending tests",
+      "title": "Portable INS session phase composition: native regression and independent fixtures; full symbolic and target evidence remain open; IMU source continuation has native coverage; historical mismatch-rejection proofs require migration; diagnostic-reporting composition target pending; ground-effect event composition target pending; mixed-precision session target is Draft/Pending and is not covered by existing binary64 evidence; IMU accumulation and aggregate prediction are Draft targets with Pending tests, outside existing direct evidence; GNSS selection, independent startup, live controls and logical-stream composition are Draft targets with Pending tests; independent bias-stability monitors and PX4 consumer binding are Draft targets with Pending tests; selectable default-ON ZUPT composition is a Draft target with Pending tests; corrected navigation-output composition and PX4 consumer acceptance remain Draft/Pending",
       "references": {
         "spec": [
           {
@@ -8456,6 +8472,22 @@
           {
             "file": "docs/spec/requirements/integration/px4/configuration.md",
             "symbol": "### Stationary-update target"
+          },
+          {
+            "file": "docs/spec/requirements/runtime/navigation-output.md",
+            "symbol": "# R-NAV-OUTPUT:"
+          },
+          {
+            "file": "docs/spec/architecture/navigation-output.md",
+            "symbol": "## Pinned PX4 comparison"
+          },
+          {
+            "file": "docs/spec/verification/navigation-output-tests.md",
+            "symbol": "## Cases"
+          },
+          {
+            "file": "docs/spec/requirements/integration/px4/publication.md",
+            "symbol": "## Navigation output binding"
           }
         ],
         "lean": [],

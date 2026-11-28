@@ -111,6 +111,7 @@ qualified. Core template support alone does not discharge this composition.
 | [R-BARO-GROUND-EFFECT](../runtime/barometer-ground-effect.md) | Optional target: admitted protection events, delayed latch/hold, barometer-only residual policy and diagnostics; adapter defaults remain external. |
 | [R-BAROMETRIC-ALTITUDE](../runtime/barometric-altitude.md) | Optional barometric input/conversion and model-domain admission; applicable only when that source is enabled. |
 | [R-OBSERVATION-HISTORY](../runtime/history/observation-history.md) | Delayed raw source/context retention, admission, generation and once-only selection. |
+| [R-NAV-OUTPUT](../runtime/navigation-output.md) | Corrected local/global output, point/frame/epoch, delayed uncertainty provenance and consumer-visible continuity; target acceptance pending. |
 | [R-OUTPUT-PREDICTOR](../runtime/output-predictor.md) | Current nominal propagation, delayed feedback and output-history transactions. |
 | [R-IMU-HISTORY](../runtime/history/imu-history.md) | Retained IMU intervals, configured timing, source admission and completion cursor. |
 

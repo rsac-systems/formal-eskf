@@ -329,6 +329,12 @@ Running stationary gyro-bias observations remain separately scoped and unapprove
 ZUPT does not implicitly add them. Default ON is a target setting, not current
 implementation or evidence of flight qualification.
 
+### N6 — Corrected local and global output
+
+| Task | Status | Completion boundary |
+|---|---|---|
+| <a id="t-06"></a>T-06 — Navigation output | Specification baseline | [Contract/design](spec/architecture/navigation-output.md) defines corrected products, point/frame/epoch, delayed uncertainty proxies, reset/rebase and partial-availability semantics through existing owners. Complete portable provenance, PX4 global-publication/absent-reference alignment and counter/restart acceptance; bind the four Pending test families to actual replay, module, controller and Commander paths. No independent odometry tracker or current covariance is included. Geographic/physical/target and new caller-proof claims remain separately qualified. |
+
 ### V-01 — Remaining proof boundaries
 
 **Status: Partial.** Scoped core/runtime evidence exists. Close the source,

@@ -230,6 +230,15 @@ service, rest detector or catch-up loop is introduced. The
 [Pending cases](../../verification/zero-velocity-tests.md) must exercise the real
 phase and configuration binding before claiming this target implemented.
 
+## Navigation output target
+
+Expose the existing state, predictor, geometry and reset owners under
+[R-NAV-OUTPUT](navigation-output.md). Its portable views distinguish session/frame,
+physical point and current/delayed epochs; PX4 mapping remains with the adapter.
+The [output acceptance design](../../verification/navigation-output-tests.md)
+qualifies actual callers and external consumers. No extra tracker, covariance,
+control layer or runtime directory is required. New bindings remain Pending.
+
 ## Acceptance and verification
 
 Compare the same explicit profile/backend/input sequence before and after owner

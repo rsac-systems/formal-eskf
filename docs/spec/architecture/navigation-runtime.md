@@ -10,8 +10,9 @@ to [A-01](../../roadmap.md#a-01--portable-navigation-runtime).
 
 The binary64 INS session retains PX4 250 Hz timing, core equations, numerical
 choices and separate AHRS APIs. Startup now follows the staged contract below.
-New rate modes, stationary updates, strict continuous odometry and legacy replay
-migration remain separately scoped.
+New rate modes and stationary updates remain separately scoped. Corrected output
+uses the existing predictor; independent continuous odometry is outside the
+[navigation-output target](navigation-output.md).
 
 The [staged INS target](../profiles/staged-ins.md) allocates that startup and
 degradation work to [R-INS-STARTUP](../requirements/runtime/ins-startup.md) and
@@ -95,6 +96,15 @@ deployment qualification.
 The [precision cases](../verification/navigation-precision-tests.md) require the
 whole session and its callers. Existing binary32 core evidence remains limited
 to its original scope; the new session profile is not yet implemented or qualified.
+
+### Navigation output target
+
+The [output design](navigation-output.md) retains this existing ownership split.
+R-NAV-OUTPUT makes corrected local/global products, reference points, independent
+validity and covariance epochs explicit. PX4-OUT binds existing wire messages;
+controllers and Commander remain external. No second tracker, covariance, source
+policy or new architectural layer is required. The four planned output families
+qualify actual callers and consumers before this target is claimed implemented.
 
 ## Execution and state
 

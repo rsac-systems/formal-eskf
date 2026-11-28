@@ -55,3 +55,53 @@ compare masks before throttled publication and preserve each retained result's
 own epoch; copying or publishing a snapshot shall not create new evidence.
 Advertisement/publication failure must be observable and cannot count as
 successful delivery. Ordinary absence of subscribers is not a delivery failure.
+
+## Navigation output binding
+
+The corrected-output target follows
+[R-NAV-OUTPUT](../../runtime/navigation-output.md) and the
+[pinned comparison](../../../architecture/navigation-output.md#pinned-px4-comparison).
+Retain the existing runtime/adapter split and message layouts.
+
+- Attitude publication shall use the admitted current IMU endpoint and its own
+  capability, independently of geographic attachment. Local/global/odometry sample
+  times shall identify their predictor endpoint; publication time shall identify
+  delivery preparation. Earlier-phase attitude and later navigation messages need
+  not share a completed correction. Delayed uncertainty provenance follows
+  R-PX4-FRAME-OUTPUT; no wire covariance timestamp or current P is invented.
+- Global-position messages shall require an established geographic reference and
+  admitted heading alignment, as in pinned EKF2. Within a published message,
+  latitude/longitude and MSL altitude validity remain independent; an unavailable
+  datum shall not become a measured zero. Ellipsoid height remains distinct.
+  This gate uses established reference/alignment, not a new GNSS or heading
+  measurement for every publication; current usability follows its owner.
+  Without an admitted MSL datum, publish altitude as NaN with alt_valid false.
+- Before a geographic reference exists, local reference timestamp shall be zero,
+  reference coordinates/altitude NaN, and global-reference flags false. Once
+  reference components exist, each flag/field shall reflect its admitted mapping
+  or datum; reference availability alone does not establish usable position.
+  Numeric local states with false validity remain unusable. The existing
+  R-PX4-STATUS local z/vz compatibility OR shall not promote portable or global
+  height capability. Heading-control admission remains separate from positioning.
+- Reset deltas shall describe the published body point and frame. Preserve
+  component event counts, ordered same-update accumulation, retained latest deltas
+  on repeated publication and unsigned 8-bit rollover. Our odometry aggregate
+  counts recorded reset transactions (including a transaction's recorded multiple
+  resets); PX4 instead sums component counters. Retain this explicit difference
+  and verify consumer response rather than claiming identical counter values.
+  Reading/publishing records shall not consume or reapply estimator resets.
+- Internal working-origin rebase shall retain the public reference and cause no
+  reset notification. First attachment follows R-INS-ATTACHMENT, including genuine
+  measurement resets. Restart/fault withdrawal follows PX4-LIFE; no refreshed stale
+  value may masquerade as valid new estimation. The existing restart-required
+  numerical/history policy is not PX4's complete automatic recovery mechanism.
+
+## Acceptance and verification
+
+The four [output test families](../../../verification/navigation-output-tests.md)
+require actual module, controller and Commander behavior for frame/time/point
+mapping, partial availability, resets, source loss and faults. New bindings remain
+Pending. Existing metadata/publication paths need alignment and acceptance under
+[T-06](../../../../roadmap.md#t-06); this specification does not change runtime code.
+Do not bypass PX4 consumer checks or modify controllers to hide producer errors.
+Topic publication success alone does not establish downstream acceptance.
