@@ -91,9 +91,21 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::upd
         return;
     }
 
-    auto const sample = gnss_quality_sample();
+    GnssQualitySample<backend_type> sample;
+    auto const conversion = gnss_quality_sample(sample);
     auto const motion = gnss_motion();
-    m_gnss.quality_result = m_gnss.quality.update(sample, motion, m_time_us, m_gnss.quality_parameters);
+    if (succeeded(conversion))
+    {
+        m_gnss.quality_result = m_gnss.quality.update(sample, motion, m_time_us, m_gnss.quality_parameters);
+    }
+    else
+    {
+        // A measurement outside the local conversion profile is rejected; it is
+        // not an IMU/state fault. It must requalify before providing aiding.
+        m_gnss.quality.reset();
+        m_gnss.quality_result = {.decision = GnssQualityDecision::rejected, .status = conversion};
+        sample.time_us = m_gnss.input.time_us;
+    }
     m_gnss_quality_epoch = evaluation_epoch(m_gnss.input);
     m_diagnostic_gnss_quality = m_gnss.quality_result;
     m_gnss_quality_motion = motion;
@@ -127,14 +139,15 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::upd
 }
 
 template <typename Linalg, typename Layout>
-formal_eskf::runtime::GnssQualitySample<Linalg> InsSession<Linalg, Layout>::gnss_quality_sample() const
+typename InsSession<Linalg, Layout>::status_type
+InsSession<Linalg, Layout>::gnss_quality_sample(GnssQualitySample<backend_type> & output) const
 {
     auto const & gps = m_gnss.input.sample;
     formal_eskf::runtime::GnssQualitySample<backend_type> sample;
     sample.time_us = m_gnss.input.time_us;
     sample.fix_type = gps.fix_type;
     sample.satellites = gps.satellites;
-    sample.pdop = math_type::hypot(double(gps.hdop), double(gps.vdop));
+    sample.pdop = math_type::hypot(gps.hdop, gps.vdop);
     sample.horizontal_accuracy = gps.horizontal_accuracy_m;
     sample.vertical_accuracy = gps.vertical_accuracy_m;
     sample.speed_accuracy = gps.speed_accuracy_m_s;
@@ -148,10 +161,25 @@ formal_eskf::runtime::GnssQualitySample<Linalg> InsSession<Linalg, Layout>::gnss
         double const down = std::isfinite(gps.altitude_msl_m) && std::isfinite(m_gnss.previous_altitude)
                                 ? m_gnss.previous_altitude - gps.altitude_msl_m
                                 : m_gnss.previous_ellipsoid_altitude - gps.altitude_ellipsoid_m;
-        sample.position_delta_n = vector3(north, east, down);
+        sample.position_delta_n = vector3(north, east, 0);
+        if constexpr (std::is_same_v<value_type, double>)
+        {
+            // Exact identity boundary: preserve the quality owner's existing
+            // invalid-sample handling, including non-finite differences.
+            sample.position_delta_n(2) = down;
+        }
+        else
+        {
+            auto const status = convert_scalar(down, m_geographic_precision.position_m, sample.position_delta_n(2));
+            if (!succeeded(status))
+            {
+                return status;
+            }
+        }
     }
 
-    return sample;
+    output = sample;
+    return status_type::success;
 }
 
 template <typename Linalg, typename Layout>
@@ -305,12 +333,11 @@ InsSession<Linalg, Layout>::gnss_velocity_observation(imu_type const & imu) cons
     observation.velocity_n = gps.velocity_n - observation.frame.rotation * gnss_velocity_offset(imu);
     observation.status = formal_eskf::runtime::velocity_observation(m_state.v_n, observation.velocity_n,
                                                                     observation.frame.rotation, observation.model);
-    double const variance =
-        square(std::max(double(gps.speed_accuracy_m_s), m_settings.gnss.minimum_velocity_noise_m_s));
+    value_type const variance = square(std::max(gps.speed_accuracy_m_s, m_settings.gnss.minimum_velocity_noise_m_s));
     observation.variances = vector3(variance, variance, m_settings.gnss.vertical_variance_multiplier * variance);
     observation.covariance = matrix3_type::identity() * variance;
     observation.covariance(2, 2) = observation.variances(2);
-    observation.conditions = {m_vertical_health.state().bad_vertical_acceleration, double(gps.speed_accuracy_m_s),
+    observation.conditions = {m_vertical_health.state().bad_vertical_acceleration, gps.speed_accuracy_m_s,
                               m_gnss.quality_parameters.maximum_speed_accuracy};
     return observation;
 }
@@ -472,8 +499,8 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::fus
         return false;
     }
 
-    const double position_variance =
-        square(std::min(std::max(double(gps.horizontal_accuracy_m), m_settings.gnss.minimum_position_noise_m),
+    const value_type position_variance =
+        square(std::min(std::max(gps.horizontal_accuracy_m, m_settings.gnss.minimum_position_noise_m),
                         m_settings.gnss.maximum_position_noise_m));
     const auto Rxy = matrix2_type::identity() * position_variance;
     if (m_gnss.lifecycle.state().horizontal_position.action == GnssFusion::Action::reset)
@@ -640,7 +667,7 @@ void InsSession<Linalg, Layout>::fuse_height(ObservationReceipt const & baromete
                 gps.stamp.source.device_id,
                 0,
                 gps.altitude_msl_m + offset(2),
-                square(std::max(double(gps.vertical_accuracy_m), m_settings.height.minimum_gnss_noise_m)),
+                square(std::max(gps.vertical_accuracy_m, m_settings.height.minimum_gnss_noise_m)),
                 gps_good(),
                 m_gnss.input.generation};
     }

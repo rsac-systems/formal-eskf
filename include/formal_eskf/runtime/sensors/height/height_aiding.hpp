@@ -109,16 +109,17 @@ template <typename Scalar> struct HeightBias
 }; /* end struct HeightBias */
 
 /** GNSS/barometer height management with explicit startup settings and raw outcomes. */
-template <typename Linalg> class HeightAiding
+template <typename Linalg, typename Geography = Linalg> class HeightAiding
 {
 public:
     using value_type = typename Linalg::value_type;
+    using altitude_type = typename Geography::value_type;
     using state_type = configuration::Ins::NominalState<Linalg>;
     using covariance_type = linalg::Matrix<Linalg, 15U, 15U>;
     using fusion_type = runtime::FusionResult<Linalg, 1U>;
     using vector_type = linalg::Vector<Linalg, 3>;
     using observation_type = runtime::FrameObservation<Linalg, 1>;
-    using prediction_type = runtime::HeightPrediction<Linalg>;
+    using prediction_type = runtime::HeightPrediction<Linalg, altitude_type>;
     using Parameters = HeightParameters<value_type>;
 
     /** Borrowed for one update. Without a datum, height is relative to the explicit ellipsoid anchor. */
@@ -126,10 +127,10 @@ public:
     {
         // Required aggregate references cannot be default-initialized by C++.
         // cppcheck-suppress uninitMemberVarNoCtor
-        geodesy::LocalNed<Linalg> const & frame;
+        geodesy::LocalNed<Geography> const & frame;
         // cppcheck-suppress uninitMemberVarNoCtor
-        runtime::HeightDatum<Linalg> const & datum;
-        value_type relative_reference_ellipsoid_m = std::numeric_limits<value_type>::quiet_NaN();
+        runtime::HeightDatum<Geography> const & datum;
+        altitude_type relative_reference_ellipsoid_m = std::numeric_limits<altitude_type>::quiet_NaN();
     };
 
     enum class Source : std::uint8_t
@@ -154,7 +155,7 @@ public:
         std::uint64_t time_us{};
         std::uint32_t device_id{};
         std::uint8_t calibration_count{};
-        value_type altitude{}; // Up-positive metres: GNSS MSL or barometric model altitude before offset correction.
+        altitude_type altitude{}; // Up-positive metres: GNSS MSL or barometric model altitude before offset correction.
         value_type variance{};
         bool qualified = true;
         std::uint64_t generation{}; // Adapter identity generation; detects switch-away/back before delayed selection.
@@ -225,7 +226,8 @@ public:
                receipt.latest_time_us - receipt.push_time_us < m_parameters.barometer_timeout_us;
     }
 
-    explicit HeightAiding(Parameters const & parameters) : m_parameters(parameters)
+    explicit HeightAiding(Parameters const & parameters, GeographicPrecision const & precision = {})
+        : m_parameters(parameters), m_precision(precision)
     {
         for (auto & session : m_sessions)
         {
@@ -244,14 +246,14 @@ public:
 
     unsigned barometer_warmup_samples() const { return m_parameters.barometer_warmup_samples; }
 
-    [[nodiscard]] Status initialize(std::uint64_t now_us, value_type origin_altitude)
+    [[nodiscard]] Status initialize(std::uint64_t now_us, altitude_type origin_altitude)
     {
         if (now_us == 0U || !valid_parameters() || !valid_altitude(origin_altitude))
         {
             return Status::domain_error;
         }
 
-        *this = HeightAiding{m_parameters};
+        *this = HeightAiding{m_parameters, m_precision};
         m_origin_altitude = origin_altitude;
         m_started = now_us;
         return Status::success;
@@ -282,13 +284,14 @@ public:
 
     Source reference() const { return m_reference; }
 
-    value_type origin_altitude() const { return m_origin_altitude; }
+    altitude_type origin_altitude() const { return m_origin_altitude; }
 
     /** Relabel one physical point without adding measurement information.
      * Shift only initialized source offsets; retain raw LPF data, variance,
      * source identity and all real progress clocks. Failure preserves the owner.
      */
-    [[nodiscard]] Status change_reference(value_type new_origin_altitude, value_type height_old, value_type height_new)
+    [[nodiscard]] Status change_reference(altitude_type new_origin_altitude, altitude_type height_old,
+                                          altitude_type height_new)
     {
         if (m_started == 0 || !valid_altitude(new_origin_altitude))
         {
@@ -303,17 +306,22 @@ public:
                 continue;
             }
 
-            auto const status = transport_height_offset<typename Linalg::scalar_math_type>(
-                height_old, height_new, aid.bias.value, aid.bias.value);
+            altitude_type offset;
+            auto status = transport_height_offset<typename Geography::scalar_math_type>(height_old, height_new,
+                                                                                        aid.bias.value, offset);
+            if (succeeded(status))
+            {
+                status = local_height(offset, aid.bias.value);
+            }
             if (!succeeded(status))
             {
                 return status;
             }
         }
         // Validate even when no source has been initialized.
-        value_type shift{};
+        altitude_type shift{};
         auto const status =
-            transport_height_offset<typename Linalg::scalar_math_type>(height_old, height_new, 0, shift);
+            transport_height_offset<typename Geography::scalar_math_type>(height_old, height_new, 0, shift);
         if (!succeeded(status))
         {
             return status;
@@ -345,10 +353,25 @@ private:
 
     static bool warmup_count(TimingParameters const & timing, unsigned & output);
 
-    bool valid_altitude(value_type altitude) const
+    bool valid_altitude(altitude_type altitude) const
     {
         return std::isfinite(altitude) && altitude > m_parameters.minimum_altitude_m &&
                altitude < m_parameters.maximum_altitude_m;
+    }
+
+    // Identity conversion retains the existing downstream validation/failure
+    // precedence. Only mixed-precision height differences need a new boundary.
+    Status local_height(altitude_type input, value_type & output) const
+    {
+        if constexpr (std::is_same_v<altitude_type, value_type>)
+        {
+            output = input;
+            return Status::success;
+        }
+        else
+        {
+            return convert_scalar(input, m_precision.position_m, output);
+        }
     }
 
     [[nodiscard]] Status height_prediction(state_type const & state, Geometry const * geometry,
@@ -357,7 +380,7 @@ private:
                                       geodesy::NedTransform<Linalg> & transform) const;
     void stop(Source source, StopReason reason);
     bool admit(Source source, std::uint64_t now_us, Sample const & sample, bool receipt_recent, Result & result);
-    bool prepare_barometer(Sample const & sample, value_type altitude, Result & result);
+    bool prepare_barometer(Sample const & sample, altitude_type altitude, Result & result);
     void recover(Source source, std::uint64_t now_us, Sample const & sample, value_type variance,
                  bool vertical_velocity_aiding, state_type & state, covariance_type & covariance, Result & result,
                  Acceleration const & acceleration, Geometry const * geometry);
@@ -365,18 +388,20 @@ private:
                  state_type & state, covariance_type & covariance, Result & result,
                  configuration::Ins::BiasUpdate const & bias_update, Acceleration const & acceleration,
                  bool ground_effect, Geometry const * geometry, bool receipt_recent, bool numerical_reset_required);
-    void reset_height(Source source, std::uint64_t now_us, value_type altitude, value_type variance, state_type & state,
-                      covariance_type & covariance, Result & result, Geometry const * geometry);
+    void reset_height(Source source, std::uint64_t now_us, altitude_type altitude, value_type variance,
+                      state_type & state, covariance_type & covariance, Result & result, Geometry const * geometry);
 
     Parameters m_parameters{};
     std::array<Session, 2U> m_sessions{};
     Source m_reference = Source::none;
-    value_type m_origin_altitude{}, m_barometer_lpf{};
+    altitude_type m_origin_altitude{}, m_barometer_lpf{};
+    GeographicPrecision m_precision{};
     unsigned m_barometer_samples{};
     std::uint64_t m_started{}, m_tick{}, m_last_height_progress{};
 }; /* end class HeightAiding */
 
-template <typename Linalg> bool HeightAiding<Linalg>::warmup_count(TimingParameters const & timing, unsigned & output)
+template <typename Linalg, typename Geography>
+bool HeightAiding<Linalg, Geography>::warmup_count(TimingParameters const & timing, unsigned & output)
 {
     if (timing.filter_interval_us <= 0 || timing.fusion_delay_ms <= 0)
     {
@@ -397,13 +422,15 @@ template <typename Linalg> bool HeightAiding<Linalg>::warmup_count(TimingParamet
     return true;
 }
 
-template <typename Linalg> bool HeightAiding<Linalg>::can_configure(TimingParameters const & timing) const
+template <typename Linalg, typename Geography>
+bool HeightAiding<Linalg, Geography>::can_configure(TimingParameters const & timing) const
 {
     unsigned count{};
     return m_started == 0 && valid_parameters() && warmup_count(timing, count);
 }
 
-template <typename Linalg> bool HeightAiding<Linalg>::configure_timing(TimingParameters const & timing)
+template <typename Linalg, typename Geography>
+bool HeightAiding<Linalg, Geography>::configure_timing(TimingParameters const & timing)
 {
     unsigned count{};
     if (m_started != 0 || !warmup_count(timing, count))
@@ -415,12 +442,14 @@ template <typename Linalg> bool HeightAiding<Linalg>::configure_timing(TimingPar
     return true;
 }
 
-template <typename Linalg> bool HeightAiding<Linalg>::valid_parameters() const
+template <typename Linalg, typename Geography> bool HeightAiding<Linalg, Geography>::valid_parameters() const
 {
     auto positive = [](value_type value) { return std::isfinite(value) && value > value_type{0}; };
     auto nonnegative = [](value_type value) { return std::isfinite(value) && value >= value_type{0}; };
     auto const & bias = m_parameters.bias;
-    return positive(m_parameters.minimum_quaternion_norm) && nonnegative(m_parameters.bias_limits.accelerometer) &&
+    return std::isfinite(m_precision.position_m) && m_precision.position_m >= 0 &&
+           std::isfinite(m_precision.rotation) && m_precision.rotation >= 0 &&
+           positive(m_parameters.minimum_quaternion_norm) && nonnegative(m_parameters.bias_limits.accelerometer) &&
            nonnegative(m_parameters.bias_limits.gyroscope) && std::isfinite(m_parameters.minimum_altitude_m) &&
            std::isfinite(m_parameters.maximum_altitude_m) &&
            m_parameters.minimum_altitude_m < m_parameters.maximum_altitude_m && m_parameters.fusion_timeout_us > 0 &&
@@ -438,54 +467,60 @@ template <typename Linalg> bool HeightAiding<Linalg>::valid_parameters() const
            bias.minimum_variance <= bias.measurement_variance_floor;
 }
 
-template <typename Linalg>
-Status HeightAiding<Linalg>::height_prediction(state_type const & state, Geometry const * geometry,
-                                               prediction_type & output) const
+template <typename Linalg, typename Geography>
+Status HeightAiding<Linalg, Geography>::height_prediction(state_type const & state, Geometry const * geometry,
+                                                          prediction_type & output) const
 {
     if (geometry == nullptr)
     {
         return runtime::predict_height(state.p_n, m_origin_altitude, output);
     }
 
-    if constexpr (std::numeric_limits<value_type>::digits == 53)
+    if constexpr (std::numeric_limits<altitude_type>::digits == 53)
     {
         if (geometry->datum.initialized())
         {
-            return runtime::predict_height(state.p_n, geometry->frame, geometry->datum, output);
+            return runtime::predict_height(state.p_n, geometry->frame, geometry->datum, output, m_precision);
         }
 
         if (std::isfinite(geometry->relative_reference_ellipsoid_m))
         {
             return runtime::predict_relative_height(state.p_n, geometry->frame,
-                                                    geometry->relative_reference_ellipsoid_m, output);
+                                                    geometry->relative_reference_ellipsoid_m, output, m_precision);
         }
     }
 
     return Status::domain_error;
 }
 
-template <typename Linalg>
-Status HeightAiding<Linalg>::height_frame(state_type const & state, Geometry const & geometry,
-                                          geodesy::NedTransform<Linalg> & transform) const
+template <typename Linalg, typename Geography>
+Status HeightAiding<Linalg, Geography>::height_frame(state_type const & state, Geometry const & geometry,
+                                                     geodesy::NedTransform<Linalg> & transform) const
 {
-    vector_type ecef;
+    linalg::Vector<Geography, 3> ecef;
     geodesy::GeodeticPosition geographic;
-    auto status = geometry.frame.ned_to_ecef(state.p_n, ecef);
+    auto status = geometry.frame.ned_to_ecef(geographic_matrix<Geography>(state.p_n), ecef);
     if (succeeded(status))
     {
-        status = geodesy::ecef_to_geodetic<Linalg>(ecef, geographic);
+        status = geodesy::ecef_to_geodetic<Geography>(ecef, geographic);
     }
 
-    geodesy::LocalNed<Linalg> at_estimate;
+    geodesy::LocalNed<Geography> at_estimate;
     if (succeeded(status))
     {
         status = at_estimate.set_origin(geographic);
     }
 
-    return succeeded(status) ? geometry.frame.transform_to(at_estimate, transform) : status;
+    geodesy::NedTransform<Geography> geographic_transform;
+    if (succeeded(status))
+    {
+        status = geometry.frame.transform_to(at_estimate, geographic_transform);
+    }
+    return succeeded(status) ? convert_transform(geographic_transform, m_precision, transform) : status;
 }
 
-template <typename Linalg> void HeightAiding<Linalg>::stop(Source source, StopReason reason)
+template <typename Linalg, typename Geography>
+void HeightAiding<Linalg, Geography>::stop(Source source, StopReason reason)
 {
     auto & aid = m_sessions[index(source)];
     aid.active = false;
@@ -497,10 +532,11 @@ template <typename Linalg> void HeightAiding<Linalg>::stop(Source source, StopRe
     }
 }
 
-template <typename Linalg>
-void HeightAiding<Linalg>::reset_height(Source source, std::uint64_t now_us, value_type altitude, value_type variance,
-                                        state_type & state, covariance_type & covariance, Result & result,
-                                        Geometry const * geometry)
+template <typename Linalg, typename Geography>
+void HeightAiding<Linalg, Geography>::reset_height(Source source, std::uint64_t now_us, altitude_type altitude,
+                                                   value_type variance, state_type & state,
+                                                   covariance_type & covariance, Result & result,
+                                                   Geometry const * geometry)
 {
     auto & evidence = result.evidence[index(source)];
     evidence.reset_attempted = true;
@@ -508,10 +544,17 @@ void HeightAiding<Linalg>::reset_height(Source source, std::uint64_t now_us, val
     auto const previous_position = state.p_n;
     if (geometry == nullptr)
     {
-        result.status = runtime::reset_vertical_position(state, covariance, m_origin_altitude - altitude, variance,
-                                                         state, covariance, delta);
+        value_type position;
+        result.status = local_height(m_origin_altitude - altitude, position);
+        if (!succeeded(result.status))
+        {
+            evidence.reset_status = result.status;
+            return;
+        }
+        result.status =
+            runtime::reset_vertical_position(state, covariance, position, variance, state, covariance, delta);
     }
-    else if constexpr (std::numeric_limits<value_type>::digits == 53)
+    else if constexpr (std::numeric_limits<altitude_type>::digits == 53)
     {
         prediction_type prediction;
         result.status = height_prediction(state, geometry, prediction);
@@ -528,7 +571,12 @@ void HeightAiding<Linalg>::reset_height(Source source, std::uint64_t now_us, val
         }
         // Move along the estimated point's ellipsoid normal. At fixed lat/lon,
         // this is an exact height change, not a terrain or spherical projection.
-        delta = prediction.altitude - altitude;
+        result.status = local_height(prediction.altitude - altitude, delta);
+        if (!succeeded(result.status))
+        {
+            evidence.reset_status = result.status;
+            return;
+        }
         vector_type measurement, variances, ignored;
         measurement(2) = delta;
         variances(2) = variance;
@@ -563,9 +611,9 @@ void HeightAiding<Linalg>::reset_height(Source source, std::uint64_t now_us, val
     result.diagnostics[index(source)].reset = true;
 }
 
-template <typename Linalg>
-bool HeightAiding<Linalg>::admit(Source source, std::uint64_t now_us, Sample const & sample, bool receipt_recent,
-                                 Result & result)
+template <typename Linalg, typename Geography>
+bool HeightAiding<Linalg, Geography>::admit(Source source, std::uint64_t now_us, Sample const & sample,
+                                            bool receipt_recent, Result & result)
 {
     auto & aid = m_sessions[index(source)];
     bool const barometer = source == Source::barometer;
@@ -628,8 +676,8 @@ bool HeightAiding<Linalg>::admit(Source source, std::uint64_t now_us, Sample con
     return true;
 }
 
-template <typename Linalg>
-bool HeightAiding<Linalg>::prepare_barometer(Sample const & sample, value_type altitude, Result & result)
+template <typename Linalg, typename Geography>
+bool HeightAiding<Linalg, Geography>::prepare_barometer(Sample const & sample, altitude_type altitude, Result & result)
 {
     auto & aid = m_sessions[index(Source::barometer)];
     m_barometer_lpf = m_barometer_samples == 0U
@@ -638,7 +686,7 @@ bool HeightAiding<Linalg>::prepare_barometer(Sample const & sample, value_type a
     m_barometer_samples = std::min(m_barometer_samples + 1U, m_parameters.barometer_warmup_samples + 1U);
     if (m_barometer_samples <= m_parameters.barometer_warmup_samples)
     {
-        aid.bias.value = m_barometer_lpf - altitude;
+        result.status = local_height(m_barometer_lpf - altitude, aid.bias.value);
         return false;
     }
 
@@ -651,16 +699,17 @@ bool HeightAiding<Linalg>::prepare_barometer(Sample const & sample, value_type a
     return true;
 }
 
-template <typename Linalg>
-void HeightAiding<Linalg>::recover(Source source, std::uint64_t now_us, Sample const & sample, value_type variance,
-                                   bool vertical_velocity_aiding, state_type & state, covariance_type & covariance,
-                                   Result & result, Acceleration const & acceleration, Geometry const * geometry)
+template <typename Linalg, typename Geography>
+void HeightAiding<Linalg, Geography>::recover(Source source, std::uint64_t now_us, Sample const & sample,
+                                              value_type variance, bool vertical_velocity_aiding, state_type & state,
+                                              covariance_type & covariance, Result & result,
+                                              Acceleration const & acceleration, Geometry const * geometry)
 {
     auto & aid = m_sessions[index(source)];
     bool const barometer = source == Source::barometer;
     if (m_reference == source && reset_required(now_us, acceleration.times))
     {
-        value_type const reset_altitude = barometer ? m_barometer_lpf - aid.bias.value : sample.altitude;
+        altitude_type const reset_altitude = barometer ? m_barometer_lpf - aid.bias.value : sample.altitude;
         reset_height(source, now_us, reset_altitude, variance, state, covariance, result, geometry);
         if (!succeeded(result.status))
         {
@@ -674,7 +723,12 @@ void HeightAiding<Linalg>::recover(Source source, std::uint64_t now_us, Sample c
             return;
         }
 
-        aid.bias.value = (barometer ? m_barometer_lpf : sample.altitude) - prediction.altitude;
+        result.status =
+            local_height((barometer ? m_barometer_lpf : sample.altitude) - prediction.altitude, aid.bias.value);
+        if (!succeeded(result.status))
+        {
+            return;
+        }
         if (barometer && !vertical_velocity_aiding && m_parameters.zero_velocity_on_barometer_reset)
         {
             auto const previous_velocity = state.v_n;
@@ -684,7 +738,7 @@ void HeightAiding<Linalg>::recover(Source source, std::uint64_t now_us, Sample c
                                                                  m_parameters.reset_velocity_variance, state,
                                                                  covariance, result.velocity_delta);
             }
-            else if constexpr (std::numeric_limits<value_type>::digits == 53)
+            else if constexpr (std::numeric_limits<altitude_type>::digits == 53)
             {
                 geodesy::NedTransform<Linalg> transform;
                 result.status = height_frame(state, *geometry, transform);
@@ -719,12 +773,14 @@ void HeightAiding<Linalg>::recover(Source source, std::uint64_t now_us, Sample c
     }
 }
 
-template <typename Linalg>
-void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample const & sample,
-                                   bool vertical_velocity_aiding, state_type & state, covariance_type & covariance,
-                                   Result & result, configuration::Ins::BiasUpdate const & bias_update,
-                                   Acceleration const & acceleration, bool ground_effect, Geometry const * geometry,
-                                   bool receipt_recent, bool numerical_reset_required)
+template <typename Linalg, typename Geography>
+void HeightAiding<Linalg, Geography>::process(Source source, std::uint64_t now_us, Sample const & sample,
+                                              bool vertical_velocity_aiding, state_type & state,
+                                              covariance_type & covariance, Result & result,
+                                              configuration::Ins::BiasUpdate const & bias_update,
+                                              Acceleration const & acceleration, bool ground_effect,
+                                              Geometry const * geometry, bool receipt_recent,
+                                              bool numerical_reset_required)
 {
     auto & aid = m_sessions[index(source)];
     bool const barometer = source == Source::barometer;
@@ -743,7 +799,7 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
         return;
     }
 
-    value_type const altitude = prediction.altitude;
+    altitude_type const altitude = prediction.altitude;
     auto const height_variance =
         geometry == nullptr ? covariance(2, 2) : (prediction.H * covariance * linalg::transpose(prediction.H))(0, 0);
     if (!std::isfinite(height_variance) || height_variance < 0)
@@ -772,7 +828,7 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
                                     : sample.variance;
     if (numerical_reset_required && (!barometer || receipt_recent))
     {
-        value_type const observed = barometer ? m_barometer_lpf - aid.bias.value : sample.altitude - aid.bias.value;
+        altitude_type const observed = barometer ? m_barometer_lpf - aid.bias.value : sample.altitude - aid.bias.value;
         reset_height(source, now_us, observed, variance + aid.bias.variance, state, covariance, result, geometry);
         if (!succeeded(result.status))
         {
@@ -809,7 +865,11 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
         }
         else
         {
-            aid.bias.value = m_barometer_lpf - altitude;
+            result.status = local_height(m_barometer_lpf - altitude, aid.bias.value);
+            if (!succeeded(result.status))
+            {
+                return;
+            }
         }
 
         aid.active = true;
@@ -819,7 +879,8 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
     }
     // Freeze the observation at the PRIOR bias; this sample's bias update serves the next sample.
     observation_type observation;
-    result.status = runtime::prepare_height_observation(prediction, sample.altitude, aid.bias.value, observation);
+    result.status = runtime::prepare_height_observation(prediction, sample.altitude, aid.bias.value, observation,
+                                                        m_precision.position_m);
     if (!succeeded(result.status))
     {
         auto & evidence = result.evidence[index(source)];
@@ -831,7 +892,13 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
     value_type const observation_variance = variance + aid.bias.variance;
     if (m_reference != source)
     {
-        aid.bias.fuse(sample.altitude - altitude, variance + height_variance, variance, m_parameters.bias);
+        value_type offset;
+        result.status = local_height(sample.altitude - altitude, offset);
+        if (!succeeded(result.status))
+        {
+            return;
+        }
+        aid.bias.fuse(offset, variance + height_variance, variance, m_parameters.bias);
     }
 
     aid.fusion_reset = false;
@@ -880,13 +947,12 @@ void HeightAiding<Linalg>::process(Source source, std::uint64_t now_us, Sample c
             geometry);
 }
 
-template <typename Linalg>
-typename HeightAiding<Linalg>::Result
-HeightAiding<Linalg>::update(std::uint64_t now_us, Sample const & barometer, Sample const & gnss,
-                             ObservationReceipt const & barometer_receipt, bool vertical_velocity_aiding,
-                             state_type & state, covariance_type & covariance,
-                             configuration::Ins::BiasUpdate const & bias_update, Acceleration const & acceleration,
-                             bool ground_effect, Geometry const * geometry, bool numerical_reset_required)
+template <typename Linalg, typename Geography>
+typename HeightAiding<Linalg, Geography>::Result HeightAiding<Linalg, Geography>::update(
+    std::uint64_t now_us, Sample const & barometer, Sample const & gnss, ObservationReceipt const & barometer_receipt,
+    bool vertical_velocity_aiding, state_type & state, covariance_type & covariance,
+    configuration::Ins::BiasUpdate const & bias_update, Acceleration const & acceleration, bool ground_effect,
+    Geometry const * geometry, bool numerical_reset_required)
 {
     Result result;
     if (m_started == 0U || now_us < m_started || now_us <= m_tick)

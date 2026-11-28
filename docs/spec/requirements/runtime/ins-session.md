@@ -186,7 +186,7 @@ existing direct evidence does not establish this target.
 startup, local/geographic operation, source policies, histories and output/frame
 transactions to the selected local scalar. Its
 [profile](../../profiles/navigation-precision.md) and
-[acceptance cases](../../verification/navigation-precision-tests.md) remain
+[acceptance cases](../../verification/tests/runtime/navigation-precision.md) remain
 separate from existing binary64 evidence. The deployed baseline stays binary64;
 no component's domain or verification claim is widened by this target alone.
 

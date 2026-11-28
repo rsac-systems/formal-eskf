@@ -2,14 +2,16 @@
 #pragma once
 
 #include <formal_eskf/runtime/fusion/frame_observations.hpp>
+#include <formal_eskf/runtime/frames/precision.hpp>
 
 namespace formal_eskf::runtime
 {
 
 /** Up-positive height and its negative derivative in the INS error coordinates. */
-template <typename Linalg> struct HeightPrediction
+template <typename Linalg, typename Altitude = typename Linalg::value_type> struct HeightPrediction
 {
-    typename Linalg::value_type altitude{};
+    using altitude_type = Altitude;
+    Altitude altitude{};
     linalg::Matrix<Linalg, 1, 15> H{};
 };
 
@@ -17,19 +19,19 @@ template <typename Linalg> struct HeightPrediction
  * All preparation operations preserve output on failure; output is disjoint
  * from inputs. Geometry, offset learning and source qualification have separate owners.
  */
-template <typename Linalg>
+template <typename Linalg, typename Altitude>
 [[nodiscard]] Status predict_height(linalg::Vector<Linalg, 3> const & position,
-                                    typename Linalg::value_type origin_altitude, HeightPrediction<Linalg> & output)
+                                    typename HeightPrediction<Linalg, Altitude>::altitude_type origin_altitude,
+                                    HeightPrediction<Linalg, Altitude> & output)
 {
-    using Math = typename Linalg::scalar_math_type;
-    if (!linalg::all_finite(position) || !scalar::is_finite<Math>(origin_altitude))
+    if (!linalg::all_finite(position) || !std::isfinite(origin_altitude))
     {
         return Status::non_finite_input;
     }
-    HeightPrediction<Linalg> candidate;
+    HeightPrediction<Linalg, Altitude> candidate;
     candidate.altitude = origin_altitude - position(2);
     candidate.H(0, 2) = 1;
-    if (!scalar::is_finite<Math>(candidate.altitude))
+    if (!std::isfinite(candidate.altitude))
     {
         return Status::non_finite_result;
     }
@@ -38,43 +40,53 @@ template <typename Linalg>
 }
 
 /** MSL height with the estimated-location Down row, even away from the origin. */
-template <typename Linalg>
+template <typename Linalg, typename Geography>
 [[nodiscard]] Status predict_height(linalg::Vector<Linalg, 3> const & position,
-                                    geodesy::LocalNed<Linalg> const & working, HeightDatum<Linalg> const & datum,
-                                    HeightPrediction<Linalg> & output)
+                                    geodesy::LocalNed<Geography> const & working, HeightDatum<Geography> const & datum,
+                                    HeightPrediction<Linalg, typename Geography::value_type> & output,
+                                    GeographicPrecision const & precision = {})
 {
-    FrameObservation<Linalg, 1> prediction;
-    auto const status = msl_height_observation(position, working, datum, typename Linalg::value_type{0}, prediction);
+    FrameObservation<Geography, 1> prediction;
+    auto status = msl_height_observation(geographic_matrix<Geography>(position), working, datum,
+                                         typename Geography::value_type{0}, prediction);
+    HeightPrediction<Linalg, typename Geography::value_type> candidate;
     if (succeeded(status))
     {
-        output = {prediction.innovation(0), prediction.H};
+        candidate.altitude = prediction.innovation(0);
+        status = convert_matrix(prediction.H, precision.rotation, candidate.H);
+    }
+    if (succeeded(status))
+    {
+        output = candidate;
     }
     return status;
 }
 
 /** Relative geometric height above an explicit ellipsoid point. This is not MSL. */
-template <typename Linalg>
-[[nodiscard]] Status
-predict_relative_height(linalg::Vector<Linalg, 3> const & position, geodesy::LocalNed<Linalg> const & working,
-                        typename Linalg::value_type reference_ellipsoid_m, HeightPrediction<Linalg> & output)
+template <typename Linalg, typename Geography>
+[[nodiscard]] Status predict_relative_height(linalg::Vector<Linalg, 3> const & position,
+                                             geodesy::LocalNed<Geography> const & working,
+                                             typename Geography::value_type reference_ellipsoid_m,
+                                             HeightPrediction<Linalg, typename Geography::value_type> & output,
+                                             GeographicPrecision const & precision = {})
 {
-    if (!scalar::is_finite<typename Linalg::scalar_math_type>(reference_ellipsoid_m))
+    if (!scalar::is_finite<typename Geography::scalar_math_type>(reference_ellipsoid_m))
     {
         return Status::non_finite_input;
     }
-    linalg::Vector<Linalg, 3> ecef;
+    linalg::Vector<Geography, 3> ecef;
     geodesy::GeodeticPosition point;
-    auto status = working.ned_to_ecef(position, ecef);
+    auto status = working.ned_to_ecef(geographic_matrix<Geography>(position), ecef);
     if (succeeded(status))
     {
-        status = geodesy::ecef_to_geodetic<Linalg>(ecef, point);
+        status = geodesy::ecef_to_geodetic<Geography>(ecef, point);
     }
-    geodesy::LocalNed<Linalg> at_point;
+    geodesy::LocalNed<Geography> at_point;
     if (succeeded(status))
     {
         status = at_point.set_origin(point);
     }
-    geodesy::NedTransform<Linalg> transform;
+    geodesy::NedTransform<Geography> transform;
     if (succeeded(status))
     {
         status = working.transform_to(at_point, transform);
@@ -83,10 +95,16 @@ predict_relative_height(linalg::Vector<Linalg, 3> const & position, geodesy::Loc
     {
         return status;
     }
-    HeightPrediction<Linalg> candidate;
+    HeightPrediction<Linalg, typename Geography::value_type> candidate;
     candidate.altitude = point.height_ellipsoid_m - reference_ellipsoid_m;
-    candidate.H.template set_block<0, 0>(transform.rotation.template block<2, 0, 1, 3>());
-    if (!scalar::is_finite<typename Linalg::scalar_math_type>(candidate.altitude))
+    linalg::Matrix<Linalg, 1, 3> down;
+    status = convert_matrix(transform.rotation.template block<2, 0, 1, 3>(), precision.rotation, down);
+    if (!succeeded(status))
+    {
+        return status;
+    }
+    candidate.H.template set_block<0, 0>(down);
+    if (!scalar::is_finite<typename Geography::scalar_math_type>(candidate.altitude))
     {
         return Status::non_finite_result;
     }
@@ -97,19 +115,29 @@ predict_relative_height(linalg::Vector<Linalg, 3> const & position, geodesy::Loc
 /** Freeze r_D = predicted_height - (measured_altitude - prior_offset).
  * No covariance is added here: the height owner adds prior offset variance once.
  */
-template <typename Linalg>
+template <typename Linalg, typename Altitude>
 [[nodiscard]] Status
-prepare_height_observation(HeightPrediction<Linalg> const & prediction, typename Linalg::value_type measured_altitude,
-                           typename Linalg::value_type prior_offset, FrameObservation<Linalg, 1> & output)
+prepare_height_observation(HeightPrediction<Linalg, Altitude> const & prediction,
+                           typename HeightPrediction<Linalg, Altitude>::altitude_type measured_altitude,
+                           typename Linalg::value_type prior_offset, FrameObservation<Linalg, 1> & output,
+                           double maximum_error = 0)
 {
-    using Math = typename Linalg::scalar_math_type;
-    if (!scalar::is_finite<Math>(prediction.altitude) || !linalg::all_finite(prediction.H) ||
-        !scalar::is_finite<Math>(measured_altitude) || !scalar::is_finite<Math>(prior_offset))
+    if (!std::isfinite(prediction.altitude) || !linalg::all_finite(prediction.H) || !std::isfinite(measured_altitude) ||
+        !std::isfinite(prior_offset))
     {
         return Status::non_finite_input;
     }
     FrameObservation<Linalg, 1> candidate;
-    candidate.innovation(0) = prediction.altitude - (measured_altitude - prior_offset);
+    auto const residual = prediction.altitude - (measured_altitude - prior_offset);
+    if (!std::isfinite(residual))
+    {
+        return Status::non_finite_result;
+    }
+    auto const status = convert_scalar(residual, maximum_error, candidate.innovation(0));
+    if (!succeeded(status))
+    {
+        return status;
+    }
     candidate.H = prediction.H;
     if (!linalg::all_finite(candidate.innovation))
     {

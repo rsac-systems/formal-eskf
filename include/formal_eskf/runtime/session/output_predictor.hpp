@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <type_traits>
 
 #include <formal_eskf/eskf/prediction.hpp>
 
@@ -181,10 +182,17 @@ template <typename Linalg, std::size_t Capacity> bool OutputPredictor<Linalg, Ca
 {
     auto positive = [](double value)
     {
+        if constexpr (std::is_same_v<value_type, float>)
+        {
+            if (value < std::numeric_limits<value_type>::min())
+            {
+                return false;
+            }
+        }
         return value > 0. && value <= std::numeric_limits<value_type>::max() &&
                static_cast<value_type>(value) > value_type{0};
     };
-    auto nonnegative = [](double value) { return value >= 0. && value <= std::numeric_limits<value_type>::max(); };
+    auto nonnegative = [&](double value) { return value == 0. || positive(value); };
     return positive(m_parameters.gravity_m_s2) && positive(m_parameters.minimum_quaternion_norm) &&
            positive(m_parameters.minimum_interval_s) && positive(m_parameters.maximum_interval_s) &&
            positive(m_parameters.nominal_interval_s) && positive(m_parameters.velocity_time_constant_s) &&

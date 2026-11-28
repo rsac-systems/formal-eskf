@@ -50,7 +50,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::mai
     auto const local_velocity = B * m_state.v_n;
     auto bounded_velocity = local_velocity;
     std::array<bool, 3> limited{};
-    double const limit = m_continuity.parameters().velocity_limit;
+    value_type const limit = m_continuity.parameters().velocity_limit;
     for (std::size_t i = 0; i < 3; ++i)
     {
         bounded_velocity(i) = std::clamp(local_velocity(i), -limit, limit);

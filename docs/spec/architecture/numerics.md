@@ -39,6 +39,11 @@ Identity, row-major construction, blocks and segments are shared operations
 implemented through these primitives. Everything else should be shared code
 above this surface.
 
+Geographic runtime owners additionally require the backend's `rebind<double>`
+type alias. It selects the same backend family for binary64 geometry; it does not
+add run-time dispatch or promote local state/P operations. Core-only backends do
+not need this geographic-runtime capability.
+
 ## Verification boundary
 
 Backend conformance and differential tests do not prove external backend internals.

@@ -12,6 +12,7 @@
 #include <formal_eskf/geodesy/local_ned.hpp>
 #include <formal_eskf/linalg/linalg.hpp>
 #include <formal_eskf/so3/operations.hpp>
+#include <formal_eskf/runtime/frames/precision.hpp>
 
 namespace formal_eskf::runtime
 {
@@ -186,6 +187,24 @@ rebase_origin(configuration::Ins::NominalState<Linalg> const & state,
     return Status::success;
 }
 
+/** Convert one complete geographic transform before any state/history mutation. */
+template <typename Geography, typename Linalg>
+[[nodiscard]] Status convert_transform(geodesy::NedTransform<Geography> const & input,
+                                       GeographicPrecision const & precision, geodesy::NedTransform<Linalg> & output)
+{
+    geodesy::NedTransform<Linalg> candidate;
+    auto status = convert_matrix(input.rotation, precision.rotation, candidate.rotation);
+    if (succeeded(status))
+    {
+        status = convert_matrix(input.translation, precision.position_m, candidate.translation);
+    }
+    if (succeeded(status))
+    {
+        output = candidate;
+    }
+    return status;
+}
+
 /**
  * Persistent scratch for a delayed post-fusion origin event. prepare() never
  * changes the live frame/state/P. Candidate fields are usable only on success;
@@ -194,25 +213,27 @@ rebase_origin(configuration::Ins::NominalState<Linalg> const & state,
  */
 template <typename Linalg> struct OriginRebaseCandidate
 {
+    using Geography = typename Linalg::template rebind<double>;
     using state_type = configuration::Ins::NominalState<Linalg>;
     using covariance_type = linalg::Matrix<Linalg, 15, 15>;
-    geodesy::LocalNed<Linalg> frame{};
+    geodesy::LocalNed<Geography> frame{};
     geodesy::NedTransform<Linalg> transform{};
     so3::UnitQuaternion<Linalg> rotation{};
     state_type state{};
     covariance_type covariance{};
 
-    [[nodiscard]] Status prepare(geodesy::LocalNed<Linalg> const & working, state_type const & prior,
-                                 covariance_type const & P, typename Linalg::value_type minimum_norm)
+    [[nodiscard]] Status prepare(geodesy::LocalNed<Geography> const & working, state_type const & prior,
+                                 covariance_type const & P, typename Linalg::value_type minimum_norm,
+                                 GeographicPrecision const & precision = {})
     {
-        linalg::Vector<Linalg, 3> ecef;
-        auto status = working.ned_to_ecef(prior.p_n, ecef);
+        linalg::Vector<Geography, 3> ecef;
+        auto status = working.ned_to_ecef(geographic_matrix<Geography>(prior.p_n), ecef);
         if (!succeeded(status))
         {
             return status;
         }
         geodesy::GeodeticPosition origin;
-        status = geodesy::ecef_to_geodetic<Linalg>(ecef, origin);
+        status = geodesy::ecef_to_geodetic<Geography>(ecef, origin);
         if (!succeeded(status))
         {
             return status;
@@ -222,7 +243,12 @@ template <typename Linalg> struct OriginRebaseCandidate
         {
             return status;
         }
-        status = working.transform_to(frame, transform);
+        geodesy::NedTransform<Geography> geographic;
+        status = working.transform_to(frame, geographic);
+        if (succeeded(status))
+        {
+            status = convert_transform(geographic, precision, transform);
+        }
         if (!succeeded(status))
         {
             return status;

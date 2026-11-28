@@ -16,8 +16,8 @@
 ## Basis
 
 [Precision allocation and PX4 comparison](../../architecture/navigation-runtime.md#mixed-precision-target).
-Current InsSession requires binary64, although the core supports both scalar
-formats. Removing its static assertion alone does not implement this requirement.
+InsSession now has local binary32/binary64 paths with binary64 geography.
+Software implementation and scoped native tests do not qualify a deployment.
 This target extends the numerical applicability of R-INS-SESSION, startup,
 attachment, sensor owners, histories and output/rebase composition together;
 their binary64-only deployment statements remain the current baseline until
@@ -67,7 +67,7 @@ the candidate scalar/profile is adopted. Geodesy itself remains binary64-only.
 
 ## Acceptance and verification
 
-[Planned cases](../../verification/navigation-precision-tests.md)
+[Acceptance cases](../../verification/tests/runtime/navigation-precision.md)
 cover checked casts, complete-session profiles and frame/reset sequences. Use
 independent binary64 or higher-precision geometry and analytic local motion;
 compare dense/generated only as an additional implementation consistency check.

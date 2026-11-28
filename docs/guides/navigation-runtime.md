@@ -2,9 +2,12 @@
 
 Use [InsSession](../../include/formal_eskf/runtime/session/ins_session.hpp) when an
 application needs the existing complete geographic INS pipeline. Standalone
-ESKF, AHRS and individual runtime components remain available. This session is
-binary64; it does not infer a complete binary32 geographic deployment from the
-core's scalar support.
+ESKF, AHRS and individual runtime components remain available. The backend selects
+binary32 or binary64 local algebra; geographic
+coordinates and absolute height/datum arithmetic remain binary64. Existing PX4
+and replay profiles remain binary64. A float caller must supply a reviewed
+[precision profile](../spec/profiles/navigation-precision.md), including conversion
+allowances and scalar-specific settings; native tests are not deployment approval.
 
 The [architecture](../spec/architecture/navigation-runtime.md) and
 [R-INS-SESSION](../spec/requirements/runtime/ins-session.md) own the boundaries.

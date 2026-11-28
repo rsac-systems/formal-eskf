@@ -216,17 +216,19 @@ bool InsSession<Linalg, Layout>::update_imu_bias(ImuInput const & sample, imu_ty
 {
     double const angular_interval = sample.angular_interval_s();
     double const force_interval = sample.acceleration_interval_s();
-    m_average_imu_interval = m_settings.imu.interval_history_weight * m_average_imu_interval +
-                             m_settings.imu.interval_sample_weight *
-                                 std::clamp(0.5 * (angular_interval + force_interval),
-                                            m_settings.imu.minimum_interval_ratio * m_settings.imu.nominal_interval_s,
-                                            m_settings.imu.maximum_interval_ratio * m_settings.imu.nominal_interval_s);
+    m_average_imu_interval =
+        m_settings.imu.interval_history_weight * m_average_imu_interval +
+        m_settings.imu.interval_sample_weight *
+            std::clamp<double>(0.5 * (angular_interval + force_interval),
+                               m_settings.imu.minimum_interval_ratio * m_settings.imu.nominal_interval_s,
+                               m_settings.imu.maximum_interval_ratio * m_settings.imu.nominal_interval_s);
     typename bias_learning_type::Conditions conditions;
     conditions.at_rest = m_imu_context.land.known && m_imu_context.land.at_rest;
     conditions.accelerometer_clipping = sample.accelerometer_clipping;
     conditions.bad_vertical_acceleration = m_vertical_health.state().bad_vertical_acceleration;
     // This session has no fake-position/height modes. A GNSS outage is not a fake-aiding mode.
-    m_bias_learning_result = m_bias_learning.update(angular_interval, force_interval, m_state, imu, conditions);
+    m_bias_learning_result = m_bias_learning.update(static_cast<value_type>(angular_interval),
+                                                    static_cast<value_type>(force_interval), m_state, imu, conditions);
     return check(m_bias_learning_result.status);
 }
 
@@ -244,7 +246,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::upd
     observations.gnss_velocity_down.active &= m_gnss.lifecycle.state().velocity.active;
     typename vertical_health_type::Sample health_sample;
     health_sample.time_us = m_time_us;
-    health_sample.average_interval_s = m_average_imu_interval;
+    health_sample.average_interval_s = static_cast<value_type>(m_average_imu_interval);
     health_sample.clipping_available = true;
     for (size_t axis = 0; axis < 3; ++axis)
     {
@@ -509,7 +511,7 @@ bool InsSession<Linalg, Layout>::initialize_prior(InitialAttitude const & prior,
     // Prepare frame, datum and height reference before publishing any owner.
     // An initial solution is not a GNSS observation or a bypass of its qualification.
     NavigationFrame<backend_type> frame;
-    HeightDatum<backend_type> datum;
+    height_datum_type datum;
     auto height = m_height_aiding;
     NavigationOrigin origin{projection_type{m_settings.projection_radius_m}};
     if (navigation != nullptr)
@@ -746,9 +748,10 @@ void InsSession<Linalg, Layout>::predict_and_fuse(typename imu_history_type::int
         reset_imu_observations();
         m_operation = InsOperation::prediction;
         ++m_prediction_attempts;
-        if (!check(formal_eskf::runtime::predict_imu(m_state, m_covariance, interval.held_rate,
-                                                     interval.hold_period_us * seconds_per_microsecond, m_parameters, 0,
-                                                     false, m_settings.imu.faulty_specific_force_variance)))
+        if (!check(formal_eskf::runtime::predict_imu(
+                m_state, m_covariance, interval.held_rate,
+                static_cast<value_type>(interval.hold_period_us * seconds_per_microsecond), m_parameters, 0, false,
+                m_settings.imu.faulty_specific_force_variance)))
         {
             return;
         }

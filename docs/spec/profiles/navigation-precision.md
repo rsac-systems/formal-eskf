@@ -1,7 +1,7 @@
 # Navigation Precision Qualification Profile
 
-**Status:** Draft. The precision split is settled; binary32 session support and
-deployment qualification are not established. This profile instantiates
+**Status:** Draft. The software precision split is implemented; binary32 deployment
+qualification is not established. This profile instantiates
 [R-NAV-PRECISION](../requirements/runtime/navigation-precision.md).
 
 ## Baseline and candidate scope
@@ -55,6 +55,31 @@ For binary32 values near Earth radius, representable spacing is approximately
 0.5 m; near 10 km it is approximately 0.0009765625 m. These are format-spacing
 illustrations, not navigation acceptance limits. Geometry/model errors and repeated
 arithmetic are separate from one cast's rounding error.
+
+## Implementation conversion inventory
+
+The session binds the local scalar from its linalg backend and obtains binary64
+geometry through that backend family's `rebind<double>`. There is no independently
+selectable geographic scalar. The frame owner uses the same binding. The standalone
+height owner also supports its existing local-only height gauge.
+
+| Boundary / owner | Source to destination | Quantity, allowance and failure |
+|---|---|---|
+| Frame candidate, session geographic/GNSS frame | Binary64 ECEF difference and transform to local matrix/vector | Metres use `GeographicPrecision.position_m`; rotation/down-row coefficients use `.rotation`. `convert_transform` commits only after every coefficient passes; caller transactions remain responsible for state/history commit. |
+| Height observation, bias/reset/reference transport | Binary64 absolute heights to local residual/offset | Subtract in binary64 first; narrow metre differences with `.position_m`. Failed update preserves the complete height transaction. Height Jacobian uses `.rotation`. |
+| GNSS drift qualification | Binary64 height difference to local drift input | `.position_m`; conversion rejection prevents qualification and does not latch an INS numerical fault. Binary64 identity retains the original quality-owner rejection rules. |
+| Current geographic/MSL output | Local position widened to binary64 geometry, height difference narrowed to local Down | Exact widening adds no accuracy. Down uses `.position_m`; an unsupported geographic conversion revokes geographic availability while the existing attitude fallback remains available. |
+| Fixed consumer-map XY | Binary64 spherical computation to the existing binary32 map fields, then exact local/wider copy | Existing valid-domain projection contract and PX4-compatible output convention are unchanged. Geographic-envelope/adapter qualification remains required; this is not claimed as a newly checked general map API. |
+| Native session settings, priors, local IMU/aiding | Caller-supplied receiving scalar | Construct settings in the selected format; validity checks use that format, including squared GNSS noise. A caller converting external configuration must check before discarding source precision; an API cannot recover a positive value already rounded to zero. |
+| Predictor's existing external settings | Binary64 parameters to local scalar | Range and positive divisor representability checked at configuration. Float nonzero settings require the normal range. Round-to-nearest parameter error is at most half adjacent spacing; the profile must accept that bound per setting/unit. Double configuration semantics remain unchanged. |
+| Integer intervals to local seconds | Bounded admitted microseconds to local scalar | Existing interval bounds precede conversion; local propagation uses the selected scalar. Time identities/selection remain integer; physical period and roundoff qualification belong to the admitted rate profile. |
+| Diagnostic/publication widening | Local coefficients to binary64 fields | Exact widening; `Diagnostics.local_scalar_bits` and `.geographic_scalar_bits` expose source precision. Current nominal and delayed covariance timestamps retain separate meaning. |
+
+`GeographicPrecision` defaults to zero error allowance (exact conversion), not an
+invented universal float setting. The [native test design](../verification/tests/runtime/navigation-precision.md)
+declares explicit synthetic allowances and independent finite-case oracles.
+No core equation, code generator, default PX4/replay scalar or deployed gate is
+changed by this precision binding.
 
 ## Criteria required before candidate acceptance
 

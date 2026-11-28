@@ -136,6 +136,7 @@ formal_eskf_add_backend_test(test_height_aiding runtime/height/test_height_aidin
 formal_eskf_add_backend_test(test_height_observation runtime/height/test_height_observation formal_eskf.height_observation.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_imu_prediction runtime/imu/test_prediction formal_eskf.imu_prediction.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_imu_history runtime/imu/test_history formal_eskf.imu_history.eigen formal_eskf::runtime)
+formal_eskf_add_backend_test(test_ins_precision runtime/session/test_precision formal_eskf.ins_precision.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_ins_session runtime/session/test_session formal_eskf.ins_session.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_ins_initialization runtime/session/test_initialization formal_eskf.ins_initialization.eigen formal_eskf::runtime)
 formal_eskf_add_backend_test(test_ins_initial_attitude runtime/session/test_initial_attitude formal_eskf.ins_initial_attitude.eigen formal_eskf::runtime)

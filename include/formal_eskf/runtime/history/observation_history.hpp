@@ -2,6 +2,7 @@
 #pragma once
 
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 
@@ -62,7 +63,7 @@ public:
     struct BarometerSample
     {
         SourceStamp stamp{};
-        value_type altitude_m{}; // Producer's pressure altitude, before height-bias estimation.
+        double altitude_m{}; // Producer's pressure altitude, before height-bias estimation.
     };
 
     struct GnssObservation
@@ -557,7 +558,7 @@ ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, Co
 {
     std::uint64_t time{};
     auto const delay = m_configuration.barometer_delay_us;
-    if (!scalar::is_finite<typename Linalg::scalar_math_type>(sample.altitude_m))
+    if (!std::isfinite(sample.altitude_m))
     {
         input_status = Status::non_finite_input;
     }

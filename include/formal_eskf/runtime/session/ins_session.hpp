@@ -35,13 +35,19 @@ namespace formal_eskf::runtime
  */
 template <typename Linalg, typename Layout> class InsSession
 {
-    static_assert(std::is_same_v<typename Linalg::value_type, double>, "Geographic session requires binary64");
+
     friend class formal_eskf::testing::InsSessionTest;
 
 public:
     using backend_type = Linalg;
+    using value_type = typename Linalg::value_type;
+    using geographic_backend_type = typename Linalg::template rebind<double>;
+    using geographic_math_type = typename geographic_backend_type::scalar_math_type;
+    using geographic_vector_type = linalg::Vector<geographic_backend_type, 3>;
+    using geographic_frame_type = geodesy::LocalNed<geographic_backend_type>;
+    using height_datum_type = HeightDatum<geographic_backend_type>;
     using math_type = typename Linalg::scalar_math_type;
-    using projection_type = SphericalProjection<math_type>;
+    using projection_type = SphericalProjection<geographic_math_type>;
     using types_type = formal_eskf::EskfTypes<backend_type, formal_eskf::configuration::Ins>;
     using state_type = typename types_type::nominal_state_type;
     using covariance_type = typename types_type::error_covariance_type;
@@ -52,8 +58,8 @@ public:
     using matrix3_type = formal_eskf::linalg::Matrix<backend_type, 3, 3>;
     using imu_type = typename types_type::imu_sample_type;
     using status_type = formal_eskf::Status;
-    using height_type = formal_eskf::runtime::HeightAiding<backend_type>;
-    using barometric_type = formal_eskf::runtime::BarometricAltitude<math_type>;
+    using height_type = formal_eskf::runtime::HeightAiding<backend_type, geographic_backend_type>;
+    using barometric_type = formal_eskf::runtime::BarometricAltitude<geographic_math_type>;
     using bias_learning_type = formal_eskf::runtime::ImuBiasInhibition<backend_type>;
     using vertical_health_type = formal_eskf::runtime::VerticalAccelerationHealth<backend_type>;
     using gravity_sampler_type = formal_eskf::runtime::AccelerometerSample<backend_type, Layout::gravity_interval_us>;
@@ -95,8 +101,8 @@ public:
         std::uint64_t generation{};
         projection_type previous_fix{0};
         formal_eskf::runtime::GnssQuality<backend_type> quality{};
-        formal_eskf::runtime::GnssQualityParameters<double> quality_parameters{};
-        formal_eskf::runtime::GnssQualityResult<double> quality_result{};
+        formal_eskf::runtime::GnssQualityParameters<value_type> quality_parameters{};
+        formal_eskf::runtime::GnssQualityResult<value_type> quality_result{};
         gnss_lifecycle_type lifecycle{};
         gnss_lifecycle_type::Sample sample{};
         typename vertical_health_type::Innovation vertical_innovation{};
@@ -121,7 +127,7 @@ public:
         vector3_type velocity_n{};
         vector3_type variances{};
         matrix3_type covariance{};
-        formal_eskf::runtime::GnssVelocityConditions<double> conditions{};
+        formal_eskf::runtime::GnssVelocityConditions<value_type> conditions{};
     };
 
     struct SensorPositions
@@ -133,7 +139,7 @@ public:
     {
         status_type status = status_type::domain_error;
         formal_eskf::geodesy::GeodeticPosition point{};
-        vector3_type ecef{};
+        geographic_vector_type ecef{};
         matrix3_type rotation{};
     };
 
@@ -210,7 +216,7 @@ public:
 
     struct OriginControl
     {
-        formal_eskf::geodesy::LocalNed<backend_type> datum_frame{};
+        geographic_frame_type datum_frame{};
         std::uint64_t attempt_time_us{}, success_time_us{};
         matrix3_type output_axes = matrix3_type::identity();
         double relative_height_ellipsoid_m = NAN;
@@ -245,7 +251,8 @@ public:
     struct Parameters
     {
         std::uint64_t session_id{}; // Caller-owned instance identity; zero explicitly means unavailable.
-        InsSettings settings{};
+        InsSettings<value_type> settings{};
+        GeographicPrecision geographic_precision{};
         typename types_type::parameter_type estimator{};
         typename startup_type::Parameters startup{};
         typename continuity_type::Parameters continuity{};
@@ -255,7 +262,7 @@ public:
         typename barometric_type::parameters_type barometer_model{};
         typename barometric_type::limits_type barometer_sensor{};
         typename bias_learning_type::Parameters bias_learning{};
-        GnssQualityParameters<double> gnss_quality{};
+        GnssQualityParameters<value_type> gnss_quality{};
         std::uint64_t magnetic_lookup_interval_us{};
     };
 
@@ -267,8 +274,8 @@ public:
 
     struct InitialAttitude
     {
-        quaternion_type q_nb{};             // Body FRD to true-North local NED at the seed endpoint.
-        std::array<double, 3> variance_n{}; // Small-angle variances in NED, rad^2; strictly positive.
+        quaternion_type q_nb{};                 // Body FRD to true-North local NED at the seed endpoint.
+        std::array<value_type, 3> variance_n{}; // Small-angle variances in NED, rad^2; strictly positive.
     };
 
     struct InitialNavigation
@@ -276,8 +283,8 @@ public:
         InitialAttitude attitude{};
         geodesy::GeodeticPosition position{}; // IMU location; degrees, ellipsoidal metres.
         double altitude_msl_m{};
-        vector3_type velocity_n{};                                          // IMU velocity in the same local NED, m/s.
-        std::array<double, 3> position_variance_n{}, velocity_variance_n{}; // m^2, (m/s)^2.
+        vector3_type velocity_n{}; // IMU velocity in the same local NED, m/s.
+        std::array<value_type, 3> position_variance_n{}, velocity_variance_n{}; // m^2, (m/s)^2.
     };
 
     struct ModelRequest
@@ -372,6 +379,8 @@ public:
 
     struct Diagnostics
     {
+        unsigned local_scalar_bits = sizeof(value_type) * 8;
+        unsigned geographic_scalar_bits = sizeof(double) * 8;
         std::uint64_t session_id{}, capture_time_us{}, output_time_us{}, covariance_time_us{}, completed_fusion_us{};
         std::uint64_t frame_epoch{}, evaluations{}, predictions{}, output_predictions{}, faults{}, imu_admissions{};
         std::uint64_t imu_rejections{}, imu_raw_time_us{}, imu_arrival_time_us{}, lag_us{};
@@ -391,12 +400,12 @@ public:
         std::array<FusionDiagnostic, 6> groups{};
         std::array<AdmissionReport, 3> inputs{}; // GNSS, magnetic, barometer.
         EvaluationEpoch gnss_quality_epoch{};
-        GnssQualityResult<double> gnss_quality{};
+        GnssQualityResult<value_type> gnss_quality{};
         bool gnss_quality_evaluated{};
         QualitySelection gnss_selection = QualitySelection::none;
         std::uint64_t gnss_consumed_time_us{};
         EvaluationEpoch magnetic_quality_epoch{};
-        MagneticFieldCheck<double> magnetic_quality{};
+        MagneticFieldCheck<value_type> magnetic_quality{};
         bool magnetic_quality_evaluated{};
         std::uint64_t magnetic_consumed_time_us{};
         GnssQualityChecks gnss_checks{};
@@ -534,8 +543,7 @@ public:
     vector3_type rotation_variance_n() const;
     bool magnetic_heading_valid() const;
     GeographicFrame geographic_frame(vector3_type const & position) const;
-    static GeographicFrame geographic_frame(vector3_type const & position,
-                                            geodesy::LocalNed<backend_type> const & working);
+    GeographicFrame geographic_frame(vector3_type const & position, geographic_frame_type const & working) const;
     GeographicFrame delayed_body_frame() const;
     NavigationVariance navigation_variances() const;
     vector3_type navigation_variance(std::size_t start, matrix3_type const & rotation) const;
@@ -544,8 +552,8 @@ public:
                            quaternion_type const & attitude, vector3_type const & angular_rate) const;
     BodyOutput geographic_output(vector3_type const & position, vector3_type const & velocity,
                                  quaternion_type const & attitude, vector3_type const & angular_rate,
-                                 geodesy::LocalNed<backend_type> const & working,
-                                 HeightDatum<backend_type> const & datum, NavigationOrigin const & origin) const;
+                                 geographic_frame_type const & working, height_datum_type const & datum,
+                                 NavigationOrigin const & origin) const;
     bool output_healthy(std::uint64_t now) const;
     OutputValidity output_validity(std::uint64_t now) const;
 
@@ -554,9 +562,12 @@ private:
     static constexpr double seconds_per_microsecond = 1e-6;
     static constexpr double microtesla_per_gauss = 100.;
 
-    static vector3_type vector3(double x, double y, double z) { return vector3_type::from_row_major({x, y, z}); }
+    static vector3_type vector3(value_type x, value_type y, value_type z)
+    {
+        return vector3_type::from_row_major({x, y, z});
+    }
 
-    static double square(double x) { return x * x; }
+    static value_type square(value_type x) { return x * x; }
 
     template <std::size_t Size> static void clear_innovations(std::array<InnovationEvent, Size> & events)
     {
@@ -605,7 +616,7 @@ private:
                            status_type status);
 
     void update_gps_quality();
-    formal_eskf::runtime::GnssQualitySample<backend_type> gnss_quality_sample() const;
+    status_type gnss_quality_sample(formal_eskf::runtime::GnssQualitySample<backend_type> & sample) const;
     formal_eskf::runtime::GnssQualityMotion gnss_motion() const;
     vector3_type gnss_position_offset() const;
     vector3_type gnss_velocity_offset(imu_type const & imu) const;
@@ -660,7 +671,7 @@ private:
 
     NavigationOrigin m_origin{};
     NavigationFrame<backend_type> m_navigation_frame{};
-    HeightDatum<backend_type> m_height_datum{};
+    height_datum_type m_height_datum{};
     OriginControl m_origin_control{};
     SensorPositions m_sensor_positions{};
 
@@ -690,7 +701,8 @@ private:
     std::uint64_t m_mag_model_origin_time{};
     Gnss m_gnss{};
 
-    InsSettings m_settings;
+    GeographicPrecision m_geographic_precision{};
+    InsSettings<value_type> m_settings;
     ImuTiming m_imu_timing;
     Statistics m_statistics{};
     Innovations m_innovations{};
@@ -712,9 +724,9 @@ private:
     bool m_gnss_quality_evaluated{};
     QualitySelection m_gnss_selection = QualitySelection::none;
     EvaluationEpoch m_magnetic_quality_epoch{};
-    MagneticFieldCheck<double> m_diagnostic_magnetic_quality{};
+    MagneticFieldCheck<value_type> m_diagnostic_magnetic_quality{};
     bool m_magnetic_quality_evaluated{};
-    GnssQualityResult<double> m_diagnostic_gnss_quality{};
+    GnssQualityResult<value_type> m_diagnostic_gnss_quality{};
     GnssQualityMotion m_gnss_quality_motion{};
     AccelerometerFusionCheck m_gravity_conditions{};
     ImuSource m_filtered_imu_source{};

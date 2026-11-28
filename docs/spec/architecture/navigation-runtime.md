@@ -69,9 +69,10 @@ policy. Session composes lower components; lower components do not include it.
 
 [R-NAV-PRECISION](../requirements/runtime/navigation-precision.md) extends the
 session's numerical applicability without changing the Cartesian equations or
-phase ownership. The current session and LocalNed require binary64. Supporting
-binary32 therefore requires explicit geography/local boundaries, not just removal
-of a type assertion. The [precision profile](../profiles/navigation-precision.md)
+phase ownership. InsSession selects local binary32 or binary64 through its backend;
+LocalNed and datum geometry remain binary64. Explicit checked boundaries separate
+them. Host software tests do not establish a binary32 deployment profile.
+The [precision profile](../profiles/navigation-precision.md)
 owns the boundary inventory, candidate builds and unresolved acceptance limits.
 
 | Owner | Precision responsibility |
@@ -93,9 +94,10 @@ arithmetic and a selectable local scalar with binary64 default. This alignment
 of responsibilities does not copy PX4's navigation formulation, tolerances or
 deployment qualification.
 
-The [precision cases](../verification/navigation-precision-tests.md) require the
+The [precision cases](../verification/tests/runtime/navigation-precision.md) require the
 whole session and its callers. Existing binary32 core evidence remains limited
-to its original scope; the new session profile is not yet implemented or qualified.
+to its original scope; scoped native session tests do not establish numerical
+or target deployment qualification.
 
 ### Navigation output target
 

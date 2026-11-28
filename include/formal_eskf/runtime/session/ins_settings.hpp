@@ -9,54 +9,54 @@
 namespace formal_eskf::runtime
 {
 /** Copied numerical coordination settings; applications supply their own profile. */
-struct InsSettings
+template <typename Scalar = double> struct InsSettings
 {
-    BiasLimits<double> bias_limits{};
+    BiasLimits<Scalar> bias_limits{};
     double projection_radius_m{};
 
     struct Gnss
     {
         std::uint64_t context_maximum_age_us{};
-        double gate_sigma{};
-        double maximum_position_noise_m{};
+        Scalar gate_sigma{};
+        Scalar maximum_position_noise_m{};
         std::uint64_t maximum_sample_age_us{};
-        double minimum_position_noise_m{};
-        double minimum_velocity_noise_m_s{};
+        Scalar minimum_position_noise_m{};
+        Scalar minimum_velocity_noise_m_s{};
         GnssFusion::Parameters timing{};
-        double vertical_variance_multiplier{};
+        Scalar vertical_variance_multiplier{};
         std::uint64_t maximum_aiding_age_us{};
     } gnss{};
 
     struct Height
     {
-        double barometer_variance{};
+        Scalar barometer_variance{};
         std::uint64_t context_maximum_age_us{};
         std::uint64_t ground_effect_timeout_us{};
-        double minimum_gnss_noise_m{};
+        Scalar minimum_gnss_noise_m{};
     } height{};
 
     struct Imu
     {
-        double faulty_specific_force_variance{};
-        double interval_history_weight{};
-        double interval_sample_weight{};
-        double maximum_interval_ratio{};
-        double minimum_interval_ratio{};
-        double nominal_interval_s{};
+        Scalar faulty_specific_force_variance{};
+        Scalar interval_history_weight{};
+        Scalar interval_sample_weight{};
+        Scalar maximum_interval_ratio{};
+        Scalar minimum_interval_ratio{};
+        Scalar nominal_interval_s{};
         std::uint64_t rest_maximum_age_us{};
     } imu{};
 
     struct Magnetic
     {
-        double acceleration_limit_m_s2{};
+        Scalar acceleration_limit_m_s2{};
         MagneticFieldChecks checks{};
         std::uint64_t context_maximum_age_us{};
-        MagneticFieldParameters<double> field{};
-        double gate_sigma{};
-        double heading_noise_rad{};
+        MagneticFieldParameters<Scalar> field{};
+        Scalar gate_sigma{};
+        Scalar heading_noise_rad{};
         std::uint64_t maximum_heading_age_us{};
-        double maximum_heading_variance{};
-        double noise_variance{};
+        Scalar maximum_heading_variance{};
+        Scalar noise_variance{};
         MagnetometerFusion::Parameters timing{};
     } magnetic{};
 
@@ -83,11 +83,11 @@ struct InsSettings
 
     struct Output
     {
-        double attitude_reset_resolution{};
+        Scalar attitude_reset_resolution{};
         std::uint64_t dead_reckoning_age_us{};
         std::uint64_t maximum_age_us{};
-        double position_reset_resolution_m{};
-        double velocity_reset_resolution_m_s{};
+        Scalar position_reset_resolution_m{};
+        Scalar velocity_reset_resolution_m_s{};
     } output{};
 };
 } // namespace formal_eskf::runtime

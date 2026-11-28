@@ -9,7 +9,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::val
 {
     auto positive = [](double value) { return std::isfinite(value) && value > 0.; };
     auto nonnegative = [](double value) { return std::isfinite(value) && value >= 0.; };
-    auto weights = [&](double history, double sample)
+    auto weights = [&](value_type history, value_type sample)
     { return nonnegative(history) && nonnegative(sample) && history + sample == 1.; };
     auto const & timing = p.observation_timing.imu;
     auto const & e = p.estimator;
@@ -25,7 +25,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::val
         p.startup.minimum_interval > double(timing.minimum_period_us) / 1000000. ||
         !positive(p.output.minimum_interval_s) || p.output.minimum_interval_s > smallest_step ||
         !positive(p.output.maximum_interval_s) || p.output.maximum_interval_s < largest_step ||
-        p.output.nominal_interval_s != nominal || s.imu.nominal_interval_s != nominal ||
+        p.output.nominal_interval_s != nominal || s.imu.nominal_interval_s != static_cast<value_type>(nominal) ||
         !linalg::all_finite(e.gravity_n) || e.gravity_n(0) != 0 || e.gravity_n(1) != 0 || !positive(e.gravity_n(2)) ||
         p.startup.gravity != e.gravity_n(2) || p.output.gravity_m_s2 != e.gravity_n(2) ||
         !positive(e.minimum_quaternion_norm) || e.minimum_quaternion_norm > 1 ||
@@ -53,28 +53,28 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::val
         }
     }
 
-    for (double value : {s.projection_radius_m,
-                         s.gnss.gate_sigma,
-                         s.gnss.maximum_position_noise_m,
-                         s.gnss.minimum_position_noise_m,
-                         s.gnss.minimum_velocity_noise_m_s,
-                         s.gnss.vertical_variance_multiplier,
-                         s.height.minimum_gnss_noise_m,
-                         s.magnetic.acceleration_limit_m_s2,
-                         s.magnetic.gate_sigma,
-                         s.magnetic.heading_noise_rad,
-                         s.magnetic.maximum_heading_variance,
-                         s.magnetic.noise_variance,
-                         s.magnetic.field.minimum_horizontal_field,
-                         s.origin.datum_maximum_distance_m,
-                         s.origin.maximum_angle_rad,
-                         s.origin.maximum_distance_m,
-                         s.origin.maximum_speed_m_s,
-                         s.origin.trigger_angle_rad,
-                         s.origin.trigger_distance_m,
-                         s.output.attitude_reset_resolution,
-                         s.output.position_reset_resolution_m,
-                         s.output.velocity_reset_resolution_m_s})
+    for (double value : std::initializer_list<double>{s.projection_radius_m,
+                                                      s.gnss.gate_sigma,
+                                                      s.gnss.maximum_position_noise_m,
+                                                      s.gnss.minimum_position_noise_m,
+                                                      s.gnss.minimum_velocity_noise_m_s,
+                                                      s.gnss.vertical_variance_multiplier,
+                                                      s.height.minimum_gnss_noise_m,
+                                                      s.magnetic.acceleration_limit_m_s2,
+                                                      s.magnetic.gate_sigma,
+                                                      s.magnetic.heading_noise_rad,
+                                                      s.magnetic.maximum_heading_variance,
+                                                      s.magnetic.noise_variance,
+                                                      s.magnetic.field.minimum_horizontal_field,
+                                                      s.origin.datum_maximum_distance_m,
+                                                      s.origin.maximum_angle_rad,
+                                                      s.origin.maximum_distance_m,
+                                                      s.origin.maximum_speed_m_s,
+                                                      s.origin.trigger_angle_rad,
+                                                      s.origin.trigger_distance_m,
+                                                      s.output.attitude_reset_resolution,
+                                                      s.output.position_reset_resolution_m,
+                                                      s.output.velocity_reset_resolution_m_s})
     {
         if (!positive(value))
         {
@@ -89,7 +89,7 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::val
                                 s.height.minimum_gnss_noise_m,
                                 s.magnetic.gate_sigma,
                                 s.magnetic.heading_noise_rad};
-    if (!std::all_of(deviations.begin(), deviations.end(), [&](double value) { return positive(value * value); }))
+    if (!std::all_of(deviations.begin(), deviations.end(), [&](value_type value) { return positive(value * value); }))
     {
         return false;
     }
@@ -134,7 +134,8 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::val
         }
     }
 
-    return nonnegative(s.bias_limits.accelerometer) && nonnegative(s.bias_limits.gyroscope) &&
+    return nonnegative(p.geographic_precision.position_m) && nonnegative(p.geographic_precision.rotation) &&
+           nonnegative(s.bias_limits.accelerometer) && nonnegative(s.bias_limits.gyroscope) &&
            nonnegative(s.imu.faulty_specific_force_variance) && nonnegative(s.magnetic.field.strength_tolerance) &&
            nonnegative(s.magnetic.field.inclination_tolerance) &&
            s.magnetic.field.inclination_tolerance <= math_type::pi() &&
@@ -152,9 +153,9 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::val
 template <typename Linalg, typename Layout>
 InsSession<Linalg, Layout>::InsSession(Parameters const & p)
     : m_parameters(p.estimator), m_startup(p.startup), m_continuity(p.continuity), m_observations(p.observation_timing),
-      m_output(p.output), m_height_aiding(p.height), m_bias_learning(p.bias_learning),
+      m_output(p.output), m_height_aiding(p.height, p.geographic_precision), m_bias_learning(p.bias_learning),
       m_average_imu_interval(p.settings.imu.nominal_interval_s), m_magnetic_model(p.magnetic_lookup_interval_us),
-      m_settings(p.settings), m_imu_timing(p.observation_timing.imu)
+      m_geographic_precision(p.geographic_precision), m_settings(p.settings), m_imu_timing(p.observation_timing.imu)
 {
     m_session_id = p.session_id;
     m_operation = InsOperation::initialization;

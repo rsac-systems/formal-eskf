@@ -86,6 +86,7 @@ template <typename Scalar> class CmsisDspBackend
 
 public:
     using value_type = Scalar;
+    template <typename OtherScalar> using rebind = CmsisDspBackend<OtherScalar>;
     using scalar_math_type = scalar::StandardMath<value_type>;
 
     template <std::size_t Rows, std::size_t Columns> struct alignas(16) storage_type

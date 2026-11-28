@@ -18,11 +18,12 @@ using formal_eskf::test::Context;
 
 template <typename Matrix> bool same_bits(Matrix const & a, Matrix const & b)
 {
+    using Bytes = std::array<std::byte, sizeof(typename Matrix::value_type)>;
     for (std::size_t r = 0; r < Matrix::row_count; ++r)
     {
         for (std::size_t c = 0; c < Matrix::column_count; ++c)
         {
-            if (std::bit_cast<std::uint64_t>(a(r, c)) != std::bit_cast<std::uint64_t>(b(r, c)))
+            if (std::bit_cast<Bytes>(a(r, c)) != std::bit_cast<Bytes>(b(r, c)))
             {
                 return false;
             }
@@ -33,6 +34,8 @@ template <typename Matrix> bool same_bits(Matrix const & a, Matrix const & b)
 
 template <typename Runtime = Session> struct Fixture
 {
+    using Vector = typename Runtime::vector3_type;
+    using Scalar = typename Runtime::value_type;
     Runtime session;
 
     struct Inputs
@@ -51,7 +54,8 @@ template <typename Runtime = Session> struct Fixture
 
     typename Runtime::ImuInput imu{};
     typename Runtime::ContextInput context{};
-    typename Runtime::magnetic_model_type::sample_type model{0, std::atan2(40., 20.), std::hypot(20., 40.)};
+    typename Runtime::magnetic_model_type::sample_type model{0, static_cast<Scalar>(std::atan2(40., 20.)),
+                                                             static_cast<Scalar>(std::hypot(20., 40.))};
     typename Runtime::Innovations events{};
     unsigned step{};
     bool configured{};
@@ -68,22 +72,22 @@ template <typename Runtime = Session> struct Fixture
         input.gnss.longitude_deg = 8.545594;
         input.gnss.altitude_ellipsoid_m = 535;
         input.gnss.altitude_msl_m = 488;
-        input.gnss.horizontal_accuracy_m = 0.7;
+        input.gnss.horizontal_accuracy_m = Scalar(0.7);
         input.gnss.vertical_accuracy_m = 1;
-        input.gnss.speed_accuracy_m_s = 0.2;
-        input.gnss.hdop = 0.7;
-        input.gnss.vdop = 0.9;
+        input.gnss.speed_accuracy_m_s = Scalar(0.2);
+        input.gnss.hdop = Scalar(0.7);
+        input.gnss.vdop = Scalar(0.9);
         input.gnss.fix_type = 3;
         input.gnss.satellites = 12;
         input.gnss.velocity_valid = true;
         input.barometer.stamp.source.device_id = 401;
         input.barometer.altitude_m = 538; // Different datum; the height owner must learn the offset.
         input.magnetic.device_id = 301;
-        input.magnetic.field_gauss = Vector::from_row_major({0.2, 0, 0.4});
+        input.magnetic.field_gauss = Vector::from_row_major({Scalar(0.2), 0, Scalar(0.4)});
         imu.source.accelerometer_id = 101;
         imu.source.gyroscope_id = 102;
         imu.angular_period_us = imu.acceleration_period_us = 4000;
-        imu.delta_velocity_b = Vector::from_row_major({0, 0, -9.80665 * 0.004});
+        imu.delta_velocity_b = Vector::from_row_major({0, 0, Scalar(-9.80665 * 0.004)});
     }
 
     bool tick(bool complete = true)
@@ -122,7 +126,7 @@ template <typename Runtime = Session> struct Fixture
             {
                 session.receive_magnetic(
                     {{input.magnetic.time_us, {input.magnetic.device_id, input.magnetic.calibration_count}},
-                     input.magnetic.field_gauss * 100.},
+                     input.magnetic.field_gauss * Scalar(100)},
                     now);
             }
             if (barometer && send_barometer)

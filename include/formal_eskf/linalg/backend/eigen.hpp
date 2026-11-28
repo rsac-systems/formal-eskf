@@ -38,6 +38,7 @@ template <typename Scalar> class EigenBackend
 
 public:
     using value_type = Scalar;
+    template <typename OtherScalar> using rebind = EigenBackend<OtherScalar>;
     using scalar_math_type = scalar::StandardMath<value_type>;
 
     template <std::size_t Rows, std::size_t Columns>

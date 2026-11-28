@@ -22,10 +22,11 @@ namespace formal_eskf::runtime
 template <typename Linalg> class NavigationFrame
 {
 public:
+    using geographic_backend_type = typename Linalg::template rebind<double>;
     using candidate_type = OriginRebaseCandidate<Linalg>;
     using state_type = typename candidate_type::state_type;
     using covariance_type = typename candidate_type::covariance_type;
-    using frame_type = geodesy::LocalNed<Linalg>;
+    using frame_type = geodesy::LocalNed<geographic_backend_type>;
     using transform_type = geodesy::NedTransform<Linalg>;
     using vector_type = linalg::Vector<Linalg, 3>;
 
@@ -44,17 +45,22 @@ public:
     }
 
     [[nodiscard]] Status prepare(state_type const & state, covariance_type const & covariance,
-                                 typename Linalg::value_type minimum_norm)
+                                 typename Linalg::value_type minimum_norm, GeographicPrecision const & precision = {})
     {
         m_prepared = false;
         if (m_generation == std::numeric_limits<std::uint64_t>::max())
         {
             return Status::out_of_range;
         }
-        auto status = m_candidate.prepare(m_working, state, covariance, minimum_norm);
+        auto status = m_candidate.prepare(m_working, state, covariance, minimum_norm, precision);
         if (succeeded(status))
         {
-            status = m_candidate.frame.transform_to(m_reference, m_next_reference);
+            geodesy::NedTransform<geographic_backend_type> geographic;
+            status = m_candidate.frame.transform_to(m_reference, geographic);
+            if (succeeded(status))
+            {
+                status = convert_transform(geographic, precision, m_next_reference);
+            }
         }
         m_prepared = succeeded(status);
         return status;
@@ -114,9 +120,9 @@ public:
 
     [[nodiscard]] Status geographic(vector_type const & position, geodesy::GeodeticPosition & output) const
     {
-        vector_type ecef;
-        Status const status = m_working.ned_to_ecef(position, ecef);
-        return succeeded(status) ? geodesy::ecef_to_geodetic<Linalg>(ecef, output) : status;
+        linalg::Vector<geographic_backend_type, 3> ecef;
+        Status const status = m_working.ned_to_ecef(geographic_matrix<geographic_backend_type>(position), ecef);
+        return succeeded(status) ? geodesy::ecef_to_geodetic<geographic_backend_type>(ecef, output) : status;
     }
 
     bool initialized() const { return m_working.initialized(); }

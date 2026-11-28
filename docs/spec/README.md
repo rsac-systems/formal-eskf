@@ -182,8 +182,9 @@ physical/target acceptance and source proofs remain open under
 [R-NAV-PRECISION](requirements/runtime/navigation-precision.md) specifies the
 reviewed precision principles. Its [architecture allocation](architecture/navigation-runtime.md#mixed-precision-target),
 [qualification profile](profiles/navigation-precision.md) and
-[planned tests](verification/navigation-precision-tests.md) retain unresolved
-numerical/target criteria. This Draft does not establish binary32 session support.
+[scoped native tests](verification/tests/runtime/navigation-precision.md) distinguish
+implemented software from unresolved numerical/target criteria. This Draft does
+not establish a supported binary32 deployment.
 
 ## Integrated IMU accumulation target
 

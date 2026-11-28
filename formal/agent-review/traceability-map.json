@@ -4983,7 +4983,7 @@
           },
           {
             "file": "include/formal_eskf/runtime/sensors/height/height_aiding.hpp",
-            "symbol": "HeightAiding<Linalg>::update("
+            "symbol": "HeightAiding<Linalg, Geography>::update("
           },
           {
             "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
@@ -5260,7 +5260,7 @@
           },
           {
             "file": "include/formal_eskf/runtime/sensors/height/height_aiding.hpp",
-            "symbol": "void HeightAiding<Linalg>::process("
+            "symbol": "void HeightAiding<Linalg, Geography>::process("
           },
           {
             "file": "include/formal_eskf/runtime/session/ins_session_attitude.hpp",
@@ -5435,7 +5435,7 @@
           },
           {
             "file": "include/formal_eskf/runtime/sensors/height/height_aiding.hpp",
-            "symbol": "void HeightAiding<Linalg>::process("
+            "symbol": "void HeightAiding<Linalg, Geography>::process("
           },
           {
             "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
@@ -5988,7 +5988,7 @@
           },
           {
             "file": "include/formal_eskf/runtime/sensors/height/height_aiding.hpp",
-            "symbol": "bool HeightAiding<Linalg>::valid_parameters() const"
+            "symbol": "bool HeightAiding<Linalg, Geography>::valid_parameters() const"
           },
           {
             "file": "include/formal_eskf/runtime/sensors/height/height_observation.hpp",
@@ -8370,7 +8370,7 @@
             "symbol": "# Navigation Precision Qualification Profile"
           },
           {
-            "file": "docs/spec/verification/navigation-precision-tests.md",
+            "file": "docs/spec/verification/tests/runtime/navigation-precision.md",
             "symbol": "## Cases"
           },
           {
@@ -9103,6 +9103,46 @@
           {
             "file": "examples/replay/session.cpp",
             "symbol": "void replay_session("
+          }
+        ],
+        "esbmc": []
+      }
+    },
+    {
+      "id": "R-NAV-PRECISION",
+      "title": "Mixed-precision portable session: scoped binary32/binary64 native evidence; numerical deployment/target qualification and new formal evidence remain open",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/runtime/navigation-precision.md",
+            "symbol": "# R-NAV-PRECISION:"
+          },
+          {
+            "file": "docs/spec/profiles/navigation-precision.md",
+            "symbol": "## Implementation conversion inventory"
+          },
+          {
+            "file": "docs/spec/verification/tests/runtime/navigation-precision.md",
+            "symbol": "## Implemented software profile"
+          }
+        ],
+        "lean": [],
+        "cpp": [
+          {
+            "file": "include/formal_eskf/runtime/frames/precision.hpp",
+            "symbol": "Status convert_scalar("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session.hpp",
+            "symbol": "class InsSession"
+          },
+          {
+            "file": "tests/runtime/session/test_precision.cpp",
+            "symbol": "void session("
+          },
+          {
+            "file": "tests/runtime/session/test_precision.cpp",
+            "symbol": "void history_transaction("
           }
         ],
         "esbmc": []

@@ -41,6 +41,7 @@ template <typename Scalar> class Px4MatrixBackend
 
 public:
     using value_type = Scalar;
+    template <typename OtherScalar> using rebind = Px4MatrixBackend<OtherScalar>;
     using scalar_math_type = scalar::StandardMath<value_type>;
 
     template <std::size_t Rows, std::size_t Columns> using storage_type = ::matrix::Matrix<value_type, Rows, Columns>;

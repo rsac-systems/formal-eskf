@@ -8,9 +8,9 @@ namespace formal_eskf::runtime
 
 template <typename Linalg, typename Layout> double InsSession<Linalg, Layout>::frame_angle(matrix3_type const & A)
 {
-    double const x = A(2, 1) - A(1, 2), y = A(0, 2) - A(2, 0), z = A(1, 0) - A(0, 1);
+    value_type const x = A(2, 1) - A(1, 2), y = A(0, 2) - A(2, 0), z = A(1, 0) - A(0, 1);
     // Includes North convergence and remains conditioned at identity.
-    return math_type::atan2(math_type::sqrt(x * x + y * y + z * z), A(0, 0) + A(1, 1) + A(2, 2) - 1.);
+    return math_type::atan2(math_type::sqrt(x * x + y * y + z * z), A(0, 0) + A(1, 1) + A(2, 2) - value_type{1});
 }
 
 template <typename Linalg, typename Layout>
@@ -22,17 +22,16 @@ InsSession<Linalg, Layout>::geographic_frame(vector3_type const & position) cons
 
 template <typename Linalg, typename Layout>
 typename InsSession<Linalg, Layout>::GeographicFrame
-InsSession<Linalg, Layout>::geographic_frame(vector3_type const & position,
-                                             geodesy::LocalNed<backend_type> const & working)
+InsSession<Linalg, Layout>::geographic_frame(vector3_type const & position, geographic_frame_type const & working) const
 {
     GeographicFrame result;
-    result.status = working.ned_to_ecef(position, result.ecef);
+    result.status = working.ned_to_ecef(geographic_matrix<geographic_backend_type>(position), result.ecef);
     if (formal_eskf::succeeded(result.status))
     {
-        result.status = formal_eskf::geodesy::ecef_to_geodetic<backend_type>(result.ecef, result.point);
+        result.status = formal_eskf::geodesy::ecef_to_geodetic<geographic_backend_type>(result.ecef, result.point);
     }
 
-    formal_eskf::geodesy::LocalNed<backend_type> frame;
+    geographic_frame_type frame;
     if (formal_eskf::succeeded(result.status))
     {
         result.status = frame.set_origin(result.point);
@@ -40,9 +39,12 @@ InsSession<Linalg, Layout>::geographic_frame(vector3_type const & position,
 
     if (formal_eskf::succeeded(result.status))
     {
-        formal_eskf::geodesy::NedTransform<backend_type> transform;
+        geodesy::NedTransform<geographic_backend_type> transform;
         result.status = working.transform_to(frame, transform);
-        result.rotation = transform.rotation;
+        if (succeeded(result.status))
+        {
+            result.status = convert_matrix(transform.rotation, m_geographic_precision.rotation, result.rotation);
+        }
     }
 
     return result;
@@ -53,11 +55,16 @@ typename InsSession<Linalg, Layout>::status_type
 InsSession<Linalg, Layout>::gnss_frame(formal_eskf::geodesy::NedTransform<backend_type> & transform) const
 {
     auto const & gps = m_gnss.input.sample;
-    formal_eskf::geodesy::LocalNed<backend_type> frame;
+    geographic_frame_type frame;
     auto status = frame.set_origin({gps.latitude_deg, gps.longitude_deg, gps.altitude_ellipsoid_m});
     if (formal_eskf::succeeded(status))
     {
-        status = m_navigation_frame.working().transform_to(frame, transform);
+        geodesy::NedTransform<geographic_backend_type> geographic;
+        status = m_navigation_frame.working().transform_to(frame, geographic);
+        if (succeeded(status))
+        {
+            status = convert_transform(geographic, m_geographic_precision, transform);
+        }
     }
 
     return status;
@@ -76,7 +83,7 @@ bool InsSession<Linalg, Layout>::update_height_datum(std::uint64_t time_us,
                                                      double altitude_msl_m)
 {
     auto datum = m_height_datum;
-    formal_eskf::geodesy::LocalNed<backend_type> frame;
+    geographic_frame_type frame;
     if (!formal_eskf::succeeded(datum.update(time_us, position.height_ellipsoid_m, altitude_msl_m)) ||
         !formal_eskf::succeeded(frame.set_origin(position)))
     {
@@ -111,7 +118,7 @@ InsSession<Linalg, Layout>::frame_admission(vector3_type const & position, vecto
     result.within_frame =
         distance <= m_settings.origin.maximum_distance_m && angle <= m_settings.origin.maximum_angle_rad;
     result.request = distance >= m_settings.origin.trigger_distance_m || angle >= m_settings.origin.trigger_angle_rad;
-    vector3_type datum_offset;
+    geographic_vector_type datum_offset;
     auto const datum_time = m_height_datum.time_us();
     result.datum_usable =
         m_height_datum.initialized() && output_time_us >= datum_time &&
@@ -141,18 +148,18 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::att
     }
 
     auto const & gps = m_gnss.input.sample;
-    geodesy::LocalNed<backend_type> antenna;
-    vector3_type ecef;
+    geographic_frame_type antenna;
+    geographic_vector_type ecef;
     geodesy::GeodeticPosition origin;
     auto status = antenna.set_origin({gps.latitude_deg, gps.longitude_deg, gps.altitude_ellipsoid_m});
     if (succeeded(status))
     {
-        status = antenna.ned_to_ecef(-gnss_position_offset(), ecef);
+        status = antenna.ned_to_ecef(geographic_matrix<geographic_backend_type>(-gnss_position_offset()), ecef);
     }
 
     if (succeeded(status))
     {
-        status = geodesy::ecef_to_geodetic<backend_type>(ecef, origin);
+        status = geodesy::ecef_to_geodetic<geographic_backend_type>(ecef, origin);
     }
 
     auto datum = m_height_datum;
@@ -177,7 +184,11 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::att
     {
         // Known height already constrains the old local anchor. A new raw fix
         // must not silently replace that estimate or hide a real height reset.
-        anchor(2) = m_height_aiding.origin_altitude() - origin_msl;
+        if (!succeeded(convert_scalar(m_height_aiding.origin_altitude() - origin_msl, m_geographic_precision.position_m,
+                                      anchor(2))))
+        {
+            return false;
+        }
     }
 
     status = m_navigation_frame.prepare_attachment(origin, m_state, m_covariance, anchor,
@@ -279,7 +290,8 @@ InsSession<Linalg, Layout>::rebase_navigation(FrameAdmission const & delayed, Fr
         return status_type::domain_error;
     }
 
-    auto status = m_navigation_frame.prepare(m_state, m_covariance, m_parameters.minimum_quaternion_norm);
+    auto status =
+        m_navigation_frame.prepare(m_state, m_covariance, m_parameters.minimum_quaternion_norm, m_geographic_precision);
     if (!formal_eskf::succeeded(status))
     {
         return status;
@@ -427,10 +439,11 @@ InsSession<Linalg, Layout>::body_output(vector3_type const & position, vector3_t
 }
 
 template <typename Linalg, typename Layout>
-typename InsSession<Linalg, Layout>::BodyOutput InsSession<Linalg, Layout>::geographic_output(
-    vector3_type const & position, vector3_type const & velocity, quaternion_type const & attitude,
-    vector3_type const & angular_rate, geodesy::LocalNed<backend_type> const & working,
-    HeightDatum<backend_type> const & datum, NavigationOrigin const & origin) const
+typename InsSession<Linalg, Layout>::BodyOutput
+InsSession<Linalg, Layout>::geographic_output(vector3_type const & position, vector3_type const & velocity,
+                                              quaternion_type const & attitude, vector3_type const & angular_rate,
+                                              geographic_frame_type const & working, height_datum_type const & datum,
+                                              NavigationOrigin const & origin) const
 {
     BodyOutput body;
     auto const position_offset_n = so3::rotate(attitude, m_sensor_positions.imu_b);
@@ -467,7 +480,22 @@ typename InsSession<Linalg, Layout>::BodyOutput InsSession<Linalg, Layout>::geog
     origin.projection.project(body.geographic.latitude_deg, body.geographic.longitude_deg, north, east);
     double const down = body.msl_available ? origin.altitude_msl_m - body.altitude_msl_m
                                            : origin.height_ellipsoid_m - body.geographic.height_ellipsoid_m;
-    body.position_n = vector3(north, east, down);
+    body.position_n = vector3(north, east, 0);
+    if constexpr (std::is_same_v<value_type, double>)
+    {
+        // Keep identity conversion under the original result validation below.
+        body.position_n(2) = down;
+    }
+    else
+    {
+        body.status = convert_scalar(down, m_geographic_precision.position_m, body.position_n(2));
+        if (!succeeded(body.status))
+        {
+            body.geographic_available = false;
+            body.msl_available = false;
+            return body;
+        }
+    }
     body.velocity_n = frame.rotation * (velocity - velocity_offset_n);
     if (!formal_eskf::linalg::all_finite(body.position_n) || !formal_eskf::linalg::all_finite(body.velocity_n))
     {

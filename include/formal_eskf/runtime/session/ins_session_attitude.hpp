@@ -33,7 +33,8 @@ void InsSession<Linalg, Layout>::fuse_gravity(ImuInput const & sample, imu_type 
     // measured angle integral when the two integration periods differ.
     auto interval_imu = imu;
     interval_imu.angular_rate_b =
-        imu.angular_rate_b * (static_cast<double>(sample.angular_period_us) / sample.acceleration_period_us);
+        imu.angular_rate_b *
+        static_cast<value_type>(static_cast<double>(sample.angular_period_us) / sample.acceleration_period_us);
     auto const observation =
         m_gravity.sampler.update(interval_imu, sample.acceleration_period_us, sample.accelerometer_clipping,
                                  m_parameters.minimum_quaternion_norm);
