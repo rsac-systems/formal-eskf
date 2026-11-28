@@ -175,7 +175,12 @@ configure_analysis()
         -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
         -DBUILD_TESTING=ON \
         -DFORMAL_ESKF_BUILD_EIGEN_BACKEND=ON \
-        -DESKF_CODEGEN=ON
+        -DFORMAL_ESKF_BUILD_EXAMPLES=OFF \
+        -DESKF_CODEGEN=ON \
+        -DESKF_QUAT_APPROX=OFF \
+        -DESKF_RESET_APPROX=OFF \
+        -DESKF_MAG_TILT=ON \
+        -DESKF_ZUPT=ON
 }
 
 analyze_platform()

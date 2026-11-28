@@ -93,8 +93,12 @@ serves the contract clearly, retain it rather than manufacturing a refactor.
 Select checks from the acceptance list and affected dependencies using existing
 runners. Verify test discovery/registration as well as execution; zero discovered
 tests is not a pass. Run relevant build, unit/regression, formatting, static-analysis
-and sanitizer checks. Broaden coverage when dependencies or findings justify it,
-not by unconditionally running every tool. Record exact configurations and outcomes.
+and sanitizer checks. For changes to shared C++ headers, use
+`./scripts/verify_ci.sh all` on the isolated candidate as the non-proof baseline;
+it shares the CI job commands and stops on any failure. It validates one native
+profile, so also select affected alternative matrix profiles from the workflow.
+Documentation-only changes do not require this baseline. Beyond it, broaden
+coverage only when dependencies or findings justify additional checks. Record exact configurations and outcomes.
 
 Use the [CI workflow](../../../.github/workflows/ci.yml) to select the actual
 commands, tool versions and affected compile-time profiles. Derive test oracles
@@ -165,8 +169,12 @@ on unrelated unstaged or untracked work. When the worktree contains unrelated
 changes, validate an isolated checkout of the candidate files with fresh build
 configuration for the affected CI jobs. A passing dirty-worktree run is not
 acceptance of that candidate. Inspect every selected job result; a failure that
-stops a sequential script does not validate the commands after it. Report known
-baseline failures explicitly. Do not include local logs or trial files.
+stops a sequential script does not validate the commands after it. A required CI
+failure, including a previously reported baseline warning, blocks autonomous
+commit and completion until resolved or explicitly waived by the user. Keep a
+task-local result list tied to the exact candidate and distinguish passed,
+failed, excluded and not-run checks; never infer the latter from a partial run.
+Do not include local logs or trial files.
 
 Report concise, supported answers to these questions:
 

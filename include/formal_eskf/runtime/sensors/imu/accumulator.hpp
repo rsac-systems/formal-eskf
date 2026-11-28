@@ -233,12 +233,17 @@ Status ImuAccumulator<Linalg, MaximumSamples>::append(ImuInterval<Linalg> const 
     auto const accel_us = std::uint64_t(sample.acceleration_period_us) + interval.hold_period_us;
     auto const elapsed = sample.time_us - m_endpoint;
     auto distance = [](std::uint64_t a, std::uint64_t b) { return a > b ? a - b : b - a; };
+    // Cppcheck 2.21 analyzes the unselected AccumulatedImuHistory<..., 0>
+    // in a direct InsSession. MaximumSamples == 0 is rejected by static_assert.
     if (distance(gyro_us, accel_us) > p.maximum_window_skew_us ||
         distance(gyro_us, elapsed) > p.maximum_endpoint_skew_us ||
+        // cppcheck-suppress unsignedPositive
         distance(accel_us, elapsed) > p.maximum_endpoint_skew_us || m_group.samples >= MaximumSamples)
     {
         return Status::out_of_range;
     }
+    // The same impossible zero-capacity specialization makes this look unreachable.
+    // cppcheck-suppress knownConditionTrueFalse
     if (m_group.samples == 0)
     {
         m_group.start_time_us = m_endpoint;

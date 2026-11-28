@@ -32,7 +32,7 @@ jobs:
       - name: Check C++ formatting
         env:
           CLANG_FORMAT: clang-format-14
-        run: ./scripts/format_cpp.sh --check
+        run: ./scripts/verify_ci.sh format
 
   script_tests:
     name: Script tests
@@ -44,16 +44,8 @@ jobs:
           persist-credentials: false
       - name: Install check dependencies
         run: ./scripts/install_ci_deps.sh checks
-      - name: Check scripts
-        run: |
-          shellcheck scripts/*.sh tests/tools/*.sh
-          python3 -m compileall -q examples
-      - name: Run offline verification-tool tests
-        run: |
-          ./tests/tools/test_esbmc.sh
-          ./tests/tools/test_agent_review.sh
-          python3 tests/tools/test_cpp_inventory.py
-          python3 tests/tools/test_call_graph.py
+      - name: Check scripts and offline verification tools
+        run: ./scripts/verify_ci.sh scripts
 
   cppcheck:
     name: Cppcheck
@@ -66,7 +58,7 @@ jobs:
       - name: Install Cppcheck dependencies
         run: ./scripts/install_ci_deps.sh cppcheck
       - name: Analyze unix32 and unix64
-        run: ./scripts/verify_cppcheck.sh
+        run: ./scripts/verify_ci.sh cppcheck
 
   build_and_test:
     name: Build and test (${{ matrix.cxx }}, ${{ matrix.build_type }}, quat=${{ matrix.quat_approx }}, reset=${{ matrix.reset_approx }}, mag_tilt=${{ matrix.mag_tilt }}, codegen=${{ matrix.codegen }})
@@ -114,21 +106,9 @@ jobs:
       - name: Install build dependencies
         run: ./scripts/install_ci_deps.sh cpp
       - name: Build
-        run: |
-          cmake -S . -B build/ci \
-              -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
-              -DCMAKE_CXX_FLAGS=-Werror \
-              -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-              -DBUILD_TESTING=ON \
-              -DFORMAL_ESKF_BUILD_EIGEN_BACKEND=ON \
-              -DFORMAL_ESKF_BUILD_EXAMPLES=ON \
-              -DESKF_QUAT_APPROX="${QUAT_APPROX}" \
-              -DESKF_RESET_APPROX="${RESET_APPROX}" \
-              -DESKF_MAG_TILT="${MAG_TILT}" \
-              -DESKF_CODEGEN="${CODEGEN}"
-          cmake --build build/ci --parallel "$(nproc)"
+        run: BUILD_JOBS="$(nproc)" ./scripts/verify_ci.sh build
       - name: Test
-        run: ./scripts/verify_tests.py --build-dir build/ci --no-build --ctest
+        run: ./scripts/verify_ci.sh test
       - name: Save test reports
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -150,7 +130,7 @@ jobs:
       - name: Install build dependencies
         run: ./scripts/install_ci_deps.sh asan
       - name: Run sanitizer suite
-        run: ./scripts/verify_asan.sh
+        run: ./scripts/verify_ci.sh asan
 
   lean:
     name: Lean

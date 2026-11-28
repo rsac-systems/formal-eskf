@@ -22,6 +22,7 @@ PREAMBLE = """
 #include <formal_eskf/linalg/linalg.hpp>
 #include <formal_eskf/eskf/eskf.hpp>
 #include <formal_eskf/runtime/history/ring_buffer.hpp>
+#include <formal_eskf/runtime/sensors/imu/accumulator.hpp>
 #include <formal_eskf/runtime/sensors/gravity/accelerometer.hpp>
 #include <limits>
 using Backend = formal_eskf::linalg::EigenBackend<double>;
@@ -89,6 +90,14 @@ def configuration(ARGS, DIRECTORY):
                            DEFINITIONS=[f"{NAME}={VALUE}"])
         for VALUE in (-1, 2):
             compile_source(ARGS, DIRECTORY, PREAMBLE, DEFINITIONS=[f"{NAME}={VALUE}"], EXPECT_SUCCESS=False)
+
+    for CAPACITY in (1, 65535):
+        compile_source(ARGS, DIRECTORY, PREAMBLE +
+                       f"formal_eskf::runtime::ImuAccumulator<Backend,{CAPACITY}> accumulator{{{{}}}};")
+    for CAPACITY in (0, 65536):
+        compile_source(ARGS, DIRECTORY, PREAMBLE +
+                       f"formal_eskf::runtime::ImuAccumulator<Backend,{CAPACITY}> accumulator{{{{}}}};",
+                       EXPECT_SUCCESS=False, DIAGNOSTIC="static_assert")
 
 
 def dependencies(ARGS, DIRECTORY):
