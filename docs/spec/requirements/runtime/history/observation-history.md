@@ -81,8 +81,9 @@ above applies to that logical identity in the PX4 stream binding, not each
 upstream receiver switch. Retain pending observations and ordinary time/age
 admission across a physical switch; do not rewrite their recorded provenance.
 A real stream replacement still retires its old generation. Raw-receiver,
-barometer and magnetic source rules remain unchanged. This target requires new
-caller/storage evidence; current physical-ID checks do not establish it.
+barometer and magnetic source rules remain unchanged. The GNSS control cases
+exercise the declared logical stream; raw-source proof evidence does not by itself
+establish this new identity binding.
 
 ### Protection-event target
 

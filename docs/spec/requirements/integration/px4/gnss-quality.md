@@ -76,8 +76,9 @@ existing noise/gate/lifecycle contracts. GNSS reference acquisition, originless
 velocity and reference-only altitude initialization follow the
 [Cartesian composition design](../../../architecture/gnss-control.md), not an
 unconditional reset of all state/P at first GPS receipt. The
-[Pending acceptance cases](../../../verification/gnss-control-tests.md) require
-actual Run/session/publication evidence; existing baseline results do not close them.
+[Acceptance cases](../../../verification/tests/runtime/gnss-controls.md) bind
+the runtime and actual Run/session/publication fixtures. They are software evidence,
+not complete EKF2 equivalence or physical receiver qualification.
 
 PX4 compilation, existing native runtime tests and closed-loop SITL with quality
 failure, outage and recovery checks are empirical evidence. This adapter has no

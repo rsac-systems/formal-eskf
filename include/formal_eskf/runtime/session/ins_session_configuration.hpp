@@ -193,6 +193,7 @@ InsSession<Linalg, Layout>::InsSession(Parameters const & p)
         }
     }
     m_gnss.quality_parameters = p.gnss_quality;
+    m_gnss_fusion = p.gnss_fusion;
     m_origin.projection = projection_type{p.settings.projection_radius_m};
     m_gnss.previous_fix = projection_type{p.settings.projection_radius_m};
     if constexpr (Layout::barometer_aiding)
@@ -269,6 +270,19 @@ bool InsSession<Linalg, Layout>::configure_sensor_positions(SensorPositions cons
     }
 
     m_sensor_positions = positions;
+    return true;
+}
+
+template <typename Linalg, typename Layout>
+bool InsSession<Linalg, Layout>::configure_gnss(GnssControls const & controls)
+{
+    if (!gnss_controls_ready())
+    {
+        return false;
+    }
+
+    m_gnss_fusion = controls.fusion;
+    m_gnss.quality_parameters.enabled_checks = controls.checks;
     return true;
 }
 

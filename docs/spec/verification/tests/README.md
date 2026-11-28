@@ -121,6 +121,7 @@ the canonical equations.
 | [Correction, injection and reset](core/update.md) | E-CORRECT, E-BIAS-UPDATE, E-INJECT, E-RESET, E-STEP-INJECT-RESET, E-STEP-CORRECT, E-STEP; SW-CORE. |
 | [Observations and innovation](core/observations.md) | E-OBS, E-OBS-POSITION, E-OBS-VELOCITY, E-OBS-ACCEL, E-OBS-MAGNETIC, E-MAG-TILT, E-INNOV. |
 | [GNSS and navigation](runtime/gnss-navigation.md) | R-MEASUREMENT-FUSION, R-GNSS-QUALITY, R-GNSS-FUSION, R-GNSS-RESET, R-GNSS-VERTICAL-RECOVERY; SW-GNSS. |
+| [GNSS controls](runtime/gnss-controls.md) | R-GNSS-CONTROL; independent live selectors, startup and reference transactions, selected-stream continuity. |
 | [Origin rebasing](runtime/origin-rebasing.md) | R-ORIGIN-REBASE. |
 | [Portable INS session](runtime/ins-session.md) | R-INS-SESSION; SW-NAV. |
 | [Strict INS initialization](runtime/ins-initialization.md) | R-INS-INITIALIZATION; SW-NAV. |

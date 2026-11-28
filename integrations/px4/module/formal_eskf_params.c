@@ -215,3 +215,41 @@ PARAM_DEFINE_FLOAT(FESKF_GPS_POS_Y, 0.0f);
  * @group Formal ESKF
  */
 PARAM_DEFINE_FLOAT(FESKF_GPS_POS_Z, 0.0f);
+
+/**
+ * GNSS observation groups
+ *
+ * Live selection at the next completed fusion boundary. Heading is unsupported.
+ * Build settings supply defaults; saved/live parameter values take precedence.
+ * All groups off stops aiding, not independent height-datum metadata updates.
+ *
+ * @bit 0 Horizontal position
+ * @bit 1 Height
+ * @bit 2 3D velocity
+ * @min 0
+ * @max 7
+ * @group Formal ESKF
+ */
+PARAM_DEFINE_INT32(FESKF_GPS_CTRL, 7);
+
+/**
+ * GNSS optional quality checks
+ *
+ * Live rejection participation; changing bits preserves quality history.
+ * Fix type, valid velocity, numeric and timestamp admission remain mandatory.
+ *
+ * @bit 0 Satellite count
+ * @bit 1 PDOP
+ * @bit 2 Horizontal accuracy
+ * @bit 3 Vertical accuracy
+ * @bit 4 Speed accuracy
+ * @bit 5 Stationary horizontal drift
+ * @bit 6 Stationary vertical drift
+ * @bit 7 Stationary horizontal speed
+ * @bit 8 Stationary vertical speed
+ * @bit 9 Spoofing
+ * @min 0
+ * @max 1023
+ * @group Formal ESKF
+ */
+PARAM_DEFINE_INT32(FESKF_GPS_CHECK, 1023);

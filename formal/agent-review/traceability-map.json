@@ -8414,7 +8414,7 @@
             "symbol": "# GNSS Control Profile"
           },
           {
-            "file": "docs/spec/verification/gnss-control-tests.md",
+            "file": "docs/spec/verification/tests/runtime/gnss-controls.md",
             "symbol": "## Cases"
           },
           {
@@ -9227,6 +9227,54 @@
           {
             "file": "integrations/px4/tests/ModuleTest.cpp",
             "symbol": "static void accumulated_profile()"
+          }
+        ],
+        "esbmc": []
+      }
+    },
+    {
+      "id": "R-GNSS-CONTROL",
+      "title": "Independent GNSS controls, direction-only startup and selected-stream composition; native runtime/PX4 tests, new formal caller proofs pending",
+      "references": {
+        "spec": [
+          {
+            "file": "docs/spec/requirements/runtime/gnss/control.md",
+            "symbol": "# R-GNSS-CONTROL: GNSS fusion selection and quality controls"
+          },
+          {
+            "file": "docs/spec/verification/tests/runtime/gnss-controls.md",
+            "symbol": "# GNSS Control Acceptance Design"
+          }
+        ],
+        "lean": [],
+        "cpp": [
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_configuration.hpp",
+            "symbol": "InsSession<Linalg, Layout>::configure_gnss("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_navigation.hpp",
+            "symbol": "InsSession<Linalg, Layout>::fuse_gps("
+          },
+          {
+            "file": "include/formal_eskf/runtime/session/ins_session_frames.hpp",
+            "symbol": "InsSession<Linalg, Layout>::attach_navigation("
+          },
+          {
+            "file": "include/formal_eskf/runtime/frames/navigation_frame.hpp",
+            "symbol": "Status initialize_axes("
+          },
+          {
+            "file": "include/formal_eskf/runtime/history/observation_history.hpp",
+            "symbol": "bool matches(Source const & other) const"
+          },
+          {
+            "file": "include/formal_eskf/runtime/sensors/height/height_aiding.hpp",
+            "symbol": "GnssMode gnss_mode)"
+          },
+          {
+            "file": "integrations/px4/module/FormalEskf.cpp",
+            "symbol": "void FormalEskf::refresh_gnss_controls()"
           }
         ],
         "esbmc": []

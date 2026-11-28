@@ -140,6 +140,7 @@ typename InsSession<Linalg, Layout>::Diagnostics InsSession<Linalg, Layout>::dia
     view.magnetic_quality_evaluated = m_magnetic_quality_evaluated;
     view.magnetic_consumed_time_us = m_magnetic.sample_time_us;
     view.gnss_checks = m_gnss.quality_parameters.enabled_checks;
+    view.gnss_fusion = m_gnss_fusion;
     view.gnss_motion = m_gnss_quality_motion;
     view.gnss = m_gnss.lifecycle.state();
     view.magnetic = m_magnetic.lifecycle.state();

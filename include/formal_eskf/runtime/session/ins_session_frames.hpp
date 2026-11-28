@@ -60,10 +60,19 @@ InsSession<Linalg, Layout>::gnss_frame(formal_eskf::geodesy::NedTransform<backen
     if (formal_eskf::succeeded(status))
     {
         geodesy::NedTransform<geographic_backend_type> geographic;
-        status = m_navigation_frame.working().transform_to(frame, geographic);
-        if (succeeded(status))
+        if (m_navigation_frame.initialized())
         {
-            status = convert_transform(geographic, m_geographic_precision, transform);
+            status = m_navigation_frame.working().transform_to(frame, geographic);
+            if (succeeded(status))
+            {
+                status = convert_transform(geographic, m_geographic_precision, transform);
+            }
+        }
+        else
+        {
+            // Velocity uses directions only, never an invented translation anchor.
+            transform = {};
+            status = m_navigation_frame.directions_to(frame, transform.rotation, m_geographic_precision);
         }
     }
 
@@ -86,6 +95,15 @@ bool InsSession<Linalg, Layout>::update_height_datum(std::uint64_t time_us,
     geographic_frame_type frame;
     if (!formal_eskf::succeeded(datum.update(time_us, position.height_ellipsoid_m, altitude_msl_m)) ||
         !formal_eskf::succeeded(frame.set_origin(position)))
+    {
+        return false;
+    }
+
+    // The separation remains binary64. Its change is a local-height offset:
+    // it must fit the local scalar before it reaches publication/height aiding.
+    value_type local_change{};
+    double const previous = m_height_datum.initialized() ? m_height_datum.separation_m() : 0.;
+    if (!succeeded(convert_scalar(datum.separation_m() - previous, m_geographic_precision.position_m, local_change)))
     {
         return false;
     }
@@ -128,7 +146,7 @@ InsSession<Linalg, Layout>::frame_admission(vector3_type const & position, vecto
     return result;
 }
 
-template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::attach_navigation()
+template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::navigation_heading_valid() const
 {
     bool const magnetic_reference_valid =
         magnetic_heading_valid() &&
@@ -136,7 +154,12 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::att
         m_heading_reference_id == m_magnetic_model.reference_id() &&
         m_observations.magnetic_generation() == m_magnetic.generation &&
         m_observations.magnetic_source().device_id == m_magnetic.source.device_id;
-    if (!m_tilt_alignment.aligned() || (!external_heading_valid() && !magnetic_reference_valid) || !gps_good() ||
+    return m_tilt_alignment.aligned() && (external_heading_valid() || magnetic_reference_valid);
+}
+
+template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::attach_navigation()
+{
+    if (!m_gnss_fusion.horizontal_position || !navigation_heading_valid() || !gps_good() ||
         m_gnss.sample.time_us == 0 || m_observations.gnss_generation() != m_gnss.generation)
     {
         return true;
@@ -152,9 +175,15 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::att
     geographic_vector_type ecef;
     geodesy::GeodeticPosition origin;
     auto status = antenna.set_origin({gps.latitude_deg, gps.longitude_deg, gps.altitude_ellipsoid_m});
+    matrix3_type axes = matrix3_type::identity();
+    if (succeeded(status) && m_navigation_frame.axes_known())
+    {
+        status = m_navigation_frame.directions_to(antenna, axes, m_geographic_precision);
+    }
     if (succeeded(status))
     {
-        status = antenna.ned_to_ecef(geographic_matrix<geographic_backend_type>(-gnss_position_offset()), ecef);
+        status =
+            antenna.ned_to_ecef(geographic_matrix<geographic_backend_type>(-(axes * gnss_position_offset())), ecef);
     }
 
     if (succeeded(status))
@@ -184,15 +213,21 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::att
     {
         // Known height already constrains the old local anchor. A new raw fix
         // must not silently replace that estimate or hide a real height reset.
-        if (!succeeded(convert_scalar(m_height_aiding.origin_altitude() - origin_msl, m_geographic_precision.position_m,
-                                      anchor(2))))
+        value_type down{};
+        geographic_frame_type destination;
+        if (!succeeded(destination.set_origin(origin)) ||
+            (m_navigation_frame.axes_known() &&
+             !succeeded(m_navigation_frame.directions_to(destination, axes, m_geographic_precision))) ||
+            !succeeded(convert_scalar(origin_msl - (m_height_aiding.origin_altitude() - m_state.p_n(2)),
+                                      m_geographic_precision.position_m, down)))
         {
             return false;
         }
+        anchor = m_state.p_n - linalg::transpose(axes) * vector3(0, 0, down);
     }
 
     status = m_navigation_frame.prepare_attachment(origin, m_state, m_covariance, anchor,
-                                                   m_parameters.minimum_quaternion_norm);
+                                                   m_parameters.minimum_quaternion_norm, m_geographic_precision);
     if (!succeeded(status))
     {
         return false;
@@ -208,12 +243,28 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::att
         m_msl_initialized ? m_origin.altitude_msl_m + datum.separation_m() : origin.height_ellipsoid_m + anchor(2)};
     publication.projection.set_origin(origin.latitude_deg, origin.longitude_deg, m_time_us);
     auto const & current = m_output.current();
-    auto const position = current.p_n + candidate.transform.translation;
+    auto const position = candidate.transform.rotation * current.p_n + candidate.transform.translation;
     auto const before = body_output();
-    auto const after = geographic_output(position, current.v_n, current.q_nb, m_output.angular_rate_b(),
-                                         candidate.frame, datum, publication);
+    auto const after =
+        geographic_output(position, candidate.transform.rotation * current.v_n, candidate.rotation * current.q_nb,
+                          m_output.angular_rate_b(), candidate.frame, datum, publication);
+    auto heading = m_magnetic.heading;
+    auto tilt = m_tilt_alignment;
+    auto continuity = m_continuity;
+    if (succeeded(status))
+    {
+        status = heading.rebase(candidate.rotation);
+    }
+    if (succeeded(status))
+    {
+        status = tilt.rebase(candidate.state.q_nb, candidate.covariance.template block<6, 6, 3, 3>());
+    }
+    if (succeeded(status))
+    {
+        status = continuity.rebase(candidate.transform.rotation, m_navigation_frame.generation());
+    }
     if (!succeeded(status) || !succeeded(before.status) || !succeeded(after.status) ||
-        !m_output.prepare_rebase({}, candidate.transform.translation))
+        !m_output.prepare_rebase(candidate.rotation, candidate.transform.translation))
     {
         return false;
     }
@@ -224,6 +275,9 @@ template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::att
     m_output.commit_rebase();
     m_height_aiding = height;
     m_height_datum = datum;
+    m_magnetic.heading = heading;
+    m_tilt_alignment = tilt;
+    m_continuity = continuity;
     m_origin_control.datum_frame = candidate.frame;
     m_origin_control.relative_height_ellipsoid_m = origin.height_ellipsoid_m;
     m_origin_control.output_axes = after.rotation;
@@ -530,11 +584,11 @@ typename InsSession<Linalg, Layout>::OutputValidity InsSession<Linalg, Layout>::
     }
 
     const bool gps_current =
-        m_observations.gnss_source().device_id != 0 && m_observations.gnss_generation() == m_gnss.generation;
+        m_observations.gnss_source().available() && m_observations.gnss_generation() == m_gnss.generation;
     const bool magnetic_current = m_observations.magnetic_source().device_id != 0 &&
                                   m_observations.magnetic_generation() == m_magnetic.generation;
     result.gps_position = result.navigation && gps_current && supported.horizontal_position.available;
-    result.gps_velocity = result.navigation && gps_current && supported.horizontal_velocity.available;
+    result.gps_velocity = result.healthy && gps_current && supported.horizontal_velocity.available;
     result.gps = result.gps_position || result.gps_velocity;
     auto const & gnss_height = m_height_aiding.session(height_type::Source::gnss);
     result.gps_height = result.healthy && gps_current && gnss_height.active &&

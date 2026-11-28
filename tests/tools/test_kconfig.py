@@ -121,6 +121,14 @@ class KconfigTests(unittest.TestCase):
             if SYMBOL.name.startswith("PX4_"):
                 SELF.assertIn("ESKF_CFG_" + SYMBOL.name[4:], SOURCES, SYMBOL.name)
 
+    def test_gnss_fusion_choices(SELF):
+        for MASK in range(8):
+            SETTINGS = "".join(f"CONFIG_PX4_GNSS_{NAME}={'y' if MASK & (1 << BIT) else 'n'}\n"
+                               for BIT, NAME in enumerate(("POSITION", "HEIGHT", "VELOCITY")))
+            HEADER = FRONTEND.px4_header(SELF.read_config(SETTINGS), SELF.KCONFIGLIB)
+            for BIT, NAME in enumerate(("POSITION", "HEIGHT", "VELOCITY")):
+                SELF.assertIn(f"#define ESKF_CFG_GNSS_{NAME} {int(bool(MASK & (1 << BIT)))}\n", HEADER)
+
     def test_imu_accumulation_profile(SELF):
         DEFAULT = FRONTEND.px4_header(SELF.read_config(), SELF.KCONFIGLIB)
         SELF.assertIn("#define ESKF_CFG_IMU_ACCUMULATION 0\n", DEFAULT)

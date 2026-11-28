@@ -891,6 +891,8 @@ public:
     {
         auto & f = m_filter;
         f.m_session.m_gnss.input = {f.m_gps.timestamp_sample, 0, 0, 0, FormalEskf::decode_gnss(f.m_gps)};
+        // Direct owner cases below intentionally exercise a raw receiver binding.
+        f.m_session.m_gnss.input.sample.stamp.source.logical_stream_id = 0;
         f.m_session.m_context = {f.land_state(), f.vehicle_state()};
         f.m_session.m_gnss.context = f.m_session.startup_context(f.m_session.m_gnss.input.time_us, 3000000U);
         f.m_session.m_barometer = {f.m_baro.timestamp_sample, 0, 0, 0, FormalEskf::decode_barometer(f.m_baro)};
@@ -4775,11 +4777,11 @@ public:
         test.tick();
         test.m_gps_velocity_valid = false;
         auto const validity = f.m_session.output_validity(clock_us);
-        expect(!f.m_session.m_fault && !validity.gps && !validity.magnetic && !validity.barometer &&
-                   f.m_session.m_observations.gnss_generation() == gnss_generation + 2 &&
+        expect(!f.m_session.m_fault && validity.gps && !validity.magnetic && !validity.barometer &&
+                   f.m_session.m_observations.gnss_generation() == gnss_generation &&
                    f.m_session.m_observations.magnetic_generation() == magnetic_generation + 2 &&
                    f.m_session.m_observations.barometer_generation() == barometer_generation + 2,
-               "switch away and back immediately vetoes old-generation aiding, even if rate-limited");
+               "raw magnetic/barometer handoff invalidates immediately; selected GNSS stream stays continuous");
 
         for (unsigned i = 0; i < 75; ++i)
         {
@@ -4787,22 +4789,30 @@ public:
             test.tick();
         }
 
-        expect(!f.m_session.m_fault && f.m_session.m_gnss.generation == gnss_generation + 2 &&
-                   !f.m_session.m_gnss.quality_result.qualified &&
+        expect(!f.m_session.m_fault && f.m_session.m_gnss.generation == gnss_generation &&
+                   f.m_session.m_gnss.quality_result.qualified &&
                    f.m_session.m_magnetic.generation == magnetic_generation + 2 &&
                    !f.m_session.m_magnetic.lifecycle.state().active &&
                    f.m_session.m_magnetic.corrections == mag_corrections &&
                    f.m_session.m_height_aiding.session(FormalEskf::height_type::Source::barometer).generation ==
                        barometer_generation + 2,
-               "newly selected same-ID generations requalify GNSS/magnetic and restart height-bias history");
-        expect(!f.m_session.output_validity(clock_us).gps_height &&
+               "selected GNSS remains qualified while raw magnetic and barometer generations restart");
+        expect(f.m_session.output_validity(clock_us).gps_height &&
                    f.m_session.m_height_aiding.session(FormalEskf::height_type::Source::gnss).generation ==
                        gnss_generation,
-               "new receiver with invalid velocity cannot lend old-generation height activity current validity");
-        expect(f.m_session.m_gnss.lifecycle.state().velocity.last_fuse_time_us <= gps_progress,
-               "queueing replacement data cannot claim a successful GNSS fusion");
-        expect(std::isnan(f.m_velocity_ratios[0].filtered) && std::isnan(f.m_magnetic_ratios[0].filtered),
-               "switch-away/back cannot retain old generation innovation summaries");
+               "same-stream invalid velocity does not immediately discard recent qualified height activity");
+        expect(f.m_session.m_gnss.lifecycle.state().velocity.last_fuse_time_us >= gps_progress,
+               "valid queued data from the same stream may finish before invalid replacement samples arrive");
+        auto const drained_progress = f.m_session.m_gnss.lifecycle.state().velocity.last_fuse_time_us;
+        for (unsigned i = 0; i < 100; ++i)
+        {
+            test.m_sample.timestamp_sample += 4000;
+            test.tick();
+        }
+        expect(f.m_session.m_gnss.lifecycle.state().velocity.last_fuse_time_us == drained_progress,
+               "invalid selected velocity cannot refresh progress after older valid samples have drained");
+        expect(!std::isnan(f.m_velocity_ratios[0].filtered) && std::isnan(f.m_magnetic_ratios[0].filtered),
+               "selected GNSS retains diagnostics while raw magnetic handoff clears old-generation summaries");
 
         auto const rejected = f.m_session.m_statistics.arrival_rejections;
         auto const fusion_time = f.m_session.m_time_us;
@@ -4812,7 +4822,7 @@ public:
         test.m_gps_pub.publish(gps);
         f.Run();
         expect(f.m_session.m_statistics.arrival_rejections == rejected + 1 &&
-                   f.m_session.m_observations.gnss_generation() == gnss_generation + 2 &&
+                   f.m_session.m_observations.gnss_generation() == gnss_generation &&
                    f.m_session.m_observations.gnss_source().device_id == 201 && f.m_session.m_time_us == fusion_time,
                "future-clock source invalidation is rejected without revoking trusted source identity or advancing "
                "fusion");
@@ -4821,7 +4831,7 @@ public:
         test.m_gps_pub.publish(gps);
         f.Run();
         expect(f.m_session.m_statistics.arrival_rejections == rejected + 2 &&
-                   f.m_session.m_observations.gnss_generation() == gnss_generation + 2,
+                   f.m_session.m_observations.gnss_generation() == gnss_generation,
                "out-of-order source data cannot retroactively switch the selected generation");
     }
 
@@ -5098,6 +5108,108 @@ public:
 
             test.snapshot("interval-boundary");
         }
+    }
+
+    // TC-R-GNSS-CONTROL-05 / 07: actual parameters, uORB, Run and publications.
+    static void gnss_controls()
+    {
+        ++scenarios;
+        InsSessionTest test;
+        auto advance = [&](unsigned count)
+        {
+            for (unsigned i = 0; i < count; ++i)
+            {
+                test.m_sample.timestamp_sample += 4000;
+                test.tick();
+            }
+        };
+        uORB::Publication<parameter_update_s> notification{ORB_ID(parameter_update)};
+        auto request = [&](int32_t fusion, int32_t checks)
+        {
+            expect(param_set_no_notification(param_find("FESKF_GPS_CTRL"), &fusion) == 0 &&
+                       param_set_no_notification(param_find("FESKF_GPS_CHECK"), &checks) == 0,
+                   "write complete requested parameter pair");
+            parameter_update_s event{};
+            event.timestamp = clock_us;
+            expect(notification.publish(event), "real parameter update notification");
+        };
+        request(4, 1023);
+        advance(8500);
+        auto & session = test.m_filter.m_session;
+        vehicle_local_position_s local{};
+        expect(orb_copy(ORB_ID(vehicle_local_position), test.m_outputs[1], &local) == 0 &&
+                   local.timestamp_sample != 0 && local.v_xy_valid && local.v_z_valid && !local.xy_valid &&
+                   !local.xy_global && !session.m_navigation_frame.initialized(),
+               "velocity-only startup publishes usable velocity without a position anchor");
+
+        request(7, 1023);
+        advance(500);
+        expect(session.m_navigation_frame.initialized() && session.m_gnss.quality_result.qualified,
+               "enabling position attaches qualified GNSS navigation");
+        auto const seed = session.m_seed_time_us;
+        for (int32_t mask = 0; mask < 8; ++mask)
+        {
+            request(mask, 1023);
+            advance(500);
+            auto const controls = session.gnss_controls();
+            expect(controls.fusion.horizontal_position == bool(mask & 1) && controls.fusion.height == bool(mask & 2) &&
+                       controls.fusion.velocity == bool(mask & 4),
+                   "Run applies independent live selectors");
+            estimator_status_flags_s flags{};
+            orb_copy(ORB_ID(estimator_status_flags), test.m_outputs[5], &flags);
+            expect(flags.cs_gnss_pos == bool(mask & 1) && flags.cs_gnss_vel == bool(mask & 4) &&
+                       flags.cs_gps_hgt == bool(mask & 2),
+                   "published control flags reflect actual selected aiding");
+            expect(session.m_seed_time_us == seed && !session.fault(), "live masks do not restart navigation");
+        }
+        for (unsigned bit = 0; bit < 10; ++bit)
+        {
+            request(7, int32_t(1U << bit));
+            advance(1);
+            auto const c = session.gnss_controls().checks;
+            std::array const actual{
+                c.satellites,       c.pdop,           c.horizontal_accuracy, c.vertical_accuracy, c.speed_accuracy,
+                c.horizontal_drift, c.vertical_drift, c.horizontal_speed,    c.vertical_speed,    c.spoofed};
+            for (unsigned i = 0; i < actual.size(); ++i)
+            {
+                expect(actual[i] == (i == bit), "each serialized quality bit selects the independently named check");
+            }
+        }
+        auto const phase = session.m_phase;
+        session.m_phase = FormalEskf::session_type::Phase::fusion_completion;
+        request(0, 0);
+        test.m_filter.refresh_gnss_controls();
+        expect(test.m_filter.m_gnss_controls_pending && session.gnss_controls().fusion.any(),
+               "adapter retains requested pair while owner boundary is unavailable");
+        session.m_phase = phase;
+        test.m_filter.refresh_gnss_controls();
+        expect(!test.m_filter.m_gnss_controls_pending && !session.gnss_controls().fusion.any(),
+               "deferred pair applies once at the completed boundary");
+        request(7, 1023);
+        advance(500);
+
+        auto const generation = session.m_observations.gnss_generation();
+        for (unsigned device : {202U, 0U, 201U})
+        {
+            test.m_gps_device = device;
+            auto const updates = session.m_gnss.corrections;
+            advance(100);
+            expect(session.m_observations.gnss_generation() == generation && session.m_gnss.quality_result.qualified &&
+                       session.m_gnss.device_id == device && session.m_gnss.corrections > updates,
+                   "upstream A/B/blend/A keeps logical generation and actual fusion");
+        }
+        for (auto pair : {std::array<int32_t, 2>{8, 1023}, {-1, 0}, {7, 1024}, {7, -1}})
+        {
+            auto const rejected = test.m_filter.m_gnss_control_rejections;
+            request(pair[0], pair[1]);
+            advance(1);
+            expect(test.m_filter.m_gnss_control_rejections == rejected + 1 &&
+                       session.gnss_controls().fusion.horizontal_position && session.gnss_controls().fusion.height &&
+                       session.gnss_controls().fusion.velocity,
+                   "invalid complete request preserves effective pair");
+        }
+        request(7, 1023); // Restore global fixture parameters for later scenarios.
+        advance(1);
     }
 
     static void input_decoding()
@@ -5559,6 +5671,7 @@ int main(int argc, char ** argv)
         return failures == 0U ? 0 : 1;
     }
 
+    InsSessionTest::gnss_controls();
     InsSessionTest::staged_consumers();
     InsSessionTest::staged_attachment_failure();
     InsSessionTest::staged_stack_budget();

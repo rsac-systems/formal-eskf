@@ -283,7 +283,7 @@ InsSession<Linalg, Layout>::reset_magnetic_heading(std::uint64_t sample_time_us)
         magnetic_reference(m_magnetic_model.observation_n()), square(m_settings.magnetic.heading_noise_rad),
         m_settings.magnetic.field.minimum_horizontal_field, m_parameters.minimum_quaternion_norm, candidate_state,
         candidate_covariance, delta);
-    bool const local_reference = !m_navigation_frame.initialized();
+    bool const local_reference = !m_navigation_frame.axes_known();
     auto heading = m_magnetic.heading;
     auto tilt = m_tilt_alignment;
     auto continuity = m_continuity;

@@ -106,6 +106,9 @@ public:
         typename observation_history_type::Context context{};
         std::uint64_t generation{};
         projection_type previous_fix{0};
+        geodesy::GeodeticPosition reference{};
+        typename observation_history_type::SourceStamp reference_stamp{};
+        std::uint64_t reference_generation{};
         formal_eskf::runtime::GnssQuality<backend_type> quality{};
         formal_eskf::runtime::GnssQualityParameters<value_type> quality_parameters{};
         formal_eskf::runtime::GnssQualityResult<value_type> quality_result{};
@@ -278,6 +281,7 @@ public:
         typename barometric_type::limits_type barometer_sensor{};
         typename bias_learning_type::Parameters bias_learning{};
         GnssQualityParameters<value_type> gnss_quality{};
+        GnssFusionSelection gnss_fusion{};
         std::uint64_t magnetic_lookup_interval_us{};
     };
 
@@ -374,7 +378,8 @@ public:
         evaluated,
         velocity_unavailable,
         expired,
-        invalid_metadata
+        invalid_metadata,
+        disabled
     };
     enum class ImuAdmission
     {
@@ -424,6 +429,7 @@ public:
         bool magnetic_quality_evaluated{};
         std::uint64_t magnetic_consumed_time_us{};
         GnssQualityChecks gnss_checks{};
+        GnssFusionSelection gnss_fusion{};
         GnssQualityMotion gnss_motion{};
         typename gnss_lifecycle_type::State gnss{};
         typename magnetic_lifecycle_type::State magnetic{};
@@ -546,6 +552,13 @@ public:
 
     Gnss const & gnss_state() const { return m_gnss; }
 
+    GnssControls gnss_controls() const { return {m_gnss_fusion, m_gnss.quality_parameters.enabled_checks}; }
+
+    /** Live pair, accepted only between completed events. No health or estimator reset. */
+    [[nodiscard]] bool configure_gnss(GnssControls const & controls);
+
+    bool gnss_controls_ready() const { return !m_fault && m_phase == Phase::idle; }
+
     bool fault() const { return m_fault; }
 
     typename continuity_type::State const & continuity_state() const { return m_continuity.state(); }
@@ -603,6 +616,7 @@ private:
     bool accept_imu(ImuInput const & sample, std::uint64_t arrival_us);
     void predict_and_fuse(typename imu_history_type::interval_type const & interval);
     bool attach_navigation();
+    bool navigation_heading_valid() const;
     void prepare_magnetic_model();
     void apply_magnetic_model(std::optional<typename magnetic_model_type::sample_type> const & model);
     void begin_magnetic();
@@ -716,6 +730,7 @@ private:
     typename magnetic_model_type::Settings m_magnetic_settings{};
     std::uint64_t m_mag_model_origin_time{};
     Gnss m_gnss{};
+    GnssFusionSelection m_gnss_fusion{};
 
     GeographicPrecision m_geographic_precision{};
     InsSettings<value_type> m_settings;

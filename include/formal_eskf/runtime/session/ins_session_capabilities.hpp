@@ -67,16 +67,15 @@ InsCapabilities InsSession<Linalg, Layout>::capabilities(std::uint64_t now_us) c
         return value;
     };
     auto const & gnss = m_gnss.lifecycle.state();
-    bool const gnss_current =
-        result.gnss_generation == m_gnss.generation && m_observations.gnss_source().device_id != 0;
+    bool const gnss_current = result.gnss_generation == m_gnss.generation && m_observations.gnss_source().available();
     result.horizontal_position = translation(
         gnss_current ? std::max(gnss.horizontal_position.last_fuse_time_us, gnss.horizontal_position.last_reset_time_us)
                      : 0,
         m_navigation_frame.initialized());
     auto const velocity_time =
         gnss_current ? std::max(gnss.velocity.last_fuse_time_us, gnss.velocity.last_reset_time_us) : 0;
-    result.horizontal_velocity = translation(velocity_time, m_navigation_frame.initialized());
-    result.vertical_velocity = translation(velocity_time, m_navigation_frame.initialized());
+    result.horizontal_velocity = translation(velocity_time, m_navigation_frame.axes_known());
+    result.vertical_velocity = translation(velocity_time, m_navigation_frame.axes_known());
     auto const & barometer = m_height_aiding.session(height_type::Source::barometer);
     auto const & height_gnss = m_height_aiding.session(height_type::Source::gnss);
     auto const barometer_time =
@@ -90,7 +89,7 @@ InsCapabilities InsSession<Linalg, Layout>::capabilities(std::uint64_t now_us) c
     result.vertical_position = translation(height_time, height_time != 0);
     if (m_velocity_seed_time_us != 0)
     {
-        result.vertical_velocity = translation(std::max(velocity_time, height_time), m_navigation_frame.initialized());
+        result.vertical_velocity = translation(std::max(velocity_time, height_time), m_navigation_frame.axes_known());
     }
 
     if (m_navigation_frame.initialized())

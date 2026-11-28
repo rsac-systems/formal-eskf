@@ -113,7 +113,8 @@ template <typename Scalar> struct GnssQualityResult
 /**
  * Stateful, single-writer GNSS quality monitor with no clocks or platform dependencies.
  * Sample time drives drift filters; now_us is the caller's fusion time horizon.
- * Reset on source, projection continuity or parameter changes. Freshness, motion
+ * Reset on source, projection continuity or threshold changes; mask-only updates
+ * preserve filters and health history. Freshness, motion
  * detection, projection, source selection and actual fusion remain caller-owned.
  * See R-GNSS-QUALITY for input domains and behavior.
  */

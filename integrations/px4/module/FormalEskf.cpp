@@ -79,12 +79,42 @@ bool FormalEskf::load_sensor_positions()
     return m_session.configure_sensor_positions(positions);
 }
 
+bool FormalEskf::load_gnss_controls()
+{
+    int32_t fusion{}, checks{};
+    formal_eskf::runtime::GnssControls controls;
+    return param_get(param_find("FESKF_GPS_CTRL"), &fusion) == 0 &&
+           param_get(param_find("FESKF_GPS_CHECK"), &checks) == 0 &&
+           profile::gnss::decode_controls(fusion, checks, controls) && m_session.configure_gnss(controls);
+}
+
+void FormalEskf::refresh_gnss_controls()
+{
+    parameter_update_s update;
+    m_gnss_controls_pending |= m_parameter_sub.update(&update);
+    if (m_gnss_controls_pending && m_session.gnss_controls_ready())
+    {
+        m_gnss_control_rejections += !load_gnss_controls();
+        m_gnss_controls_pending = false;
+    }
+}
+
 bool FormalEskf::load_startup_parameters()
 {
     if (!load_timing_parameters())
     {
         return false;
     }
+    int32_t const fusion = (profile::gnss::fusion.horizontal_position ? profile::gnss::horizontal_position_bit : 0) |
+                           (profile::gnss::fusion.height ? profile::gnss::height_bit : 0) |
+                           (profile::gnss::fusion.velocity ? profile::gnss::velocity_bit : 0);
+    int32_t const checks = profile::gnss::encode_checks(profile::gnss::quality.enabled_checks);
+    if (param_set_default_value(param_find("FESKF_GPS_CTRL"), &fusion) != 0 ||
+        param_set_default_value(param_find("FESKF_GPS_CHECK"), &checks) != 0 || !load_gnss_controls())
+    {
+        return false;
+    }
+
     int32_t gravity_enabled{};
     if (param_get(param_find("FESKF_GRAV_EN"), &gravity_enabled) != 0 || gravity_enabled < 0 || gravity_enabled > 1)
     {
@@ -150,6 +180,7 @@ void FormalEskf::Run()
     }
     ScheduleDelayed(profile::backup_interval_us); // Status timeout, not an independent watchdog.
     perf_begin(m_cycle_perf);
+    refresh_gnss_controls();
     auto const updates = read_inputs();
     bool const was_initialized = m_session.initialized();
     if (updates.imu)
@@ -300,7 +331,7 @@ extern "C" __EXPORT int formal_eskf_main(int argc, char * argv[]) { return Forma
 FormalEskf::observation_history_type::GnssSample FormalEskf::decode_gnss(sensor_gps_s const & sample)
 {
     observation_history_type::GnssSample result;
-    result.stamp = {sample.timestamp_sample, {sample.device_id, 0}};
+    result.stamp = {sample.timestamp_sample, {sample.device_id, 0, profile::gnss::selected_stream_id}};
     result.latitude_deg = sample.latitude_deg;
     result.longitude_deg = sample.longitude_deg;
     result.altitude_msl_m = sample.altitude_msl_m;

@@ -41,7 +41,7 @@ not four executions or an exhaustive coverage percentage. Keep a per-setting
 consumer/activation coverage allocation with implementation; a public setting
 without a tested consumer or justified inspection remains a gap.
 
-- [GNSS control cases](gnss-control-tests.md), especially 04-06, own mask sequences,
+- [GNSS control cases](tests/runtime/gnss-controls.md), especially 04-06, own mask sequences,
   qualification history, actual correction/reset calls and PX4 update delivery.
   Reuse them for clause 5 rather than creating another live-control state machine.
 - [Navigation output cases](navigation-output-tests.md) own source-loss capability

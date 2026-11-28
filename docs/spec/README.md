@@ -203,9 +203,9 @@ aggregate flight qualification or formal proof is established by the native chec
 and quality selection, startup/reference separation, live mask updates and the
 PX4 logical-stream boundary. The [design](architecture/gnss-control.md),
 [profile](profiles/gnss-controls.md) and
-[Pending acceptance cases](verification/gnss-control-tests.md) identify retained
-contracts and implementation gaps. Existing component evidence does not establish
-these new session and adapter paths.
+[Acceptance cases](verification/tests/runtime/gnss-controls.md) identify retained
+contracts and runtime/adapter test bindings. New formal caller proofs and physical
+qualification remain separate from this software evidence.
 
 ## Bias stability target
 

@@ -13,6 +13,7 @@
 #include <uORB/Publication.hpp>
 #include <uORB/Subscription.hpp>
 #include <uORB/SubscriptionCallback.hpp>
+#include <uORB/topics/parameter_update.h>
 #include <uORB/topics/vehicle_imu.h>
 #include <uORB/topics/sensor_gps.h>
 #include <uORB/topics/vehicle_magnetometer.h>
@@ -112,6 +113,7 @@ private:
         std::uint64_t predictions{}, gps_updates{}, mag_updates{}, baro_updates{}, rejections{}, errors{}, gaps{};
         std::uint64_t maximum_gps_age_us{};
         int gnss_quality{};
+        std::uint64_t gnss_control_rejections{};
         std::uint16_t gps_failure_flags{};
         bool gps_position_active{}, gps_velocity_active{};
         std::uint8_t position_resets{}, velocity_resets{}, height_resets{}, vertical_velocity_resets{};
@@ -155,6 +157,8 @@ private:
     observation_history_type::VehicleState vehicle_state() const;
     // Admission snapshots belong to the unchanged main/current estimates of this single-writer transaction.
     bool load_startup_parameters();
+    bool load_gnss_controls();
+    void refresh_gnss_controls();
     bool load_timing_parameters();
     bool load_magnetic_parameters();
     bool load_sensor_positions();
@@ -188,6 +192,9 @@ private:
     static double square(double x) { return x * x; }
 
     uORB::SubscriptionCallbackWorkItem m_imu_sub{this, ORB_ID(vehicle_imu)};
+    uORB::Subscription m_parameter_sub{ORB_ID(parameter_update)};
+    bool m_gnss_controls_pending{};
+    std::uint64_t m_gnss_control_rejections{};
     uORB::Subscription m_gps_sub{ORB_ID(vehicle_gps_position)};
     uORB::Subscription m_mag_sub{ORB_ID(vehicle_magnetometer)};
 #if ESKF_CFG_BAROMETER

@@ -62,12 +62,14 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::upd
     }
 
     m_gnss.sample_time_us = m_gnss.input.time_us;
-    if (gps.stamp.source.device_id != m_gnss.device_id || m_gnss.input.generation != m_gnss.generation)
+    if (m_gnss.input.generation != m_gnss.generation ||
+        (gps.stamp.source.logical_stream_id == 0 && gps.stamp.source.device_id != m_gnss.device_id))
     {
         clear_innovations(m_innovations.position);
         clear_innovations(m_innovations.velocity);
         m_gnss.change_source(gps.stamp.source.device_id, m_gnss.input.generation);
     }
+    m_gnss.device_id = gps.stamp.source.device_id;
     // Invalid velocity cannot qualify or refresh successful aiding.
     if (!gps.velocity_valid || !recent(m_gnss.input.time_us, m_settings.gnss.maximum_sample_age_us))
     {
@@ -83,16 +85,55 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::upd
     if (!m_gnss.metadata_valid)
     {
         m_gnss_selection = QualitySelection::invalid_metadata;
-        m_gnss.quality.reset();
-        m_gnss.previous_fix.reset();
-        m_gnss.quality_result = {};
+        if (m_gnss_fusion.any())
+        {
+            m_gnss.quality.reset();
+            m_gnss.previous_fix.reset();
+            m_gnss.quality_result = {};
+        }
         m_gnss.sample.quality_available = false;
+        if (!m_gnss_fusion.any())
+        {
+            m_gnss.sample = {};
+        }
         ++m_statistics.rejections;
         return;
     }
 
+    // Conversion is input admission, not a quality-monitor update. Reject an
+    // unrepresentable local difference before it can alter the held datum.
     GnssQualitySample<backend_type> sample;
     auto const conversion = gnss_quality_sample(sample);
+    // Datum metadata is independently admitted, even with all aiding disabled.
+    bool const complete = succeeded(conversion) && linalg::all_finite(sample.position_delta_n) && gps.fix_type >= 3 &&
+                          linalg::all_finite(gps.velocity_n) && std::isfinite(gps.horizontal_accuracy_m) &&
+                          gps.horizontal_accuracy_m >= 0 && std::isfinite(gps.vertical_accuracy_m) &&
+                          gps.vertical_accuracy_m >= 0 && std::isfinite(gps.speed_accuracy_m_s) &&
+                          gps.speed_accuracy_m_s >= 0;
+    if (complete && m_initialized && gps.stamp.time_us > m_height_datum.time_us() && std::isfinite(gps.altitude_msl_m))
+    {
+        if (!update_height_datum(gps.stamp.time_us, {gps.latitude_deg, gps.longitude_deg, gps.altitude_ellipsoid_m},
+                                 gps.altitude_msl_m))
+        {
+            m_gnss.metadata_valid = false;
+            m_gnss_selection = QualitySelection::invalid_metadata;
+            m_gnss.sample.quality_available = false;
+            if (!m_gnss_fusion.any())
+            {
+                m_gnss.sample = {};
+            }
+            ++m_statistics.rejections;
+            return;
+        }
+    }
+
+    if (!m_gnss_fusion.any())
+    {
+        m_gnss.sample = {};
+        m_gnss_selection = QualitySelection::disabled;
+        return;
+    }
+
     auto const motion = gnss_motion();
     if (succeeded(conversion))
     {
@@ -121,15 +162,12 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::upd
     m_gnss.previous_fix.set_origin(gps.latitude_deg, gps.longitude_deg, sample.time_us);
     m_gnss.previous_altitude = gps.altitude_msl_m;
     m_gnss.previous_ellipsoid_altitude = gps.altitude_ellipsoid_m;
-    if (m_initialized && m_gnss.sample.quality == GnssQualityDecision::accepted &&
-        gps.stamp.time_us > m_height_datum.time_us() && std::isfinite(gps.altitude_msl_m))
+
+    if (m_gnss_fusion.horizontal_position && gps_good() && m_gnss.reference_stamp.time_us == 0)
     {
-        if (!update_height_datum(gps.stamp.time_us, {gps.latitude_deg, gps.longitude_deg, gps.altitude_ellipsoid_m},
-                                 gps.altitude_msl_m))
-        {
-            ++m_statistics.rejections;
-            return;
-        }
+        m_gnss.reference = {gps.latitude_deg, gps.longitude_deg, gps.altitude_ellipsoid_m};
+        m_gnss.reference_stamp = gps.stamp;
+        m_gnss.reference_generation = m_gnss.input.generation;
     }
 
     if (m_gnss.sample.quality == GnssQualityDecision::rejected)
@@ -203,7 +241,7 @@ formal_eskf::runtime::GnssQualityMotion InsSession<Linalg, Layout>::gnss_motion(
 template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::gps_good() const
 {
     auto const & gps = m_gnss.input.sample;
-    return m_gnss.metadata_valid && gps.velocity_valid &&
+    return m_gnss_fusion.any() && m_gnss.metadata_valid && gps.velocity_valid &&
            recent(m_gnss.input.time_us, m_settings.gnss.maximum_sample_age_us) &&
            m_gnss.quality_result.decision == formal_eskf::runtime::GnssQualityDecision::accepted;
 }
@@ -244,12 +282,25 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::fus
     GnssFusion::Conditions conditions;
     bool const source_current =
         m_output.current().time_us == 0 ||
-        (m_observations.gnss_source().device_id != 0 && m_observations.gnss_generation() == m_gnss.generation);
-    bool const navigation_ready = m_initialized && source_current && m_tilt_alignment.aligned() && m_heading_aligned &&
-                                  m_navigation_frame.working().initialized();
-    conditions.horizontal_position = {.enabled = true, .ready = navigation_ready};
-    conditions.velocity = conditions.horizontal_position;
-    if (navigation_ready)
+        (m_observations.gnss_source().available() && m_observations.gnss_generation() == m_gnss.generation);
+    bool const aligned = m_initialized && source_current && m_tilt_alignment.aligned() && m_heading_aligned &&
+                         (m_navigation_frame.initialized() || navigation_heading_valid());
+    if (aligned && m_gnss_fusion.velocity && !m_navigation_frame.axes_known() && m_gnss.sample.time_us != 0 &&
+        gps_good())
+    {
+        auto const & gps = m_gnss.input.sample;
+        if (!check(m_navigation_frame.initialize_axes({gps.latitude_deg, gps.longitude_deg, gps.altitude_ellipsoid_m})))
+        {
+            return;
+        }
+    }
+
+    bool const velocity_ready = aligned && m_navigation_frame.axes_known();
+    bool const position_ready = aligned && m_navigation_frame.initialized();
+    conditions.horizontal_position = {.enabled = m_gnss_fusion.horizontal_position, .ready = position_ready};
+    conditions.velocity = {.enabled = m_gnss_fusion.velocity, .ready = velocity_ready};
+    if (m_gnss.metadata_valid && succeeded(m_gnss.quality_result.status) &&
+        ((conditions.horizontal_position.enabled && position_ready) || (conditions.velocity.enabled && velocity_ready)))
     {
         geodesy::NedTransform<backend_type> observation_frame;
         if (!check(gnss_frame(observation_frame)))
@@ -279,7 +330,7 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::fus
         m_gnss.vertical_innovation = {};
     }
 
-    if (!navigation_ready || m_gnss.sample.time_us == 0)
+    if ((!velocity_ready && !position_ready) || m_gnss.sample.time_us == 0)
     {
         return;
     }
@@ -287,6 +338,15 @@ template <typename Linalg, typename Layout> void InsSession<Linalg, Layout>::fus
     if (!m_gnss.metadata_valid || !formal_eskf::succeeded(m_gnss.quality_result.status))
     {
         m_gnss.vertical_innovation = {};
+        return;
+    }
+
+    if (!m_gnss_fusion.velocity || !velocity_ready)
+    {
+        if (gps_good())
+        {
+            (void)fuse_gps_position();
+        }
         return;
     }
 
@@ -477,6 +537,11 @@ bool InsSession<Linalg, Layout>::fuse_gps_velocity(GnssVelocityObservation const
 template <typename Linalg, typename Layout> bool InsSession<Linalg, Layout>::fuse_gps_position()
 {
     m_operation = InsOperation::gnss_position;
+    if (m_gnss.lifecycle.state().horizontal_position.action == GnssFusion::Action::none)
+    {
+        return true;
+    }
+
     auto const & gps = m_gnss.input.sample;
     using namespace formal_eskf::runtime;
     using LifecycleGroup = gnss_lifecycle_type::Group;
@@ -653,7 +718,8 @@ void InsSession<Linalg, Layout>::fuse_height(ObservationReceipt const & baromete
                                                  true,
                                                  m_barometer.generation};
     typename height_type::Sample gnss;
-    if (m_tilt_alignment.aligned() && m_gnss.sample.time_us != 0 && m_gnss.metadata_valid &&
+    bool const horizontal_reference = m_navigation_frame.initialized() || m_gnss.reference_stamp.time_us != 0;
+    if (horizontal_reference && m_gnss.sample.time_us != 0 && m_gnss.metadata_valid &&
         std::isfinite(gps.altitude_msl_m))
     {
         formal_eskf::geodesy::NedTransform<backend_type> frame;
@@ -669,9 +735,13 @@ void InsSession<Linalg, Layout>::fuse_height(ObservationReceipt const & baromete
                 gps.altitude_msl_m + offset(2),
                 square(std::max(gps.vertical_accuracy_m, m_settings.height.minimum_gnss_noise_m)),
                 gps_good(),
-                m_gnss.input.generation};
+                m_gnss.input.generation,
+                gps.stamp.source.logical_stream_id};
     }
 
+    auto height_owner = m_height_aiding;
+    auto publication_origin = m_origin;
+    bool msl_initialized = m_msl_initialized;
     if (!m_msl_initialized && gnss.time_us != 0 && gnss.qualified)
     {
         double origin_altitude = gnss.altitude + m_state.p_n(2);
@@ -691,15 +761,15 @@ void InsSession<Linalg, Layout>::fuse_height(ObservationReceipt const & baromete
             old_height = current.point.height_ellipsoid_m - m_origin_control.relative_height_ellipsoid_m;
         }
 
-        if (!check(m_height_aiding.change_reference(origin_altitude, old_height, new_height)))
+        if (!check(height_owner.change_reference(origin_altitude, old_height, new_height)))
         {
             return;
         }
 
-        m_origin.altitude_msl_m = m_navigation_frame.initialized()
-                                      ? m_origin.height_ellipsoid_m - m_height_datum.separation_m()
-                                      : origin_altitude;
-        m_msl_initialized = true;
+        publication_origin.altitude_msl_m = m_navigation_frame.initialized()
+                                                ? m_origin.height_ellipsoid_m - m_height_datum.separation_m()
+                                                : origin_altitude;
+        msl_initialized = true;
     }
 
     auto const & health = m_vertical_health.state();
@@ -710,13 +780,15 @@ void InsSession<Linalg, Layout>::fuse_height(ObservationReceipt const & baromete
     auto const basis = continuity_basis();
     auto continuity = m_continuity;
     bool const numerical_reset = continuity.state().position.affected(continuity_type::direction(basis, 2));
-    auto height_owner = m_height_aiding;
     auto next_state = m_state;
     auto next_covariance = m_covariance;
     auto const result = height_owner.update(
         m_time_us, barometer, gnss, barometer_receipt, m_gnss.lifecycle.state().velocity.active, next_state,
         next_covariance, m_bias_learning_result.bias_update, acceleration, m_ground_effect.state().active,
-        m_navigation_frame.working().initialized() ? &geometry : nullptr, numerical_reset);
+        m_navigation_frame.working().initialized() ? &geometry : nullptr, numerical_reset,
+        m_gnss_fusion.height                          ? height_type::GnssMode::fusion
+        : m_gnss_fusion.any() && horizontal_reference ? height_type::GnssMode::reference_only
+                                                      : height_type::GnssMode::disabled);
     if (!check(result.status))
     {
         record_height(result, false);
@@ -742,6 +814,8 @@ void InsSession<Linalg, Layout>::fuse_height(ObservationReceipt const & baromete
     m_state = next_state;
     m_covariance = next_covariance;
     m_height_aiding = height_owner;
+    m_origin = publication_origin;
+    m_msl_initialized = msl_initialized;
     m_continuity = continuity;
     m_innovations.height = result.diagnostics;
     m_statistics.rejections += result.rejected;

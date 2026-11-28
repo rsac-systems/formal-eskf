@@ -198,8 +198,8 @@ The session shall own independent fusion permissions, live mask application,
 reference acquisition and originless velocity under the
 [GNSS design](../../architecture/gnss-control.md). Preserve single-writer phase
 ownership, explicit frame/output transactions and the existing fault boundary.
-These target compositions require the [Pending cases](../../verification/gnss-control-tests.md);
-current all-enabled session evidence does not establish them.
+The [composition cases](../../verification/tests/runtime/gnss-controls.md) bind
+the implemented paths; existing component proofs do not establish these callers.
 
 ### Bias stability target
 

@@ -498,6 +498,7 @@ void FormalEskf::update_diagnostics(std::uint64_t now)
     snapshot.model_unavailable = m_session.statistics().mag_model_unavailable;
     snapshot.declination = m_session.magnetic_model().declination();
 
+    snapshot.gnss_control_rejections = m_gnss_control_rejections;
     snapshot.height_reference = static_cast<unsigned>(m_session.height_aiding().reference());
     snapshot.barometer_active = baro.active;
     snapshot.gnss_height_active = gps.active;
@@ -609,6 +610,10 @@ int FormalEskf::print_status()
              (unsigned long long)report.session_id, unsigned(report.phase), unsigned(report.failure_operation),
              unsigned(report.gnss_quality_evaluated), (unsigned long long)report.gnss_quality_epoch.selection_time_us,
              (unsigned long long)report.gnss_quality_epoch.evaluation_time_us);
+    PX4_INFO("GNSS requested groups: position=%u height=%u velocity=%u; checks=%d rejected_requests=%llu",
+             unsigned(report.gnss_fusion.horizontal_position), unsigned(report.gnss_fusion.height),
+             unsigned(report.gnss_fusion.velocity), profile::gnss::encode_checks(report.gnss_checks),
+             (unsigned long long)snapshot.gnss_control_rejections);
     static char const * const names[]{"GNSS position", "GNSS velocity", "GNSS height",
                                       "barometer",     "gravity",       "magnetic"};
     for (std::size_t i = 0; i < report.groups.size(); ++i)

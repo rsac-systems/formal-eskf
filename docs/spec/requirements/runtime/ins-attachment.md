@@ -141,8 +141,10 @@ the session's single writer; no retry-until-success loop or platform callback.
 
 ## Acceptance and verification
 
-Executable allocation is specified in the [planned staged INS cases](../../verification/staged-ins-tests.md).
-Bindings and execution evidence remain pending.
+The [staged INS allocation](../../verification/staged-ins-tests.md) owns the broader
+attachment acceptance. [GNSS control cases](../../verification/tests/runtime/gnss-controls.md)
+add native coverage of known-axis attachment, full-P transport and failure
+preservation. These tests do not establish new composed formal proofs.
 
 Use a nonzero yaw offset, tilted attitude, translated origin, cross-correlated P,
 nonzero lever arms and distinct delayed/current history epochs. Independently

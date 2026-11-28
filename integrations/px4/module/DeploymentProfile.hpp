@@ -110,6 +110,39 @@ inline constexpr std::uint64_t model_interval_us = std::uint64_t{ESKF_CFG_WMM_IN
 
 namespace gnss
 {
+// Serialized PX4 controls. The runtime consumes named selections, not bit indices.
+inline constexpr int32_t horizontal_position_bit = 1 << 0;
+inline constexpr int32_t height_bit = 1 << 1;
+inline constexpr int32_t velocity_bit = 1 << 2;
+inline constexpr int32_t fusion_mask = horizontal_position_bit | height_bit | velocity_bit;
+inline constexpr int32_t quality_mask = (1 << 10) - 1;
+inline constexpr std::uint8_t selected_stream_id = 1; // vehicle_gps_position, not a hardware ID.
+
+inline bool decode_controls(int32_t fusion, int32_t checks, runtime::GnssControls & output)
+{
+    if (fusion < 0 || (fusion & ~fusion_mask) != 0 || checks < 0 || (checks & ~quality_mask) != 0)
+    {
+        return false;
+    }
+    output = {{(fusion & horizontal_position_bit) != 0, (fusion & height_bit) != 0, (fusion & velocity_bit) != 0},
+              {(checks & (1 << 0)) != 0, (checks & (1 << 1)) != 0, (checks & (1 << 2)) != 0, (checks & (1 << 3)) != 0,
+               (checks & (1 << 4)) != 0, (checks & (1 << 5)) != 0, (checks & (1 << 6)) != 0, (checks & (1 << 7)) != 0,
+               (checks & (1 << 8)) != 0, (checks & (1 << 9)) != 0}};
+    return true;
+}
+
+inline int32_t encode_checks(runtime::GnssQualityChecks const & checks)
+{
+    return (int32_t(checks.satellites) << 0) | (int32_t(checks.pdop) << 1) |
+           (int32_t(checks.horizontal_accuracy) << 2) | (int32_t(checks.vertical_accuracy) << 3) |
+           (int32_t(checks.speed_accuracy) << 4) | (int32_t(checks.horizontal_drift) << 5) |
+           (int32_t(checks.vertical_drift) << 6) | (int32_t(checks.horizontal_speed) << 7) |
+           (int32_t(checks.vertical_speed) << 8) | (int32_t(checks.spoofed) << 9);
+}
+
+inline constexpr runtime::GnssFusionSelection fusion{ESKF_CFG_GNSS_POSITION, ESKF_CFG_GNSS_HEIGHT,
+                                                     ESKF_CFG_GNSS_VELOCITY};
+
 inline constexpr runtime::GnssQualityParameters<double> quality{
     .enabled_checks = {.satellites = ESKF_CFG_GNSS_CHECK_SATELLITES,
                        .pdop = ESKF_CFG_GNSS_CHECK_PDOP,
@@ -350,6 +383,7 @@ template <typename Session> typename Session::Parameters session_parameters(std:
     result.height = height_parameters<typename Session::height_type>();
     result.height.zero_velocity_on_barometer_reset = false;
     result.gnss_quality = gnss::quality;
+    result.gnss_fusion = gnss::fusion;
     result.magnetic_lookup_interval_us = magnetic::model_interval_us;
     result.settings.projection_radius_m = 6371000.;
     result.settings.bias_limits = bias_limits<double>();

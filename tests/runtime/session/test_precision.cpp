@@ -256,6 +256,12 @@ template <typename Scalar> void session(Context & test, std::string_view profile
             saw_rejection = saw_rejection || s.gnss_state().quality_result.status == Status::out_of_range;
         }
         test.expect(saw_rejection && !s.fault(), profile, "real delayed quality path reports conversion rejection");
+        test.expect(s.body_output().msl_available && std::abs(s.body_output().altitude_msl_m - 488) < 0.002, profile,
+                    "repeated invalid heights cannot poison the held datum or published altitude");
+        test.expect(fixture.session.configure_gnss({{false, false, false}, {}}) && fixture.run(100) && !s.fault(),
+                    profile, "all-off independent datum admission still rejects an unrepresentable local offset");
+        test.expect(s.body_output().msl_available && std::abs(s.body_output().altitude_msl_m - 488) < 0.002, profile,
+                    "disabled quality participation does not bypass datum numerical admission");
         fixture.input.gnss.altitude_msl_m = 488;
     }
 

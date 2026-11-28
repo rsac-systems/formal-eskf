@@ -28,12 +28,18 @@ public:
 
     struct Source
     {
-        std::uint32_t device_id{};        // Zero is an explicit unavailable-source indication.
+        std::uint32_t device_id{};        // Physical provenance; zero is valid for a declared logical stream.
         std::uint8_t calibration_count{}; // GNSS uses zero.
+        std::uint8_t logical_stream_id{}; // Zero: raw receiver; nonzero: selected/blended GNSS stream.
+
+        bool available() const { return device_id != 0 || logical_stream_id != 0; }
 
         bool matches(Source const & other) const
         {
-            return device_id == other.device_id && calibration_count == other.calibration_count;
+            bool const same_stream = logical_stream_id != 0 || other.logical_stream_id != 0
+                                         ? logical_stream_id == other.logical_stream_id
+                                         : device_id == other.device_id;
+            return same_stream && calibration_count == other.calibration_count;
         }
     };
 
@@ -467,7 +473,7 @@ ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, Co
     timeline.generation += result.source_changed;
     timeline.source = stamp.source;
     timeline.sample_time_us = stamp.time_us;
-    if (stamp.source.device_id == 0)
+    if (!stamp.source.available())
     {
         result.decision = Admission::invalid_source;
     }
@@ -540,7 +546,8 @@ ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, Co
     std::uint64_t time{};
     auto const delay = m_configuration.magnetic_delay_us;
     auto result = admit(m_magnetic_time, sample.stamp, now_us,
-                        {delay, m_timing.imu.magnetic_arrival_age_us, m_timing.magnetic_spacing_us}, time);
+                        {delay, m_timing.imu.magnetic_arrival_age_us, m_timing.magnetic_spacing_us}, time,
+                        sample.stamp.source.logical_stream_id == 0 ? Status::success : Status::domain_error);
     if (result.source_changed)
     {
         result.source_discarded = m_magnetic.entries();
@@ -562,6 +569,10 @@ ObservationHistory<Linalg, GnssCapacity, MagneticCapacity, BarometerCapacity, Co
 {
     std::uint64_t time{};
     auto const delay = m_configuration.barometer_delay_us;
+    if (sample.stamp.source.logical_stream_id != 0)
+    {
+        input_status = Status::domain_error;
+    }
     if (!std::isfinite(sample.altitude_m))
     {
         input_status = Status::non_finite_input;

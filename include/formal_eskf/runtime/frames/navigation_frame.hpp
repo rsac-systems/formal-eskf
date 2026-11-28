@@ -32,7 +32,7 @@ public:
 
     [[nodiscard]] Status initialize(geodesy::GeodeticPosition const & origin)
     {
-        if (initialized())
+        if (axes_known())
         {
             return Status::domain_error;
         }
@@ -66,13 +66,34 @@ public:
         return status;
     }
 
+    /** Retain directions only. This does not establish a position origin. */
+    [[nodiscard]] Status initialize_axes(geodesy::GeodeticPosition const & point)
+    {
+        return axes_known() ? Status::domain_error : m_reference.set_origin(point);
+    }
+
+    bool axes_known() const { return m_reference.initialized(); }
+
+    [[nodiscard]] Status directions_to(frame_type const & destination, linalg::Matrix<Linalg, 3, 3> & rotation,
+                                       GeographicPrecision const & precision = {}) const
+    {
+        typename frame_type::matrix_type from, to;
+        auto status = (initialized() ? m_working : m_reference).rotation_from_ecef(from);
+        if (succeeded(status))
+        {
+            status = destination.rotation_from_ecef(to);
+        }
+        return succeeded(status) ? convert_matrix(to * linalg::transpose(from), precision.rotation, rotation) : status;
+    }
+
     /** First geographic origin of an already North-referenced local state.
      * No old ECEF frame is invented. The caller owns real measurement resets
-     * and prepares the matching histories before committing this translation.
+     * and prepares matching histories before committing the full basis/anchor transport.
      */
     [[nodiscard]] Status prepare_attachment(geodesy::GeodeticPosition const & origin, state_type const & state,
                                             covariance_type const & covariance, vector_type const & local_anchor,
-                                            typename Linalg::value_type minimum_norm)
+                                            typename Linalg::value_type minimum_norm,
+                                            GeographicPrecision const & precision = {})
     {
         m_prepared = false;
         if (initialized())
@@ -85,11 +106,32 @@ public:
             return status;
         }
         m_candidate.transform = {};
-        m_candidate.transform.translation = -local_anchor;
         m_candidate.rotation = {};
+        if (axes_known())
+        {
+            status = directions_to(m_candidate.frame, m_candidate.transform.rotation, precision);
+            if (succeeded(status))
+            {
+                status = frame_rotation(m_candidate.transform.rotation, m_candidate.rotation);
+            }
+            if (!succeeded(status))
+            {
+                return status;
+            }
+        }
+        m_candidate.transform.translation = -(m_candidate.transform.rotation * local_anchor);
         status = rebase_origin(state, covariance, m_candidate.transform, minimum_norm, m_candidate.state,
                                m_candidate.covariance);
         m_next_reference = {};
+        if (succeeded(status) && axes_known())
+        {
+            geodesy::NedTransform<geographic_backend_type> geographic;
+            status = m_candidate.frame.transform_to(m_reference, geographic);
+            if (succeeded(status))
+            {
+                status = convert_transform(geographic, precision, m_next_reference);
+            }
+        }
         m_prepared = succeeded(status);
         return status;
     }
@@ -107,7 +149,10 @@ public:
         {
             // Like initialize(), attachment creates generation zero. Only a
             // subsequent working-origin change advances the rebase counter.
-            m_reference = m_candidate.frame;
+            if (!axes_known())
+            {
+                m_reference = m_candidate.frame;
+            }
         }
         else
         {

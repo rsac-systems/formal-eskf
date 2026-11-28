@@ -275,6 +275,21 @@ endmenu
 
 menu "GNSS fusion"
 
+config PX4_GNSS_POSITION
+    bool "Horizontal position fusion default"
+    default y
+    help
+      Sets the FESKF_GPS_CTRL startup default; live parameter changes take precedence.
+
+config PX4_GNSS_HEIGHT
+    bool "GNSS height fusion default"
+    default y
+
+config PX4_GNSS_VELOCITY
+    bool "3D velocity fusion default"
+    default y
+
+
 config PX4_GNSS_TIMEOUT_MS
     int "Horizontal aiding timeout (ms)"
     range 1 2147483647

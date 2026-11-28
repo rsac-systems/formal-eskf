@@ -1,7 +1,8 @@
 # GNSS Control Profile
 
-**Status:** Draft. Target settings for [R-GNSS-CONTROL](../requirements/runtime/gnss/control.md);
-not an implemented or deployment-qualified profile.
+**Status:** Draft. Settings for [R-GNSS-CONTROL](../requirements/runtime/gnss/control.md).
+Implemented in the binary64/direct runtime and PX4 software binding; this does
+not establish physical or hardware deployment qualification.
 
 ## Selectors
 

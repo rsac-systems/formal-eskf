@@ -1,7 +1,6 @@
 # GNSS Control and Reference Composition
 
-**Status:** Draft. T-03 specification baseline; implementation and acceptance are
-pending under [R-GNSS-CONTROL](../requirements/runtime/gnss/control.md).
+**Status:** Draft. T-03 software composition under [R-GNSS-CONTROL](../requirements/runtime/gnss/control.md).
 
 ## Responsibility allocation
 
@@ -97,13 +96,13 @@ Reference: PX4 v1.16.2, `54f0455ffcd755534539a7cf33a09a20bf71d29d`.
 | [Parameter refresh and datum conversion](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/ekf2/EKF2.cpp) are separate from delayed GNSS control. | Permit only fusion/check masks live; retain our stricter datum and timestamp contract. Do not claim general EKF2 parameter compatibility. |
 | [Upstream GNSS selection](https://github.com/PX4/PX4-Autopilot/blob/54f0455ffcd755534539a7cf33a09a20bf71d29d/src/modules/sensors/vehicle_gps_position/VehicleGPSPosition.cpp) publishes one stream; a blend carries physical device ID zero. EKF2's GNSS sample has no receiver ID. | Keep physical provenance separate from logical stream generation; do not force fresh qualification solely on a receiver switch. |
 
-The current session requires a working geographic frame for both horizontal
-position and velocity, forwards physical GNSS identity into history, and lacks
-these independent live controls. These are implementation gaps. Existing timing,
+The session separates known axes from an attached geographic origin and applies
+validated live controls between completed events. The PX4 binding retains physical
+provenance inside its declared logical stream. Existing timing,
 finite-input, failure-atomicity and numerical-model differences remain explicit;
 this target does not establish complete EKF2 equivalence.
 
-## Implementation and acceptance order
+## Implementation ownership and acceptance
 
 1. Introduce validated effective controls and their bounded owner-boundary update;
    qualify quality-mask continuity and disabled-group lifecycle behavior.
@@ -111,8 +110,8 @@ this target does not establish complete EKF2 equivalence.
    and height-reference-only initialization with coherent reset/history effects.
 3. Bind the PX4 logical stream and live selectors, retaining immutable deployment
    settings and the existing time/provenance contract.
-4. Complete the [allocated tests](../verification/gnss-control-tests.md) across
+4. Complete the [allocated tests](../verification/tests/runtime/gnss-controls.md) across
    runtime and actual adapter/publication paths before advertising support.
 
-Each step requires affected regression and self-review. Existing component proofs
+Each owner is covered by the linked acceptance allocation. Existing component proofs
 retain their original premises; changed caller paths require later proof allocation.

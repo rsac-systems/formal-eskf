@@ -119,7 +119,11 @@ remains a separate PX4 producer in either build.
 `make px4-install` uses `.config` (override with `CONFIG_FILE=...`), generates the
 module's `DeploymentConfig.hpp`, and records both in the package manifest. It
 does not edit the default source header. Rebuild and restart to apply changes;
-replay keeps its own profile. Existing `FESKF_*` parameters remain startup-only;
+replay keeps its own profile. `FESKF_GPS_CTRL` (position/height/velocity, default 7)
+and `FESKF_GPS_CHECK` (ten optional quality checks, default 1023) apply live at the
+next completed owner boundary. Kconfig supplies their defaults; saved/live values
+take precedence. Unsupported bit requests retain the effective pair, visible with
+`formal_eskf status`. Other `FESKF_*` parameters remain startup-only;
 `FESKF_GRAV_EN` cannot enable gravity support excluded by the build.
 
 To export this selected profile, use `make px4-export PACKAGE_DIR=output/px4-package`.

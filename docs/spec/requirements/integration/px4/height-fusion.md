@@ -64,7 +64,8 @@ changes without setting GNSS height active or manufacturing fusion progress.
 Bind the logical GNSS stream independently of physical receiver provenance;
 retain barometer generation and ordinary height-source fault rules. This target
 qualifies the all-enabled GNSS-preferred baseline above; its
-[composition tests](../../../verification/gnss-control-tests.md) remain Pending.
+[composition tests](../../../verification/tests/runtime/gnss-controls.md) exercise
+the runtime and actual adapter binding; new caller proofs remain separate.
 
 ### Optional barometric target binding
 

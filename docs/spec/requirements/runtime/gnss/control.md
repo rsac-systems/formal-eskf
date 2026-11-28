@@ -4,8 +4,9 @@
 
 **Status:** Draft
 
-**Applies to:** Target portable INS session composition and its PX4 binding.
-Implementation and composition evidence remain pending.
+**Applies to:** Portable INS session composition and its PX4 binding.
+Native composition evidence is scoped by the acceptance allocation; new formal
+caller proofs and physical/target qualification remain separate.
 
 **Parent:** [SW-GNSS](../../software/gnss-aiding.md).
 
@@ -144,7 +145,7 @@ remain distinct. Numerical/history faults retain their existing fault policy.
 
 ## Acceptance and verification
 
-The [Pending case allocation](../../../verification/gnss-control-tests.md) covers
+The [Case allocation](../../../verification/tests/runtime/gnss-controls.md) covers
 all eight group selections, quality-mask boundaries, startup, reference-only height,
 live controls, source continuity and actual adapter binding. Inspect real calls,
 state/P, histories, clocks, reset metadata and capabilities, not only mask parsing.

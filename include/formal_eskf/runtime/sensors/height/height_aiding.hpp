@@ -147,7 +147,15 @@ public:
         invalid_sample,
         quality,
         source_changed,
-        fusion_timeout
+        fusion_timeout,
+        disabled
+    };
+
+    enum class GnssMode
+    {
+        fusion,
+        reference_only,
+        disabled
     };
 
     struct Sample
@@ -159,6 +167,7 @@ public:
         value_type variance{};
         bool qualified = true;
         std::uint64_t generation{}; // Adapter identity generation; detects switch-away/back before delayed selection.
+        std::uint8_t logical_stream_id{}; // Physical receiver changes within a declared stream retain continuity.
     };
 
     struct Acceleration
@@ -177,6 +186,7 @@ public:
         std::uint32_t device_id{};
         std::uint8_t calibration_count{};
         std::uint64_t generation{};
+        std::uint8_t logical_stream_id{};
         bool active = false;
         bool fusion_reset = false; // Raw diagnostics remain visible, but cannot drive health after a reset.
         bool fault = false;        // Barometer rejection latch; source/calibration change clears it.
@@ -266,7 +276,8 @@ public:
                                 state_type & state, covariance_type & covariance,
                                 configuration::Ins::BiasUpdate const & bias_update = {},
                                 Acceleration const & acceleration = {false, {0U, 0U}}, bool ground_effect = false,
-                                Geometry const * geometry = nullptr, bool numerical_reset_required = false);
+                                Geometry const * geometry = nullptr, bool numerical_reset_required = false,
+                                GnssMode gnss_mode = GnssMode::fusion);
 
     /** Inspect one sensor session; source must be barometer or gnss. */
     Session const & session(Source source) const { return m_sessions[index(source)]; }
@@ -391,6 +402,7 @@ private:
     void reset_height(Source source, std::uint64_t now_us, altitude_type altitude, value_type variance,
                       state_type & state, covariance_type & covariance, Result & result, Geometry const * geometry);
 
+    bool m_gnss_reference_initialized{};
     Parameters m_parameters{};
     std::array<Session, 2U> m_sessions{};
     Source m_reference = Source::none;
@@ -641,19 +653,23 @@ bool HeightAiding<Linalg, Geography>::admit(Source source, std::uint64_t now_us,
         return false;
     }
 
-    if (sample.device_id == 0U || !valid_altitude(sample.altitude) || !std::isfinite(sample.variance) ||
-        sample.variance <= value_type{0})
+    if ((sample.device_id == 0U && sample.logical_stream_id == 0U) ||
+        (source == Source::barometer && sample.logical_stream_id != 0U) || !valid_altitude(sample.altitude) ||
+        !std::isfinite(sample.variance) || sample.variance <= value_type{0})
     {
         stop(source, StopReason::invalid_sample);
         ++result.rejected;
         return false;
     }
 
-    if (aid.device_id != sample.device_id || aid.calibration_count != sample.calibration_count ||
-        aid.generation != sample.generation)
+    bool const source_changed = sample.logical_stream_id != 0 || aid.logical_stream_id != 0
+                                    ? sample.logical_stream_id != aid.logical_stream_id
+                                    : aid.device_id != sample.device_id;
+    if (source_changed || aid.calibration_count != sample.calibration_count || aid.generation != sample.generation)
     {
         stop(source, StopReason::source_changed);
         aid.generation = sample.generation;
+        aid.logical_stream_id = sample.logical_stream_id;
         aid.device_id = sample.device_id;
         aid.calibration_count = sample.calibration_count;
         aid.bias = HeightBias<value_type>{m_parameters.bias};
@@ -664,6 +680,8 @@ bool HeightAiding<Linalg, Geography>::admit(Source source, std::uint64_t now_us,
             m_barometer_samples = 0U;
         }
     }
+
+    aid.device_id = sample.device_id;
 
     if (!sample.qualified)
     {
@@ -861,6 +879,7 @@ void HeightAiding<Linalg, Geography>::process(Source source, std::uint64_t now_u
             }
 
             aid.bias = HeightBias<value_type>{m_parameters.bias};
+            m_gnss_reference_initialized = true;
             m_reference = source;
         }
         else
@@ -952,7 +971,7 @@ typename HeightAiding<Linalg, Geography>::Result HeightAiding<Linalg, Geography>
     std::uint64_t now_us, Sample const & barometer, Sample const & gnss, ObservationReceipt const & barometer_receipt,
     bool vertical_velocity_aiding, state_type & state, covariance_type & covariance,
     configuration::Ins::BiasUpdate const & bias_update, Acceleration const & acceleration, bool ground_effect,
-    Geometry const * geometry, bool numerical_reset_required)
+    Geometry const * geometry, bool numerical_reset_required, GnssMode gnss_mode)
 {
     Result result;
     if (m_started == 0U || now_us < m_started || now_us <= m_tick)
@@ -1009,6 +1028,40 @@ typename HeightAiding<Linalg, Geography>::Result HeightAiding<Linalg, Geography>
                 candidate.stop(source, StopReason::source_changed);
                 continue;
             }
+        }
+
+        if (source == Source::gnss && gnss_mode != GnssMode::fusion)
+        {
+            candidate.stop(source, StopReason::disabled);
+            if (gnss_mode == GnssMode::reference_only && !candidate.m_gnss_reference_initialized &&
+                candidate.admit(source, now_us, gnss, false, result))
+            {
+                if (candidate.m_last_height_progress == 0)
+                {
+                    candidate.reset_height(source, now_us, gnss.altitude, gnss.variance, next_state, next_covariance,
+                                           result, geometry);
+                    aid.bias = HeightBias<value_type>{m_parameters.bias};
+                }
+                else
+                {
+                    // A known local height is preserved by reference creation.
+                    prediction_type prediction;
+                    result.status = candidate.height_prediction(next_state, geometry, prediction);
+                    if (succeeded(result.status))
+                    {
+                        result.status = candidate.local_height(gnss.altitude - prediction.altitude, aid.bias.value);
+                    }
+                }
+                if (!succeeded(result.status))
+                {
+                    Result failure;
+                    failure.status = result.status;
+                    failure.evidence = result.evidence;
+                    return failure;
+                }
+                candidate.m_gnss_reference_initialized = true;
+            }
+            continue;
         }
 
         if (aid.active && candidate.m_reference != source)
